@@ -111,6 +111,13 @@ class SupportController extends Controller
         }
         $threadValue = $thread instanceof SupportThread ? $thread->getKey() : $thread;
         $thread = SupportThread::resolveThread($threadValue);
+        if (!$thread && $workspace) {
+            $thread = SupportThread::where('workspace_id', $workspace->id)
+                ->where(function ($query) use ($threadValue) {
+                    $query->where('slug', $threadValue)->orWhere('id', $threadValue);
+                })
+                ->first();
+        }
 
         if (!$thread) {
             \Log::warning('Support thread not found', [

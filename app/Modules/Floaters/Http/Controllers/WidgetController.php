@@ -22,6 +22,10 @@ class WidgetController extends Controller
             ->orderByDesc('created_at')
             ->get()
             ->map(function (FloaterWidget $widget) {
+                if (!$widget->slug || trim((string) $widget->slug) === '') {
+                    $widget->slug = FloaterWidget::generateSlug($widget);
+                    $widget->saveQuietly();
+                }
                 return [
                     'id' => $widget->id,
                     'slug' => $widget->slug,

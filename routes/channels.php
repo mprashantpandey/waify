@@ -101,6 +101,13 @@ Broadcast::channel('workspace.{workspaceId}.support.thread.{threadId}', function
         return false;
     }
 
+    if ($user->isPlatformAdmin()) {
+        return [
+            'id' => $user->id,
+            'name' => $user->name,
+        ];
+    }
+
     $workspace = \App\Models\Workspace::find($workspaceId);
     if (!$workspace) {
         \Log::warning('Support channel auth denied: workspace missing', [

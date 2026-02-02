@@ -17,4 +17,25 @@ export default defineConfig({
             '@': path.resolve(__dirname, 'resources/js'),
         },
     },
+    build: {
+        chunkSizeWarningLimit: 800,
+        rollupOptions: {
+            output: {
+                manualChunks(id) {
+                    if (!id.includes('node_modules')) return;
+                    const reactPkgs = [
+                        '/node_modules/react/',
+                        '/node_modules/react-dom/',
+                        '/node_modules/scheduler/',
+                        '/node_modules/react-is/',
+                        '/node_modules/use-sync-external-store/',
+                    ];
+                    if (reactPkgs.some((pkg) => id.includes(pkg))) {
+                        return 'react';
+                    }
+                    return 'vendor';
+                },
+            },
+        },
+    },
 });
