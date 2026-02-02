@@ -2,7 +2,9 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 return new class extends Migration
 {
@@ -17,15 +19,24 @@ return new class extends Migration
         });
 
         // Generate slugs for existing campaigns based on name
-        \DB::statement('
-            UPDATE campaigns 
-            SET slug = CONCAT(
-                LOWER(REPLACE(REPLACE(COALESCE(name, "campaign"), " ", "-"), "_", "-")), 
-                "-",
-                id
-            )
-            WHERE slug IS NULL
-        ');
+        DB::table('campaigns')
+            ->whereNull('slug')
+            ->select('id', 'name', 'slug')
+            ->orderBy('id')
+            ->chunkById(200, function ($rows) {
+                foreach ($rows as $row) {
+                    if (!empty($row->slug)) {
+                        continue;
+                    }
+                    $base = Str::slug($row->name ?? 'campaign');
+                    if ($base === '') {
+                        $base = 'campaign';
+                    }
+                    DB::table('campaigns')
+                        ->where('id', $row->id)
+                        ->update(['slug' => $base.'-'.$row->id]);
+                }
+            });
         
         // Make slug unique and non-nullable after populating
         Schema::table('campaigns', function (Blueprint $table) {
@@ -39,7 +50,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('campaigns', function (Blueprint $table) {
-            $table->dropIndex(['slug']);
+            $table->dropUnique(['slug']);
             $table->dropColumn('slug');
         });
     }

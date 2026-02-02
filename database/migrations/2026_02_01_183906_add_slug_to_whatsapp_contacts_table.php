@@ -2,7 +2,9 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 return new class extends Migration
 {
@@ -17,15 +19,25 @@ return new class extends Migration
         });
 
         // Generate slugs for existing contacts based on wa_id or name
-        \DB::statement('
-            UPDATE whatsapp_contacts 
-            SET slug = CONCAT(
-                LOWER(REPLACE(COALESCE(wa_id, name, "contact"), " ", "-")), 
-                "-",
-                id
-            )
-            WHERE slug IS NULL
-        ');
+        DB::table('whatsapp_contacts')
+            ->whereNull('slug')
+            ->select('id', 'wa_id', 'name', 'slug')
+            ->orderBy('id')
+            ->chunkById(200, function ($rows) {
+                foreach ($rows as $row) {
+                    if (!empty($row->slug)) {
+                        continue;
+                    }
+                    $baseValue = $row->wa_id ?? $row->name ?? 'contact';
+                    $base = Str::slug($baseValue);
+                    if ($base === '') {
+                        $base = 'contact';
+                    }
+                    DB::table('whatsapp_contacts')
+                        ->where('id', $row->id)
+                        ->update(['slug' => $base.'-'.$row->id]);
+                }
+            });
         
         // Make slug unique and non-nullable after populating
         Schema::table('whatsapp_contacts', function (Blueprint $table) {
@@ -39,7 +51,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('whatsapp_contacts', function (Blueprint $table) {
-            $table->dropIndex(['slug']);
+            $table->dropUnique(['slug']);
             $table->dropColumn('slug');
         });
     }
