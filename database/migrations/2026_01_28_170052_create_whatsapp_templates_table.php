@@ -32,7 +32,10 @@ return new class extends Migration
             $table->boolean('is_archived')->default(false);
             $table->timestamps();
 
-            $table->unique(['workspace_id', 'whatsapp_connection_id', 'name', 'language']);
+            $table->unique(
+                ['workspace_id', 'whatsapp_connection_id', 'name', 'language'],
+                'wa_tpl_ws_conn_name_lang_uq'
+            );
             $table->index(['workspace_id', 'status']);
             $table->index(['workspace_id', 'category']);
         });
