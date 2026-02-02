@@ -22,9 +22,17 @@
         <script>
             (function () {
                 const appUrl = @json(config('app.url'));
+                if (!appUrl) {
+                    return;
+                }
                 try {
                     const target = new URL(appUrl);
                     const current = new URL(window.location.href);
+                    const localHosts = new Set(['localhost', '127.0.0.1', '::1']);
+                    // Avoid redirect loops and misconfigured APP_URL values (common on shared hosting).
+                    if (localHosts.has(target.hostname)) {
+                        return;
+                    }
                     if (target.origin !== current.origin) {
                         window.location.replace(target.origin + current.pathname + current.search + current.hash);
                     }
