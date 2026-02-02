@@ -29,7 +29,10 @@ return new class extends Migration
             $table->timestamps();
 
             $table->unique(['workspace_id', 'meta_message_id'], 'unique_meta_message_id');
-            $table->index(['workspace_id', 'whatsapp_conversation_id', 'created_at']);
+            $table->index(
+                ['workspace_id', 'whatsapp_conversation_id', 'created_at'],
+                'wm_ws_conv_created_idx'
+            );
         });
     }
 
