@@ -102,7 +102,7 @@ class DashboardController extends Controller
         // Recent Conversations
         $recentConversations = WhatsAppConversation::where('workspace_id', $workspace->id)
             ->with(['contact'])
-            ->orderBy('last_activity_at', 'desc')
+            ->orderBy('last_message_at', 'desc')
             ->limit(5)
             ->get()
             ->map(function ($conversation) {
@@ -111,7 +111,7 @@ class DashboardController extends Controller
                     'contact_name' => $conversation->contact?->name ?? $conversation->contact?->wa_id ?? 'Unknown',
                     'last_message' => $conversation->last_message_preview,
                     'status' => $conversation->status,
-                    'last_activity_at' => $conversation->last_activity_at?->toIso8601String(),
+                    'last_activity_at' => $conversation->last_message_at?->toIso8601String(),
                 ];
             });
 
