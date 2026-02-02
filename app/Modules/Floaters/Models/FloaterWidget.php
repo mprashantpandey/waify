@@ -1,0 +1,91 @@
+<?php
+
+namespace App\Modules\Floaters\Models;
+
+use App\Models\Workspace;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
+
+class FloaterWidget extends Model
+{
+    use HasFactory;
+
+    protected $table = 'floater_widgets';
+
+    protected $fillable = [
+        'workspace_id',
+        'whatsapp_connection_id',
+        'name',
+        'slug',
+        'public_id',
+        'is_active',
+        'theme',
+        'position',
+        'show_on',
+        'welcome_message',
+        'whatsapp_phone',
+    ];
+
+    protected $casts = [
+        'is_active' => 'boolean',
+        'theme' => 'array',
+        'show_on' => 'array',
+    ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (FloaterWidget $widget) {
+            if (!$widget->public_id) {
+                $widget->public_id = (string) Str::uuid();
+            }
+            if (!$widget->slug) {
+                $widget->slug = static::generateSlug($widget);
+            }
+        });
+
+        static::updating(function (FloaterWidget $widget) {
+            if ($widget->isDirty('name') && !$widget->isDirty('slug')) {
+                $widget->slug = static::generateSlug($widget);
+            }
+        });
+    }
+
+    public static function generateSlug(FloaterWidget $widget): string
+    {
+        $base = Str::slug($widget->name ?? 'widget');
+        if ($base === '') {
+            $base = 'widget';
+        }
+        $slug = $base;
+        $original = $slug;
+        $counter = 1;
+
+        while (static::where('workspace_id', $widget->workspace_id ?? 0)
+            ->where('slug', $slug)
+            ->where('id', '!=', $widget->id ?? 0)
+            ->exists()) {
+            $slug = $original.'-'.$counter;
+            $counter++;
+        }
+
+        return $slug;
+    }
+
+    public function workspace(): BelongsTo
+    {
+        return $this->belongsTo(Workspace::class);
+    }
+
+    public function events(): HasMany
+    {
+        return $this->hasMany(FloaterWidgetEvent::class, 'floater_widget_id');
+    }
+
+    public function getRouteKeyName(): string
+    {
+        return 'slug';
+    }
+}

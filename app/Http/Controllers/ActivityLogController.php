@@ -1,0 +1,81 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Workspace;
+use App\Modules\WhatsApp\Models\WhatsAppMessage;
+use App\Modules\WhatsApp\Models\WhatsAppConnection;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class ActivityLogController extends Controller
+{
+    /**
+     * Display workspace activity logs.
+     */
+    public function index(Request $request): Response
+    {
+        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+
+        // Aggregate activity from various sources
+        $logs = collect();
+
+        // Recent messages
+        $recentMessages = WhatsAppMessage::where('workspace_id', $workspace->id)
+            ->orderBy('created_at', 'desc')
+            ->limit(50)
+            ->get()
+            ->map(function ($message) {
+                return [
+                    'id' => 'message_' . $message->id,
+                    'type' => 'message',
+                    'description' => ucfirst($message->direction) . ' message ' . ($message->status ?? 'sent'),
+                    'metadata' => [
+                        'message_id' => $message->id,
+                        'direction' => $message->direction,
+                        'status' => $message->status,
+                        'type' => $message->type,
+                    ],
+                    'created_at' => $message->created_at->toIso8601String(),
+                ];
+            });
+
+        // Connection events
+        $connectionEvents = WhatsAppConnection::where('workspace_id', $workspace->id)
+            ->where(function ($query) {
+                $query->whereNotNull('webhook_last_received_at')
+                    ->orWhereNotNull('webhook_last_error');
+            })
+            ->orderBy('updated_at', 'desc')
+            ->limit(20)
+            ->get()
+            ->map(function ($connection) {
+                return [
+                    'id' => 'connection_' . $connection->id,
+                    'type' => $connection->webhook_last_error ? 'connection_error' : 'connection_success',
+                    'description' => $connection->webhook_last_error 
+                        ? "Connection error: {$connection->name}"
+                        : "Webhook received: {$connection->name}",
+                    'metadata' => [
+                        'connection_id' => $connection->id,
+                        'connection_name' => $connection->name,
+                        'error' => $connection->webhook_last_error,
+                    ],
+                    'created_at' => ($connection->webhook_last_received_at ?? $connection->updated_at)->toIso8601String(),
+                ];
+            });
+
+        $logs = $logs->merge($recentMessages)->merge($connectionEvents)
+            ->sortByDesc('created_at')
+            ->values()
+            ->take(100);
+
+        return Inertia::render('App/ActivityLogs/Index', [
+            'workspace' => $workspace,
+            'logs' => $logs,
+        ]);
+    }
+}
+

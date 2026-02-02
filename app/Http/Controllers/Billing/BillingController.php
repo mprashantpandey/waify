@@ -1,0 +1,533 @@
+<?php
+
+namespace App\Http\Controllers\Billing;
+
+use App\Http\Controllers\Controller;
+use App\Core\Billing\PlanResolver;
+use App\Core\Billing\SubscriptionService;
+use App\Core\Billing\UsageService;
+use App\Core\Billing\BillingProviderManager;
+use App\Models\PaymentOrder;
+use App\Models\Plan;
+use App\Models\Workspace;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
+
+class BillingController extends Controller
+{
+    public function __construct(
+        protected PlanResolver $planResolver,
+        protected SubscriptionService $subscriptionService,
+        protected UsageService $usageService,
+        protected BillingProviderManager $providerManager
+    ) {}
+
+    /**
+     * Display billing overview.
+     */
+    public function index(Request $request): Response
+    {
+        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $subscription = $workspace->subscription;
+        $plan = $this->planResolver->getWorkspacePlan($workspace);
+        $limits = $this->planResolver->getEffectiveLimits($workspace);
+        $usage = $this->usageService->getCurrentUsage($workspace);
+
+        // Get current counts
+        $currentConnectionsCount = \App\Modules\WhatsApp\Models\WhatsAppConnection::where('workspace_id', $workspace->id)
+            ->where('is_active', true)
+            ->count();
+
+        $currentAgentsCount = $workspace->users()->count();
+
+        return Inertia::render('Billing/Index', [
+            'workspace' => $workspace,
+            'subscription' => $subscription ? [
+                'id' => $subscription->id,
+                'status' => $subscription->status,
+                'trial_ends_at' => $subscription->trial_ends_at?->toIso8601String(),
+                'current_period_end' => $subscription->current_period_end?->toIso8601String(),
+                'cancel_at_period_end' => $subscription->cancel_at_period_end,
+                'canceled_at' => $subscription->canceled_at?->toIso8601String(),
+                'last_error' => $subscription->last_error,
+            ] : null,
+            'plan' => $plan ? [
+                'id' => $plan->id,
+                'key' => $plan->key,
+                'name' => $plan->name,
+                'description' => $plan->description,
+                'price_monthly' => $plan->price_monthly,
+                'price_yearly' => $plan->price_yearly,
+                'currency' => $plan->currency,
+                'limits' => $limits,
+                'modules' => $this->planResolver->getEffectiveModules($workspace),
+            ] : null,
+            'usage' => [
+                'messages_sent' => $usage->messages_sent,
+                'template_sends' => $usage->template_sends,
+                'ai_credits_used' => $usage->ai_credits_used,
+            ],
+            'current_connections_count' => $currentConnectionsCount,
+            'current_agents_count' => $currentAgentsCount,
+        ]);
+    }
+
+    /**
+     * Display available plans.
+     */
+    public function plans(Request $request): Response
+    {
+        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $currentPlan = $this->planResolver->getWorkspacePlan($workspace);
+        $currentUsage = $this->usageService->getCurrentUsage($workspace);
+        $currentLimits = $this->planResolver->getEffectiveLimits($workspace);
+
+        $plans = Plan::where('is_public', true)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->get()
+            ->map(function ($plan) use ($currentPlan, $currentUsage, $currentLimits) {
+                $planLimits = $plan->limits ?? [];
+                $warnings = [];
+
+                // Check if downgrade would exceed limits
+                if ($currentPlan && $currentPlan->id !== $plan->id) {
+                    foreach ($planLimits as $key => $limit) {
+                        if ($limit !== -1 && isset($currentLimits[$key])) {
+                            $currentLimit = $currentLimits[$key];
+                            if ($currentLimit === -1 || $limit < $currentLimit) {
+                                $currentValue = match ($key) {
+                                    'messages_monthly' => $currentUsage->messages_sent,
+                                    'template_sends_monthly' => $currentUsage->template_sends,
+                                    default => 0,
+                                };
+                                if ($currentValue > $limit) {
+                                    $warnings[] = "Your current {$key} usage ({$currentValue}) exceeds the {$plan->name} plan limit ({$limit}).";
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return [
+                    'id' => $plan->id,
+                    'key' => $plan->key,
+                    'name' => $plan->name,
+                    'description' => $plan->description,
+                    'price_monthly' => $plan->price_monthly,
+                    'price_yearly' => $plan->price_yearly,
+                    'currency' => $plan->currency,
+                    'trial_days' => $plan->trial_days,
+                    'limits' => $planLimits,
+                    'modules' => $plan->modules ?? [],
+                    'is_current' => $currentPlan && $currentPlan->id === $plan->id,
+                    'warnings' => $warnings,
+                ];
+            });
+
+        $currentModules = $this->planResolver->getEffectiveModules($workspace);
+        
+        // Check if Razorpay is enabled
+        $razorpayProvider = $this->providerManager->get('razorpay');
+        $razorpayEnabled = $razorpayProvider?->isEnabled() ?? false;
+        $razorpayKeyId = method_exists($razorpayProvider, 'getKeyId') ? $razorpayProvider->getKeyId() : null;
+        if (is_string($razorpayKeyId)) {
+            $razorpayKeyId = trim($razorpayKeyId);
+        }
+
+        return Inertia::render('Billing/Plans', [
+            'workspace' => $workspace,
+            'plans' => $plans,
+            'current_plan_key' => $currentPlan?->key,
+            'current_modules' => $currentModules,
+            'razorpay_enabled' => $razorpayEnabled,
+            'razorpay_key_id' => $razorpayKeyId,
+        ]);
+    }
+
+    /**
+     * Switch workspace plan.
+     */
+    public function switchPlan(Request $request, $plan)
+    {
+        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        
+        // Plan is now resolved via route model binding (by key or ID)
+        if (!$plan instanceof Plan) {
+            $plan = $this->resolvePlan($plan);
+        }
+
+        // Only workspace owner can change plan
+        if ($workspace->owner_id !== $request->user()->id) {
+            abort(403, 'Only workspace owner can change plan.');
+        }
+
+        // For paid plans, require Razorpay checkout (redirect to create order)
+        if (($plan->price_monthly ?? 0) > 0) {
+            $razorpayProvider = $this->providerManager->get('razorpay');
+            if (!$razorpayProvider || !$razorpayProvider->isEnabled()) {
+                // Return error for Inertia requests
+                return back()->withErrors([
+                    'plan' => 'Payment gateway is not configured. Please contact support to enable payments for paid plans.'
+                ])->with('error', 'Payment gateway is not configured. Please contact support.');
+            }
+            // For paid plans, user should use createRazorpayOrder endpoint
+            // This endpoint is only for free plans
+            return back()->withErrors([
+                'plan' => 'Paid plans require payment checkout. Please use the checkout flow.'
+            ])->with('error', 'Paid plans require payment checkout. Please use the checkout flow.');
+        }
+
+        // For free plans, allow direct switching
+        try {
+            $this->subscriptionService->changePlan($workspace, $plan, $request->user(), null);
+            
+            \Log::info('Plan changed successfully', [
+                'workspace_id' => $workspace->id,
+                'plan_id' => $plan->id,
+                'plan_name' => $plan->name,
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Plan change failed', [
+                'workspace_id' => $workspace->id,
+                'plan_id' => $plan->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            
+            if ($request->header('X-Inertia')) {
+                return back()->withErrors([
+                    'plan' => 'Failed to change plan: ' . $e->getMessage()
+                ])->with('error', 'Failed to change plan: ' . $e->getMessage());
+            }
+            
+            return redirect()->back()->with('error', 'Failed to change plan: ' . $e->getMessage());
+        }
+
+        // Redirect back to plans page to show updated plan status
+        // Use Inertia redirect for proper handling
+        if ($request->header('X-Inertia')) {
+            return Inertia::location(route('app.billing.plans', ['workspace' => $workspace->slug]));
+        }
+        
+        return redirect()->route('app.billing.plans', ['workspace' => $workspace->slug])
+            ->with('success', 'Plan changed successfully.');
+    }
+
+    /**
+     * Create a Razorpay order for a plan.
+     */
+    public function createRazorpayOrder(Request $request, $plan = null)
+    {
+        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        
+        if (!$workspace) {
+            \Log::error('No workspace found in createRazorpayOrder');
+            abort(404, 'Workspace not found');
+        }
+        
+        // Get plan from route parameter (route model binding should have resolved it)
+        $planParam = $request->route('plan') ?? $plan;
+        
+        // Resolve plan (by key or ID)
+        if ($plan instanceof Plan) {
+            // Already resolved by route model binding
+        } elseif ($planParam) {
+            try {
+                $plan = $this->resolvePlan($planParam);
+            } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+                \Log::error('Plan not found in createRazorpayOrder', [
+                    'plan_param' => $planParam,
+                    'route_plan' => $request->route('plan'),
+                    'error' => $e->getMessage(),
+                ]);
+                abort(404, 'Plan not found');
+            }
+        } else {
+            \Log::error('Plan parameter not found in createRazorpayOrder', [
+                'route_plan' => $request->route('plan'),
+                'plan_param' => $plan,
+            ]);
+            abort(404, 'Plan not found');
+        }
+
+        if ($workspace->owner_id !== $request->user()->id) {
+            abort(403, 'Only workspace owner can purchase a plan.');
+        }
+
+        if (($plan->price_monthly ?? 0) <= 0) {
+            abort(422, 'Plan is not billable.');
+        }
+
+        if ($plan->currency !== 'INR') {
+            abort(422, 'Only INR plans are supported for Razorpay.');
+        }
+
+        $provider = $this->providerManager->get('razorpay');
+        if (!$provider || !$provider->isEnabled() || !method_exists($provider, 'createOrder')) {
+            \Log::error('Razorpay order creation failed - provider not available', [
+                'provider_exists' => $provider !== null,
+                'is_enabled' => $provider ? $provider->isEnabled() : false,
+                'has_createOrder' => $provider && method_exists($provider, 'createOrder'),
+            ]);
+            abort(422, 'Razorpay is not available. Please ensure Razorpay is enabled and configured in platform settings.');
+        }
+
+        try {
+            $orderData = $provider->createOrder($workspace, $plan, $request->user());
+        } catch (\Exception $e) {
+            \Log::error('Razorpay order creation failed', [
+                'workspace_id' => $workspace->id,
+                'plan_id' => $plan->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            abort(422, 'Failed to create payment order: ' . $e->getMessage());
+        }
+
+        $paymentOrder = PaymentOrder::create([
+            'workspace_id' => $workspace->id,
+            'plan_id' => $plan->id,
+            'provider' => 'razorpay',
+            'provider_order_id' => $orderData['id'],
+            'amount' => (int) ($orderData['amount'] ?? $plan->price_monthly),
+            'currency' => $orderData['currency'] ?? 'INR',
+            'status' => 'created',
+            'metadata' => [
+                'order' => $orderData,
+            ],
+            'created_by' => $request->user()->id,
+        ]);
+
+        // Get the order amount from the Razorpay response (in paise)
+        $orderAmount = (int) ($orderData['amount'] ?? $plan->price_monthly);
+
+        $keyId = method_exists($provider, 'getKeyId') ? $provider->getKeyId() : null;
+        if (is_string($keyId)) {
+            $keyId = trim($keyId);
+        }
+
+        return response()->json([
+            'order_id' => $paymentOrder->provider_order_id,
+            'amount' => $orderAmount,
+            'currency' => $paymentOrder->currency,
+            'key_id' => $keyId,
+            'plan' => [
+                'id' => $plan->id,
+                'name' => $plan->name,
+                'description' => $plan->description,
+            ],
+            'workspace' => [
+                'id' => $workspace->id,
+                'name' => $workspace->name,
+            ],
+        ]);
+    }
+
+    /**
+     * Confirm Razorpay payment and activate plan.
+     */
+    public function confirmRazorpayPayment(Request $request)
+    {
+        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+
+        if ($workspace->owner_id !== $request->user()->id) {
+            abort(403, 'Only workspace owner can confirm payment.');
+        }
+
+        $validated = $request->validate([
+            'order_id' => 'required|string',
+            'payment_id' => 'required|string',
+            'signature' => 'required|string',
+        ]);
+
+        $provider = $this->providerManager->get('razorpay');
+        if (!$provider || !$provider->isEnabled() || !method_exists($provider, 'getKeySecret')) {
+            abort(422, 'Razorpay is not available.');
+        }
+
+        $secret = $provider->getKeySecret();
+        $payload = $validated['order_id'] . '|' . $validated['payment_id'];
+        $expected = hash_hmac('sha256', $payload, $secret);
+
+        if (!hash_equals($expected, $validated['signature'])) {
+            abort(400, 'Invalid payment signature.');
+        }
+
+        $paymentOrder = PaymentOrder::where('provider', 'razorpay')
+            ->where('provider_order_id', $validated['order_id'])
+            ->first();
+
+        if (!$paymentOrder) {
+            abort(404, 'Payment order not found.');
+        }
+
+        if ($paymentOrder->workspace_id !== $workspace->id) {
+            abort(403, 'Payment does not belong to this workspace.');
+        }
+
+        if ($paymentOrder->status !== 'paid') {
+            $paymentOrder->update([
+                'status' => 'paid',
+                'provider_payment_id' => $validated['payment_id'],
+                'paid_at' => now(),
+            ]);
+        }
+
+        $plan = Plan::find($paymentOrder->plan_id);
+        if (!$plan) {
+            abort(404, 'Plan not found.');
+        }
+
+        $this->subscriptionService->changePlan(
+            $workspace,
+            $plan,
+            $request->user(),
+            'razorpay',
+            [
+                'payment_id' => $validated['payment_id'],
+                'order_id' => $validated['order_id'],
+                'paid_at' => now(),
+            ]
+        );
+
+        return response()->json([
+            'success' => true,
+        ]);
+    }
+
+    /**
+     * Cancel subscription.
+     */
+    public function cancel(Request $request)
+    {
+        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+
+        if ($workspace->owner_id !== $request->user()->id) {
+            abort(403, 'Only workspace owner can cancel subscription.');
+        }
+
+        $this->subscriptionService->cancelAtPeriodEnd($workspace, $request->user());
+
+        return redirect()->back()->with('success', 'Subscription will be canceled at the end of the current period.');
+    }
+
+    /**
+     * Resume subscription.
+     */
+    public function resume(Request $request)
+    {
+        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+
+        if ($workspace->owner_id !== $request->user()->id) {
+            abort(403, 'Only workspace owner can resume subscription.');
+        }
+
+        $this->subscriptionService->resume($workspace, $request->user());
+
+        return redirect()->back()->with('success', 'Subscription resumed.');
+    }
+
+    /**
+     * Display usage details.
+     */
+    public function usage(Request $request): Response
+    {
+        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $usageHistory = $this->usageService->getUsageHistory($workspace, 3);
+        $currentUsage = $this->usageService->getCurrentUsage($workspace);
+        $limits = $this->planResolver->getEffectiveLimits($workspace);
+
+        // Get limit blocked events
+        $blockedEvents = \App\Models\BillingEvent::where('workspace_id', $workspace->id)
+            ->where('type', 'limit_blocked')
+            ->orderBy('created_at', 'desc')
+            ->limit(20)
+            ->get()
+            ->map(function ($event) {
+                return [
+                    'id' => $event->id,
+                    'data' => $event->data,
+                    'created_at' => $event->created_at->toIso8601String(),
+                ];
+            });
+
+        return Inertia::render('Billing/Usage', [
+            'workspace' => $workspace,
+            'current_usage' => [
+                'messages_sent' => $currentUsage->messages_sent,
+                'template_sends' => $currentUsage->template_sends,
+                'ai_credits_used' => $currentUsage->ai_credits_used,
+            ],
+            'limits' => $limits,
+            'usage_history' => $usageHistory,
+            'blocked_events' => $blockedEvents,
+        ]);
+    }
+
+    /**
+     * Display payment history.
+     */
+    public function history(Request $request): Response
+    {
+        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+
+        $payments = PaymentOrder::with('plan')
+            ->where('workspace_id', $workspace->id)
+            ->orderBy('created_at', 'desc')
+            ->limit(50)
+            ->get()
+            ->map(function (PaymentOrder $order) {
+                return [
+                    'id' => $order->id,
+                    'provider' => $order->provider,
+                    'provider_order_id' => $order->provider_order_id,
+                    'provider_payment_id' => $order->provider_payment_id,
+                    'amount' => $order->amount,
+                    'currency' => $order->currency,
+                    'status' => $order->status,
+                    'plan' => $order->plan ? [
+                        'id' => $order->plan->id,
+                        'name' => $order->plan->name,
+                    ] : null,
+                    'created_at' => $order->created_at->toIso8601String(),
+                    'paid_at' => $order->paid_at?->toIso8601String(),
+                    'failed_at' => $order->failed_at?->toIso8601String(),
+                ];
+            });
+
+        return Inertia::render('Billing/History', [
+            'workspace' => $workspace,
+            'payments' => $payments,
+        ]);
+    }
+
+    protected function resolvePlan(Plan|string|int $plan): Plan
+    {
+        if ($plan instanceof Plan) {
+            return $plan;
+        }
+
+        // Try to resolve by key first (for slug-based URLs)
+        $resolved = Plan::where('key', $plan)->first();
+        if ($resolved) {
+            return $resolved;
+        }
+
+        // Fallback to ID if numeric
+        if (is_numeric($plan)) {
+            return Plan::findOrFail((int) $plan);
+        }
+
+        // If still not found, try one more time with the exact value
+        $resolved = Plan::where('key', $plan)->orWhere('id', $plan)->first();
+        if ($resolved) {
+            return $resolved;
+        }
+
+        throw new \Illuminate\Database\Eloquent\ModelNotFoundException(
+            "No query results for model [App\Models\Plan] with key/id: {$plan}"
+        );
+    }
+}

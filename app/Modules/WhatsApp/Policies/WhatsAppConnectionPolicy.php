@@ -1,0 +1,73 @@
+<?php
+
+namespace App\Modules\WhatsApp\Policies;
+
+use App\Models\User;
+use App\Modules\WhatsApp\Models\WhatsAppConnection;
+use Illuminate\Auth\Access\Response;
+
+class WhatsAppConnectionPolicy
+{
+    /**
+     * Determine whether the user can view any models.
+     */
+    public function viewAny(User $user): bool
+    {
+        // All workspace members can view connections
+        return true;
+    }
+
+    /**
+     * Determine whether the user can view the model.
+     */
+    public function view(User $user, WhatsAppConnection $whatsAppConnection): bool
+    {
+        // User must be a member of the workspace
+        return $whatsAppConnection->workspace->users->contains($user) ||
+               $whatsAppConnection->workspace->owner_id === $user->id;
+    }
+
+    /**
+     * Determine whether the user can create models.
+     */
+    public function create(User $user): bool
+    {
+        // Only owners and admins can create connections
+        $workspace = current_workspace();
+        if (!$workspace) {
+            return false;
+        }
+
+        $membership = $workspace->users()->where('user_id', $user->id)->first();
+        if ($membership) {
+            return in_array($membership->pivot->role, ['owner', 'admin']);
+        }
+
+        return $workspace->owner_id === $user->id;
+    }
+
+    /**
+     * Determine whether the user can update the model.
+     */
+    public function update(User $user, WhatsAppConnection $whatsAppConnection): bool
+    {
+        // Only owners and admins can update connections
+        $workspace = $whatsAppConnection->workspace;
+        $membership = $workspace->users()->where('user_id', $user->id)->first();
+        
+        if ($membership) {
+            return in_array($membership->pivot->role, ['owner', 'admin']);
+        }
+
+        return $workspace->owner_id === $user->id;
+    }
+
+    /**
+     * Determine whether the user can delete the model.
+     */
+    public function delete(User $user, WhatsAppConnection $whatsAppConnection): bool
+    {
+        // Only owners and admins can delete connections
+        return $this->update($user, $whatsAppConnection);
+    }
+}
