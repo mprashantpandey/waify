@@ -31,26 +31,67 @@ class WebhookController extends Controller
         }
         RateLimiter::hit($key, 60);
 
-        $mode = $request->query('hub_mode') ?? $request->query('hub.mode');
-        $token = $request->query('hub_verify_token') ?? $request->query('hub.verify_token');
-        $challenge = $request->query('hub_challenge') ?? $request->query('hub.challenge');
+        // Meta sends parameters in different formats, handle both
+        $mode = $request->query('hub_mode') 
+            ?? $request->query('hub.mode')
+            ?? $request->input('hub_mode')
+            ?? $request->input('hub.mode');
+            
+        $token = $request->query('hub_verify_token')
+            ?? $request->query('hub.verify_token')
+            ?? $request->input('hub_verify_token')
+            ?? $request->input('hub.verify_token');
+            
+        $challenge = $request->query('hub_challenge')
+            ?? $request->query('hub.challenge')
+            ?? $request->input('hub_challenge')
+            ?? $request->input('hub.challenge');
 
-        if ($mode === 'subscribe' && $token === $connection->webhook_verify_token) {
+        // Log all incoming parameters for debugging
+        Log::channel('whatsapp')->info('Webhook verification attempt', [
+            'connection_id' => $connection->id,
+            'connection_slug' => $connection->slug,
+            'ip' => $request->ip(),
+            'mode' => $mode,
+            'token_received' => $token ? substr($token, 0, 4) . '...' : null,
+            'token_expected' => $connection->webhook_verify_token ? substr($connection->webhook_verify_token, 0, 4) . '...' : null,
+            'has_challenge' => !empty($challenge),
+            'all_query_params' => $request->query(),
+        ]);
+
+        // Check if connection has a verify token
+        if (empty($connection->webhook_verify_token)) {
+            Log::channel('whatsapp')->error('Webhook verification failed: connection has no verify token', [
+                'connection_id' => $connection->id,
+                'ip' => $request->ip()]);
+            abort(403, 'Connection not configured for webhooks');
+        }
+
+        // Verify mode and token
+        if ($mode === 'subscribe' && !empty($token) && hash_equals($connection->webhook_verify_token, $token)) {
             // Mark as subscribed
             $connection->update(['webhook_subscribed' => true]);
 
-            Log::channel('whatsapp')->info('Webhook verified', [
+            Log::channel('whatsapp')->info('Webhook verified successfully', [
                 'connection_id' => $connection->id,
+                'connection_slug' => $connection->slug,
                 'ip' => $request->ip()]);
 
-            return response($challenge, 200);
+            // Return challenge as plain text (not JSON)
+            return response($challenge, 200)
+                ->header('Content-Type', 'text/plain');
         }
 
         Log::channel('whatsapp')->warning('Webhook verification failed', [
             'connection_id' => $connection->id,
+            'connection_slug' => $connection->slug,
             'ip' => $request->ip(),
             'mode' => $mode,
-            'token_match' => $token === $connection->webhook_verify_token]);
+            'mode_match' => $mode === 'subscribe',
+            'token_received' => $token ? substr($token, 0, 4) . '...' : null,
+            'token_expected' => substr($connection->webhook_verify_token, 0, 4) . '...',
+            'token_match' => !empty($token) && hash_equals($connection->webhook_verify_token, $token),
+            'has_challenge' => !empty($challenge)]);
 
         abort(403, 'Forbidden');
     }
