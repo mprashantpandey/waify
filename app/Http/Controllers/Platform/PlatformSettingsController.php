@@ -66,7 +66,7 @@ class PlatformSettingsController extends Controller
             'api_enabled' => $get('integrations.api_enabled', false),
             'webhook_url' => $get('integrations.webhook_url'),
             'webhook_secret' => $get('integrations.webhook_secret'),
-            'webhooks_enabled' => $get('integrations.webhooks_enabled', false)];
+            'webhooks_enabled' => $get('integrations.webhooks_enabled', true)]; // Default to enabled
 
         // Analytics Settings
         $analyticsSettings = [
