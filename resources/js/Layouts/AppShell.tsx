@@ -7,6 +7,8 @@ import { BrandingWrapper } from '@/Components/Branding/BrandingWrapper';
 import { GlobalFlashHandler } from '@/Components/Notifications/GlobalFlashHandler';
 import LiveChatWidget from '@/Components/Support/LiveChatWidget';
 import ProfileIncompleteModal from '@/Components/Profile/ProfileIncompleteModal';
+import AnalyticsScripts from '@/Components/Analytics/AnalyticsScripts';
+import CookieConsentBanner from '@/Components/Compliance/CookieConsentBanner';
 
 interface AppShellProps {
     children: ReactNode;
@@ -60,6 +62,8 @@ export default function AppShell({ children }: AppShellProps) {
                 <GlobalFlashHandler />
                 <LiveChatWidget />
                 <ProfileIncompleteModal />
+                <CookieConsentBanner />
+                <AnalyticsScripts />
             </div>
         </BrandingWrapper>
     );

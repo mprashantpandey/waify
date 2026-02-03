@@ -14,14 +14,19 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import Button from '@/Components/UI/Button';
+import CookieConsentBanner from '@/Components/Compliance/CookieConsentBanner';
+import AnalyticsScripts from '@/Components/Analytics/AnalyticsScripts';
 
 export default function PublicLayout({ children }: PropsWithChildren) {
-    const { branding, auth, accounts } = usePage().props as any;
+    const { branding, auth, accounts, compliance } = usePage().props as any;
     const platformName = branding?.platform_name || 'WACP';
     const logoUrl = branding?.logo_url;
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const canLogin = (window as any).route?.has?.('login') ?? true;
     const canRegister = (window as any).route?.has?.('register') ?? true;
+    const termsUrl = compliance?.terms_url || route('terms');
+    const privacyUrl = compliance?.privacy_url || route('privacy');
+    const cookiePolicyUrl = compliance?.cookie_policy_url;
 
     const navigation = [
         { name: 'Pricing', href: route('pricing'), icon: CreditCard },
@@ -31,6 +36,8 @@ export default function PublicLayout({ children }: PropsWithChildren) {
         { name: 'About', href: route('about'), icon: Info },
         { name: 'Contact', href: route('contact'), icon: Mail },
     ];
+
+    const isExternal = (href: string) => href.startsWith('http');
 
     const footerLinks = {
         product: [
@@ -45,8 +52,9 @@ export default function PublicLayout({ children }: PropsWithChildren) {
             { name: 'Blog', href: '#' },
         ],
         legal: [
-            { name: 'Privacy Policy', href: route('privacy') },
-            { name: 'Terms of Service', href: route('terms') },
+            { name: 'Privacy Policy', href: privacyUrl },
+            { name: 'Terms of Service', href: termsUrl },
+            ...(cookiePolicyUrl ? [{ name: 'Cookie Policy', href: cookiePolicyUrl }] : []),
         ]};
 
     return (
@@ -234,12 +242,23 @@ export default function PublicLayout({ children }: PropsWithChildren) {
                                 <ul className="space-y-2">
                                     {footerLinks.legal.map((link) => (
                                         <li key={link.name}>
-                                            <Link
-                                                href={link.href}
-                                                className="text-sm hover:text-white transition-colors"
-                                            >
-                                                {link.name}
-                                            </Link>
+                                            {isExternal(link.href) ? (
+                                                <a
+                                                    href={link.href}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-sm hover:text-white transition-colors"
+                                                >
+                                                    {link.name}
+                                                </a>
+                                            ) : (
+                                                <Link
+                                                    href={link.href}
+                                                    className="text-sm hover:text-white transition-colors"
+                                                >
+                                                    {link.name}
+                                                </Link>
+                                            )}
                                         </li>
                                     ))}
                                 </ul>
@@ -253,6 +272,8 @@ export default function PublicLayout({ children }: PropsWithChildren) {
                         </div>
                     </div>
                 </footer>
+                <CookieConsentBanner />
+                <AnalyticsScripts />
             </div>
         </BrandingWrapper>
     );

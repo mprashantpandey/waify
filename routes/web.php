@@ -14,7 +14,9 @@ use Inertia\Inertia;
 
 // Landing page
 Route::get('/', [\App\Http\Controllers\LandingPageController::class, 'index'])->name('landing');
-Route::get('/api/stats', [\App\Http\Controllers\LandingPageController::class, 'stats'])->name('api.stats');
+Route::get('/api/stats', [\App\Http\Controllers\LandingPageController::class, 'stats'])
+    ->middleware(['public-api.enabled', 'log.api'])
+    ->name('api.stats');
 
 // Public pages
 Route::get('/pricing', [\App\Http\Controllers\PublicPagesController::class, 'pricing'])->name('pricing');
@@ -72,7 +74,9 @@ Route::middleware(['auth', 'super.admin'])->prefix('/platform')->name('platform.
     Route::get('/subscriptions', [\App\Http\Controllers\Platform\PlanController::class, 'subscriptions'])->name('subscriptions.index');
     Route::get('/subscriptions/{subscription}', [\App\Http\Controllers\Platform\PlanController::class, 'showSubscription'])->name('subscriptions.show');
     Route::get('/system-health', [\App\Http\Controllers\Platform\SystemHealthController::class, 'index'])->name('system-health');
-    Route::get('/analytics', [\App\Http\Controllers\Platform\AnalyticsController::class, 'index'])->name('analytics');
+    Route::get('/analytics', [\App\Http\Controllers\Platform\AnalyticsController::class, 'index'])
+        ->middleware('feature.enabled:analytics')
+        ->name('analytics');
     Route::get('/activity-logs', [\App\Http\Controllers\Platform\ActivityLogController::class, 'index'])->name('activity-logs');
     Route::get('/templates', [\App\Http\Controllers\Platform\TemplateController::class, 'index'])->name('templates.index');
     Route::get('/templates/{template}', [\App\Http\Controllers\Platform\TemplateController::class, 'show'])->name('templates.show');
@@ -228,7 +232,7 @@ Route::middleware(['auth', 'account.resolve'])->prefix('/app')->name('app.')->gr
 
 // Webhook routes (public, no auth, but with security middleware)
 Route::prefix('/webhooks/whatsapp')
-    ->middleware([\App\Modules\WhatsApp\Http\Middleware\WebhookSecurity::class])
+    ->middleware([\App\Http\Middleware\EnsureWebhooksEnabled::class, \App\Modules\WhatsApp\Http\Middleware\WebhookSecurity::class, \App\Http\Middleware\LogApiRequests::class])
     ->name('webhooks.whatsapp.')
     ->group(function () {
         Route::get('/{connection}', [\App\Modules\WhatsApp\Http\Controllers\WebhookController::class, 'verify'])->name('verify');
@@ -237,4 +241,5 @@ Route::prefix('/webhooks/whatsapp')
 
 // Razorpay webhook (public)
 Route::post('/webhooks/razorpay', [\App\Http\Controllers\Billing\RazorpayWebhookController::class, 'handle'])
+    ->middleware([\App\Http\Middleware\EnsureWebhooksEnabled::class, \App\Http\Middleware\LogApiRequests::class])
     ->name('webhooks.razorpay');

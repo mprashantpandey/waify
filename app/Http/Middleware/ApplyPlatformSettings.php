@@ -17,7 +17,10 @@ class ApplyPlatformSettings
     public function handle(Request $request, Closure $next): Response
     {
         $settingsService = app(PlatformSettingsService::class);
-        
+
+        // Apply general configuration
+        $settingsService->applyGeneralConfig();
+
         // Apply localization settings
         $settingsService->applyLocalization();
         
@@ -35,7 +38,16 @@ class ApplyPlatformSettings
         
         // Apply payment configuration
         $settingsService->applyPaymentConfig();
-        
+
+        // Apply performance configuration
+        $settingsService->applyPerformanceConfig();
+
+        // Apply logging configuration
+        $settingsService->applyLoggingConfig();
+
+        // Apply query logging configuration
+        $settingsService->applyQueryLogging();
+
         // Apply AI configuration
         $settingsService->applyAIConfig();
 

@@ -106,9 +106,30 @@ class HandleInertiaRequests extends Middleware
             'ai' => [
                 'enabled' => PlatformSetting::get('ai.enabled', false),
                 'provider' => PlatformSetting::get('ai.provider', 'openai')],
+            'analyticsSettings' => [
+                'google_analytics_enabled' => PlatformSetting::get('analytics.google_analytics_enabled', false),
+                'google_analytics_id' => PlatformSetting::get('analytics.google_analytics_id'),
+                'mixpanel_enabled' => PlatformSetting::get('analytics.mixpanel_enabled', false),
+                'mixpanel_token' => PlatformSetting::get('analytics.mixpanel_token'),
+                'sentry_enabled' => PlatformSetting::get('analytics.sentry_enabled', false),
+                'sentry_dsn' => PlatformSetting::get('analytics.sentry_dsn'),
+                'sentry_environment' => PlatformSetting::get('analytics.sentry_environment', 'production'),
+            ],
+            'compliance' => [
+                'terms_url' => PlatformSetting::get('compliance.terms_url'),
+                'privacy_url' => PlatformSetting::get('compliance.privacy_url'),
+                'cookie_policy_url' => PlatformSetting::get('compliance.cookie_policy_url'),
+                'gdpr_enabled' => PlatformSetting::get('compliance.gdpr_enabled', false),
+                'cookie_consent_required' => PlatformSetting::get('compliance.cookie_consent_required', false),
+            ],
             'supportSettings' => [
                 'live_chat_enabled' => PlatformSetting::get('support.live_chat_enabled', true),
                 'ticket_support_enabled' => PlatformSetting::get('support.ticket_support_enabled', true),
+            ],
+            'features' => [
+                'analytics' => PlatformSetting::get('features.analytics', true),
+                'public_api' => PlatformSetting::get('features.public_api', false),
+                'webhooks' => PlatformSetting::get('features.webhooks', true),
             ],
             'pusherConfig' => (function () {
                 $settingsService = app(\App\Services\PlatformSettingsService::class);

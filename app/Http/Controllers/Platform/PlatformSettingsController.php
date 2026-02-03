@@ -66,11 +66,7 @@ class PlatformSettingsController extends Controller
             'api_enabled' => $get('integrations.api_enabled', false),
             'webhook_url' => $get('integrations.webhook_url'),
             'webhook_secret' => $get('integrations.webhook_secret'),
-            'webhooks_enabled' => $get('integrations.webhooks_enabled', false),
-            'slack_webhook_url' => $get('integrations.slack_webhook_url'),
-            'slack_enabled' => $get('integrations.slack_enabled', false),
-            'discord_webhook_url' => $get('integrations.discord_webhook_url'),
-            'discord_enabled' => $get('integrations.discord_enabled', false)];
+            'webhooks_enabled' => $get('integrations.webhooks_enabled', false)];
 
         // Analytics Settings
         $analyticsSettings = [
@@ -270,10 +266,6 @@ class PlatformSettingsController extends Controller
             'integrations.webhook_url' => 'nullable|url',
             'integrations.webhook_secret' => 'nullable|string',
             'integrations.webhooks_enabled' => 'nullable|boolean',
-            'integrations.slack_webhook_url' => 'nullable|url',
-            'integrations.slack_enabled' => 'nullable|boolean',
-            'integrations.discord_webhook_url' => 'nullable|url',
-            'integrations.discord_enabled' => 'nullable|boolean',
             // Analytics
             'analytics.google_analytics_id' => 'nullable|string|max:50',
             'analytics.google_analytics_enabled' => 'nullable|boolean',
@@ -398,7 +390,7 @@ class PlatformSettingsController extends Controller
         $booleanFields = [
             'payment' => ['razorpay_enabled'],
             'security' => ['password_require_uppercase', 'password_require_lowercase', 'password_require_numbers', 'password_require_symbols', 'require_2fa'],
-            'integrations' => ['api_enabled', 'webhooks_enabled', 'slack_enabled', 'discord_enabled'],
+            'integrations' => ['api_enabled', 'webhooks_enabled'],
             'analytics' => ['google_analytics_enabled', 'mixpanel_enabled', 'sentry_enabled', 'log_api_requests'],
             'compliance' => ['gdpr_enabled', 'cookie_consent_required', 'allow_data_export', 'allow_data_deletion'],
             'performance' => ['cache_enabled', 'query_logging_enabled'],

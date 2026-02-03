@@ -42,6 +42,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'module.entitled' => \App\Http\Middleware\EnsureModuleEntitled::class,
             'rate.limit' => \App\Http\Middleware\EnforceRateLimits::class,
             'profile.complete' => \App\Http\Middleware\EnsureProfileComplete::class,
+            'feature.enabled' => \App\Http\Middleware\EnsureFeatureEnabled::class,
+            'webhooks.enabled' => \App\Http\Middleware\EnsureWebhooksEnabled::class,
+            'public-api.enabled' => \App\Http\Middleware\EnsurePublicApiEnabled::class,
+            'log.api' => \App\Http\Middleware\LogApiRequests::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -3,6 +3,9 @@
 namespace App\Services;
 
 use App\Models\PlatformSetting;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\URL;
 
 class PlatformSettingsService
 {
@@ -254,6 +257,24 @@ class PlatformSettingsService
     }
 
     /**
+     * Apply general configuration from platform settings.
+     */
+    public function applyGeneralConfig(): void
+    {
+        $platformUrl = $this->get('general.platform_url', config('app.url'));
+        $platformName = $this->get('branding.platform_name', config('app.name'));
+
+        if ($platformUrl) {
+            config(['app.url' => $platformUrl]);
+            URL::forceRootUrl($platformUrl);
+        }
+
+        if ($platformName) {
+            config(['app.name' => $platformName]);
+        }
+    }
+
+    /**
      * Apply storage configuration from platform settings.
      */
     public function applyStorageConfig(): void
@@ -315,6 +336,86 @@ class PlatformSettingsService
         config(['payment.default_currency' => $defaultCurrency]);
         config(['payment.currency_symbol_position' => $currencyPosition]);
         config(['payment.tax_rate' => $taxRate]);
+    }
+
+    /**
+     * Apply performance configuration from platform settings.
+     */
+    public function applyPerformanceConfig(): void
+    {
+        $cacheEnabled = (bool) $this->get('performance.cache_enabled', false);
+        $cacheDriver = $this->get('performance.cache_driver', config('cache.default', 'file'));
+        $cacheTtl = (int) $this->get('performance.cache_ttl', 3600);
+
+        if (!$cacheEnabled) {
+            config(['cache.default' => 'array']);
+        } elseif ($cacheDriver) {
+            config(['cache.default' => $cacheDriver]);
+        }
+
+        config(['cache.ttl' => $cacheTtl]);
+
+        $queueConnection = $this->get('performance.queue_connection', config('queue.default', 'database'));
+        $queueMaxAttempts = (int) $this->get('performance.queue_max_attempts', 3);
+        $queueTimeout = (int) $this->get('performance.queue_timeout', 90);
+
+        if ($queueConnection) {
+            config(['queue.default' => $queueConnection]);
+            $connectionKey = "queue.connections.{$queueConnection}";
+            $existing = config($connectionKey, []);
+            if (is_array($existing)) {
+                $existing['retry_after'] = $queueTimeout;
+                $existing['max_tries'] = $queueMaxAttempts;
+                config([$connectionKey => $existing]);
+            }
+        }
+
+        $queryTimeout = (int) $this->get('performance.query_timeout', 30);
+        if ($queryTimeout > 0) {
+            $defaultConnection = config('database.default');
+            $connectionConfig = config("database.connections.{$defaultConnection}", []);
+            if (is_array($connectionConfig)) {
+                $options = $connectionConfig['options'] ?? [];
+                $options[\PDO::ATTR_TIMEOUT] = $queryTimeout;
+                $connectionConfig['options'] = $options;
+                config(["database.connections.{$defaultConnection}" => $connectionConfig]);
+            }
+        }
+    }
+
+    /**
+     * Apply logging configuration from platform settings.
+     */
+    public function applyLoggingConfig(): void
+    {
+        $logLevel = $this->get('analytics.log_level', 'info');
+        config(['logging.channels.stack.level' => $logLevel]);
+        config(['app.log_level' => $logLevel]);
+    }
+
+    /**
+     * Apply query logging when enabled.
+     */
+    public function applyQueryLogging(): void
+    {
+        $enabled = (bool) $this->get('performance.query_logging_enabled', false);
+        if (!$enabled) {
+            return;
+        }
+
+        $thresholdSeconds = (int) $this->get('performance.query_timeout', 30);
+        $thresholdMs = max($thresholdSeconds, 1) * 1000;
+
+        DB::listen(function ($query) use ($thresholdMs) {
+            if ($query->time < $thresholdMs) {
+                return;
+            }
+            Log::warning('Slow query detected', [
+                'sql' => $query->sql,
+                'bindings' => $query->bindings,
+                'time_ms' => $query->time,
+            ]);
+        });
     }
 
     /**
