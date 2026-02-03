@@ -4,6 +4,7 @@ export interface User {
     id: number;
     name: string;
     email: string;
+    phone?: string | null;
     email_verified_at?: string;
     is_platform_admin?: boolean;
     is_super_admin?: boolean;

@@ -7,6 +7,7 @@ import { Link, useForm, usePage } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
 import { CheckCircle2, Mail, User, Send, Phone } from 'lucide-react';
 import { Alert } from '@/Components/UI/Alert';
+import { PageProps } from '@/types';
 
 export default function UpdateProfileInformation({
     mustVerifyEmail,
@@ -16,13 +17,20 @@ export default function UpdateProfileInformation({
     status?: string;
     className?: string;
 }) {
-    const user = usePage().props.auth.user;
+    const user = usePage<PageProps>().props.auth.user;
+
+    type ProfileForm = {
+        name: string;
+        email: string;
+        phone: string;
+    };
 
     const { data, setData, patch, errors, processing, recentlySuccessful } =
-        useForm({
+        useForm<ProfileForm>({
             name: user.name || '',
             email: user.email || '',
-            phone: user.phone || ''});
+            phone: user.phone || '',
+        });
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
