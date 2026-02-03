@@ -18,7 +18,12 @@ class EnsureWebhooksEnabled
         $settingsService = app(\App\Services\PlatformSettingsService::class);
         $features = $settingsService->getFeatures();
         $webhooksEnabled = (bool) ($features['webhooks'] ?? true);
-        $integrationsEnabled = (bool) \App\Models\PlatformSetting::get('integrations.webhooks_enabled', true);
+        
+        // Check if webhooks are explicitly disabled in integrations settings
+        // Default to true (enabled) if not set
+        $integrationsWebhooksEnabled = \App\Models\PlatformSetting::get('integrations.webhooks_enabled');
+        $integrationsEnabled = $integrationsWebhooksEnabled === null ? true : (bool) $integrationsWebhooksEnabled;
+        
         $razorpayEnabled = (bool) \App\Models\PlatformSetting::get('payment.razorpay_enabled', false);
 
         // Log webhook request for debugging
@@ -28,14 +33,17 @@ class EnsureWebhooksEnabled
             'ip' => $request->ip(),
             'webhooks_enabled' => $webhooksEnabled,
             'integrations_enabled' => $integrationsEnabled,
+            'integrations_webhooks_enabled_raw' => $integrationsWebhooksEnabled,
             'connection_param' => $request->route('connection'),
         ]);
 
-        if (!$webhooksEnabled || !$integrationsEnabled) {
+        // Only block if explicitly disabled (both must be true to allow)
+        if (!$webhooksEnabled || ($integrationsWebhooksEnabled !== null && !$integrationsEnabled)) {
             \Log::channel('whatsapp')->warning('Webhook blocked: webhooks disabled', [
                 'path' => $request->path(),
                 'webhooks_enabled' => $webhooksEnabled,
                 'integrations_enabled' => $integrationsEnabled,
+                'integrations_webhooks_enabled_raw' => $integrationsWebhooksEnabled,
             ]);
             return response()->json([
                 'success' => false,
