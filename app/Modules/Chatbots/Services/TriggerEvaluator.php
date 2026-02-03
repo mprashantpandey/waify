@@ -40,7 +40,7 @@ class TriggerEvaluator
 
         // Check if conversation already assigned (optional skip)
         if ($trigger['skip_if_assigned'] ?? false) {
-            if ($context->conversation->assignee_id) {
+            if ($context->conversation->assigned_to) {
                 return false;
             }
         }
@@ -97,4 +97,3 @@ class TriggerEvaluator
         return $buttonId === $expectedButtonId;
     }
 }
-

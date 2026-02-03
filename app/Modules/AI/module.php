@@ -12,8 +12,5 @@ return [
             'label' => 'AI Assistant',
             'href' => 'app.ai',
             'icon' => 'Sparkles',
-            'group' => 'ai',
-        ],
-    ],
-];
+            'group' => 'ai']]];
 

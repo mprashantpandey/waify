@@ -23,15 +23,14 @@ class MessageCreated implements ShouldBroadcast
      */
     public function broadcastOn(): array
     {
-        $workspaceId = $this->message->workspace_id;
+        $accountId = $this->message->account_id;
         $conversationId = $this->message->whatsapp_conversation_id;
 
         return [
-            // Workspace inbox channel (for list updates)
-            new PrivateChannel("workspace.{$workspaceId}.whatsapp.inbox"),
+            // Account inbox channel (for list updates)
+            new PrivateChannel("account.{$accountId}.whatsapp.inbox"),
             // Conversation channel (for thread updates)
-            new PrivateChannel("workspace.{$workspaceId}.whatsapp.conversation.{$conversationId}"),
-        ];
+            new PrivateChannel("account.{$accountId}.whatsapp.conversation.{$conversationId}")];
     }
 
     /**
@@ -48,7 +47,7 @@ class MessageCreated implements ShouldBroadcast
     public function broadcastWith(): array
     {
         return [
-            'workspace_id' => $this->message->workspace_id,
+            'account_id' => $this->message->account_id,
             'conversation_id' => $this->message->whatsapp_conversation_id,
             'message' => [
                 'id' => $this->message->id,
@@ -58,12 +57,9 @@ class MessageCreated implements ShouldBroadcast
                 'payload' => $this->message->payload,
                 'status' => $this->message->status,
                 'created_at' => $this->message->created_at->toIso8601String(),
-                'meta_message_id' => $this->message->meta_message_id,
-            ],
+                'meta_message_id' => $this->message->meta_message_id],
             'contact' => $this->message->conversation?->contact ? [
                 'wa_id' => $this->message->conversation->contact->wa_id,
-                'name' => $this->message->conversation->contact->name,
-            ] : null,
-        ];
+                'name' => $this->message->conversation->contact->name] : null];
     }
 }

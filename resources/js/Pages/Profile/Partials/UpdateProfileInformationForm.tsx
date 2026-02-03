@@ -5,14 +5,13 @@ import TextInput from '@/Components/TextInput';
 import { Transition } from '@headlessui/react';
 import { Link, useForm, usePage } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
-import { CheckCircle2, Mail, User, Send } from 'lucide-react';
+import { CheckCircle2, Mail, User, Send, Phone } from 'lucide-react';
 import { Alert } from '@/Components/UI/Alert';
 
 export default function UpdateProfileInformation({
     mustVerifyEmail,
     status,
-    className = '',
-}: {
+    className = ''}: {
     mustVerifyEmail: boolean;
     status?: string;
     className?: string;
@@ -21,9 +20,9 @@ export default function UpdateProfileInformation({
 
     const { data, setData, patch, errors, processing, recentlySuccessful } =
         useForm({
-            name: user.name,
-            email: user.email,
-        });
+            name: user.name || '',
+            email: user.email || '',
+            phone: user.phone || ''});
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -69,6 +68,26 @@ export default function UpdateProfileInformation({
                     </div>
 
                     <InputError className="mt-2" message={errors.email} />
+                </div>
+
+                <div>
+                    <InputLabel htmlFor="phone" value="Phone Number" className="text-sm font-semibold mb-2" />
+
+                    <div className="relative">
+                        <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                        <TextInput
+                            id="phone"
+                            type="tel"
+                            className="mt-1 block w-full pl-10 rounded-xl"
+                            value={data.phone}
+                            onChange={(e) => setData('phone', e.target.value)}
+                            required
+                            autoComplete="tel"
+                            placeholder="+1234567890"
+                        />
+                    </div>
+
+                    <InputError className="mt-2" message={errors.phone} />
                 </div>
 
                 {mustVerifyEmail && user.email_verified_at === null && (

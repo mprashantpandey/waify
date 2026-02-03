@@ -2,7 +2,7 @@
 
 namespace App\Modules\Chatbots\Models;
 
-use App\Models\Workspace;
+use App\Models\Account;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -14,7 +14,7 @@ class BotExecution extends Model
     use HasFactory;
 
     protected $fillable = [
-        'workspace_id',
+        'account_id',
         'bot_id',
         'bot_flow_id',
         'whatsapp_conversation_id',
@@ -23,21 +23,19 @@ class BotExecution extends Model
         'started_at',
         'finished_at',
         'error_message',
-        'logs',
-    ];
+        'logs'];
 
     protected function casts(): array
     {
         return [
             'started_at' => 'datetime',
             'finished_at' => 'datetime',
-            'logs' => 'array',
-        ];
+            'logs' => 'array'];
     }
 
-    public function workspace(): BelongsTo
+    public function account(): BelongsTo
     {
-        return $this->belongsTo(Workspace::class);
+        return $this->belongsTo(Account::class);
     }
 
     public function bot(): BelongsTo

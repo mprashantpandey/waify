@@ -57,8 +57,7 @@ class TemplateManagementService
                     'connection_id' => $connection->id,
                     'waba_id' => $wabaId,
                     'error' => $responseData['error'] ?? [],
-                    'payload' => $payload,
-                ]);
+                    'payload' => $payload]);
 
                 throw new WhatsAppApiException(
                     "Failed to create template: {$errorMessage}",
@@ -79,8 +78,7 @@ class TemplateManagementService
         } catch (\Exception $e) {
             Log::channel('whatsapp')->error('Unexpected error creating template', [
                 'connection_id' => $connection->id,
-                'error' => $e->getMessage(),
-            ]);
+                'error' => $e->getMessage()]);
 
             throw new WhatsAppApiException(
                 "Failed to create template: {$e->getMessage()}",
@@ -144,8 +142,7 @@ class TemplateManagementService
             Log::channel('whatsapp')->error('Unexpected error deleting template', [
                 'connection_id' => $connection->id,
                 'meta_template_id' => $metaTemplateId,
-                'error' => $e->getMessage(),
-            ]);
+                'error' => $e->getMessage()]);
 
             throw new WhatsAppApiException(
                 "Failed to delete template: {$e->getMessage()}",
@@ -206,8 +203,7 @@ class TemplateManagementService
             Log::channel('whatsapp')->error('Unexpected error getting template status', [
                 'connection_id' => $connection->id,
                 'meta_template_id' => $metaTemplateId,
-                'error' => $e->getMessage(),
-            ]);
+                'error' => $e->getMessage()]);
 
             throw new WhatsAppApiException(
                 "Failed to get template status: {$e->getMessage()}",
@@ -227,22 +223,19 @@ class TemplateManagementService
             'name' => $data['name'],
             'language' => $data['language'],
             'category' => strtoupper($data['category']),
-            'components' => [],
-        ];
+            'components' => []];
 
         // Header component
         if (!empty($data['header_type']) && $data['header_type'] !== 'NONE') {
             $header = [
                 'type' => 'HEADER',
-                'format' => strtoupper($data['header_type']),
-            ];
+                'format' => strtoupper($data['header_type'])];
 
             if ($data['header_type'] === 'TEXT' && !empty($data['header_text'])) {
                 $header['text'] = $data['header_text'];
             } elseif (in_array($data['header_type'], ['IMAGE', 'VIDEO', 'DOCUMENT']) && !empty($data['header_media_url'])) {
                 $header['example'] = [
-                    'header_handle' => [$data['header_media_url']],
-                ];
+                    'header_handle' => [$data['header_media_url']]];
             }
 
             $payload['components'][] = $header;
@@ -252,14 +245,12 @@ class TemplateManagementService
         if (!empty($data['body_text'])) {
             $body = [
                 'type' => 'BODY',
-                'text' => $data['body_text'],
-            ];
+                'text' => $data['body_text']];
 
             // Add example if variables exist
             if (!empty($data['body_examples']) && is_array($data['body_examples'])) {
                 $body['example'] = [
-                    'body_text' => [$data['body_examples']],
-                ];
+                    'body_text' => [$data['body_examples']]];
             }
 
             $payload['components'][] = $body;
@@ -269,8 +260,7 @@ class TemplateManagementService
         if (!empty($data['footer_text'])) {
             $payload['components'][] = [
                 'type' => 'FOOTER',
-                'text' => $data['footer_text'],
-            ];
+                'text' => $data['footer_text']];
         }
 
         // Buttons
@@ -280,8 +270,7 @@ class TemplateManagementService
                 $buttonType = strtoupper($button['type'] ?? '');
                 $buttonData = [
                     'type' => $buttonType,
-                    'text' => $button['text'] ?? '',
-                ];
+                    'text' => $button['text'] ?? ''];
 
                 if ($buttonType === 'URL' && !empty($button['url'])) {
                     $buttonData['url'] = $button['url'];
@@ -299,8 +288,7 @@ class TemplateManagementService
             if (!empty($buttonComponents)) {
                 $payload['components'][] = [
                     'type' => 'BUTTONS',
-                    'buttons' => $buttonComponents,
-                ];
+                    'buttons' => $buttonComponents];
             }
         }
 
@@ -343,7 +331,7 @@ class TemplateManagementService
         }
 
         return WhatsAppTemplate::create([
-            'workspace_id' => $connection->workspace_id,
+            'account_id' => $connection->account_id,
             'whatsapp_connection_id' => $connection->id,
             'meta_template_id' => $metaTemplateId,
             'name' => $templateData['name'],
@@ -358,8 +346,7 @@ class TemplateManagementService
             'buttons' => $buttons,
             'components' => $components,
             'last_synced_at' => now(),
-            'last_meta_error' => null,
-        ]);
+            'last_meta_error' => null]);
     }
 
     /**

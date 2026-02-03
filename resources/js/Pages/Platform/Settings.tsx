@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react';
 import PlatformShell from '@/Layouts/PlatformShell';
 import Button from '@/Components/UI/Button';
 import { Tabs, TabsList, TabsTrigger, TabsContent, useTabs } from '@/Components/UI/Tabs';
-import { Save, Radio, Mail, HardDrive, Globe, Shield, CreditCard, Webhook, BarChart3, Scale, Zap, ToggleLeft, Palette, Bot, LifeBuoy, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import { Save, Radio, Mail, HardDrive, Globe, Shield, CreditCard, Webhook, BarChart3, Scale, Zap, ToggleLeft, Palette, Bot, LifeBuoy, AlertCircle, CheckCircle, XCircle, MessageSquare } from 'lucide-react';
+import MisconfiguredSettingsAlert from '@/Components/Platform/MisconfiguredSettingsAlert';
 import { useToast } from '@/hooks/useToast';
 import { useNotifications } from '@/hooks/useNotifications';
 import GeneralTab from './Settings/Tabs/GeneralTab';
@@ -37,9 +38,30 @@ export default function PlatformSettings({
     ai,
     whatsapp,
     support,
-}: any) {
+    misconfigured_settings}: any) {
     const { auth, flash } = usePage().props as any;
-    const { value: activeTab, setValue: setActiveTab } = useTabs('general');
+    
+    // Get initial tab from URL query parameter or default to 'general'
+    const getInitialTab = () => {
+        if (typeof window !== 'undefined') {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('tab') || 'general';
+        }
+        return 'general';
+    };
+    
+    const { value: activeTab, setValue: setActiveTab } = useTabs(getInitialTab());
+    
+    // Update tab when URL query changes
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const urlParams = new URLSearchParams(window.location.search);
+            const tabFromUrl = urlParams.get('tab');
+            if (tabFromUrl && tabFromUrl !== activeTab) {
+                setActiveTab(tabFromUrl);
+            }
+        }
+    }, [activeTab, setActiveTab]);
     const { addToast } = useToast();
     const { confirm } = useNotifications();
 
@@ -58,8 +80,7 @@ export default function PlatformSettings({
         branding: branding || {},
         ai: ai || {},
         whatsapp: whatsapp || {},
-        support: support || {},
-    });
+        support: support || {}});
 
     // Show toast notifications for flash messages
     useEffect(() => {
@@ -67,22 +88,19 @@ export default function PlatformSettings({
             addToast({
                 title: 'Success',
                 description: flash.success,
-                variant: 'success',
-            });
+                variant: 'success'});
         }
         if (flash?.error) {
             addToast({
                 title: 'Error',
                 description: flash.error,
-                variant: 'error',
-            });
+                variant: 'error'});
         }
         if (flash?.warning) {
             addToast({
                 title: 'Warning',
                 description: flash.warning,
-                variant: 'warning',
-            });
+                variant: 'warning'});
         }
     }, [flash, addToast]);
 
@@ -97,8 +115,7 @@ export default function PlatformSettings({
             const confirmed = await confirm({
                 title: 'Disable Razorpay?',
                 message: 'You are about to disable Razorpay. This will prevent users from making payments. Are you sure?',
-                variant: 'warning',
-            });
+                variant: 'warning'});
             
             if (!confirmed) {
                 return;
@@ -113,23 +130,21 @@ export default function PlatformSettings({
                 addToast({
                     title: 'Settings Saved',
                     description: 'All settings have been updated successfully.',
-                    variant: 'success',
-                });
+                    variant: 'success'});
             },
             onError: (errors) => {
                 const errorMessages = Object.values(errors).flat();
                 addToast({
                     title: 'Error Saving Settings',
                     description: errorMessages.length > 0 ? errorMessages[0] : 'Failed to save settings. Please try again.',
-                    variant: 'error',
-                });
-            },
-        });
+                    variant: 'error'});
+            }});
     };
 
     const tabs = [
-        { id: 'branding', label: 'Branding', icon: Palette },
         { id: 'general', label: 'General', icon: Globe },
+        { id: 'support', label: 'Support', icon: LifeBuoy },
+        { id: 'branding', label: 'Branding', icon: Palette },
         { id: 'security', label: 'Security', icon: Shield },
         { id: 'payment', label: 'Payment', icon: CreditCard },
         { id: 'integrations', label: 'Integrations', icon: Webhook },
@@ -138,7 +153,6 @@ export default function PlatformSettings({
         { id: 'performance', label: 'Performance', icon: Zap },
         { id: 'features', label: 'Features', icon: ToggleLeft },
         { id: 'ai', label: 'AI', icon: Bot },
-        { id: 'support', label: 'Support', icon: LifeBuoy },
         { id: 'pusher', label: 'Pusher', icon: Radio },
         { id: 'mail', label: 'Mail', icon: Mail },
         { id: 'storage', label: 'Storage', icon: HardDrive },
@@ -153,6 +167,14 @@ export default function PlatformSettings({
                         Configure all platform-wide settings and integrations
                     </p>
                 </div>
+
+                {/* Misconfiguration Alerts */}
+                {misconfigured_settings && misconfigured_settings.length > 0 && (
+                    <MisconfiguredSettingsAlert 
+                        misconfiguredSettings={misconfigured_settings}
+                        variant="settings"
+                    />
+                )}
 
                 {/* Error Messages */}
                 {Object.keys(errors).length > 0 && (
@@ -189,12 +211,16 @@ export default function PlatformSettings({
                     </TabsList>
 
                     <form onSubmit={handleSubmit} className="space-y-6">
-                        <TabsContent value="branding">
-                            <BrandingTab data={data} setData={setData} errors={errors} />
-                        </TabsContent>
-
                         <TabsContent value="general">
                             <GeneralTab data={data} setData={setData} errors={errors} />
+                        </TabsContent>
+
+                        <TabsContent value="support">
+                            <SupportTab data={data} setData={setData} errors={errors} />
+                        </TabsContent>
+
+                        <TabsContent value="branding">
+                            <BrandingTab data={data} setData={setData} errors={errors} />
                         </TabsContent>
 
                         <TabsContent value="security">
@@ -231,10 +257,6 @@ export default function PlatformSettings({
 
                         <TabsContent value="ai">
                             <AiTab data={data} setData={setData} errors={errors} />
-                        </TabsContent>
-
-                        <TabsContent value="support">
-                            <SupportTab data={data} setData={setData} errors={errors} />
                         </TabsContent>
 
                         <TabsContent value="mail">

@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\WhatsApp;
 
-use App\Models\Workspace;
+use App\Models\Account;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
@@ -14,16 +14,16 @@ class WebhookTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected Workspace $workspace;
+    protected Account $account;
     protected WhatsAppConnection $connection;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->workspace = Workspace::factory()->create();
+        $this->account = Account::factory()->create();
         $this->connection = WhatsAppConnection::factory()->create([
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
             'webhook_verify_token' => 'test-verify-token',
         ]);
     }
@@ -94,7 +94,7 @@ class WebhookTest extends TestCase
         $response1->assertStatus(200);
         $this->assertDatabaseHas('whatsapp_messages', [
             'meta_message_id' => 'wamid.test123',
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
         ]);
 
         $messageCount = WhatsAppMessage::where('meta_message_id', 'wamid.test123')->count();
@@ -152,14 +152,14 @@ class WebhookTest extends TestCase
         );
 
         $this->assertDatabaseHas('whatsapp_contacts', [
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
             'wa_id' => '9876543210',
             'name' => 'New Contact',
         ]);
 
         $contact = WhatsAppContact::where('wa_id', '9876543210')->first();
         $this->assertDatabaseHas('whatsapp_conversations', [
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
             'whatsapp_connection_id' => $this->connection->id,
             'whatsapp_contact_id' => $contact->id,
         ]);

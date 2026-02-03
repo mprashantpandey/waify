@@ -19,17 +19,17 @@ class ModuleController extends Controller
      */
     public function show(Request $request): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
         
         // Get module from route parameter or defaults
         $module = $request->route('module') ?? $request->route()->defaults['module'] ?? null;
         
         if (!$module) {
-            // Try to extract from path
+            // Try to extract from path (app/{module})
             $path = trim($request->path(), '/');
             $pathParts = explode('/', $path);
-            if (count($pathParts) >= 3 && $pathParts[0] === 'app') {
-                $module = $pathParts[2]; // app/{workspace}/{module}
+            if (count($pathParts) >= 2 && $pathParts[0] === 'app') {
+                $module = $pathParts[1];
             }
         }
         
@@ -45,8 +45,7 @@ class ModuleController extends Controller
             'ai' => 'ai',
             'floaters' => 'floaters',
             'analytics' => 'analytics',
-            'billing' => 'billing',
-        ];
+            'billing' => 'billing'];
 
         $moduleKey = $moduleKeyMap[$module] ?? null;
         
@@ -69,26 +68,23 @@ class ModuleController extends Controller
             abort(404, "This module is currently disabled at the platform level. Please contact support.");
         }
         
-        $workspaceModule = \App\Models\WorkspaceModule::where('workspace_id', $workspace->id)
+        $accountModule = \App\Models\AccountModule::where('account_id', $account->id)
             ->where('module_key', $moduleKey)
             ->first();
 
-        $enabled = $workspaceModule ? $workspaceModule->enabled : ($dbModule && $dbModule->is_core ? true : false);
+        $enabled = $accountModule ? $accountModule->enabled : ($dbModule && $dbModule->is_core ? true : false);
 
         if ($moduleKey === 'floaters') {
             return Inertia::render('Floaters/Index', [
-                'workspace' => $workspace,
-            ]);
+                'account' => $account]);
         }
 
         return Inertia::render('App/ModulePlaceholder', [
-            'workspace' => $workspace,
+            'account' => $account,
             'module' => [
                 'key' => $moduleKey,
                 'name' => $moduleDefinition['name'] ?? $dbModule->name ?? ucfirst($module),
                 'description' => $moduleDefinition['description'] ?? $dbModule->description ?? '',
-                'enabled' => $enabled,
-            ],
-        ]);
+                'enabled' => $enabled]]);
     }
 }

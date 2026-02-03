@@ -28,15 +28,13 @@ class MetaGraphService
             'client_id' => $appId,
             'client_secret' => $appSecret,
             'redirect_uri' => $redirectUri,
-            'code' => $code,
-        ]);
+            'code' => $code]);
 
         $data = $response->json();
         if (!$response->successful()) {
             Log::channel('whatsapp')->error('Meta OAuth code exchange failed', [
                 'status' => $response->status(),
-                'error' => $data['error'] ?? $data,
-            ]);
+                'error' => $data['error'] ?? $data]);
             throw new \RuntimeException($data['error']['message'] ?? 'Meta OAuth code exchange failed');
         }
 
@@ -49,15 +47,13 @@ class MetaGraphService
 
         $response = Http::get("{$this->baseUrl}/{$this->apiVersion}/debug_token", [
             'input_token' => $inputToken,
-            'access_token' => $effectiveToken,
-        ]);
+            'access_token' => $effectiveToken]);
 
         $data = $response->json();
         if (!$response->successful()) {
             Log::channel('whatsapp')->error('Meta debug_token failed', [
                 'status' => $response->status(),
-                'error' => $data['error'] ?? $data,
-            ]);
+                'error' => $data['error'] ?? $data]);
             throw new \RuntimeException($data['error']['message'] ?? 'Meta debug_token failed');
         }
 
@@ -74,8 +70,7 @@ class MetaGraphService
             Log::channel('whatsapp')->warning('Subscribe app to WABA failed', [
                 'waba_id' => $wabaId,
                 'status' => $response->status(),
-                'error' => $data['error'] ?? $data,
-            ]);
+                'error' => $data['error'] ?? $data]);
             throw new \RuntimeException($data['error']['message'] ?? 'Subscribe app to WABA failed');
         }
 
@@ -92,8 +87,7 @@ class MetaGraphService
             Log::channel('whatsapp')->error('List WABA phone numbers failed', [
                 'waba_id' => $wabaId,
                 'status' => $response->status(),
-                'error' => $data['error'] ?? $data,
-            ]);
+                'error' => $data['error'] ?? $data]);
             throw new \RuntimeException($data['error']['message'] ?? 'List phone numbers failed');
         }
 
@@ -105,16 +99,14 @@ class MetaGraphService
         $response = Http::withToken($accessToken)
             ->post("{$this->baseUrl}/{$this->apiVersion}/{$phoneNumberId}/register", [
                 'messaging_product' => 'whatsapp',
-                'pin' => $pin,
-            ]);
+                'pin' => $pin]);
 
         $data = $response->json();
         if (!$response->successful()) {
             Log::channel('whatsapp')->warning('Register phone number failed', [
                 'phone_number_id' => $phoneNumberId,
                 'status' => $response->status(),
-                'error' => $data['error'] ?? $data,
-            ]);
+                'error' => $data['error'] ?? $data]);
             throw new \RuntimeException($data['error']['message'] ?? 'Register phone number failed');
         }
 
@@ -125,16 +117,14 @@ class MetaGraphService
     {
         $response = Http::withToken($accessToken)
             ->get("{$this->baseUrl}/{$this->apiVersion}/{$phoneNumberId}", [
-                'fields' => 'display_phone_number,verified_name',
-            ]);
+                'fields' => 'display_phone_number,verified_name']);
 
         $data = $response->json();
         if (!$response->successful()) {
             Log::channel('whatsapp')->warning('Get phone number details failed', [
                 'phone_number_id' => $phoneNumberId,
                 'status' => $response->status(),
-                'error' => $data['error'] ?? $data,
-            ]);
+                'error' => $data['error'] ?? $data]);
             throw new \RuntimeException($data['error']['message'] ?? 'Get phone number details failed');
         }
 

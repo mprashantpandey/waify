@@ -26,15 +26,13 @@ class PublicWidgetController extends Controller
             'whatsapp_phone' => $widget->whatsapp_phone,
             'theme' => $widget->theme ?? ['primary' => '#25D366', 'background' => '#075E54'],
             'show_on' => $widget->show_on ?? ['include' => [], 'exclude' => []],
-            'endpoint' => rtrim(config('app.url'), '/')."/widgets/{$widget->public_id}/event",
-        ];
+            'endpoint' => rtrim(config('app.url'), '/')."/widgets/{$widget->public_id}/event"];
 
         $js = $this->buildScript($config);
 
         return response($js, 200, [
             'Content-Type' => 'application/javascript',
-            'Access-Control-Allow-Origin' => '*',
-        ]);
+            'Access-Control-Allow-Origin' => '*']);
     }
 
     public function event(Request $request, string $publicId)
@@ -48,30 +46,26 @@ class PublicWidgetController extends Controller
             'event_type' => 'required|string|in:impression,click,lead',
             'path' => 'nullable|string|max:255',
             'referrer' => 'nullable|string|max:255',
-            'metadata' => 'nullable|array',
-        ]);
+            'metadata' => 'nullable|array']);
 
         try {
             FloaterWidgetEvent::create([
                 'floater_widget_id' => $widget->id,
-                'workspace_id' => $widget->workspace_id,
+                'account_id' => $widget->account_id,
                 'event_type' => $payload['event_type'],
                 'path' => $payload['path'] ?? null,
                 'referrer' => $payload['referrer'] ?? null,
                 'user_agent' => $request->userAgent(),
                 'ip_hash' => $this->hashIp($request->ip()),
-                'metadata' => $payload['metadata'] ?? null,
-            ]);
+                'metadata' => $payload['metadata'] ?? null]);
         } catch (\Throwable $e) {
             Log::warning('Floater widget event failed', [
                 'public_id' => $publicId,
-                'error' => $e->getMessage(),
-            ]);
+                'error' => $e->getMessage()]);
         }
 
         return response()->json(['ok' => true], 200, [
-            'Access-Control-Allow-Origin' => '*',
-        ]);
+            'Access-Control-Allow-Origin' => '*']);
     }
 
     protected function hashIp(?string $ip): ?string

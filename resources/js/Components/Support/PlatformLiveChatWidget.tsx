@@ -11,7 +11,7 @@ interface Thread {
     slug: string;
     subject: string;
     status: string;
-    workspace: { id: number; name: string; slug: string } | null;
+    account: { id: number; name: string; slug: string } | null;
 }
 
 interface Message {
@@ -49,9 +49,17 @@ interface LiveChatResponse {
 }
 
 export default function PlatformLiveChatWidget() {
-    const { branding, ai } = usePage().props as any;
+    const { branding, ai, supportSettings } = usePage().props as any;
     const { subscribe } = useRealtime();
     const { addToast } = useToast();
+    
+    // Check if live chat is enabled in platform settings
+    const liveChatEnabled = supportSettings?.live_chat_enabled ?? true;
+    
+    // Don't render if live chat is disabled
+    if (!liveChatEnabled) {
+        return null;
+    }
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [thread, setThread] = useState<Thread | null>(null);
@@ -64,8 +72,7 @@ export default function PlatformLiveChatWidget() {
 
     const loadThreads = async () => {
         const res = await axios.get(route('platform.support.live.list') as string, {
-            headers: { Accept: 'application/json' },
-        });
+            headers: { Accept: 'application/json' }});
         const data = res.data as { threads: Thread[] };
         setThreads(data.threads || []);
         if ((!activeThreadSlug || !data.threads?.some((t) => t.slug === activeThreadSlug)) && data.threads?.length) {
@@ -76,8 +83,7 @@ export default function PlatformLiveChatWidget() {
     const loadThread = async (threadSlug: string) => {
         setLoading(true);
         const res = await axios.get(route('platform.support.live.thread', { thread: threadSlug }) as string, {
-            headers: { Accept: 'application/json' },
-        });
+            headers: { Accept: 'application/json' }});
         const data = res.data as LiveChatResponse;
         setThread(data.thread);
         setMessages(data.messages || []);
@@ -117,8 +123,8 @@ export default function PlatformLiveChatWidget() {
     }, [open, subscribe]);
 
     useEffect(() => {
-        if (!thread?.workspace?.id) return;
-        const channel = `workspace.${thread.workspace.id}.support.thread.${thread.id}`;
+        if (!thread?.account?.id) return;
+        const channel = `account.${thread.account.id}.support.thread.${thread.id}`;
         const unsubscribe = subscribe(channel, 'support.message.created', (payload: Message) => {
             setMessages((prev) => {
                 if (prev.some((m) => m.id === payload.id)) {
@@ -131,7 +137,7 @@ export default function PlatformLiveChatWidget() {
         return () => {
             unsubscribe();
         };
-    }, [subscribe, thread?.id, thread?.workspace?.id]);
+    }, [subscribe, thread?.id, thread?.account?.id]);
 
     const sendMessage = async () => {
         if ((!draft.trim() && attachments.length === 0) || !thread?.id) return;
@@ -144,8 +150,7 @@ export default function PlatformLiveChatWidget() {
         setDraft('');
         setAttachments([]);
         const res = await axios.post(route('platform.support.live.message') as string, payload, {
-            headers: { Accept: 'application/json' },
-        });
+            headers: { Accept: 'application/json' }});
         const data = res.data as { message?: Message };
         const newMessage = data.message;
         if (newMessage) {
@@ -176,8 +181,7 @@ export default function PlatformLiveChatWidget() {
             addToast({
                 title: 'AI Assistant',
                 description: error?.response?.data?.error || 'AI assistant is disabled.',
-                variant: 'error',
-            });
+                variant: 'error'});
         } finally {
             setAssistLoading(false);
         }
@@ -200,7 +204,7 @@ export default function PlatformLiveChatWidget() {
                         <div>
                             <div className="text-sm font-semibold">Support Inbox</div>
                             <div className="text-xs opacity-80">
-                                {thread?.workspace?.name ? `Workspace: ${thread.workspace.name}` : 'Live conversations'}
+                                {thread?.account?.name ? `Account: ${thread.account.name}` : 'Live conversations'}
                             </div>
                         </div>
                         <button onClick={() => setOpen(false)} className="p-1 hover:opacity-80">
@@ -226,7 +230,7 @@ export default function PlatformLiveChatWidget() {
                                     }`}
                                 >
                                     <div className="text-xs font-semibold text-gray-900 dark:text-gray-100">
-                                        {t.workspace?.name ?? 'Workspace'}
+                                        {t.account?.name ?? 'Account'}
                                     </div>
                                     <div className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
                                         {t.subject}

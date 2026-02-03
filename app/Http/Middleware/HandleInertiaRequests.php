@@ -33,17 +33,17 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $user = $request->user();
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
         
-        $workspaces = [];
+        $accounts = [];
         $navigation = [];
         
         if ($user) {
-            $workspaces = $user->workspaces()->get()->merge($user->ownedWorkspaces()->get())->unique('id')->values();
+            $accounts = $user->accounts()->get()->merge($user->ownedAccounts()->get())->unique('id')->values();
             
-            if ($workspace) {
+            if ($account) {
                 $moduleRegistry = app(\App\Core\Modules\ModuleRegistry::class);
-                $navigation = $moduleRegistry->getNavigationForWorkspace($workspace);
+                $navigation = $moduleRegistry->getNavigationForAccount($account);
                 
                 // Add static navigation items
                 $staticNav = [
@@ -51,21 +51,17 @@ class HandleInertiaRequests extends Middleware
                         'label' => 'Team',
                         'href' => 'app.team.index',
                         'icon' => 'Users',
-                        'group' => 'core',
-                    ],
+                        'group' => 'core'],
                     [
                         'label' => 'Activity Logs',
                         'href' => 'app.activity-logs',
                         'icon' => 'Activity',
-                        'group' => 'core',
-                    ],
+                        'group' => 'core'],
                     [
                         'label' => 'Settings',
                         'href' => 'app.settings',
                         'icon' => 'Settings',
-                        'group' => 'other',
-                    ],
-                ];
+                        'group' => 'other']];
                 
                 $navigation = array_merge($navigation, $staticNav);
             }
@@ -76,6 +72,13 @@ class HandleInertiaRequests extends Middleware
         $impersonatorId = $request->session()->get('impersonator_id');
         $impersonator = $impersonatorId ? User::find($impersonatorId) : null;
 
+        // Check if profile is complete
+        $isProfileComplete = $user ? (
+            !empty($user->name) && 
+            !empty($user->email) && 
+            !empty($user->phone)
+        ) : true;
+
         return [
             ...parent::share($request),
             'auth' => [
@@ -83,11 +86,15 @@ class HandleInertiaRequests extends Middleware
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
+                    'phone' => $user->phone,
                     'is_super_admin' => $user->isSuperAdmin(),
+                    'notify_assignment_enabled' => $user->notify_assignment_enabled ?? true,
+                    'notify_mention_enabled' => $user->notify_mention_enabled ?? true,
+                    'notify_sound_enabled' => $user->notify_sound_enabled ?? true,
                 ] : null,
-            ],
-            'workspace' => $workspace,
-            'workspaces' => $workspaces,
+                'profile_complete' => $isProfileComplete],
+            'account' => $account,
+            'accounts' => $accounts,
             'navigation' => $navigation,
             'branding' => $brandingService->getAll(),
             'impersonation' => [
@@ -95,24 +102,22 @@ class HandleInertiaRequests extends Middleware
                 'impersonator' => $impersonator ? [
                     'id' => $impersonator->id,
                     'name' => $impersonator->name,
-                    'email' => $impersonator->email,
-                ] : null,
-            ],
+                    'email' => $impersonator->email] : null],
             'ai' => [
                 'enabled' => PlatformSetting::get('ai.enabled', false),
-                'provider' => PlatformSetting::get('ai.provider', 'openai'),
+                'provider' => PlatformSetting::get('ai.provider', 'openai')],
+            'supportSettings' => [
+                'live_chat_enabled' => PlatformSetting::get('support.live_chat_enabled', true),
+                'ticket_support_enabled' => PlatformSetting::get('support.ticket_support_enabled', true),
             ],
             'pusherConfig' => (function () {
                 $settingsService = app(\App\Services\PlatformSettingsService::class);
                 return [
                     'pusherKey' => $settingsService->get('pusher.key', config('broadcasting.connections.pusher.key')),
-                    'pusherCluster' => $settingsService->get('pusher.cluster', config('broadcasting.connections.pusher.options.cluster')),
-                ];
+                    'pusherCluster' => $settingsService->get('pusher.cluster', config('broadcasting.connections.pusher.options.cluster'))];
             })(),
             'ziggy' => fn () => [
                 ...(new Ziggy)->toArray(),
-                'location' => $request->url(),
-            ],
-        ];
+                'location' => $request->url()]];
     }
 }

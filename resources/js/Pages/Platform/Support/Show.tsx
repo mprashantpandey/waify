@@ -41,8 +41,7 @@ export default function PlatformSupportShow({
     thread,
     messages,
     admins,
-    auditLogs,
-}: {
+    auditLogs}: {
     thread: {
         id: number;
         slug: string;
@@ -57,7 +56,7 @@ export default function PlatformSupportShow({
         first_response_due_at?: string | null;
         escalation_level?: number;
         assigned_to?: number | null;
-        workspace: { id: number; name: string; slug: string; owner?: { name?: string; email?: string } } | null;
+        account: { id: number; name: string; slug: string; owner?: { name?: string; email?: string } } | null;
     };
     messages: Message[];
     admins: { id: number; name: string; email: string }[];
@@ -71,8 +70,7 @@ export default function PlatformSupportShow({
 }) {
     const { data, setData, post, processing, reset } = useForm({
         message: '',
-        attachments: [] as File[],
-    });
+        attachments: [] as File[]});
     const { subscribe } = useRealtime();
     const { addToast } = useToast();
     const { ai } = usePage().props as any;
@@ -83,8 +81,7 @@ export default function PlatformSupportShow({
         priority: thread.priority || 'normal',
         assigned_to: thread.assigned_to || '',
         category: thread.category || '',
-        tags: (thread.tags || []).join(', '),
-    });
+        tags: (thread.tags || []).join(', ')});
     const [aiNote, setAiNote] = useState<{ title: string; content: string } | null>(null);
 
     useEffect(() => {
@@ -92,10 +89,10 @@ export default function PlatformSupportShow({
     }, [messages]);
 
     useEffect(() => {
-        if (!thread.workspace) {
+        if (!thread.account) {
             return;
         }
-        const channel = `workspace.${thread.workspace.id}.support.thread.${thread.id}`;
+        const channel = `account.${thread.account.id}.support.thread.${thread.id}`;
         const unsubscribe = subscribe(channel, 'support.message.created', (payload: Message) => {
             setItems((prev) => {
                 if (prev.some((m) => m.id === payload.id)) {
@@ -108,14 +105,13 @@ export default function PlatformSupportShow({
         return () => {
             unsubscribe();
         };
-    }, [subscribe, thread.id, thread.workspace?.id]);
+    }, [subscribe, thread.id, thread.account?.id]);
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
         post(route('platform.support.message', { thread: thread.slug ?? thread.id }) as string, {
             forceFormData: true,
-            onSuccess: () => reset(),
-        });
+            onSuccess: () => reset()});
     };
 
     const closeThread = () => {
@@ -135,8 +131,7 @@ export default function PlatformSupportShow({
                 priority: ticketData.priority,
                 assigned_to: ticketData.assigned_to || null,
                 category: ticketData.category || null,
-                tags,
-            }
+                tags}
         );
     };
 
@@ -155,15 +150,13 @@ export default function PlatformSupportShow({
             } else if (suggestion) {
                 setAiNote({
                     title: action === 'summary' ? 'AI Summary' : 'AI Next Steps',
-                    content: suggestion,
-                });
+                    content: suggestion});
             }
         } catch (error: any) {
             addToast({
                 title: 'AI Assistant',
                 description: error?.response?.data?.error || 'Unable to generate a suggestion.',
-                variant: 'error',
-            });
+                variant: 'error'});
         } finally {
             setAssistLoading(false);
         }
@@ -176,23 +169,23 @@ export default function PlatformSupportShow({
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{thread.subject}</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Workspace: {thread.workspace?.name ?? 'Unknown'} · Status: {thread.status}
+                        Tenant: {thread.account?.name ?? 'Unknown'} · Status: {thread.status}
                     </p>
-                    {thread.workspace && (
+                    {thread.account && (
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                            <span>Owner: {thread.workspace.owner?.name || '—'}</span>
+                            <span>Owner: {thread.account.owner?.name || '—'}</span>
                             <span>·</span>
-                            <span>{thread.workspace.owner?.email || '—'}</span>
+                            <span>{thread.account.owner?.email || '—'}</span>
                             <span>·</span>
                             <a
-                                href={route('platform.workspaces.show', { workspace: thread.workspace.id })}
+                                href={route('platform.accounts.show', { account: thread.account.id })}
                                 className="text-blue-600 dark:text-blue-300 hover:underline"
                             >
-                                View Workspace
+                                View Tenant
                             </a>
                             <span>·</span>
                             <Link
-                                href={route('platform.workspaces.impersonate', { workspace: thread.workspace.id })}
+                                href={route('platform.accounts.impersonate', { account: thread.account.id })}
                                 method="post"
                                 className="text-blue-600 dark:text-blue-300 hover:underline"
                             >

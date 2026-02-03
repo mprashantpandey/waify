@@ -9,15 +9,13 @@ import { Shield, Lock, ArrowRight } from 'lucide-react';
 
 export default function ConfirmPassword() {
     const { data, setData, post, processing, errors, reset } = useForm({
-        password: '',
-    });
+        password: ''});
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
 
         post(route('password.confirm'), {
-            onFinish: () => reset('password'),
-        });
+            onFinish: () => reset('password')});
     };
 
     return (

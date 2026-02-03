@@ -2,7 +2,7 @@
 
 namespace App\Modules\Chatbots\Models;
 
-use App\Models\Workspace;
+use App\Models\Account;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,24 +13,22 @@ class BotNode extends Model
     use HasFactory;
 
     protected $fillable = [
-        'workspace_id',
+        'account_id',
         'bot_flow_id',
         'type',
         'config',
-        'sort_order',
-    ];
+        'sort_order'];
 
     protected function casts(): array
     {
         return [
             'config' => 'array',
-            'sort_order' => 'integer',
-        ];
+            'sort_order' => 'integer'];
     }
 
-    public function workspace(): BelongsTo
+    public function account(): BelongsTo
     {
-        return $this->belongsTo(Workspace::class);
+        return $this->belongsTo(Account::class);
     }
 
     public function flow(): BelongsTo

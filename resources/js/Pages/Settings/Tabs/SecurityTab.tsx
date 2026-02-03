@@ -14,8 +14,7 @@ export default function SecurityTab() {
     const { data, setData, put, processing, errors, reset, recentlySuccessful } = useForm({
         current_password: '',
         password: '',
-        password_confirmation: '',
-    });
+        password_confirmation: ''});
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -27,8 +26,7 @@ export default function SecurityTab() {
             },
             onError: () => {
                 toast.error('Failed to update password');
-            },
-        });
+            }});
     };
 
     const deleteAccount = async () => {
@@ -36,8 +34,7 @@ export default function SecurityTab() {
             title: 'Delete Account',
             message: 'Are you sure you want to delete your account? This action cannot be undone. All of your data will be permanently deleted.',
             variant: 'danger',
-            confirmText: 'Delete Account',
-        });
+            confirmText: 'Delete Account'});
 
         if (!confirmed) return;
 
@@ -51,8 +48,7 @@ export default function SecurityTab() {
             },
             onError: () => {
                 toast.error('Failed to delete account');
-            },
-        });
+            }});
     };
 
     return (

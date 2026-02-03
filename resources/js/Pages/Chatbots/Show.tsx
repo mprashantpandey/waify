@@ -32,11 +32,10 @@ interface Bot {
 }
 
 export default function ChatbotsShow({
-    workspace,
+    account,
     bot,
-    connections,
-}: {
-    workspace: any;
+    connections}: {
+    account: any;
     bot: Bot;
     connections: any[];
 }) {
@@ -45,27 +44,24 @@ export default function ChatbotsShow({
         name: bot.name,
         description: bot.description || '',
         status: bot.status,
-        applies_to: bot.applies_to,
-    });
+        applies_to: bot.applies_to});
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        patch(route('app.chatbots.update', { workspace: workspace.slug, bot: bot.id }), {
+        patch(route('app.chatbots.update', { bot: bot.id }), {
             onSuccess: () => {
                 toast.success('Bot updated successfully');
             },
             onError: () => {
                 toast.error('Failed to update bot');
-            },
-        });
+            }});
     };
 
     const getStatusBadge = (status: string) => {
         const statusMap: Record<string, { variant: 'success' | 'warning' | 'default'; label: string }> = {
             active: { variant: 'success', label: 'Active' },
             paused: { variant: 'warning', label: 'Paused' },
-            draft: { variant: 'default', label: 'Draft' },
-        };
+            draft: { variant: 'default', label: 'Draft' }};
 
         const config = statusMap[status] || { variant: 'default' as const, label: status };
         return <Badge variant={config.variant} className="px-3 py-1">{config.label}</Badge>;
@@ -76,13 +72,11 @@ export default function ChatbotsShow({
         if (ids.includes(connectionId)) {
             setData('applies_to', {
                 ...data.applies_to,
-                connection_ids: ids.filter((id: number) => id !== connectionId),
-            });
+                connection_ids: ids.filter((id: number) => id !== connectionId)});
         } else {
             setData('applies_to', {
                 ...data.applies_to,
-                connection_ids: [...ids, connectionId],
-            });
+                connection_ids: [...ids, connectionId]});
         }
     };
 
@@ -92,7 +86,7 @@ export default function ChatbotsShow({
             <div className="space-y-8">
                 <div>
                     <Link
-                        href={route('app.chatbots.index', { workspace: workspace.slug })}
+                        href={route('app.chatbots.index', { })}
                         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
                     >
                         <ArrowLeft className="h-4 w-4" />
@@ -177,8 +171,7 @@ export default function ChatbotsShow({
                                                 onChange={(e) =>
                                                     setData('applies_to', {
                                                         ...data.applies_to,
-                                                        all_connections: e.target.checked,
-                                                    })
+                                                        all_connections: e.target.checked})
                                                 }
                                             />
                                             <div>

@@ -4,7 +4,7 @@ namespace App\Core\Billing\Contracts;
 
 use App\Models\Plan;
 use App\Models\Subscription;
-use App\Models\Workspace;
+use App\Models\Account;
 use App\Models\User;
 
 /**
@@ -25,15 +25,15 @@ interface BillingProvider
     public function isEnabled(): bool;
 
     /**
-     * Create a subscription for a workspace.
+     * Create a subscription for a account.
      * 
-     * @param Workspace $workspace
+     * @param Account $account
      * @param Plan $plan
      * @param User $actor The user performing the action
      * @param array $metadata Additional metadata (e.g., payment method, billing address)
      * @return Subscription
      */
-    public function createSubscription(Workspace $workspace, Plan $plan, User $actor, array $metadata = []): Subscription;
+    public function createSubscription(Account $account, Plan $plan, User $actor, array $metadata = []): Subscription;
 
     /**
      * Update subscription (e.g., change plan).
@@ -84,12 +84,12 @@ interface BillingProvider
     /**
      * Get checkout URL for a plan.
      * 
-     * @param Workspace $workspace
+     * @param Account $account
      * @param Plan $plan
      * @param User $actor
      * @param array $metadata
      * @return string|null Checkout URL or null if not supported
      */
-    public function getCheckoutUrl(Workspace $workspace, Plan $plan, User $actor, array $metadata = []): ?string;
+    public function getCheckoutUrl(Account $account, Plan $plan, User $actor, array $metadata = []): ?string;
 }
 

@@ -31,23 +31,20 @@ export default function PlansIndex({ plans }: { plans: Plan[] }) {
         show: false,
         planId: null,
         planName: '',
-        isActive: false,
-    });
+        isActive: false});
 
     useEffect(() => {
         if (flash?.success) {
             addToast({
                 title: 'Success',
                 description: flash.success,
-                variant: 'success',
-            });
+                variant: 'success'});
         }
         if (flash?.error) {
             addToast({
                 title: 'Error',
                 description: flash.error,
-                variant: 'error',
-            });
+                variant: 'error'});
         }
     }, [flash, addToast]);
 
@@ -56,8 +53,7 @@ export default function PlansIndex({ plans }: { plans: Plan[] }) {
             show: true,
             planId,
             planName,
-            isActive,
-        });
+            isActive});
     };
 
     const confirmToggleAction = () => {
@@ -71,18 +67,15 @@ export default function PlansIndex({ plans }: { plans: Plan[] }) {
                         addToast({
                             title: 'Plan Updated',
                             description: `${confirmToggle.planName} has been ${confirmToggle.isActive ? 'deactivated' : 'activated'}.`,
-                            variant: 'success',
-                        });
+                            variant: 'success'});
                         setConfirmToggle({ show: false, planId: null, planName: '', isActive: false });
                     },
                     onError: () => {
                         addToast({
                             title: 'Error',
                             description: 'Failed to update plan status.',
-                            variant: 'error',
-                        });
-                    },
-                }
+                            variant: 'error'});
+                    }}
             );
         }
     };
@@ -91,8 +84,7 @@ export default function PlansIndex({ plans }: { plans: Plan[] }) {
         if (amount === null || amount === 0) return 'Free';
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
-            currency: currency || 'USD',
-        }).format(amount / 100);
+            currency: currency || 'USD'}).format(amount / 100);
     };
 
     return (
@@ -220,7 +212,7 @@ export default function PlansIndex({ plans }: { plans: Plan[] }) {
                     onClose={() => setConfirmToggle({ show: false, planId: null, planName: '', isActive: false })}
                     onConfirm={confirmToggleAction}
                     title={confirmToggle.isActive ? 'Deactivate Plan' : 'Activate Plan'}
-                    message={`Are you sure you want to ${confirmToggle.isActive ? 'deactivate' : 'activate'} "${confirmToggle.planName}"? ${confirmToggle.isActive ? 'Workspaces using this plan will not be able to access it.' : 'This plan will become available for selection.'}`}
+                    message={`Are you sure you want to ${confirmToggle.isActive ? 'deactivate' : 'activate'} "${confirmToggle.planName}"? ${confirmToggle.isActive ? 'Tenants using this plan will not be able to access it.' : 'This plan will become available for selection.'}`}
                     confirmText={confirmToggle.isActive ? 'Deactivate' : 'Activate'}
                     variant={confirmToggle.isActive ? 'warning' : 'info'}
                 />

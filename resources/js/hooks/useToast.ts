@@ -20,8 +20,7 @@ export function useToast() {
         const newToast: Toast = {
             id,
             duration: 5000,
-            ...toast,
-        };
+            ...toast};
 
         toasts = [...toasts, newToast];
         toastListeners.forEach((listener) => listener(toasts));
@@ -54,8 +53,7 @@ export function useToast() {
         },
         info: (message: string, description?: string) => {
             addToast({ title: message, description, variant: 'info' });
-        },
-    };
+        }};
 
     // Subscribe to global toast updates
     useState(() => {
@@ -72,6 +70,5 @@ export function useToast() {
         toasts: localToasts,
         addToast,
         removeToast,
-        toast,
-    };
+        toast};
 }

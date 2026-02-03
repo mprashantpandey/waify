@@ -36,11 +36,10 @@ const isPdf = (attachment: { mime_type?: string | null; file_name: string }) => 
 };
 
 export default function SupportShow({
-    workspace,
+    account,
     thread,
-    messages,
-}: {
-    workspace: any;
+    messages}: {
+    account: any;
     thread: {
         id: number;
         slug: string;
@@ -56,8 +55,7 @@ export default function SupportShow({
 }) {
     const { data, setData, post, processing, reset } = useForm({
         message: '',
-        attachments: [] as File[],
-    });
+        attachments: [] as File[]});
     const { subscribe } = useRealtime();
     const [items, setItems] = useState<Message[]>(messages);
 
@@ -66,7 +64,7 @@ export default function SupportShow({
     }, [messages]);
 
     useEffect(() => {
-        const channel = `workspace.${workspace.id}.support.thread.${thread.id}`;
+        const channel = `account.${account.id}.support.thread.${thread.id}`;
         const unsubscribe = subscribe(channel, 'support.message.created', (payload: Message) => {
             setItems((prev) => {
                 if (prev.some((m) => m.id === payload.id)) {
@@ -79,18 +77,17 @@ export default function SupportShow({
         return () => {
             unsubscribe();
         };
-    }, [subscribe, workspace.id, thread.id]);
+    }, [subscribe, account.id, thread.id]);
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
-        post(route('app.support.message', { workspace: workspace.slug, thread: thread.slug ?? thread.id }) as string, {
+        post(route('app.support.message', { thread: thread.slug ?? thread.id }) as string, {
             forceFormData: true,
-            onSuccess: () => reset(),
-        });
+            onSuccess: () => reset()});
     };
 
     const closeThread = () => {
-        post(route('app.support.close', { workspace: workspace.slug, thread: thread.slug ?? thread.id }) as string);
+        post(route('app.support.close', { thread: thread.slug ?? thread.id }) as string);
     };
 
     return (
@@ -98,7 +95,7 @@ export default function SupportShow({
             <Head title={`Support - ${thread.subject}`} />
             <div className="space-y-6">
                 <Link
-                    href={route('app.support.hub', { workspace: workspace.slug })}
+                    href={route('app.support.hub', {})}
                     className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
                 >
                     ← Back to Support Hub
@@ -213,7 +210,7 @@ export default function SupportShow({
                                         type="button"
                                         variant="secondary"
                                         onClick={() =>
-                                            post(route('app.support.reopen', { workspace: workspace.slug, thread: thread.slug ?? thread.id }) as string)
+                                            post(route('app.support.reopen', { thread: thread.slug ?? thread.id }) as string)
                                         }
                                         className="mr-2"
                                     >

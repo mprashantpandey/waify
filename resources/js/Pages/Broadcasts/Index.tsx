@@ -30,11 +30,10 @@ interface Campaign {
 }
 
 export default function BroadcastsIndex({
-    workspace,
+    account,
     campaigns,
-    filters,
-}: {
-    workspace: any;
+    filters}: {
+    account: any;
     campaigns: {
         data: Campaign[];
         links: any;
@@ -49,8 +48,7 @@ export default function BroadcastsIndex({
             sending: { variant: 'info', label: 'Sending', icon: Play },
             paused: { variant: 'warning', label: 'Paused', icon: Pause },
             completed: { variant: 'success', label: 'Completed', icon: CheckCircle2 },
-            cancelled: { variant: 'danger', label: 'Cancelled', icon: XCircle },
-        };
+            cancelled: { variant: 'danger', label: 'Cancelled', icon: XCircle }};
 
         const config = statusMap[status] || { variant: 'default' as const, label: status, icon: Clock };
         const Icon = config.icon;
@@ -81,7 +79,7 @@ export default function BroadcastsIndex({
                             Create and manage WhatsApp broadcast campaigns
                         </p>
                     </div>
-                    <Link href={route('app.broadcasts.create', { workspace: workspace.slug })}>
+                    <Link href={route('app.broadcasts.create', {})}>
                         <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50">
                             <Plus className="h-4 w-4 mr-2" />
                             Create Campaign
@@ -97,7 +95,7 @@ export default function BroadcastsIndex({
                                 title="No campaigns yet"
                                 description="Create your first broadcast campaign to reach multiple contacts at once"
                                 action={
-                                    <Link href={route('app.broadcasts.create', { workspace: workspace.slug })}>
+                                    <Link href={route('app.broadcasts.create', {})}>
                                         <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700">
                                             <Plus className="h-4 w-4 mr-2" />
                                             Create Campaign
@@ -117,9 +115,7 @@ export default function BroadcastsIndex({
                                             <div className="flex items-center gap-3 mb-2">
                                                 <Link
                                                     href={route('app.broadcasts.show', {
-                                                        workspace: workspace.slug,
-                                                        campaign: campaign.slug,
-                                                    })}
+                                                        campaign: campaign.slug})}
                                                     className="text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400"
                                                 >
                                                     {campaign.name}
@@ -155,9 +151,7 @@ export default function BroadcastsIndex({
                                         </div>
                                         <Link
                                             href={route('app.broadcasts.show', {
-                                                workspace: workspace.slug,
-                                                campaign: campaign.slug,
-                                            })}
+                                                campaign: campaign.slug})}
                                         >
                                             <Button variant="secondary" size="sm">
                                                 View Details

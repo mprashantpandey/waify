@@ -3,8 +3,7 @@ import {
     InputHTMLAttributes,
     useEffect,
     useImperativeHandle,
-    useRef,
-} from 'react';
+    useRef} from 'react';
 
 export default forwardRef(function TextInput(
     {
@@ -19,8 +18,7 @@ export default forwardRef(function TextInput(
     const localRef = useRef<HTMLInputElement>(null);
 
     useImperativeHandle(ref, () => ({
-        focus: () => localRef.current?.focus(),
-    }));
+        focus: () => localRef.current?.focus()}));
 
     useEffect(() => {
         if (isFocused) {

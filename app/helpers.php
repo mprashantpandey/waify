@@ -2,11 +2,11 @@
 
 if (!function_exists('module_enabled')) {
     /**
-     * Check if a module is enabled for a workspace.
+     * Check if a module is enabled for a account.
      */
-    function module_enabled($workspace, string $moduleKey): bool
+    function module_enabled($account, string $moduleKey): bool
     {
-        if (!$workspace) {
+        if (!$account) {
             return false;
         }
 
@@ -16,12 +16,12 @@ if (!function_exists('module_enabled')) {
             return false;
         }
 
-        $workspaceModule = \App\Models\WorkspaceModule::where('workspace_id', $workspace->id)
+        $accountModule = \App\Models\AccountModule::where('account_id', $account->id)
             ->where('module_key', $moduleKey)
             ->first();
 
-        if ($workspaceModule) {
-            return $workspaceModule->enabled;
+        if ($accountModule) {
+            return $accountModule->enabled;
         }
 
         // Check if module is enabled by default (core modules)
@@ -33,19 +33,31 @@ if (!function_exists('module_enabled')) {
     }
 }
 
-if (!function_exists('current_workspace')) {
+if (!function_exists('current_account')) {
     /**
-     * Get the current workspace from session.
+     * Get the current account from session.
      */
-    function current_workspace()
+    function current_account()
     {
-        $workspaceId = session('current_workspace_id');
+        $accountId = session('current_account_id');
+        if ($accountId) {
+            return \App\Models\Account::find($accountId);
+        }
 
-        if (!$workspaceId) {
+        $user = auth()->user();
+        if (!$user) {
             return null;
         }
 
-        return \App\Models\Workspace::find($workspaceId);
+        // Prefer owned account, then any membership.
+        $account = \App\Models\Account::where('owner_id', $user->id)->first()
+            ?? $user->accounts()->first();
+
+        if ($account) {
+            session(['current_account_id' => $account->id]);
+        }
+
+        return $account;
     }
 }
 
@@ -69,4 +81,3 @@ if (!function_exists('is_platform_admin')) {
         return is_super_admin();
     }
 }
-

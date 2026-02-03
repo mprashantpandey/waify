@@ -2,7 +2,7 @@
 
 namespace App\Core\Billing;
 
-use App\Models\Workspace;
+use App\Models\Account;
 use App\Models\BillingEvent;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -14,11 +14,11 @@ class EntitlementService
     ) {}
 
     /**
-     * Assert that a module is enabled for the workspace.
+     * Assert that a module is enabled for the account.
      * 
      * @throws \Symfony\Component\HttpKernel\Exception\HttpException
      */
-    public function assertModuleEnabled(Workspace $workspace, string $moduleKey): void
+    public function assertModuleEnabled(Account $account, string $moduleKey): void
     {
         // First check: module must be enabled at platform level
         $module = \App\Models\Module::where('key', $moduleKey)->first();
@@ -26,8 +26,8 @@ class EntitlementService
             abort(404, "Module '{$moduleKey}' is currently disabled at the platform level. Please contact support.");
         }
         
-        // Second check: module must be available on plan and enabled in workspace
-        $effectiveModules = $this->planResolver->getEffectiveModules($workspace);
+        // Second check: module must be available on plan and enabled in account
+        $effectiveModules = $this->planResolver->getEffectiveModules($account);
 
         if (!in_array($moduleKey, $effectiveModules)) {
             abort(403, "Module '{$moduleKey}' is not available on your current plan. Please upgrade to access this feature.");
@@ -35,13 +35,13 @@ class EntitlementService
     }
 
     /**
-     * Assert that workspace is within a limit.
+     * Assert that account is within a limit.
      * 
      * @throws \Symfony\Component\HttpKernel\Exception\HttpException
      */
-    public function assertWithinLimit(Workspace $workspace, string $limitKey, int $intendedIncrement = 1): void
+    public function assertWithinLimit(Account $account, string $limitKey, int $intendedIncrement = 1): void
     {
-        $limits = $this->planResolver->getEffectiveLimits($workspace);
+        $limits = $this->planResolver->getEffectiveLimits($account);
         $limit = $limits[$limitKey] ?? 0;
 
         // -1 means unlimited
@@ -50,7 +50,7 @@ class EntitlementService
         }
 
         // Get current usage
-        $usage = $this->usageService->getCurrentUsage($workspace);
+        $usage = $this->usageService->getCurrentUsage($account);
         
         $currentUsage = match ($limitKey) {
             'messages_monthly' => $usage->messages_sent,
@@ -62,44 +62,44 @@ class EntitlementService
         if (($currentUsage + $intendedIncrement) > $limit) {
             // Log limit blocked event
             BillingEvent::create([
-                'workspace_id' => $workspace->id,
+                'account_id' => $account->id,
                 'type' => 'limit_blocked',
                 'data' => [
                     'limit_key' => $limitKey,
                     'current_usage' => $currentUsage,
                     'limit' => $limit,
-                    'intended_increment' => $intendedIncrement,
-                ],
-            ]);
+                    'intended_increment' => $intendedIncrement]]);
 
             abort(402, "You have reached your {$limitKey} limit ({$limit}). Please upgrade your plan to continue.");
         }
     }
 
     /**
-     * Check if workspace can create an agent.
+     * Check if account can create an agent.
      */
-    public function canCreateAgent(Workspace $workspace): bool
+    public function canCreateAgent(Account $account): bool
     {
-        $limits = $this->planResolver->getEffectiveLimits($workspace);
+        $limits = $this->planResolver->getEffectiveLimits($account);
         $agentLimit = $limits['agents'] ?? 0;
 
         if ($agentLimit === -1) {
             return true; // Unlimited
         }
 
-        // Count current agents (placeholder - implement when agents table exists)
-        $currentAgents = 0; // TODO: Count actual agents
+        // Count current agents (exclude owner)
+        $currentAgents = \App\Models\AccountUser::where('account_id', $account->id)
+            ->whereIn('role', ['admin', 'member'])
+            ->count();
 
         return $currentAgents < $agentLimit;
     }
 
     /**
-     * Check if workspace can create a WhatsApp connection.
+     * Check if account can create a WhatsApp connection.
      */
-    public function canCreateConnection(Workspace $workspace): bool
+    public function canCreateConnection(Account $account): bool
     {
-        $limits = $this->planResolver->getEffectiveLimits($workspace);
+        $limits = $this->planResolver->getEffectiveLimits($account);
         $connectionLimit = $limits['whatsapp_connections'] ?? 0;
 
         if ($connectionLimit === -1) {
@@ -108,7 +108,7 @@ class EntitlementService
 
         // Count current connections
         if (class_exists(\App\Modules\WhatsApp\Models\WhatsAppConnection::class)) {
-            $currentConnections = \App\Modules\WhatsApp\Models\WhatsAppConnection::where('workspace_id', $workspace->id)
+            $currentConnections = \App\Modules\WhatsApp\Models\WhatsAppConnection::where('account_id', $account->id)
                 ->where('is_active', true)
                 ->count();
             
@@ -119,35 +119,34 @@ class EntitlementService
     }
 
     /**
-     * Check if workspace can send a message.
+     * Check if account can send a message.
      */
-    public function canSendMessage(Workspace $workspace): bool
+    public function canSendMessage(Account $account): bool
     {
-        $limits = $this->planResolver->getEffectiveLimits($workspace);
+        $limits = $this->planResolver->getEffectiveLimits($account);
         $messageLimit = $limits['messages_monthly'] ?? 0;
 
         if ($messageLimit === -1) {
             return true; // Unlimited
         }
 
-        $usage = $this->usageService->getCurrentUsage($workspace);
+        $usage = $this->usageService->getCurrentUsage($account);
         return $usage->messages_sent < $messageLimit;
     }
 
     /**
-     * Check if workspace can send a template.
+     * Check if account can send a template.
      */
-    public function canSendTemplate(Workspace $workspace): bool
+    public function canSendTemplate(Account $account): bool
     {
-        $limits = $this->planResolver->getEffectiveLimits($workspace);
+        $limits = $this->planResolver->getEffectiveLimits($account);
         $templateLimit = $limits['template_sends_monthly'] ?? 0;
 
         if ($templateLimit === -1) {
             return true; // Unlimited
         }
 
-        $usage = $this->usageService->getCurrentUsage($workspace);
+        $usage = $this->usageService->getCurrentUsage($account);
         return $usage->template_sends < $templateLimit;
     }
 }
-

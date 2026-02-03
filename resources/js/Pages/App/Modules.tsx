@@ -7,22 +7,18 @@ import { Head, router, usePage } from '@inertiajs/react';
 import { useToast } from '@/hooks/useToast';
 import { useConfirm } from '@/hooks/useConfirm';
 
-export default function Modules({ modules, workspace, current_plan }: { modules: any[]; workspace: any; current_plan?: { key: string; name: string } }) {
+export default function Modules({ modules, account, current_plan }: { modules: any[]; account: any; current_plan?: { key: string; name: string } }) {
     const { addToast } = useToast();
     const confirm = useConfirm();
     const page = usePage();
     const { flash } = page.props as any;
     
-    // Get workspace from page props if not provided (fallback)
-    const currentWorkspace = workspace || (page.props as any).workspace;
-
     const handleToggleModule = async (module: any) => {
         if (!module.can_toggle) {
             addToast({
                 title: 'Cannot toggle module',
                 description: 'This module is not available on your current plan.',
-                variant: 'error',
-            });
+                variant: 'error'});
             return;
         }
 
@@ -30,34 +26,22 @@ export default function Modules({ modules, workspace, current_plan }: { modules:
         const confirmed = await confirm({
             title: `${action === 'enable' ? 'Enable' : 'Disable'} Module`,
             message: `Are you sure you want to ${action} ${module.name}?`,
-            variant: action === 'enable' ? 'info' : 'warning',
-        });
+            variant: action === 'enable' ? 'info' : 'warning'});
 
         if (!confirmed) return;
-
-        if (!currentWorkspace?.slug) {
-            console.error('Workspace slug missing:', currentWorkspace);
-            addToast({
-                title: 'Error',
-                description: 'Workspace information is missing.',
-                variant: 'error',
-            });
-            return;
-        }
 
         if (!module?.key) {
             console.error('Module key missing:', module);
             addToast({
                 title: 'Error',
                 description: 'Module information is missing.',
-                variant: 'error',
-            });
+                variant: 'error'});
             return;
         }
 
         // Use direct URL to avoid route helper issues
-        const directUrl = `/app/${currentWorkspace.slug}/modules/${module.key}/toggle`;
-        console.log('Toggling module:', { workspace: currentWorkspace.slug, moduleKey: module.key, url: directUrl });
+        const directUrl = route('app.modules.toggle', { moduleKey: module.key });
+        console.log('Toggling module:', { moduleKey: module.key, url: directUrl });
         
         router.post(
             directUrl,
@@ -68,18 +52,15 @@ export default function Modules({ modules, workspace, current_plan }: { modules:
                     addToast({
                         title: 'Module updated',
                         description: `${module.name} has been ${module.enabled ? 'disabled' : 'enabled'}.`,
-                        variant: 'success',
-                    });
+                        variant: 'success'});
                     router.reload({ only: ['modules'] });
                 },
                 onError: (errors) => {
                     addToast({
                         title: 'Error',
                         description: errors?.message || 'Failed to update module status.',
-                        variant: 'error',
-                    });
-                },
-            }
+                        variant: 'error'});
+                }}
         );
     };
     return (
@@ -96,7 +77,7 @@ export default function Modules({ modules, workspace, current_plan }: { modules:
                                 {current_plan ? (
                                     <>Manage modules available on your <span className="font-semibold">{current_plan.name}</span> plan</>
                                 ) : (
-                                    'Manage your workspace modules and features'
+                                    'Manage your modules and features'
                                 )}
                             </p>
                         </div>

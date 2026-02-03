@@ -18,7 +18,7 @@ interface Thread {
     first_response_due_at?: string | null;
     escalation_level?: number;
     assignee?: { id: number; name: string; email: string } | null;
-    workspace: { id: number; name: string; slug: string; owner?: { name?: string; email?: string } } | null;
+    account: { id: number; name: string; slug: string; owner?: { name?: string; email?: string } } | null;
     last_message_at: string | null;
     created_at: string;
 }
@@ -32,8 +32,7 @@ export default function PlatformSupportHub({
     openThreads,
     closedThreads,
     liveThreads,
-    faqs,
-}: {
+    faqs}: {
     openThreads: Thread[];
     closedThreads: Thread[];
     liveThreads: Thread[];
@@ -110,7 +109,7 @@ export default function PlatformSupportHub({
                                                 Priority: {thread.priority ?? 'normal'} · Assignee: {thread.assignee?.name || 'Unassigned'}
                                             </div>
                                             <div className="text-xs text-gray-500 dark:text-gray-400">
-                                                Workspace: {thread.workspace?.name ?? 'Unknown'} · {thread.workspace?.owner?.email || '—'}
+                                                Tenant: {thread.account?.name ?? 'Unknown'} · {thread.account?.owner?.email || '—'}
                                             </div>
                                                 </div>
                                                 <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -152,7 +151,7 @@ export default function PlatformSupportHub({
                                                 Priority: {thread.priority ?? 'normal'} · Assignee: {thread.assignee?.name || 'Unassigned'}
                                             </div>
                                             <div className="text-xs text-gray-500 dark:text-gray-400">
-                                                Workspace: {thread.workspace?.name ?? 'Unknown'} · {thread.workspace?.owner?.email || '—'}
+                                                Tenant: {thread.account?.name ?? 'Unknown'} · {thread.account?.owner?.email || '—'}
                                             </div>
                                                 </div>
                                                 <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -194,7 +193,7 @@ export default function PlatformSupportHub({
                                                 Priority: {thread.priority ?? 'normal'} · Assignee: {thread.assignee?.name || 'Unassigned'}
                                             </div>
                                             <div className="text-xs text-gray-500 dark:text-gray-400">
-                                                Workspace: {thread.workspace?.name ?? 'Unknown'} · {thread.workspace?.owner?.email || '—'}
+                                                Tenant: {thread.account?.name ?? 'Unknown'} · {thread.account?.owner?.email || '—'}
                                             </div>
                                                 </div>
                                                 <div className="text-xs text-gray-500 dark:text-gray-400">

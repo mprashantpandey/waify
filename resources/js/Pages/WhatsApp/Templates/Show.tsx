@@ -40,10 +40,9 @@ interface Template {
 }
 
 export default function TemplatesShow({
-    workspace,
-    template,
-}: {
-    workspace: any;
+    account,
+    template}: {
+    account: any;
     template: Template;
 }) {
     const { toast } = useToast();
@@ -52,9 +51,7 @@ export default function TemplatesShow({
     const handleCheckStatus = () => {
         router.post(
             route('app.whatsapp.templates.check-status', {
-                workspace: workspace.slug,
-                template: template.slug,
-            }),
+                template: template.slug}),
             {},
             {
                 onSuccess: () => {
@@ -63,8 +60,7 @@ export default function TemplatesShow({
                 },
                 onError: (errors) => {
                     toast.error(errors?.message || 'Failed to check template status');
-                },
-            }
+                }}
         );
     };
 
@@ -72,26 +68,22 @@ export default function TemplatesShow({
         const confirmed = await confirm({
             title: 'Archive Template',
             message: `Are you sure you want to archive "${template.name}"? You can restore it later.`,
-            variant: 'warning',
-        });
+            variant: 'warning'});
 
         if (!confirmed) return;
 
         router.post(
             route('app.whatsapp.templates.archive', {
-                workspace: workspace.slug,
-                template: template.slug,
-            }),
+                template: template.slug}),
             {},
             {
                 onSuccess: () => {
                     toast.success('Template archived successfully');
-                    router.visit(route('app.whatsapp.templates.index', { workspace: workspace.slug }));
+                    router.visit(route('app.whatsapp.templates.index', {}));
                 },
                 onError: () => {
                     toast.error('Failed to archive template');
-                },
-            }
+                }}
         );
     };
 
@@ -100,25 +92,21 @@ export default function TemplatesShow({
             title: 'Delete Template',
             message: `Are you sure you want to permanently delete "${template.name}"? This action cannot be undone.`,
             variant: 'danger',
-            confirmText: 'Delete',
-        });
+            confirmText: 'Delete'});
 
         if (!confirmed) return;
 
         router.delete(
             route('app.whatsapp.templates.destroy', {
-                workspace: workspace.slug,
-                template: template.slug,
-            }),
+                template: template.slug}),
             {
                 onSuccess: () => {
                     toast.success('Template deleted successfully');
-                    router.visit(route('app.whatsapp.templates.index', { workspace: workspace.slug }));
+                    router.visit(route('app.whatsapp.templates.index', {}));
                 },
                 onError: () => {
                     toast.error('Failed to delete template');
-                },
-            }
+                }}
         );
     };
 
@@ -128,8 +116,7 @@ export default function TemplatesShow({
             pending: { variant: 'warning', label: 'Pending' },
             rejected: { variant: 'danger', label: 'Rejected' },
             paused: { variant: 'default', label: 'Paused' },
-            disabled: { variant: 'default', label: 'Disabled' },
-        };
+            disabled: { variant: 'default', label: 'Disabled' }};
 
         const config = statusMap[status.toLowerCase()] || { variant: 'default' as const, label: status };
         return <Badge variant={config.variant} className="px-3 py-1">{config.label}</Badge>;
@@ -141,7 +128,7 @@ export default function TemplatesShow({
             <div className="space-y-8">
                 <div>
                     <Link
-                        href={route('app.whatsapp.templates.index', { workspace: workspace.slug })}
+                        href={route('app.whatsapp.templates.index', {})}
                         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
                     >
                         <ArrowLeft className="h-4 w-4" />
@@ -171,9 +158,7 @@ export default function TemplatesShow({
                         <div className="flex items-center gap-2">
                             <Link
                                 href={route('app.whatsapp.templates.edit', {
-                                    workspace: workspace.slug,
-                                    template: template.slug,
-                                })}
+                                    template: template.slug})}
                             >
                                 <Button variant="secondary">
                                     <Edit className="h-4 w-4 mr-2" />
@@ -191,9 +176,7 @@ export default function TemplatesShow({
                             )}
                             <Link
                                 href={route('app.whatsapp.templates.send', {
-                                    workspace: workspace.slug,
-                                    template: template.slug,
-                                })}
+                                    template: template.slug})}
                             >
                                 <Button className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg shadow-green-500/50">
                                     <Send className="h-4 w-4 mr-2" />

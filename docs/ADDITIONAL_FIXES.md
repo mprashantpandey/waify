@@ -34,8 +34,8 @@ This document outlines additional conflicts and issues that were identified and 
 **Issue**: Multiple users exporting contacts simultaneously could create files with the same name, causing conflicts.
 
 **Fix**:
-- Added export lock: `contact_export:workspace:{id}` (5 minutes)
-- Added unique filename with workspace ID, timestamp, and uniqid()
+- Added export lock: `contact_export:account:{id}` (5 minutes)
+- Added unique filename with account ID, timestamp, and uniqid()
 - Prevents concurrent exports and file name collisions
 
 ### 5. Conversation Message Creation Race Conditions
@@ -66,8 +66,8 @@ This document outlines additional conflicts and issues that were identified and 
 
 ### Sync Operations
 - `template_sync:connection:{id}` - Template sync (5 min)
-- `contact_import:workspace:{id}` - Contact import (10 min)
-- `contact_export:workspace:{id}` - Contact export (5 min)
+- `contact_import:account:{id}` - Contact import (10 min)
+- `contact_export:account:{id}` - Contact export (5 min)
 - `campaign_send:{id}` - Campaign sending (1 min)
 
 ### Webhook Processing

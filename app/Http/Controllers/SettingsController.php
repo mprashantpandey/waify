@@ -13,16 +13,51 @@ class SettingsController extends Controller
      */
     public function index(Request $request): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
         $user = $request->user();
 
         return Inertia::render('Settings/Index', [
-            'workspace' => $workspace,
+            'account' => $account,
             'auth' => [
-                'user' => $user,
-            ],
-            'mustVerifyEmail' => $user instanceof \Illuminate\Contracts\Auth\MustVerifyEmail,
+                'user' => $user],
+            'mustVerifyEmail' => $user instanceof \Illuminate\Contracts\Auth\MustVerifyEmail]);
+    }
+
+    /**
+     * Update inbox settings.
+     */
+    public function updateInbox(Request $request)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        $validated = $request->validate([
+            'auto_assign_enabled' => 'required|boolean',
+            'auto_assign_strategy' => 'required|in:round_robin',
         ]);
+
+        $account->update([
+            'auto_assign_enabled' => $validated['auto_assign_enabled'],
+            'auto_assign_strategy' => $validated['auto_assign_strategy'],
+        ]);
+
+        return back()->with('success', 'Inbox settings updated.');
+    }
+
+    /**
+     * Update notification preferences.
+     */
+    public function updateNotifications(Request $request)
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'notify_assignment_enabled' => 'required|boolean',
+            'notify_mention_enabled' => 'required|boolean',
+            'notify_sound_enabled' => 'required|boolean',
+        ]);
+
+        $user->update($validated);
+
+        return back()->with('success', 'Notification preferences updated.');
     }
 }
-

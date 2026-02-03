@@ -53,12 +53,11 @@ interface Conversation {
 }
 
 export default function TemplatesSend({
-    workspace,
+    account,
     template,
     contacts,
-    conversations,
-}: {
-    workspace: any;
+    conversations}: {
+    account: any;
     template: Template;
     contacts: Contact[];
     conversations: Conversation[];
@@ -70,8 +69,7 @@ export default function TemplatesSend({
 
     const { data, setData, post, processing, errors } = useForm({
         to_wa_id: '',
-        variables: Array(template.required_variables.total).fill(''),
-    });
+        variables: Array(template.required_variables.total).fill('')});
 
     const handleRecipientChange = (type: 'contact' | 'conversation' | 'manual') => {
         setRecipientType(type);
@@ -93,16 +91,13 @@ export default function TemplatesSend({
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
         post(route('app.whatsapp.templates.send.store', {
-            workspace: workspace.slug,
-            template: template.slug,
-        }), {
+            template: template.slug}), {
             onSuccess: () => {
                 toast.success('Template sent successfully');
             },
             onError: () => {
                 toast.error('Failed to send template');
-            },
-        });
+            }});
     };
 
     // Render preview
@@ -141,9 +136,7 @@ export default function TemplatesSend({
                 <div>
                         <Link
                             href={route('app.whatsapp.templates.show', {
-                                workspace: workspace.slug,
-                                template: template.slug,
-                            })}
+                                template: template.slug})}
                         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
                     >
                         <ArrowLeft className="h-4 w-4" />
@@ -298,9 +291,7 @@ export default function TemplatesSend({
                                 <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                                         <Link
                                             href={route('app.whatsapp.templates.show', {
-                                                workspace: workspace.slug,
-                                                template: template.slug,
-                                            })}
+                                                template: template.slug})}
                                     >
                                         <Button type="button" variant="secondary" className="rounded-xl">
                                             Cancel

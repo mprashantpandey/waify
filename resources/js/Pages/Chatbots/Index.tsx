@@ -25,18 +25,16 @@ interface Bot {
 }
 
 export default function ChatbotsIndex({
-    workspace,
-    bots,
-}: {
-    workspace: any;
+    account,
+    bots}: {
+    account: any;
     bots: Bot[];
 }) {
     const getStatusBadge = (status: string) => {
         const statusMap: Record<string, { variant: 'success' | 'warning' | 'default'; label: string }> = {
             active: { variant: 'success', label: 'Active' },
             paused: { variant: 'warning', label: 'Paused' },
-            draft: { variant: 'default', label: 'Draft' },
-        };
+            draft: { variant: 'default', label: 'Draft' }};
 
         const config = statusMap[status] || { variant: 'default' as const, label: status };
         return <Badge variant={config.variant} className="px-3 py-1">{config.label}</Badge>;
@@ -55,7 +53,7 @@ export default function ChatbotsIndex({
                             Build automation bots for WhatsApp conversations
                         </p>
                     </div>
-                    <Link href={route('app.chatbots.create', { workspace: workspace.slug })}>
+                    <Link href={route('app.chatbots.create', {})}>
                         <Button className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 shadow-lg shadow-purple-500/50">
                             <Plus className="h-4 w-4 mr-2" />
                             Create Bot
@@ -75,7 +73,7 @@ export default function ChatbotsIndex({
                             <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-md mx-auto">
                                 Create your first chatbot to automate WhatsApp conversations and improve customer engagement.
                             </p>
-                            <Link href={route('app.chatbots.create', { workspace: workspace.slug })}>
+                            <Link href={route('app.chatbots.create', {})}>
                                 <Button className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 shadow-lg shadow-purple-500/50">
                                     <Plus className="h-4 w-4 mr-2" />
                                     Create Your First Bot
@@ -146,7 +144,7 @@ export default function ChatbotsIndex({
 
                                     <div className="flex items-center gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
                                         <Link
-                                            href={route('app.chatbots.show', { workspace: workspace.slug, bot: bot.id })}
+                                            href={route('app.chatbots.show', { bot: bot.id })}
                                             className="flex-1"
                                         >
                                             <Button variant="secondary" className="w-full rounded-xl group-hover:bg-purple-50 dark:group-hover:bg-purple-900/20 transition-colors">

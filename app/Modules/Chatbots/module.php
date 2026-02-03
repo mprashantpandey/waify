@@ -12,7 +12,4 @@ return [
             'label' => 'Chatbots',
             'href' => 'app.chatbots.index',
             'icon' => 'Bot',
-            'group' => 'automation',
-        ],
-    ],
-];
+            'group' => 'automation']]];

@@ -39,12 +39,11 @@ interface Activity {
 }
 
 export default function ContactsShow({
-    workspace,
+    account,
     contact,
     activities,
-    tags,
-}: {
-    workspace: any;
+    tags}: {
+    account: any;
     contact: Contact;
     activities: Activity[];
     tags: Array<{ id: number; name: string; color: string }>;
@@ -53,8 +52,7 @@ export default function ContactsShow({
     const [showNoteForm, setShowNoteForm] = useState(false);
 
     const { data: noteData, setData: setNoteData, post: postNote, processing: noteProcessing } = useForm({
-        note: '',
-    });
+        note: ''});
 
     const { data: contactData, setData: setContactData, put, processing } = useForm({
         name: contact.name || '',
@@ -63,24 +61,22 @@ export default function ContactsShow({
         company: contact.company || '',
         notes: contact.notes || '',
         status: contact.status,
-        tags: contact.tags.map((t) => t.id),
-    });
+        tags: contact.tags.map((t) => t.id)});
 
     const handleUpdate = (e: React.FormEvent) => {
         e.preventDefault();
-        put(route('app.contacts.update', { workspace: workspace.slug, contact: contact.slug }), {
+        put(route('app.contacts.update', { contact: contact.slug }), {
             onSuccess: () => {
                 toast.success('Contact updated');
             },
             onError: () => {
                 toast.error('Failed to update contact');
-            },
-        });
+            }});
     };
 
     const handleAddNote = (e: React.FormEvent) => {
         e.preventDefault();
-        postNote(route('app.contacts.add-note', { workspace: workspace.slug, contact: contact.slug }), {
+        postNote(route('app.contacts.add-note', { contact: contact.slug }), {
             onSuccess: () => {
                 toast.success('Note added');
                 setShowNoteForm(false);
@@ -88,8 +84,7 @@ export default function ContactsShow({
             },
             onError: () => {
                 toast.error('Failed to add note');
-            },
-        });
+            }});
     };
 
     const getStatusBadge = (status: string) => {
@@ -97,8 +92,7 @@ export default function ContactsShow({
             active: { variant: 'success', label: 'Active' },
             inactive: { variant: 'default', label: 'Inactive' },
             blocked: { variant: 'danger', label: 'Blocked' },
-            opt_out: { variant: 'warning', label: 'Opt Out' },
-        };
+            opt_out: { variant: 'warning', label: 'Opt Out' }};
 
         const config = statusMap[status] || { variant: 'default' as const, label: status };
         return <Badge variant={config.variant}>{config.label}</Badge>;
@@ -115,7 +109,7 @@ export default function ContactsShow({
             <div className="space-y-6">
                 <div>
                     <Link
-                        href={route('app.contacts.index', { workspace: workspace.slug })}
+                        href={route('app.contacts.index', { })}
                         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
                     >
                         <ArrowLeft className="h-4 w-4" />

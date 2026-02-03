@@ -20,8 +20,7 @@ class AppServiceProvider extends ServiceProvider
      */
     protected $policies = [
         WhatsAppConnection::class => WhatsAppConnectionPolicy::class,
-        FloaterWidget::class => FloaterWidgetPolicy::class,
-    ];
+        FloaterWidget::class => FloaterWidgetPolicy::class];
 
     /**
      * Register any application services.
@@ -77,10 +76,10 @@ class AppServiceProvider extends ServiceProvider
         });
 
         // Route model binding for 'connection' parameter - resolve by slug instead of ID
-        // Note: We return the raw value (slug/id) and let controllers handle workspace scoping
+        // Note: We return the raw value (slug/id) and let controllers handle account scoping
         Route::bind('connection', function ($value) {
-            // Return the raw value - controllers will handle workspace scoping
-            // This prevents cross-workspace access issues
+            // Return the raw value - controllers will handle account scoping
+            // This prevents cross-account access issues
             return $value;
         });
 

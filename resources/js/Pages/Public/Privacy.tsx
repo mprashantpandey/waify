@@ -38,7 +38,7 @@ export default function Privacy() {
                         </p>
                         <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300 ml-4">
                             <li>Account information (name, email address, phone number)</li>
-                            <li>Workspace and business information</li>
+                            <li>Account and business information</li>
                             <li>Payment and billing information</li>
                             <li>Messages and communications sent through our platform</li>
                             <li>Usage data and analytics</li>

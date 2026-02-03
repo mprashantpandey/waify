@@ -15,9 +15,9 @@ return new class extends Migration
         try {
             Schema::table('whatsapp_conversations', function (Blueprint $table) {
                 // Add index for status filtering
-                $table->index(['workspace_id', 'status'], 'whatsapp_conversations_workspace_id_status_index');
+                $table->index(['account_id', 'status'], 'whatsapp_conversations_account_id_status_index');
                 // Add index for connection filtering
-                $table->index(['workspace_id', 'whatsapp_connection_id'], 'whatsapp_conversations_workspace_id_connection_id_index');
+                $table->index(['account_id', 'whatsapp_connection_id'], 'whatsapp_conversations_account_id_connection_id_index');
             });
         } catch (\Exception $e) {
             // Indexes may already exist, continue
@@ -28,7 +28,7 @@ return new class extends Migration
                 // Add index for direction filtering
                 $table->index(['whatsapp_conversation_id', 'direction'], 'whatsapp_messages_conversation_id_direction_index');
                 // Add index for status updates
-                $table->index(['workspace_id', 'status'], 'whatsapp_messages_workspace_id_status_index');
+                $table->index(['account_id', 'status'], 'whatsapp_messages_account_id_status_index');
             });
         } catch (\Exception $e) {
             // Indexes may already exist, continue
@@ -37,8 +37,8 @@ return new class extends Migration
         try {
             Schema::table('whatsapp_templates', function (Blueprint $table) {
                 // Add indexes for template search
-                $table->index(['workspace_id', 'status'], 'whatsapp_templates_workspace_id_status_index');
-                $table->index(['workspace_id', 'name'], 'whatsapp_templates_workspace_id_name_index');
+                $table->index(['account_id', 'status'], 'whatsapp_templates_account_id_status_index');
+                $table->index(['account_id', 'name'], 'whatsapp_templates_account_id_name_index');
             });
         } catch (\Exception $e) {
             // Indexes may already exist, continue
@@ -51,18 +51,18 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('whatsapp_conversations', function (Blueprint $table) {
-            $table->dropIndex('whatsapp_conversations_workspace_id_status_index');
-            $table->dropIndex('whatsapp_conversations_workspace_id_connection_id_index');
+            $table->dropIndex('whatsapp_conversations_account_id_status_index');
+            $table->dropIndex('whatsapp_conversations_account_id_connection_id_index');
         });
 
         Schema::table('whatsapp_messages', function (Blueprint $table) {
             $table->dropIndex('whatsapp_messages_conversation_id_direction_index');
-            $table->dropIndex('whatsapp_messages_workspace_id_status_index');
+            $table->dropIndex('whatsapp_messages_account_id_status_index');
         });
 
         Schema::table('whatsapp_templates', function (Blueprint $table) {
-            $table->dropIndex('whatsapp_templates_workspace_id_status_index');
-            $table->dropIndex('whatsapp_templates_workspace_id_name_index');
+            $table->dropIndex('whatsapp_templates_account_id_status_index');
+            $table->dropIndex('whatsapp_templates_account_id_name_index');
         });
     }
 };

@@ -5,9 +5,9 @@ use App\Modules\Chatbots\Http\Controllers\BotExecutionController;
 use App\Modules\Chatbots\Http\Controllers\BotFlowController;
 use Illuminate\Support\Facades\Route;
 
-// App routes (requires auth + workspace + module entitlement)
-Route::middleware(['auth', 'workspace.resolve', 'module.entitled:automation.chatbots'])
-    ->prefix('/app/{workspace}')
+// App routes (requires auth + account + module entitlement)
+Route::middleware(['auth', 'account.resolve', 'module.entitled:automation.chatbots'])
+    ->prefix('/app')
     ->name('app.chatbots.')
     ->group(function () {
         // Bots

@@ -17,11 +17,11 @@ class BotController extends Controller
      */
     public function index(Request $request): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        Gate::authorize('viewAny', [ChatbotPolicy::class, $workspace]);
+        Gate::authorize('viewAny', [ChatbotPolicy::class, $account]);
 
-        $bots = Bot::where('workspace_id', $workspace->id)
+        $bots = Bot::where('account_id', $account->id)
             ->with(['creator', 'updater'])
             ->orderBy('created_at', 'desc')
             ->get()
@@ -42,14 +42,12 @@ class BotController extends Controller
                     'executions_count' => $executions->count(),
                     'errors_count' => $executions->where('status', 'failed')->count(),
                     'last_run_at' => $executions->max('created_at')?->toIso8601String(),
-                    'created_at' => $bot->created_at->toIso8601String(),
-                ];
+                    'created_at' => $bot->created_at->toIso8601String()];
             });
 
         return Inertia::render('Chatbots/Index', [
-            'workspace' => $workspace,
-            'bots' => $bots,
-        ]);
+            'account' => $account,
+            'bots' => $bots]);
     }
 
     /**
@@ -57,18 +55,17 @@ class BotController extends Controller
      */
     public function create(Request $request): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        Gate::authorize('manage', [ChatbotPolicy::class, $workspace]);
+        Gate::authorize('manage', [ChatbotPolicy::class, $account]);
 
-        $connections = \App\Modules\WhatsApp\Models\WhatsAppConnection::where('workspace_id', $workspace->id)
+        $connections = \App\Modules\WhatsApp\Models\WhatsAppConnection::where('account_id', $account->id)
             ->where('is_active', true)
             ->get(['id', 'name']);
 
         return Inertia::render('Chatbots/Create', [
-            'workspace' => $workspace,
-            'connections' => $connections,
-        ]);
+            'account' => $account,
+            'connections' => $connections]);
     }
 
     /**
@@ -76,9 +73,9 @@ class BotController extends Controller
      */
     public function store(Request $request)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        Gate::authorize('manage', [ChatbotPolicy::class, $workspace]);
+        Gate::authorize('manage', [ChatbotPolicy::class, $account]);
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -86,23 +83,19 @@ class BotController extends Controller
             'status' => 'required|string|in:draft,active,paused',
             'applies_to' => 'required|array',
             'applies_to.all_connections' => 'boolean',
-            'applies_to.connection_ids' => 'array',
-        ]);
+            'applies_to.connection_ids' => 'array']);
 
         $bot = Bot::create([
-            'workspace_id' => $workspace->id,
+            'account_id' => $account->id,
             'name' => $validated['name'],
             'description' => $validated['description'] ?? null,
             'status' => $validated['status'],
             'applies_to' => $validated['applies_to'],
             'created_by' => $request->user()->id,
-            'updated_by' => $request->user()->id,
-        ]);
+            'updated_by' => $request->user()->id]);
 
         return redirect()->route('app.chatbots.show', [
-            'workspace' => $workspace->slug,
-            'bot' => $bot->id,
-        ])->with('success', 'Bot created successfully.');
+            'bot' => $bot->id])->with('success', 'Bot created successfully.');
     }
 
     /**
@@ -110,22 +103,22 @@ class BotController extends Controller
      */
     public function show(Request $request, Bot $bot): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        Gate::authorize('viewAny', [ChatbotPolicy::class, $workspace]);
+        Gate::authorize('viewAny', [ChatbotPolicy::class, $account]);
 
-        if ($bot->workspace_id !== $workspace->id) {
+        if ($bot->account_id !== $account->id) {
             abort(404);
         }
 
         $bot->load(['flows.nodes', 'creator', 'updater']);
 
-        $connections = \App\Modules\WhatsApp\Models\WhatsAppConnection::where('workspace_id', $workspace->id)
+        $connections = \App\Modules\WhatsApp\Models\WhatsAppConnection::where('account_id', $account->id)
             ->where('is_active', true)
             ->get(['id', 'name']);
 
         return Inertia::render('Chatbots/Show', [
-            'workspace' => $workspace,
+            'account' => $account,
             'bot' => [
                 'id' => $bot->id,
                 'name' => $bot->name,
@@ -146,14 +139,10 @@ class BotController extends Controller
                                 'id' => $node->id,
                                 'type' => $node->type,
                                 'config' => $node->config,
-                                'sort_order' => $node->sort_order,
-                            ];
-                        }),
-                    ];
-                }),
-            ],
-            'connections' => $connections,
-        ]);
+                                'sort_order' => $node->sort_order];
+                        })];
+                })],
+            'connections' => $connections]);
     }
 
     /**
@@ -161,11 +150,11 @@ class BotController extends Controller
      */
     public function update(Request $request, Bot $bot)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        Gate::authorize('manage', [ChatbotPolicy::class, $workspace]);
+        Gate::authorize('manage', [ChatbotPolicy::class, $account]);
 
-        if ($bot->workspace_id !== $workspace->id) {
+        if ($bot->account_id !== $account->id) {
             abort(404);
         }
 
@@ -175,8 +164,7 @@ class BotController extends Controller
             'status' => 'required|string|in:draft,active,paused',
             'applies_to' => 'required|array',
             'applies_to.all_connections' => 'boolean',
-            'applies_to.connection_ids' => 'array',
-        ]);
+            'applies_to.connection_ids' => 'array']);
 
         $wasDraft = $bot->status === 'draft';
         $isPublishing = $wasDraft && $validated['status'] === 'active';
@@ -187,8 +175,7 @@ class BotController extends Controller
             'status' => $validated['status'],
             'applies_to' => $validated['applies_to'],
             'version' => $isPublishing ? $bot->version + 1 : $bot->version,
-            'updated_by' => $request->user()->id,
-        ]);
+            'updated_by' => $request->user()->id]);
 
         return redirect()->back()->with('success', 'Bot updated successfully.');
     }
@@ -198,17 +185,17 @@ class BotController extends Controller
      */
     public function destroy(Request $request, Bot $bot)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        Gate::authorize('manage', [ChatbotPolicy::class, $workspace]);
+        Gate::authorize('manage', [ChatbotPolicy::class, $account]);
 
-        if ($bot->workspace_id !== $workspace->id) {
+        if ($bot->account_id !== $account->id) {
             abort(404);
         }
 
         $bot->delete();
 
-        return redirect()->route('app.chatbots.index', ['workspace' => $workspace->slug])
+        return redirect()->route('app.chatbots.index')
             ->with('success', 'Bot deleted successfully.');
     }
 }

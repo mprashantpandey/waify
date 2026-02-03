@@ -29,8 +29,7 @@ class PlatformSettingsService
             'date_format' => $this->get('general.date_format', 'Y-m-d'),
             'time_format' => $this->get('general.time_format', '24'),
             'maintenance_mode' => $this->get('general.maintenance_mode', false),
-            'maintenance_message' => $this->get('general.maintenance_message', 'We are currently performing scheduled maintenance. Please check back shortly.'),
-        ];
+            'maintenance_message' => $this->get('general.maintenance_message', 'We are currently performing scheduled maintenance. Please check back shortly.')];
     }
 
     /**
@@ -53,8 +52,7 @@ class PlatformSettingsService
             'lockout_duration' => $this->get('security.lockout_duration', 15),
             'api_rate_limit' => $this->get('security.api_rate_limit', 60),
             'web_rate_limit' => $this->get('security.web_rate_limit', 120),
-            'ip_whitelist' => $this->get('security.ip_whitelist'),
-        ];
+            'ip_whitelist' => $this->get('security.ip_whitelist')];
     }
 
     /**
@@ -65,13 +63,12 @@ class PlatformSettingsService
         return [
             'user_registration' => $this->get('features.user_registration', true),
             'email_verification' => $this->get('features.email_verification', false),
-            'workspace_creation' => $this->get('features.workspace_creation', true),
+            'account_creation' => $this->get('features.account_creation', true),
             'public_api' => $this->get('features.public_api', false),
             'webhooks' => $this->get('features.webhooks', true),
             'analytics' => $this->get('features.analytics', true),
             'beta_features' => $this->get('features.beta_features', false),
-            'maintenance_mode' => $this->get('features.maintenance_mode', false),
-        ];
+            'maintenance_mode' => $this->get('features.maintenance_mode', false)];
     }
 
     /**
@@ -253,6 +250,105 @@ class PlatformSettingsService
         if ($locale) {
             config(['app.locale' => $locale]);
             app()->setLocale($locale);
+        }
+    }
+
+    /**
+     * Apply storage configuration from platform settings.
+     */
+    public function applyStorageConfig(): void
+    {
+        $default = $this->get('storage.default', config('filesystems.default', 'local'));
+        
+        if ($default) {
+            config(['filesystems.default' => $default]);
+        }
+
+        // If using S3, apply S3 configuration
+        if ($default === 's3') {
+            $s3Key = $this->get('storage.s3_key', config('filesystems.disks.s3.key'));
+            $s3Secret = $this->get('storage.s3_secret', config('filesystems.disks.s3.secret'));
+            $s3Region = $this->get('storage.s3_region', config('filesystems.disks.s3.region'));
+            $s3Bucket = $this->get('storage.s3_bucket', config('filesystems.disks.s3.bucket'));
+
+            if ($s3Key) {
+                config(['filesystems.disks.s3.key' => $s3Key]);
+            }
+            if ($s3Secret) {
+                config(['filesystems.disks.s3.secret' => $s3Secret]);
+            }
+            if ($s3Region) {
+                config(['filesystems.disks.s3.region' => $s3Region]);
+            }
+            if ($s3Bucket) {
+                config(['filesystems.disks.s3.bucket' => $s3Bucket]);
+            }
+        }
+    }
+
+    /**
+     * Apply payment configuration from platform settings.
+     */
+    public function applyPaymentConfig(): void
+    {
+        $razorpayEnabled = $this->get('payment.razorpay_enabled', false);
+        $razorpayKeyId = $this->get('payment.razorpay_key_id');
+        $razorpayKeySecret = $this->get('payment.razorpay_key_secret');
+        $razorpayWebhookSecret = $this->get('payment.razorpay_webhook_secret');
+        $defaultCurrency = $this->get('payment.default_currency', 'USD');
+        $currencyPosition = $this->get('payment.currency_symbol_position', 'before');
+        $taxRate = $this->get('payment.tax_rate', 0);
+
+        if ($razorpayEnabled) {
+            if ($razorpayKeyId) {
+                config(['services.razorpay.key_id' => $razorpayKeyId]);
+            }
+            if ($razorpayKeySecret) {
+                config(['services.razorpay.key_secret' => $razorpayKeySecret]);
+            }
+            if ($razorpayWebhookSecret) {
+                config(['services.razorpay.webhook_secret' => $razorpayWebhookSecret]);
+            }
+        }
+
+        // Store payment settings in config for easy access
+        config(['payment.default_currency' => $defaultCurrency]);
+        config(['payment.currency_symbol_position' => $currencyPosition]);
+        config(['payment.tax_rate' => $taxRate]);
+    }
+
+    /**
+     * Apply AI configuration from platform settings.
+     */
+    public function applyAIConfig(): void
+    {
+        $aiEnabled = $this->get('ai.enabled', false);
+        $provider = $this->get('ai.provider', 'openai');
+        $openaiApiKey = $this->get('ai.openai_api_key');
+        $openaiModel = $this->get('ai.openai_model', 'gpt-4o-mini');
+        $geminiApiKey = $this->get('ai.gemini_api_key');
+        $geminiModel = $this->get('ai.gemini_model', 'gemini-1.5-flash');
+        $temperature = $this->get('ai.temperature', 0.2);
+        $maxTokens = $this->get('ai.max_tokens', 300);
+
+        if ($aiEnabled) {
+            config(['ai.enabled' => true]);
+            config(['ai.provider' => $provider]);
+            
+            if ($provider === 'openai' && $openaiApiKey) {
+                config(['ai.openai.api_key' => $openaiApiKey]);
+                config(['ai.openai.model' => $openaiModel]);
+            }
+            
+            if ($provider === 'gemini' && $geminiApiKey) {
+                config(['ai.gemini.api_key' => $geminiApiKey]);
+                config(['ai.gemini.model' => $geminiModel]);
+            }
+            
+            config(['ai.temperature' => $temperature]);
+            config(['ai.max_tokens' => $maxTokens]);
+        } else {
+            config(['ai.enabled' => false]);
         }
     }
 }

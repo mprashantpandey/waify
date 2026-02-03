@@ -3,7 +3,7 @@
 namespace App\Modules\Broadcasts\Models;
 
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Account;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -18,7 +18,7 @@ class Campaign extends Model
     protected $table = 'campaigns';
 
     protected $fillable = [
-        'workspace_id',
+        'account_id',
         'whatsapp_connection_id',
         'whatsapp_template_id',
         'created_by',
@@ -44,8 +44,7 @@ class Campaign extends Model
         'failed_count',
         'send_delay_seconds',
         'respect_opt_out',
-        'metadata',
-    ];
+        'metadata'];
 
     protected $casts = [
         'template_params' => 'array',
@@ -54,8 +53,7 @@ class Campaign extends Model
         'metadata' => 'array',
         'scheduled_at' => 'datetime',
         'started_at' => 'datetime',
-        'completed_at' => 'datetime',
-    ];
+        'completed_at' => 'datetime'];
 
     protected static function boot()
     {
@@ -86,7 +84,7 @@ class Campaign extends Model
         $counter = 1;
 
         while (static::where('slug', $slug)
-            ->where('workspace_id', $campaign->workspace_id ?? 0)
+            ->where('account_id', $campaign->account_id ?? 0)
             ->where('id', '!=', $campaign->id ?? 0)
             ->exists()) {
             $slug = $originalSlug . '-' . $counter;
@@ -105,11 +103,11 @@ class Campaign extends Model
     }
 
     /**
-     * Get the workspace.
+     * Get the account.
      */
-    public function workspace(): BelongsTo
+    public function account(): BelongsTo
     {
-        return $this->belongsTo(Workspace::class);
+        return $this->belongsTo(Account::class);
     }
 
     /**

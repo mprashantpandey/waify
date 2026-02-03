@@ -1,6 +1,7 @@
 import PlatformShell from '@/Layouts/PlatformShell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
+import MisconfiguredSettingsAlert from '@/Components/Platform/MisconfiguredSettingsAlert';
 import { 
     Building2, 
     Users, 
@@ -21,10 +22,10 @@ import {
 import { Link, usePage } from '@inertiajs/react';
 
 interface Stat {
-    total_workspaces: number;
-    active_workspaces: number;
-    suspended_workspaces: number;
-    disabled_workspaces: number;
+    total_accounts: number;
+    active_accounts: number;
+    suspended_accounts: number;
+    disabled_accounts: number;
     total_users: number;
     super_admins: number;
     total_messages: number;
@@ -47,7 +48,7 @@ interface Stat {
     past_due_subscriptions: number;
 }
 
-interface RecentWorkspace {
+interface RecentTenant {
     id: number;
     name: string;
     slug: string;
@@ -59,7 +60,7 @@ interface RecentWorkspace {
     created_at: string;
 }
 
-interface TopWorkspace {
+interface TopTenant {
     id: number;
     name: string;
     slug: string;
@@ -73,14 +74,23 @@ interface MessageTrend {
 
 export default function PlatformDashboard({
     stats,
-    recent_workspaces,
+    recent_accounts,
     message_trends,
-    top_workspaces,
-}: {
+    top_accounts,
+    misconfigured_settings}: {
     stats: Stat;
-    recent_workspaces: RecentWorkspace[];
+    recent_accounts: RecentTenant[];
     message_trends: MessageTrend[];
-    top_workspaces: TopWorkspace[];
+    top_accounts: TopTenant[];
+    misconfigured_settings?: Array<{
+        group: string;
+        name: string;
+        required: boolean;
+        issues: string[];
+        impact: string;
+        route: string;
+        tab: string;
+    }>;
 }) {
     const { auth } = usePage().props as any;
     
@@ -88,8 +98,7 @@ export default function PlatformDashboard({
         const statusMap: Record<string, { variant: 'success' | 'warning' | 'danger' | 'default'; label: string }> = {
             active: { variant: 'success', label: 'Active' },
             suspended: { variant: 'warning', label: 'Suspended' },
-            disabled: { variant: 'danger', label: 'Disabled' },
-        };
+            disabled: { variant: 'danger', label: 'Disabled' }};
 
         const config = statusMap[status] || { variant: 'default' as const, label: status };
         return <Badge variant={config.variant}>{config.label}</Badge>;
@@ -111,18 +120,26 @@ export default function PlatformDashboard({
                     </p>
                 </div>
 
+                {/* Misconfiguration Alerts */}
+                {misconfigured_settings && misconfigured_settings.length > 0 && (
+                    <MisconfiguredSettingsAlert 
+                        misconfiguredSettings={misconfigured_settings}
+                        variant="dashboard"
+                    />
+                )}
+
                 {/* Core Stats Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <Card>
                         <CardContent className="pt-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Workspaces</p>
+                                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Tenants</p>
                                     <p className="text-3xl font-bold text-gray-900 dark:text-gray-100 mt-2">
-                                        {formatNumber(stats.total_workspaces)}
+                                        {formatNumber(stats.total_accounts)}
                                     </p>
                                     <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                                        {stats.active_workspaces} active
+                                        {stats.active_accounts} active
                                     </p>
                                 </div>
                                 <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
@@ -358,18 +375,18 @@ export default function PlatformDashboard({
 
                     <Card>
                         <CardHeader>
-                            <CardTitle>Top Workspaces by Volume</CardTitle>
-                            <CardDescription>Most active workspaces (last 30 days)</CardDescription>
+                            <CardTitle>Top Tenants by Volume</CardTitle>
+                            <CardDescription>Most active tenants (last 30 days)</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            {top_workspaces.length === 0 ? (
+                            {top_accounts.length === 0 ? (
                                 <p className="text-gray-500 dark:text-gray-400 text-center py-8">No message data available</p>
                             ) : (
                                 <div className="space-y-3">
-                                    {top_workspaces.map((workspace, index) => (
+                                    {top_accounts.map((account, index) => (
                                         <Link
-                                            key={workspace.id}
-                                            href={route('platform.workspaces.show', { workspace: workspace.id })}
+                                            key={account.id}
+                                            href={route('platform.accounts.show', { account: account.id })}
                                             className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                                         >
                                             <div className="flex items-center gap-3">
@@ -378,17 +395,17 @@ export default function PlatformDashboard({
                                                 </div>
                                                 <div>
                                                     <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                                        {workspace.name}
+                                                        {account.name}
                                                     </p>
                                                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                        {workspace.slug}
+                                                        {account.slug}
                                                     </p>
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <BarChart3 className="h-4 w-4 text-gray-400" />
                                                 <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                                    {formatNumber(workspace.message_count)}
+                                                    {formatNumber(account.message_count)}
                                                 </span>
                                             </div>
                                         </Link>
@@ -399,16 +416,16 @@ export default function PlatformDashboard({
                     </Card>
                 </div>
 
-                {/* Recent Workspaces */}
+                {/* Recent Tenants */}
                 <Card>
                     <CardHeader>
                         <div className="flex items-center justify-between">
                             <div>
-                                <CardTitle>Recent Workspaces</CardTitle>
-                                <CardDescription>Newly created workspaces</CardDescription>
+                                <CardTitle>Recent Tenants</CardTitle>
+                                <CardDescription>Newly created tenants</CardDescription>
                             </div>
                             <Link
-                                href={route('platform.workspaces.index')}
+                                href={route('platform.accounts.index')}
                                 className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
                             >
                                 View All
@@ -416,29 +433,29 @@ export default function PlatformDashboard({
                         </div>
                     </CardHeader>
                     <CardContent>
-                        {recent_workspaces.length === 0 ? (
-                            <p className="text-gray-500 dark:text-gray-400 text-center py-8">No workspaces yet</p>
+                        {recent_accounts.length === 0 ? (
+                            <p className="text-gray-500 dark:text-gray-400 text-center py-8">No tenants yet</p>
                         ) : (
                             <div className="divide-y divide-gray-200 dark:divide-gray-800">
-                                {recent_workspaces.map((workspace) => (
+                                {recent_accounts.map((account) => (
                                     <Link
-                                        key={workspace.id}
-                                        href={route('platform.workspaces.show', { workspace: workspace.id })}
+                                        key={account.id}
+                                        href={route('platform.accounts.show', { account: account.id })}
                                         className="block p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                                     >
                                         <div className="flex items-center justify-between">
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2 mb-1">
                                                     <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                                        {workspace.name}
+                                                        {account.name}
                                                     </p>
-                                                    {getStatusBadge(workspace.status)}
+                                                    {getStatusBadge(account.status)}
                                                 </div>
                                                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                    Owner: {workspace.owner.name} ({workspace.owner.email})
+                                                    Owner: {account.owner.name} ({account.owner.email})
                                                 </p>
                                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                    Created: {new Date(workspace.created_at).toLocaleString()}
+                                                    Created: {new Date(account.created_at).toLocaleString()}
                                                 </p>
                                             </div>
                                         </div>

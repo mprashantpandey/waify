@@ -27,8 +27,7 @@ class SystemHealthController extends Controller
             'recent_activity' => $connections->filter(function ($conn) {
                 return $conn->webhook_last_received_at && 
                        $conn->webhook_last_received_at->isAfter(now()->subHours(24));
-            })->count(),
-        ];
+            })->count()];
 
         // Connection details with health status
         $connectionDetails = $connections->map(function ($conn) {
@@ -40,21 +39,19 @@ class SystemHealthController extends Controller
             return [
                 'id' => $conn->id,
                 'name' => $conn->name,
-                'workspace_id' => $conn->workspace_id,
+                'account_id' => $conn->account_id,
                 'is_active' => $conn->is_active,
                 'webhook_subscribed' => $conn->webhook_subscribed,
                 'has_error' => !empty($conn->webhook_last_error),
                 'last_received_at' => $conn->webhook_last_received_at?->toIso8601String(),
                 'last_error' => $conn->webhook_last_error,
-                'is_healthy' => $isHealthy,
-            ];
+                'is_healthy' => $isHealthy];
         });
 
         // Queue Status
         $queueStatus = [
             'driver' => config('queue.default'),
-            'connection' => config('queue.connections.' . config('queue.default') . '.connection'),
-        ];
+            'connection' => config('queue.connections.' . config('queue.default') . '.connection')];
 
         // Try to get queue size (if supported)
         try {
@@ -73,8 +70,7 @@ class SystemHealthController extends Controller
         // Storage Status
         $storageStatus = [
             'public_available' => Storage::disk('public')->exists('.'),
-            'public_writable' => is_writable(Storage::disk('public')->path('.')),
-        ];
+            'public_writable' => is_writable(Storage::disk('public')->path('.'))];
 
         try {
             $storageStatus['public_size'] = $this->getDirectorySize(Storage::disk('public')->path('.'));
@@ -88,13 +84,11 @@ class SystemHealthController extends Controller
             $databaseStatus = [
                 'connected' => true,
                 'driver' => config('database.default'),
-                'connection' => config('database.connections.' . config('database.default') . '.database'),
-            ];
+                'connection' => config('database.connections.' . config('database.default') . '.database')];
         } catch (\Exception $e) {
             $databaseStatus = [
                 'connected' => false,
-                'error' => $e->getMessage(),
-            ];
+                'error' => $e->getMessage()];
         }
 
         // Recent Errors (from failed_jobs)
@@ -109,8 +103,7 @@ class SystemHealthController extends Controller
                     'queue' => $job->queue,
                     'payload' => json_decode($job->payload, true),
                     'exception' => $job->exception,
-                    'failed_at' => $job->failed_at,
-                ];
+                    'failed_at' => $job->failed_at];
             });
 
         return Inertia::render('Platform/SystemHealth', [
@@ -119,8 +112,7 @@ class SystemHealthController extends Controller
             'queue_status' => $queueStatus,
             'storage_status' => $storageStatus,
             'database_status' => $databaseStatus,
-            'recent_errors' => $recentErrors,
-        ]);
+            'recent_errors' => $recentErrors]);
     }
 
     /**

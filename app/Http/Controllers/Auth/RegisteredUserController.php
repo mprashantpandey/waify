@@ -39,16 +39,15 @@ class RegisteredUserController extends Controller
         $inviteToken = $request->query('invite');
         $invite = null;
         if ($inviteToken) {
-            $invitation = \App\Models\WorkspaceInvitation::where('token', $inviteToken)
+            $invitation = \App\Models\AccountInvitation::where('token', $inviteToken)
                 ->whereNull('accepted_at')
                 ->first();
             if ($invitation && ! $invitation->isExpired()) {
                 $invite = [
                     'token' => $invitation->token,
                     'email' => $invitation->email,
-                    'workspace_name' => $invitation->workspace?->name,
-                    'role' => $invitation->role,
-                ];
+                    'account_name' => $invitation->account?->name,
+                    'role' => $invitation->role];
             }
         }
         
@@ -59,10 +58,8 @@ class RegisteredUserController extends Controller
                 'name' => $selectedPlan->name,
                 'description' => $selectedPlan->description,
                 'price_monthly' => $selectedPlan->price_monthly,
-                'trial_days' => $selectedPlan->trial_days ?? 0,
-            ] : null,
-            'invite' => $invite,
-        ]);
+                'trial_days' => $selectedPlan->trial_days ?? 0] : null,
+            'invite' => $invite]);
     }
 
     /**
@@ -77,8 +74,7 @@ class RegisteredUserController extends Controller
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-        ]);
+            'password' => Hash::make($validated['password'])]);
 
         event(new Registered($user));
 
@@ -89,30 +85,28 @@ class RegisteredUserController extends Controller
             session(['selected_plan_key' => $request->input('plan_key')]);
         }
 
-        // Accept workspace invite if present
+        // Accept account invite if present
         if (!empty($validated['invite_token'])) {
-            $invitation = \App\Models\WorkspaceInvitation::where('token', $validated['invite_token'])
+            $invitation = \App\Models\AccountInvitation::where('token', $validated['invite_token'])
                 ->whereNull('accepted_at')
                 ->first();
             if ($invitation && ! $invitation->isExpired()) {
-                $workspace = $invitation->workspace;
-                if ($workspace && ! $workspace->users()->where('user_id', $user->id)->exists()) {
-                    $workspace->users()->attach($user->id, [
-                        'role' => $invitation->role,
-                    ]);
+                $account = $invitation->account;
+                if ($account && ! $account->users()->where('user_id', $user->id)->exists()) {
+                    $account->users()->attach($user->id, [
+                        'role' => $invitation->role]);
                 }
                 $invitation->update([
-                    'accepted_at' => now(),
-                ]);
-                return redirect()->route('app.dashboard', ['workspace' => $workspace->slug]);
+                    'accepted_at' => now()]);
+                return redirect()->route('app.dashboard');
             }
             if ($invitation && $invitation->isExpired()) {
                 return redirect(route('onboarding'))
-                    ->with('error', 'Your invitation has expired. Please ask the workspace owner to resend it.');
+                    ->with('error', 'Your invitation has expired. Please ask the account owner to resend it.');
             }
         }
 
-        // Redirect to onboarding since new users don't have a workspace yet
+        // Redirect to onboarding since new users don't have a account yet
         return redirect(route('onboarding'));
     }
 }

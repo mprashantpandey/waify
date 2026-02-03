@@ -3,7 +3,7 @@
 namespace App\Modules\WhatsApp\Models;
 
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Account;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,24 +15,22 @@ class WhatsAppTemplateVersion extends Model
     protected $table = 'whatsapp_template_versions';
 
     protected $fillable = [
-        'workspace_id',
+        'account_id',
         'whatsapp_template_id',
         'version',
         'change_notes',
         'components',
-        'created_by',
-    ];
+        'created_by'];
 
     protected $casts = [
-        'components' => 'array',
-    ];
+        'components' => 'array'];
 
     /**
-     * Get the workspace.
+     * Get the account.
      */
-    public function workspace(): BelongsTo
+    public function account(): BelongsTo
     {
-        return $this->belongsTo(Workspace::class);
+        return $this->belongsTo(Account::class);
     }
 
     /**

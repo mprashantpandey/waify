@@ -2,7 +2,7 @@
 
 namespace App\Modules\WhatsApp\Models;
 
-use App\Models\Workspace;
+use App\Models\Account;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,7 +13,7 @@ class WhatsAppMessage extends Model
     protected $table = 'whatsapp_messages';
 
     protected $fillable = [
-        'workspace_id',
+        'account_id',
         'whatsapp_conversation_id',
         'direction',
         'meta_message_id',
@@ -25,23 +25,21 @@ class WhatsAppMessage extends Model
         'sent_at',
         'delivered_at',
         'read_at',
-        'received_at',
-    ];
+        'received_at'];
 
     protected $casts = [
         'payload' => 'array',
         'sent_at' => 'datetime',
         'delivered_at' => 'datetime',
         'read_at' => 'datetime',
-        'received_at' => 'datetime',
-    ];
+        'received_at' => 'datetime'];
 
     /**
-     * Get the workspace.
+     * Get the account.
      */
-    public function workspace(): BelongsTo
+    public function account(): BelongsTo
     {
-        return $this->belongsTo(Workspace::class);
+        return $this->belongsTo(Account::class);
     }
 
     /**

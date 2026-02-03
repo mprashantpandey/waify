@@ -37,13 +37,12 @@ interface Segment {
 }
 
 export default function ContactsIndex({
-    workspace,
+    account,
     contacts,
     tags,
     segments,
-    filters,
-}: {
-    workspace: any;
+    filters}: {
+    account: any;
     contacts: {
         data: Contact[];
         links: any;
@@ -63,10 +62,9 @@ export default function ContactsIndex({
 
     const handleSearch: FormEventHandler = (e) => {
         e.preventDefault();
-        router.get(route('app.contacts.index', { workspace: workspace.slug }), { search }, {
+        router.get(route('app.contacts.index', {}), { search }, {
             preserveState: true,
-            preserveScroll: true,
-        });
+            preserveScroll: true});
     };
 
     const getStatusBadge = (status: string) => {
@@ -74,8 +72,7 @@ export default function ContactsIndex({
             active: { variant: 'success', label: 'Active' },
             inactive: { variant: 'default', label: 'Inactive' },
             blocked: { variant: 'danger', label: 'Blocked' },
-            opt_out: { variant: 'warning', label: 'Opt Out' },
-        };
+            opt_out: { variant: 'warning', label: 'Opt Out' }};
 
         const config = statusMap[status] || { variant: 'default' as const, label: status };
         return <Badge variant={config.variant}>{config.label}</Badge>;
@@ -95,13 +92,13 @@ export default function ContactsIndex({
                         </p>
                     </div>
                     <div className="flex gap-2">
-                        <Link href={route('app.contacts.export', { workspace: workspace.slug })}>
+                        <Link href={route('app.contacts.export', {})}>
                             <Button variant="secondary">
                                 <Download className="h-4 w-4 mr-2" />
                                 Export
                             </Button>
                         </Link>
-                        <Link href={route('app.contacts.create', { workspace: workspace.slug })}>
+                        <Link href={route('app.contacts.create', {})}>
                             <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700">
                                 <Plus className="h-4 w-4 mr-2" />
                                 Add Contact
@@ -145,7 +142,7 @@ export default function ContactsIndex({
                                 title="No contacts yet"
                                 description="Start building your contact list by adding contacts manually or importing from CSV"
                                 action={
-                                    <Link href={route('app.contacts.create', { workspace: workspace.slug })}>
+                                    <Link href={route('app.contacts.create', {})}>
                                         <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700">
                                             <Plus className="h-4 w-4 mr-2" />
                                             Add Contact
@@ -165,9 +162,7 @@ export default function ContactsIndex({
                                             <div className="flex items-center gap-3 mb-2">
                                                 <Link
                                                     href={route('app.contacts.show', {
-                                                        workspace: workspace.slug,
-                                                        contact: contact.slug,
-                                                    })}
+                                                        contact: contact.slug})}
                                                     className="text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400"
                                                 >
                                                     {contact.name || contact.wa_id}
@@ -204,9 +199,7 @@ export default function ContactsIndex({
                                         </div>
                                         <Link
                                             href={route('app.contacts.show', {
-                                                workspace: workspace.slug,
-                                                contact: contact.slug,
-                                            })}
+                                                contact: contact.slug})}
                                         >
                                             <Button variant="secondary" size="sm">
                                                 View

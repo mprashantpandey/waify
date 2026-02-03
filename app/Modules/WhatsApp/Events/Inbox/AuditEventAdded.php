@@ -24,12 +24,11 @@ class AuditEventAdded implements ShouldBroadcast
      */
     public function broadcastOn(): array
     {
-        $workspaceId = $this->conversation->workspace_id;
+        $accountId = $this->conversation->account_id;
         $conversationId = $this->conversation->id;
 
         return [
-            new PrivateChannel("workspace.{$workspaceId}.whatsapp.conversation.{$conversationId}"),
-        ];
+            new PrivateChannel("account.{$accountId}.whatsapp.conversation.{$conversationId}")];
     }
 
     /**
@@ -47,8 +46,7 @@ class AuditEventAdded implements ShouldBroadcast
     {
         return [
             'conversation_id' => $this->conversation->id,
-            'audit_event' => $this->auditEvent,
-        ];
+            'audit_event' => $this->auditEvent];
     }
 }
 

@@ -12,7 +12,4 @@ return [
             'label' => 'Support Hub',
             'href' => 'app.support.hub',
             'icon' => 'LifeBuoy',
-            'group' => 'core',
-        ],
-    ],
-];
+            'group' => 'core']]];

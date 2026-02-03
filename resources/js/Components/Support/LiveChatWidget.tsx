@@ -3,7 +3,6 @@ import { usePage } from '@inertiajs/react';
 import { MessageSquare, X } from 'lucide-react';
 import Button from '@/Components/UI/Button';
 import { useRealtime } from '@/Providers/RealtimeProvider';
-import axios from 'axios';
 
 interface Thread {
     id: number;
@@ -47,8 +46,16 @@ interface LiveChatResponse {
 }
 
 export default function LiveChatWidget() {
-    const { workspace, branding } = usePage().props as any;
+    const { account, branding, supportSettings } = usePage().props as any;
     const { subscribe } = useRealtime();
+    
+    // Check if live chat is enabled in platform settings
+    const liveChatEnabled = supportSettings?.live_chat_enabled ?? true;
+    
+    // Don't render if live chat is disabled
+    if (!liveChatEnabled) {
+        return null;
+    }
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [thread, setThread] = useState<Thread | null>(null);
@@ -60,55 +67,72 @@ export default function LiveChatWidget() {
     const supportContacts = useMemo(() => {
         return {
             email: branding?.support_email as string | undefined,
-            phone: branding?.support_phone as string | undefined,
-        };
+            phone: branding?.support_phone as string | undefined};
     }, [branding?.support_email, branding?.support_phone]);
 
-    useEffect(() => {
-        if (!open || !workspace?.slug) {
-            return;
-        }
+        useEffect(() => {
+            if (!open || !account?.slug) {
+                return;
+            }
 
-        let active = true;
-        setLoading(true);
-        axios
-            .get(route('app.support.live', { workspace: workspace.slug }) as string, {
-                headers: { Accept: 'application/json' },
-            })
-            .then((res) => {
-                const data = res.data as LiveChatResponse;
-                if (!active) return;
-                setThread(data.thread);
-                setMessages(data.messages || []);
-            })
-            .finally(() => {
-                if (active) setLoading(false);
+            let active = true;
+            setLoading(true);
+            window.axios
+                .get(route('app.support.live', {}) as string, {
+                    headers: { Accept: 'application/json' }})
+                .then((res) => {
+                    const data = res.data as LiveChatResponse;
+                    if (!active) return;
+                    setThread(data.thread);
+                    setMessages(data.messages || []);
+                })
+                .finally(() => {
+                    if (active) setLoading(false);
+                });
+
+            return () => {
+                active = false;
+            };
+        }, [open, account?.slug]);
+
+    useEffect(() => {
+        if (!thread || !account?.id) return;
+        
+        const channel = `account.${account.id}.support.thread.${thread.id}`;
+        
+        try {
+            console.log('[LiveChatWidget] Subscribing to channel', { channel, threadId: thread.id, accountId: account.id });
+            const unsubscribe = subscribe(channel, 'support.message.created', (payload: Message) => {
+                console.log('[LiveChatWidget] Received message', { payload, channel });
+                setMessages((prev) => {
+                    if (prev.some((m) => m.id === payload.id)) {
+                        return prev;
+                    }
+                    return [...prev, payload];
+                });
             });
 
-        return () => {
-            active = false;
-        };
-    }, [open, workspace?.slug]);
-
-    useEffect(() => {
-        if (!thread || !workspace?.id) return;
-        const channel = `workspace.${workspace.id}.support.thread.${thread.id}`;
-        const unsubscribe = subscribe(channel, 'support.message.created', (payload: Message) => {
-            setMessages((prev) => {
-                if (prev.some((m) => m.id === payload.id)) {
-                    return prev;
+            return () => {
+                try {
+                    unsubscribe();
+                } catch (error) {
+                    console.warn('[LiveChatWidget] Error unsubscribing from channel', error);
                 }
-                return [...prev, payload];
+            };
+        } catch (error) {
+            console.error('[LiveChatWidget] Failed to subscribe to support channel', {
+                channel,
+                threadId: thread.id,
+                accountId: account.id,
+                error,
             });
-        });
-
-        return () => {
-            unsubscribe();
-        };
-    }, [subscribe, thread?.id, workspace?.id]);
+            // Return empty cleanup function if subscription fails
+            return () => {};
+        }
+    }, [subscribe, thread?.id, account?.id]);
 
     const sendMessage = async () => {
-        if ((!draft.trim() && attachments.length === 0) || !workspace?.slug) return;
+        if ((!draft.trim() && attachments.length === 0) || !account?.slug) return;
         const payload = new FormData();
         if (draft.trim()) {
             payload.append('message', draft.trim());
@@ -120,10 +144,19 @@ export default function LiveChatWidget() {
         attachments.forEach((file) => payload.append('attachments[]', file));
         setDraft('');
         setAttachments([]);
-        const res = await axios.post(
-            route('app.support.live.message', { workspace: workspace.slug }) as string,
+        // Ensure CSRF token is included in headers
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        const res = await window.axios.post(
+            route('app.support.live.message', {}) as string,
             payload,
-            { headers: { Accept: 'application/json' } }
+            { 
+                headers: { 
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': csrfToken || window.axios.defaults.headers.common['X-CSRF-TOKEN'] || '',
+                },
+                withCredentials: true,
+            }
         );
         const data = res.data as { thread?: Thread | null; message?: Message; bot?: Message | null };
         if (data.thread) {
@@ -150,9 +183,9 @@ export default function LiveChatWidget() {
     };
 
     const closeLiveChat = async () => {
-        if (!workspace?.slug) return;
-        await axios.post(
-            route('app.support.live.close', { workspace: workspace.slug }) as string,
+        if (!account?.slug) return;
+        await window.axios.post(
+            route('app.support.live.close', {}) as string,
             {},
             { headers: { Accept: 'application/json' } }
         );
@@ -167,11 +200,11 @@ export default function LiveChatWidget() {
     };
 
     const requestHuman = async () => {
-        if (!workspace?.slug) return;
+        if (!account?.slug) return;
         setRequestingHuman(true);
         try {
-            const res = await axios.post(
-                route('app.support.live.request-human', { workspace: workspace.slug }) as string,
+            const res = await window.axios.post(
+                route('app.support.live.request-human', { }) as string,
                 {},
                 { headers: { Accept: 'application/json' } }
             );

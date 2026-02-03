@@ -11,13 +11,12 @@ import { useState, useEffect } from 'react';
 import { useNotifications } from '@/hooks/useNotifications';
 
 export default function FloatersEdit({
-    workspace,
+    account,
     widget,
     connections,
     stats,
-    embed,
-}: {
-    workspace: any;
+    embed}: {
+    account: any;
     widget: {
         id: number;
         slug: string;
@@ -46,14 +45,11 @@ export default function FloatersEdit({
         welcome_message: widget.welcome_message ?? '',
         theme: {
             primary: widget.theme?.primary ?? '#25D366',
-            background: widget.theme?.background ?? '#075E54',
-        },
+            background: widget.theme?.background ?? '#075E54'},
         show_on: {
             include: (widget.show_on?.include ?? []).join('\n'),
-            exclude: (widget.show_on?.exclude ?? []).join('\n'),
-        },
-        is_active: widget.is_active,
-    });
+            exclude: (widget.show_on?.exclude ?? []).join('\n')},
+        is_active: widget.is_active});
 
     const [copied, setCopied] = useState<string | null>(null);
 
@@ -67,26 +63,24 @@ export default function FloatersEdit({
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
-        put(route('app.floaters.update', { workspace: workspace.slug, widget: widgetKey }));
+        put(route('app.floaters.update', { widget: widgetKey }));
     };
 
     const toggle = () => {
-        router.post(route('app.floaters.toggle', { workspace: workspace.slug, widget: widgetKey }));
+        router.post(route('app.floaters.toggle', { widget: widgetKey }));
     };
 
     const remove = async () => {
         const confirmed = await confirm({
             title: 'Delete Widget',
             message: 'Are you sure you want to delete this widget? This action cannot be undone.',
-            variant: 'danger',
-        });
+            variant: 'danger'});
 
         if (!confirmed) return;
 
-        router.delete(route('app.floaters.destroy', { workspace: workspace.slug, widget: widgetKey }), {
+        router.delete(route('app.floaters.destroy', { widget: widgetKey }), {
             onSuccess: () => toast.success('Widget deleted'),
-            onError: () => toast.error('Failed to delete widget'),
-        });
+            onError: () => toast.error('Failed to delete widget')});
     };
 
     const copyText = (text: string, key: string) => {
@@ -102,7 +96,7 @@ export default function FloatersEdit({
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <div>
                         <Link
-                            href={route('app.floaters', { workspace: workspace.slug })}
+                            href={route('app.floaters', {})}
                             className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
                         >
                             <ArrowLeft className="h-4 w-4" />
@@ -315,7 +309,7 @@ export default function FloatersEdit({
                     </Card>
 
                     <div className="flex items-center justify-end gap-3">
-                        <Link href={route('app.floaters', { workspace: workspace.slug })}>
+                        <Link href={route('app.floaters', { })}>
                             <Button variant="secondary">Cancel</Button>
                         </Link>
                         <Button

@@ -14,8 +14,7 @@ export function Progress({ value, className, max = 100, variant = 'default' }: P
         default: 'bg-blue-600 dark:bg-blue-500',
         success: 'bg-green-600 dark:bg-green-500',
         warning: 'bg-yellow-600 dark:bg-yellow-500',
-        danger: 'bg-red-600 dark:bg-red-500',
-    };
+        danger: 'bg-red-600 dark:bg-red-500'};
 
     return (
         <div className={cn('w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden', className)}>

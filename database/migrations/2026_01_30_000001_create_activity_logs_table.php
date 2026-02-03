@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('type'); // 'user_action', 'system_event', 'webhook', 'api_call', 'error'
             $table->text('description');
             $table->foreignId('user_id')->nullable()->constrained()->onDelete('set null');
-            $table->foreignId('workspace_id')->nullable()->constrained()->onDelete('cascade');
+            $table->foreignId('account_id')->nullable()->constrained()->onDelete('cascade');
             $table->json('metadata')->nullable();
             $table->string('ip_address', 45)->nullable();
             $table->text('user_agent')->nullable();
@@ -24,7 +24,7 @@ return new class extends Migration
 
             $table->index(['type', 'created_at']);
             $table->index(['user_id', 'created_at']);
-            $table->index(['workspace_id', 'created_at']);
+            $table->index(['account_id', 'created_at']);
         });
     }
 

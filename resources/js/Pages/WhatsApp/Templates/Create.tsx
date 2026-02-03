@@ -1,9 +1,9 @@
-import { router, useForm } from '@inertiajs/react';
+import { router, useForm, usePage } from '@inertiajs/react';
 import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
 import Button from '@/Components/UI/Button';
-import { ArrowLeft, FileText, Plus, Trash2, AlertCircle, Info, Sparkles, CheckCircle2, Upload, X, Image as ImageIcon, Video, File } from 'lucide-react';
+import { ArrowLeft, FileText, Plus, Trash2, AlertCircle, Info, Sparkles, CheckCircle2, Upload, X, Image as ImageIcon, Video, File, XCircle } from 'lucide-react';
 import { Head, Link } from '@inertiajs/react';
 import { useState, useRef } from 'react';
 import TextInput from '@/Components/TextInput';
@@ -55,21 +55,21 @@ const LANGUAGE_CODES = [
 ];
 
 export default function TemplatesCreate({
-    workspace,
-    connections,
-}: {
-    workspace: any;
-    connections: Array<{ id: number; name: string; waba_id: string | null }>;
+    account,
+    connections = []}: {
+    account: any;
+    connections?: Array<{ id: number; name: string; waba_id: string | null }>;
 }) {
     const { toast } = useToast();
     const [variableCount, setVariableCount] = useState(0);
     const [previewMode, setPreviewMode] = useState(false);
     const [uploadingMedia, setUploadingMedia] = useState(false);
     const [mediaPreview, setMediaPreview] = useState<string | null>(null);
+    const [submitting, setSubmitting] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const { data, setData, post, processing, errors, reset } = useForm<TemplateFormData>({
-        whatsapp_connection_id: connections[0]?.id?.toString() || '',
+        whatsapp_connection_id: connections?.[0]?.id?.toString() || '',
         name: '',
         language: 'en_US',
         category: 'UTILITY',
@@ -79,8 +79,7 @@ export default function TemplatesCreate({
         body_text: '',
         body_examples: [],
         footer_text: '',
-        buttons: [],
-    });
+        buttons: []});
 
     // Calculate variables in body text
     const updateVariableCount = (text: string) => {
@@ -127,15 +126,11 @@ export default function TemplatesCreate({
             formData.append('file', file);
             formData.append('type', data.header_type);
 
+            // Axios will automatically include CSRF token from bootstrap.ts defaults
+            // Don't set Content-Type for FormData - browser will set it with boundary
             const response = await axios.post(
-                route('app.whatsapp.templates.upload-media', { workspace: workspace.slug }),
-                formData,
-                {
-                    headers: {
-                        'Content-Type': 'multipart/form-data',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                    },
-                }
+                route('app.whatsapp.templates.upload-media', {}),
+                formData
             );
 
             setData('header_media_url', response.data.url);
@@ -179,21 +174,86 @@ export default function TemplatesCreate({
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
         
-        // Clean up empty buttons
+        if (submitting) return; // Prevent double submission
+        
+        // Validate required fields before submitting
+        if (!data.whatsapp_connection_id) {
+            toast.error('Please select a WhatsApp connection');
+            return;
+        }
+        if (!data.name || data.name.trim() === '') {
+            toast.error('Template name is required');
+            return;
+        }
+        // Validate template name format
+        if (!/^[a-zA-Z0-9_]+$/.test(data.name)) {
+            toast.error('Template name can only contain letters, numbers, and underscores');
+            return;
+        }
+        if (!data.body_text || data.body_text.trim() === '') {
+            toast.error('Body text is required');
+            return;
+        }
+        
+        setSubmitting(true);
+        
+        // Clean up empty buttons and examples
         const cleanedButtons = data.buttons?.filter(btn => btn.text.trim() !== '') || [];
         const cleanedExamples = data.body_examples?.filter(ex => ex.trim() !== '') || [];
         
-        post(route('app.whatsapp.templates.store', { workspace: workspace.slug }), {
+        // Prepare the data to send
+        const submitData: any = {
+            whatsapp_connection_id: data.whatsapp_connection_id,
+            name: data.name.trim(),
+            language: data.language,
+            category: data.category,
+            header_type: data.header_type || 'NONE',
+            body_text: data.body_text.trim(),
+        };
+        
+        // Add header fields based on type
+        if (data.header_type === 'TEXT' && data.header_text?.trim()) {
+            submitData.header_text = data.header_text.trim();
+        } else if (['IMAGE', 'VIDEO', 'DOCUMENT'].includes(data.header_type || '') && data.header_media_url) {
+            submitData.header_media_url = data.header_media_url;
+        }
+        
+        // Add optional fields only if they have values
+        if (data.footer_text?.trim()) {
+            submitData.footer_text = data.footer_text.trim();
+        }
+        if (cleanedButtons.length > 0) {
+            submitData.buttons = cleanedButtons;
+        }
+        if (cleanedExamples.length > 0) {
+            submitData.body_examples = cleanedExamples;
+        }
+        
+        console.log('Submitting template data:', submitData);
+        
+        // Use router.post to send the data directly
+        router.post(route('app.whatsapp.templates.store', {}), submitData, {
             onSuccess: () => {
                 toast.success('Template created successfully! It will be reviewed by Meta.');
+                setSubmitting(false);
             },
             onError: (errors) => {
-                if (errors.create) {
-                    toast.error(errors.create);
+                console.error('Template creation errors:', errors);
+                setSubmitting(false);
+                if ((errors as any).create) {
+                    toast.error((errors as any).create);
+                } else if (Object.keys(errors).length > 0) {
+                    // Show first validation error
+                    const firstError = Object.values(errors)[0];
+                    const errorMessage = Array.isArray(firstError) ? firstError[0] : firstError;
+                    toast.error(errorMessage || 'Failed to create template. Please check the form for errors.');
                 } else {
                     toast.error('Failed to create template. Please check the form for errors.');
                 }
             },
+            onFinish: () => {
+                setSubmitting(false);
+            }
         });
     };
 
@@ -259,13 +319,81 @@ export default function TemplatesCreate({
         );
     };
 
+    // Safety check: if no connections, show error message (after all hooks)
+    if (!connections || connections.length === 0) {
+        return (
+            <AppShell>
+                <Head title="Create Template" />
+                <div className="space-y-6">
+                    <Link
+                        href={route('app.whatsapp.templates.index', {})}
+                        className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors"
+                    >
+                        <ArrowLeft className="h-4 w-4" />
+                        Back to Templates
+                    </Link>
+
+                    <Card className="border-0 shadow-xl bg-gradient-to-br from-red-50 via-white to-red-50 dark:from-red-900/20 dark:via-gray-900 dark:to-red-900/20 overflow-hidden">
+                        <div className="relative">
+                            {/* Decorative gradient overlay */}
+                            <div className="absolute inset-0 bg-gradient-to-r from-red-500/5 to-orange-500/5 pointer-events-none" />
+                            
+                            <CardContent className="p-8 relative">
+                                <div className="flex items-start gap-6">
+                                    {/* Icon Container */}
+                                    <div className="flex-shrink-0">
+                                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center shadow-lg shadow-red-500/30">
+                                            <AlertCircle className="h-8 w-8 text-white" strokeWidth={2.5} />
+                                        </div>
+                                    </div>
+
+                                    {/* Content */}
+                                    <div className="flex-1 min-w-0">
+                                        <div className="mb-4">
+                                            <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+                                                No Active Connections
+                                            </h3>
+                                            <div className="h-1 w-16 bg-gradient-to-r from-red-500 to-orange-500 rounded-full mb-4" />
+                                            <p className="text-base text-gray-700 dark:text-gray-300 leading-relaxed">
+                                                You need at least one active WhatsApp connection to create message templates. 
+                                                Create a connection to get started with template management.
+                                            </p>
+                                        </div>
+
+                                        {/* Action Buttons */}
+                                        <div className="flex flex-wrap items-center gap-3 mt-6">
+                                            <Link href={route('app.whatsapp.connections.index', {})}>
+                                                <Button 
+                                                    variant="primary" 
+                                                    className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg shadow-blue-500/30 transition-all duration-200"
+                                                >
+                                                    <Sparkles className="h-4 w-4 mr-2" />
+                                                    Create WhatsApp Connection
+                                                </Button>
+                                            </Link>
+                                            <Link href={route('app.whatsapp.templates.index', {})}>
+                                                <Button variant="secondary">
+                                                    View Templates
+                                                </Button>
+                                            </Link>
+                                        </div>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </div>
+                    </Card>
+                </div>
+            </AppShell>
+        );
+    }
+
     return (
         <AppShell>
             <Head title="Create Template" />
             <div className="space-y-8">
                 <div>
                     <Link
-                        href={route('app.whatsapp.templates.index', { workspace: workspace.slug })}
+                        href={route('app.whatsapp.templates.index', {})}
                         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
                     >
                         <ArrowLeft className="h-4 w-4" />
@@ -303,6 +431,29 @@ export default function TemplatesCreate({
                         </ul>
                     </div>
                 </Alert>
+
+                {/* Global Error Display */}
+                {(errors as any).create && (
+                    <Card className="border-2 border-red-200 dark:border-red-800/50 shadow-lg bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 overflow-hidden">
+                        <CardContent className="p-6">
+                            <div className="flex items-start gap-4">
+                                <div className="flex-shrink-0">
+                                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center shadow-md">
+                                        <XCircle className="h-6 w-6 text-white" strokeWidth={2.5} />
+                                    </div>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="text-lg font-bold text-red-900 dark:text-red-100 mb-2">
+                                        Error Creating Template
+                                    </h3>
+                                    <p className="text-sm text-red-700 dark:text-red-300 leading-relaxed">
+                                        {(errors as any).create}
+                                    </p>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
                 <form onSubmit={submit} className="space-y-6">
                     {previewMode ? (
@@ -790,16 +941,16 @@ export default function TemplatesCreate({
 
                     <div className="flex items-center justify-between pt-6">
                         <Link
-                            href={route('app.whatsapp.templates.index', { workspace: workspace.slug })}
+                            href={route('app.whatsapp.templates.index', { })}
                         >
                             <Button variant="secondary">Cancel</Button>
                         </Link>
                         <Button
                             type="submit"
-                            disabled={processing}
+                            disabled={submitting || processing}
                             className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50"
                         >
-                            {processing ? 'Creating...' : 'Create Template'}
+                            {submitting || processing ? 'Creating...' : 'Create Template'}
                         </Button>
                     </div>
                 </form>

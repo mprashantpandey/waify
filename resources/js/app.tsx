@@ -48,4 +48,18 @@ createInertiaApp({
     progress: {
         color: '#4B5563',
     },
+    // Handle errors globally, including 419 CSRF token expiration
+    onError: (page) => {
+        // Inertia will automatically handle most errors
+        // Our axios interceptor in bootstrap.ts will handle 419 errors for axios requests
+        // This is a fallback for any Inertia-specific errors
+        if (page.props?.errors) {
+            const errors = page.props.errors;
+            // Check if there's a 419 error
+            if (errors.message && errors.message.includes('419') || errors.message?.includes('Page Expired')) {
+                // The axios interceptor should have already handled this, but just in case
+                console.warn('CSRF token expired - attempting to refresh');
+            }
+        }
+    },
 });

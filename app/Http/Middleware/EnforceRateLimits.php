@@ -57,8 +57,7 @@ class EnforceRateLimits
             
             if ($request->expectsJson()) {
                 return response()->json([
-                    'message' => 'Too many requests. Please try again in ' . $seconds . ' seconds.',
-                ], 429);
+                    'message' => 'Too many requests. Please try again in ' . $seconds . ' seconds.'], 429);
             }
             
             abort(429, 'Too many requests. Please try again in ' . $seconds . ' seconds.');

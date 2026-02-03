@@ -8,8 +8,7 @@ import { FormEventHandler, useRef } from 'react';
 import { Lock, Shield, CheckCircle2 } from 'lucide-react';
 
 export default function UpdatePasswordForm({
-    className = '',
-}: {
+    className = ''}: {
     className?: string;
 }) {
     const passwordInput = useRef<HTMLInputElement>(null);
@@ -22,12 +21,10 @@ export default function UpdatePasswordForm({
         put,
         reset,
         processing,
-        recentlySuccessful,
-    } = useForm({
+        recentlySuccessful} = useForm({
         current_password: '',
         password: '',
-        password_confirmation: '',
-    });
+        password_confirmation: ''});
 
     const updatePassword: FormEventHandler = (e) => {
         e.preventDefault();
@@ -45,8 +42,7 @@ export default function UpdatePasswordForm({
                     reset('current_password');
                     currentPasswordInput.current?.focus();
                 }
-            },
-        });
+            }});
     };
 
     return (

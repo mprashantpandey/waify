@@ -15,14 +15,12 @@ class SupportAuditLog extends Model
         'support_thread_id',
         'user_id',
         'action',
-        'meta',
-    ];
+        'meta'];
 
     protected function casts(): array
     {
         return [
-            'meta' => 'array',
-        ];
+            'meta' => 'array'];
     }
 
     public function thread(): BelongsTo

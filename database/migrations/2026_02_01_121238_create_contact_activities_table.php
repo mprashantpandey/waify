@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('contact_activities', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('workspace_id')->constrained()->onDelete('cascade');
+            $table->foreignId('account_id')->constrained()->onDelete('cascade');
             $table->foreignId('contact_id')->constrained('whatsapp_contacts')->onDelete('cascade');
             $table->foreignId('user_id')->nullable()->constrained('users')->onDelete('set null');
             $table->string('type'); // message_sent, message_received, note_added, tag_added, field_updated, etc.
@@ -22,7 +22,7 @@ return new class extends Migration
             $table->json('metadata')->nullable(); // Additional data
             $table->timestamps();
 
-            $table->index(['workspace_id', 'contact_id']);
+            $table->index(['account_id', 'contact_id']);
             $table->index(['contact_id', 'created_at']);
             $table->index('type');
         });

@@ -23,12 +23,11 @@ class MessageUpdated implements ShouldBroadcast
      */
     public function broadcastOn(): array
     {
-        $workspaceId = $this->message->workspace_id;
+        $accountId = $this->message->account_id;
         $conversationId = $this->message->whatsapp_conversation_id;
 
         return [
-            new PrivateChannel("workspace.{$workspaceId}.whatsapp.conversation.{$conversationId}"),
-        ];
+            new PrivateChannel("account.{$accountId}.whatsapp.conversation.{$conversationId}")];
     }
 
     /**
@@ -45,7 +44,7 @@ class MessageUpdated implements ShouldBroadcast
     public function broadcastWith(): array
     {
         return [
-            'workspace_id' => $this->message->workspace_id,
+            'account_id' => $this->message->account_id,
             'conversation_id' => $this->message->whatsapp_conversation_id,
             'message' => [
                 'id' => $this->message->id,
@@ -53,9 +52,7 @@ class MessageUpdated implements ShouldBroadcast
                 'error_message' => $this->message->error_message,
                 'sent_at' => $this->message->sent_at?->toIso8601String(),
                 'delivered_at' => $this->message->delivered_at?->toIso8601String(),
-                'read_at' => $this->message->read_at?->toIso8601String(),
-            ],
-        ];
+                'read_at' => $this->message->read_at?->toIso8601String()]];
     }
 }
 

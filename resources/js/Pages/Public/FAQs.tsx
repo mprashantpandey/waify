@@ -14,44 +14,34 @@ export default function FAQs({ faqs: initialFaqs }: { faqs: FAQ[] }) {
     const defaultFaqs: FAQ[] = [
         {
             question: 'What is WACP?',
-            answer: 'WACP (WhatsApp Cloud Platform) is a comprehensive platform for managing WhatsApp Business communications at scale. It provides tools for template management, chatbot automation, team collaboration, and more.',
-        },
+            answer: 'WACP (WhatsApp Cloud Platform) is a comprehensive platform for managing WhatsApp Business communications at scale. It provides tools for template management, chatbot automation, team collaboration, and more.'},
         {
             question: 'How do I get started?',
-            answer: 'Getting started is easy! Sign up for a free account, create a workspace, and connect your WhatsApp Business Account. Our onboarding wizard will guide you through the setup process.',
-        },
+            answer: 'Getting started is easy! Sign up for a free account, create your account profile, and connect your WhatsApp Business Account. Our onboarding wizard will guide you through the setup process.'},
         {
             question: 'What payment methods do you accept?',
-            answer: 'We accept all major credit cards, debit cards, and UPI payments through Razorpay. All payments are processed securely.',
-        },
+            answer: 'We accept all major credit cards, debit cards, and UPI payments through Razorpay. All payments are processed securely.'},
         {
             question: 'Can I change my plan later?',
-            answer: 'Yes! You can upgrade or downgrade your plan at any time from your billing settings. Changes take effect immediately, and we\'ll prorate any charges.',
-        },
+            answer: 'Yes! You can upgrade or downgrade your plan at any time from your billing settings. Changes take effect immediately, and we\'ll prorate any charges.'},
         {
             question: 'Is there a free trial?',
-            answer: 'Yes, all plans come with a free trial. No credit card required. You can explore all features during the trial period.',
-        },
+            answer: 'Yes, all plans come with a free trial. No credit card required. You can explore all features during the trial period.'},
         {
             question: 'How do I connect my WhatsApp Business Account?',
-            answer: 'You can connect your WhatsApp Business Account through our Embedded Signup wizard or manually by providing your Meta App credentials. We support both methods.',
-        },
+            answer: 'You can connect your WhatsApp Business Account through our Embedded Signup wizard or manually by providing your Meta App credentials. We support both methods.'},
         {
             question: 'What happens if I exceed my plan limits?',
-            answer: 'If you exceed your plan limits, we\'ll notify you and you can either upgrade your plan or wait until the next billing cycle. Some limits may have overage charges.',
-        },
+            answer: 'If you exceed your plan limits, we\'ll notify you and you can either upgrade your plan or wait until the next billing cycle. Some limits may have overage charges.'},
         {
             question: 'Is my data secure?',
-            answer: 'Absolutely. We use industry-standard encryption for data in transit and at rest. All API credentials are encrypted, and we follow strict security practices. See our Privacy Policy for more details.',
-        },
+            answer: 'Absolutely. We use industry-standard encryption for data in transit and at rest. All API credentials are encrypted, and we follow strict security practices. See our Privacy Policy for more details.'},
         {
             question: 'Do you offer customer support?',
-            answer: 'Yes! We offer email support for all users, and priority support for Pro and Enterprise plans. You can also access our help center and documentation anytime.',
-        },
+            answer: 'Yes! We offer email support for all users, and priority support for Pro and Enterprise plans. You can also access our help center and documentation anytime.'},
         {
             question: 'Can I cancel my subscription?',
-            answer: 'Yes, you can cancel your subscription at any time from your billing settings. Your subscription will remain active until the end of the current billing period.',
-        },
+            answer: 'Yes, you can cancel your subscription at any time from your billing settings. Your subscription will remain active until the end of the current billing period.'},
     ];
 
     const faqs = initialFaqs && initialFaqs.length > 0 ? initialFaqs : defaultFaqs;

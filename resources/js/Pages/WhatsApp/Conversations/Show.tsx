@@ -1,10 +1,11 @@
-import { useForm, Link } from '@inertiajs/react';
-import { FormEventHandler, useRef, useEffect, useState, useCallback } from 'react';
+import { useForm, Link, router, usePage } from '@inertiajs/react';
+import { FormEventHandler, useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import AppShell from '@/Layouts/AppShell';
 import Button from '@/Components/UI/Button';
 import TextInput from '@/Components/TextInput';
+import { Textarea } from '@/Components/UI/Textarea';
 import { Badge } from '@/Components/UI/Badge';
-import { ArrowLeft, Send, Check, CheckCheck, Clock, Menu, Phone, Wifi, WifiOff, X, Smile, Paperclip, Image as ImageIcon, MapPin, FileText, Zap } from 'lucide-react';
+import { ArrowLeft, Send, Check, CheckCheck, Clock, Menu, Phone, Wifi, WifiOff, X, Smile, Paperclip, Image as ImageIcon, MapPin, FileText, Zap, List, Square, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRealtime } from '@/Providers/RealtimeProvider';
 import { MessageSkeleton } from '@/Components/UI/Skeleton';
@@ -37,6 +38,8 @@ interface Conversation {
         name: string;
     };
     status: string;
+    assigned_to?: number | null;
+    priority?: string | null;
 }
 
 interface TemplateItem {
@@ -54,19 +57,74 @@ interface TemplateItem {
     has_buttons: boolean;
 }
 
+interface ListItem {
+    id: number;
+    name: string;
+    button_text: string;
+    description: string | null;
+}
+
+interface NoteItem {
+    id: number;
+    note: string;
+    created_at: string;
+    created_by: {
+        id: number;
+        name: string;
+        email: string;
+    } | null;
+}
+
+interface AuditEventItem {
+    id: number;
+    event_type: string;
+    description: string | null;
+    meta?: any;
+    created_at: string;
+    actor: {
+        id: number;
+        name: string;
+        email: string;
+    } | null;
+}
+
+interface AgentItem {
+    id: number;
+    name: string;
+    email: string;
+    role: string;
+}
+
 export default function ConversationsShow({
-    workspace,
+    account,
     conversation: initialConversation,
     messages: initialMessages,
     templates,
-}: {
-    workspace: any;
+    lists = [],
+    notes: initialNotes,
+    audit_events: initialAuditEvents,
+    agents,
+    inbox_settings: inboxSettings}: {
+    account: any;
     conversation: Conversation;
     messages: Message[];
     templates: TemplateItem[];
+    lists?: ListItem[];
+    notes: NoteItem[];
+    audit_events: AuditEventItem[];
+    agents: AgentItem[];
+    inbox_settings: {
+        auto_assign_enabled: boolean;
+        auto_assign_strategy: string;
+    };
 }) {
     const { subscribe, connected } = useRealtime();
     const { addToast } = useToast();
+    const { auth } = usePage().props as any;
+    const currentUserId = auth?.user?.id;
+    const notifyAssignmentEnabled = auth?.user?.notify_assignment_enabled ?? true;
+    const notifyMentionEnabled = auth?.user?.notify_mention_enabled ?? true;
+    const soundEnabled = auth?.user?.notify_sound_enabled ?? true;
     const [messages, setMessages] = useState<Message[]>(initialMessages);
     const [conversation, setConversation] = useState<Conversation>(initialConversation);
     const [loading, setLoading] = useState(false);
@@ -74,13 +132,26 @@ export default function ConversationsShow({
     const [showEmojiBar, setShowEmojiBar] = useState(false);
     const [showQuickReplies, setShowQuickReplies] = useState(false);
     const [showTemplates, setShowTemplates] = useState(false);
+    const [showLists, setShowLists] = useState(false);
+    const [showButtons, setShowButtons] = useState(false);
     const [showLocation, setShowLocation] = useState(false);
+    const [selectedList, setSelectedList] = useState<ListItem | null>(null);
+    const [interactiveButtons, setInteractiveButtons] = useState<Array<{ id: string; text: string }>>([
+        { id: '', text: '' },
+    ]);
+    const [buttonBodyText, setButtonBodyText] = useState('');
+    const [buttonHeaderText, setButtonHeaderText] = useState('');
+    const [buttonFooterText, setButtonFooterText] = useState('');
     const [attachments, setAttachments] = useState<File[]>([]);
     const [locationInput, setLocationInput] = useState({ label: '', lat: '', lng: '' });
     const [selectedTemplate, setSelectedTemplate] = useState<TemplateItem | null>(null);
     const [templateVariables, setTemplateVariables] = useState<string[]>([]);
     const [emojiSearch, setEmojiSearch] = useState('');
     const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
+    const [notes, setNotes] = useState<NoteItem[]>(initialNotes || []);
+    const [auditEvents, setAuditEvents] = useState<AuditEventItem[]>(initialAuditEvents || []);
+    const [noteDraft, setNoteDraft] = useState('');
+    const [metaUpdating, setMetaUpdating] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -88,10 +159,12 @@ export default function ConversationsShow({
     const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
     const lastMessageIdRef = useRef<number>(Math.max(...initialMessages.map((m) => m.id), 0));
     const processedMessageIds = useRef<Set<number>>(new Set(initialMessages.map((m) => m.id)));
+    const lastNoteIdRef = useRef<number>(Math.max(...(initialNotes || []).map((n) => n.id), 0));
+    const lastAuditIdRef = useRef<number>(Math.max(...(initialAuditEvents || []).map((e) => e.id), 0));
+    const assignedToRef = useRef<number | null>(initialConversation.assigned_to ?? null);
 
     const { data, setData, post, processing, errors, reset } = useForm({
-        message: '',
-    });
+        message: ''});
 
     const emojiList = ['😀', '😁', '😂', '🤣', '😍', '😘', '😊', '🥰', '😎', '🤝', '👍', '🙏', '🎉', '🔥', '✨', '💡', '😢', '😮', '😡', '🤔', '😅', '🙌', '✅', '❌'];
     const quickReplies = [
@@ -101,6 +174,47 @@ export default function ConversationsShow({
         { id: 'handover', label: 'Handover', text: 'I’m looping in a specialist to assist you.' },
     ];
     const availableTemplates = templates || [];
+    const agentMap = new Map(agents.map((agent) => [agent.id, agent]));
+    const mentionTokens = useMemo(() => {
+        if (!auth?.user) return [];
+        const name = auth.user.name || '';
+        const email = auth.user.email || '';
+        const simpleName = name.split(' ')[0] || '';
+        const compactName = name.replace(/\s+/g, '');
+        return [email, name, simpleName, compactName]
+            .filter(Boolean)
+            .map((token: string) => `@${token.toLowerCase()}`);
+    }, [auth?.user]);
+
+    const playNotificationSound = useCallback(() => {
+        if (!soundEnabled) return;
+        try {
+            const AudioContextRef = (window as any).AudioContext || (window as any).webkitAudioContext;
+            if (!AudioContextRef) return;
+            const context = new AudioContextRef();
+            const oscillator = context.createOscillator();
+            const gain = context.createGain();
+            oscillator.type = 'sine';
+            oscillator.frequency.value = 880;
+            gain.gain.value = 0.04;
+            oscillator.connect(gain);
+            gain.connect(context.destination);
+            oscillator.start();
+            oscillator.stop(context.currentTime + 0.12);
+        } catch (error) {
+            console.warn('[Notifications] Unable to play sound');
+        }
+    }, [soundEnabled]);
+
+    const noteMentionsCurrentUser = useCallback(
+        (noteText: string, authorId?: number | null) => {
+            if (!notifyMentionEnabled || !currentUserId) return false;
+            if (authorId && authorId === currentUserId) return false;
+            const text = noteText.toLowerCase();
+            return mentionTokens.some((token) => text.includes(token));
+        },
+        [notifyMentionEnabled, currentUserId, mentionTokens]
+    );
 
     const appendMessage = (text: string) => {
         setData('message', `${data.message || ''}${text}`);
@@ -141,12 +255,95 @@ export default function ConversationsShow({
         addToast({
             title: 'Attachment added',
             description: 'Attachments will be supported for sending soon.',
-            variant: 'info',
-        });
+            variant: 'info'});
     };
 
     const removeAttachment = (index: number) => {
         setAttachments((prev) => prev.filter((_, i) => i !== index));
+    };
+
+    const sendList = useCallback(async () => {
+        if (!selectedList) {
+            addToast({ title: 'List needed', description: 'Please select a list to send.', variant: 'warning' });
+            return;
+        }
+
+        try {
+            await axios.post(
+                route('app.whatsapp.conversations.send-list', {
+                    conversation: conversation.id}),
+                {
+                    list_id: selectedList.id,
+                }
+            );
+            addToast({ title: 'List sent', variant: 'success' });
+            setShowLists(false);
+            setSelectedList(null);
+        } catch (error: any) {
+            addToast({
+                title: 'Failed to send list',
+                description: error?.response?.data?.message || 'Please try again',
+                variant: 'error'});
+        }
+    }, [addToast, conversation.id, selectedList, account.slug]);
+
+    const sendInteractiveButtons = useCallback(async () => {
+        const validButtons = interactiveButtons.filter((btn) => btn.id.trim() && btn.text.trim());
+        if (validButtons.length === 0) {
+            addToast({ title: 'Buttons needed', description: 'Please add at least one button.', variant: 'warning' });
+            return;
+        }
+        if (!buttonBodyText.trim()) {
+            addToast({ title: 'Body text needed', description: 'Please enter body text.', variant: 'warning' });
+            return;
+        }
+
+        try {
+            await axios.post(
+                route('app.whatsapp.conversations.send-buttons', {
+                    conversation: conversation.id}),
+                {
+                    body_text: buttonBodyText,
+                    buttons: validButtons,
+                    header_text: buttonHeaderText || null,
+                    footer_text: buttonFooterText || null,
+                }
+            );
+            addToast({ title: 'Interactive buttons sent', variant: 'success' });
+            setShowButtons(false);
+            setInteractiveButtons([{ id: '', text: '' }]);
+            setButtonBodyText('');
+            setButtonHeaderText('');
+            setButtonFooterText('');
+        } catch (error: any) {
+            addToast({
+                title: 'Failed to send buttons',
+                description: error?.response?.data?.message || 'Please try again',
+                variant: 'error'});
+        }
+    }, [addToast, conversation.id, interactiveButtons, buttonBodyText, buttonHeaderText, buttonFooterText, account.slug]);
+
+    const addButton = () => {
+        if (interactiveButtons.length >= 3) {
+            addToast({ title: 'Maximum 3 buttons allowed', variant: 'warning' });
+            return;
+        }
+        setInteractiveButtons([...interactiveButtons, { id: '', text: '' }]);
+    };
+
+    const removeButton = (index: number) => {
+        const buttons = [...interactiveButtons];
+        buttons.splice(index, 1);
+        if (buttons.length === 0) {
+            buttons.push({ id: '', text: '' });
+        }
+        setInteractiveButtons(buttons);
+    };
+
+    const updateButton = (index: number, field: 'id' | 'text', value: string) => {
+        const buttons = [...interactiveButtons];
+        buttons[index] = { ...buttons[index], [field]: value };
+        setInteractiveButtons(buttons);
     };
 
     const sendLocation = useCallback(async () => {
@@ -159,15 +356,12 @@ export default function ConversationsShow({
         try {
             await axios.post(
                 route('app.whatsapp.conversations.send-location', {
-                    workspace: workspace.slug,
-                    conversation: conversation.id,
-                }),
+                    conversation: conversation.id}),
                 {
                     latitude: Number(lat),
                     longitude: Number(lng),
                     name: label || null,
-                    address: null,
-                }
+                    address: null}
             );
 
             addToast({ title: 'Location sent', variant: 'success' });
@@ -177,10 +371,9 @@ export default function ConversationsShow({
             addToast({
                 title: 'Failed to send location',
                 description: error?.response?.data?.message || 'Please try again',
-                variant: 'error',
-            });
+                variant: 'error'});
         }
-    }, [addToast, conversation.id, locationInput, workspace.slug]);
+    }, [addToast, conversation.id, locationInput, account.slug]);
 
     const sendAttachments = useCallback(async (caption?: string) => {
         if (attachments.length === 0) return;
@@ -203,27 +396,23 @@ export default function ConversationsShow({
             try {
                 await axios.post(
                     route('app.whatsapp.conversations.send-media', {
-                        workspace: workspace.slug,
-                        conversation: conversation.id,
-                    }),
+                        conversation: conversation.id}),
                     formData,
                     {
-                        headers: { 'Content-Type': 'multipart/form-data' },
-                    }
+                        headers: { 'Content-Type': 'multipart/form-data' }}
                 );
             } catch (error: any) {
                 addToast({
                     title: 'Failed to send attachment',
                     description: error?.response?.data?.message || 'Please try again',
-                    variant: 'error',
-                });
+                    variant: 'error'});
                 return;
             }
         }
 
         addToast({ title: 'Attachments sent', variant: 'success' });
         setAttachments([]);
-    }, [addToast, attachments, conversation.id, workspace.slug]);
+    }, [addToast, attachments, conversation.id, account.slug]);
 
     const sendTemplate = useCallback(async () => {
         if (!selectedTemplate) return;
@@ -231,13 +420,10 @@ export default function ConversationsShow({
         try {
             await axios.post(
                 route('app.whatsapp.conversations.send-template', {
-                    workspace: workspace.slug,
-                    conversation: conversation.id,
-                }),
+                    conversation: conversation.id}),
                 {
                     template_id: selectedTemplate.id,
-                    variables: templateVariables,
-                }
+                    variables: templateVariables}
             );
 
             addToast({ title: 'Template sent', variant: 'success' });
@@ -248,10 +434,9 @@ export default function ConversationsShow({
             addToast({
                 title: 'Failed to send template',
                 description: error?.response?.data?.message || 'Please try again',
-                variant: 'error',
-            });
+                variant: 'error'});
         }
-    }, [addToast, conversation.id, selectedTemplate, templateVariables, workspace.slug]);
+    }, [addToast, conversation.id, selectedTemplate, templateVariables, account.slug]);
 
     // Auto-scroll detection - only scroll if user is near bottom
     const checkScrollPosition = useCallback(() => {
@@ -284,9 +469,9 @@ export default function ConversationsShow({
 
     // Realtime subscription with dedup
     useEffect(() => {
-        if (!workspace?.id || !conversation?.id) return;
+        if (!account?.id || !conversation?.id) return;
 
-        const conversationChannel = `private-workspace.${workspace.id}.whatsapp.conversation.${conversation.id}`;
+        const conversationChannel = `private-account.${account.id}.whatsapp.conversation.${conversation.id}`;
 
         const unsubscribeMessageCreated = subscribe(
             conversationChannel,
@@ -310,8 +495,7 @@ export default function ConversationsShow({
                             title: 'New message',
                             description: newMessage.text_body?.substring(0, 50) || 'New message received',
                             variant: 'info',
-                            duration: 3000,
-                        });
+                            duration: 3000});
                     }
                 }
             }
@@ -330,8 +514,7 @@ export default function ConversationsShow({
                                   error_message: data.message.error_message,
                                   sent_at: data.message.sent_at,
                                   delivered_at: data.message.delivered_at,
-                                  read_at: data.message.read_at,
-                              }
+                                  read_at: data.message.read_at}
                             : msg
                     )
                 );
@@ -346,7 +529,55 @@ export default function ConversationsShow({
                     setConversation((prev) => ({
                         ...prev,
                         status: data.conversation.status ?? prev.status,
+                        assigned_to: data.conversation.assignee_id ?? prev.assigned_to,
+                        priority: data.conversation.priority ?? prev.priority,
                     }));
+
+                    if (
+                        currentUserId &&
+                        notifyAssignmentEnabled &&
+                        data.conversation.assignee_id === currentUserId &&
+                        assignedToRef.current !== currentUserId
+                    ) {
+                        addToast({
+                            title: 'Conversation assigned',
+                            description: 'This chat was assigned to you.',
+                            variant: 'info',
+                            duration: 3000});
+                        playNotificationSound();
+                    }
+
+                    assignedToRef.current = data.conversation.assignee_id ?? assignedToRef.current;
+                }
+            }
+        );
+
+        const unsubscribeNoteAdded = subscribe(
+            conversationChannel,
+            '.whatsapp.note.added',
+            (data: any) => {
+                if (data.note) {
+                    setNotes((prev) => [data.note, ...prev]);
+                    lastNoteIdRef.current = Math.max(lastNoteIdRef.current, data.note.id);
+                    if (noteMentionsCurrentUser(data.note.note || '', data.note.created_by?.id)) {
+                        addToast({
+                            title: 'You were mentioned',
+                            description: data.note.note?.slice(0, 80) || 'A note mentioned you.',
+                            variant: 'info',
+                            duration: 4000});
+                        playNotificationSound();
+                    }
+                }
+            }
+        );
+
+        const unsubscribeAuditAdded = subscribe(
+            conversationChannel,
+            '.whatsapp.audit.added',
+            (data: any) => {
+                if (data.audit_event) {
+                    setAuditEvents((prev) => [data.audit_event, ...prev]);
+                    lastAuditIdRef.current = Math.max(lastAuditIdRef.current, data.audit_event.id);
                 }
             }
         );
@@ -355,12 +586,23 @@ export default function ConversationsShow({
             unsubscribeMessageCreated();
             unsubscribeMessageUpdated();
             unsubscribeConversationUpdated();
+            unsubscribeNoteAdded();
+            unsubscribeAuditAdded();
         };
-    }, [workspace?.id, conversation?.id, subscribe, addToast]);
+    }, [
+        account?.id,
+        conversation?.id,
+        subscribe,
+        addToast,
+        currentUserId,
+        notifyAssignmentEnabled,
+        noteMentionsCurrentUser,
+        playNotificationSound,
+    ]);
 
     // Fallback polling when disconnected
     useEffect(() => {
-        if (connected || !workspace?.id || !conversation?.id) {
+        if (connected || !account?.id || !conversation?.id) {
             if (pollingInterval) {
                 clearInterval(pollingInterval);
                 setPollingInterval(null);
@@ -372,14 +614,12 @@ export default function ConversationsShow({
             try {
                 const response = await axios.get(
                     route('app.whatsapp.inbox.conversation.stream', {
-                        workspace: workspace.slug,
-                        conversation: conversation.id,
-                    }),
+                        conversation: conversation.id}),
                     {
                         params: {
                             after_message_id: lastMessageIdRef.current,
-                        },
-                    }
+                            after_note_id: lastNoteIdRef.current,
+                            after_audit_id: lastAuditIdRef.current}}
                 );
 
                 if (response.data.new_messages?.length > 0) {
@@ -409,6 +649,22 @@ export default function ConversationsShow({
                     );
                 }
 
+                if (response.data.new_notes?.length > 0) {
+                    setNotes((prev) => [...response.data.new_notes.reverse(), ...prev]);
+                    lastNoteIdRef.current = Math.max(
+                        ...response.data.new_notes.map((n: NoteItem) => n.id),
+                        lastNoteIdRef.current
+                    );
+                }
+
+                if (response.data.new_audit_events?.length > 0) {
+                    setAuditEvents((prev) => [...response.data.new_audit_events.reverse(), ...prev]);
+                    lastAuditIdRef.current = Math.max(
+                        ...response.data.new_audit_events.map((e: AuditEventItem) => e.id),
+                        lastAuditIdRef.current
+                    );
+                }
+
                 if (response.data.conversation) {
                     setConversation((prev) => ({ ...prev, ...response.data.conversation }));
                 }
@@ -424,7 +680,7 @@ export default function ConversationsShow({
         return () => {
             clearInterval(interval);
         };
-    }, [connected, workspace?.id, workspace?.slug, conversation?.id]);
+    }, [connected, account?.id, account?.slug, conversation?.id]);
 
     const handleSend = useCallback(async () => {
         if (processing) return;
@@ -441,28 +697,83 @@ export default function ConversationsShow({
 
         post(
             route('app.whatsapp.conversations.send', {
-                workspace: workspace.slug,
-                conversation: conversation.id,
-            }),
+                conversation: conversation.id}),
             {
                 onSuccess: () => {
                     reset('message');
                     addToast({
                         title: 'Message sent',
                         variant: 'success',
-                        duration: 2000,
-                    });
+                        duration: 2000});
                 },
                 onError: (errors) => {
                     addToast({
                         title: 'Failed to send message',
                         description: errors.message || 'Please try again',
-                        variant: 'error',
-                    });
-                },
-            }
+                        variant: 'error'});
+                }}
         );
-    }, [processing, data.message, attachments.length, sendAttachments, post, workspace.slug, conversation.id, reset, addToast]);
+    }, [processing, data.message, attachments.length, sendAttachments, post, account.slug, conversation.id, reset, addToast]);
+
+    const submitNote = async () => {
+        const trimmed = noteDraft.trim();
+        if (!trimmed) return;
+
+        try {
+            const response = await axios.post(
+                route('app.whatsapp.conversations.notes.store', {
+                    conversation: conversation.id}),
+                { note: trimmed }
+            );
+
+            if (response.data?.note) {
+                setNotes((prev) => [response.data.note, ...prev]);
+                lastNoteIdRef.current = Math.max(lastNoteIdRef.current, response.data.note.id);
+            }
+            setNoteDraft('');
+            addToast({ title: 'Note added', variant: 'success' });
+        } catch (error: any) {
+            addToast({
+                title: 'Failed to add note',
+                description: error?.response?.data?.message || 'Please try again',
+                variant: 'error'});
+        }
+    };
+
+    const updateConversationMeta = useCallback(
+        (updates: Partial<{ status: string; assigned_to: number | null; priority: string | null }>) => {
+            if (metaUpdating) return;
+            setMetaUpdating(true);
+
+            router.post(
+                route('app.whatsapp.conversations.update', {
+                    conversation: conversation.id}),
+                updates,
+                {
+                    preserveScroll: true,
+                    preserveState: true,
+                    onSuccess: () => {
+                        setConversation((prev) => ({
+                            ...prev,
+                            ...updates,
+                        }));
+                        addToast({
+                            title: 'Conversation updated',
+                            variant: 'success',
+                            duration: 2000});
+                    },
+                    onError: (errs) => {
+                        addToast({
+                            title: 'Update failed',
+                            description: errs?.assigned_to || errs?.status || errs?.priority || 'Please try again.',
+                            variant: 'error'});
+                    },
+                    onFinish: () => {
+                        setMetaUpdating(false);
+                    }});
+        },
+        [addToast, conversation.id, metaUpdating]
+    );
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -593,7 +904,7 @@ export default function ConversationsShow({
                 <div className="flex items-center justify-between px-4 py-3 bg-[#075E54] text-white">
                     <div className="flex items-center gap-3 min-w-0">
                         <Link
-                            href={route('app.whatsapp.conversations.index', { workspace: workspace.slug })}
+                            href={route('app.whatsapp.conversations.index', { })}
                             className="inline-flex items-center text-sm font-medium text-white/90 hover:text-white transition-colors"
                             aria-label="Back to conversations"
                         >
@@ -691,6 +1002,7 @@ export default function ConversationsShow({
                     </>
                 )}
 
+                <div className="flex flex-1 overflow-hidden">
                 {/* Messages */}
                 <div
                     ref={messagesContainerRef}
@@ -698,8 +1010,7 @@ export default function ConversationsShow({
                     style={{
                         backgroundImage:
                             'radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px)',
-                        backgroundSize: '16px 16px',
-                    }}
+                        backgroundSize: '16px 16px'}}
                     tabIndex={0}
                 >
                         {loading ? (
@@ -753,8 +1064,7 @@ export default function ConversationsShow({
                                                     )}>
                                                         {new Date(message.created_at).toLocaleTimeString([], {
                                                             hour: '2-digit',
-                                                            minute: '2-digit',
-                                                        })}
+                                                            minute: '2-digit'})}
                                                     </span>
                                                     {getStatusIcon(message)}
                                                 </div>
@@ -765,6 +1075,174 @@ export default function ConversationsShow({
                             })
                         )}
                         <div ref={messagesEndRef} />
+                </div>
+
+                {/* Right panel */}
+                <aside className="hidden lg:flex lg:w-80 xl:w-96 flex-col border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-y-auto">
+                    <div className="p-6 border-b border-gray-200 dark:border-gray-800">
+                        <div className="flex items-center gap-3">
+                            <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                                {conversation.contact.name?.charAt(0).toUpperCase() || conversation.contact.wa_id.charAt(0)}
+                            </div>
+                            <div>
+                                <p className="font-semibold text-gray-900 dark:text-gray-100">{conversation.contact.name || 'Unknown'}</p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">{conversation.contact.wa_id}</p>
+                            </div>
+                        </div>
+                        <div className="mt-4 space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Connection</span>
+                                <span className="font-medium">{conversation.connection.name}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Status</span>
+                                <Badge variant={conversation.status === 'open' ? 'success' : 'default'} className="px-3 py-1">
+                                    {conversation.status}
+                                </Badge>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="p-6 border-b border-gray-200 dark:border-gray-800">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Assignment & Priority</h3>
+                            {metaUpdating && (
+                                <span className="text-xs text-gray-400">Saving…</span>
+                            )}
+                        </div>
+                        <div className="space-y-4 text-sm">
+                            <div className="space-y-2">
+                                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Assignee</span>
+                                <select
+                                    value={conversation.assigned_to ?? ''}
+                                    onChange={(e) => {
+                                        const value = e.target.value ? Number(e.target.value) : null;
+                                        updateConversationMeta({ assigned_to: value });
+                                    }}
+                                    disabled={metaUpdating}
+                                    className="mt-1 block w-full rounded-xl border-gray-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800"
+                                >
+                                    <option value="">Unassigned</option>
+                                    {agents.map((agent) => (
+                                        <option key={agent.id} value={agent.id}>
+                                            {agent.name} ({agent.role})
+                                        </option>
+                                    ))}
+                                </select>
+                                {conversation.assigned_to && (
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                                        Assigned to {agentMap.get(conversation.assigned_to)?.name || 'Unknown'}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="space-y-2">
+                                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Priority</span>
+                                <select
+                                    value={conversation.priority ?? ''}
+                                    onChange={(e) => {
+                                        const value = e.target.value || null;
+                                        updateConversationMeta({ priority: value });
+                                    }}
+                                    disabled={metaUpdating}
+                                    className="mt-1 block w-full rounded-xl border-gray-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800"
+                                >
+                                    <option value="">Not set</option>
+                                    <option value="low">Low</option>
+                                    <option value="normal">Normal</option>
+                                    <option value="high">High</option>
+                                    <option value="urgent">Urgent</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Status</span>
+                                <select
+                                    value={conversation.status}
+                                    onChange={(e) => updateConversationMeta({ status: e.target.value })}
+                                    disabled={metaUpdating}
+                                    className="mt-1 block w-full rounded-xl border-gray-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800"
+                                >
+                                    <option value="open">Open</option>
+                                    <option value="closed">Closed</option>
+                                </select>
+                            </div>
+
+                            <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                                <div className="font-semibold text-gray-700 dark:text-gray-200">Auto-assign</div>
+                                <div className="mt-1">
+                                    {inboxSettings?.auto_assign_enabled
+                                        ? `Enabled (${inboxSettings.auto_assign_strategy.replace('_', ' ')})`
+                                        : 'Disabled'}
+                                </div>
+                                <Link
+                                    href={route('app.settings', {})}
+                                    className="mt-2 inline-flex text-xs font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                                >
+                                    Manage inbox settings
+                                </Link>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="p-6 border-b border-gray-200 dark:border-gray-800">
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Internal Notes</h3>
+                            <span className="text-xs text-gray-500">{notes.length}</span>
+                        </div>
+                        <div className="space-y-3">
+                            <Textarea
+                                value={noteDraft}
+                                onChange={(e) => setNoteDraft(e.target.value)}
+                                placeholder="Add a private note..."
+                                className="min-h-[80px] rounded-xl"
+                            />
+                            <Button type="button" onClick={submitNote} className="w-full bg-[#25D366] hover:bg-[#1DAA57] text-white">
+                                Add Note
+                            </Button>
+                        </div>
+                        <div className="mt-4 space-y-3">
+                            {notes.length === 0 && (
+                                <div className="text-xs text-gray-500 dark:text-gray-400">No notes yet.</div>
+                            )}
+                            {notes.map((note) => (
+                                <div key={note.id} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3">
+                                    <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">{note.note}</p>
+                                    <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+                                        {note.created_by?.name || 'System'} • {new Date(note.created_at).toLocaleString()}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="p-6">
+                        <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Audit Events</h3>
+                            <span className="text-xs text-gray-500">{auditEvents.length}</span>
+                        </div>
+                        <div className="space-y-3">
+                            {auditEvents.length === 0 && (
+                                <div className="text-xs text-gray-500 dark:text-gray-400">No audit events yet.</div>
+                            )}
+                            {auditEvents.map((event) => (
+                                <div key={event.id} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
+                                    <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                        {event.event_type.replaceAll('_', ' ')}
+                                    </div>
+                                    {event.description && (
+                                        <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">
+                                            {event.description}
+                                        </p>
+                                    )}
+                                    <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+                                        {event.actor?.name || 'System'} • {new Date(event.created_at).toLocaleString()}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </aside>
                 </div>
 
                 {/* Composer */}
@@ -811,6 +1289,28 @@ export default function ConversationsShow({
                             >
                                 <FileText className="h-3.5 w-3.5" />
                                 Templates
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowLists((prev) => !prev);
+                                    setShowButtons(false);
+                                }}
+                                className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                            >
+                                <List className="h-3.5 w-3.5" />
+                                Lists
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowButtons((prev) => !prev);
+                                    setShowLists(false);
+                                }}
+                                className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                            >
+                                <Square className="h-3.5 w-3.5" />
+                                Buttons
                             </button>
                             <button
                                 type="button"
@@ -1069,6 +1569,192 @@ export default function ConversationsShow({
                                         </div>
                                     </div>
                                 )}
+                            </div>
+                        )}
+
+                        {showLists && (
+                            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                                <div className="grid gap-3">
+                                    {lists.length === 0 && (
+                                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                                            No lists available. Create lists in the Lists section.
+                                        </div>
+                                    )}
+                                    {lists.map((list) => (
+                                        <button
+                                            key={list.id}
+                                            type="button"
+                                            onClick={() => setSelectedList(list)}
+                                            className={cn(
+                                                'w-full rounded-xl border px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700',
+                                                selectedList?.id === list.id
+                                                    ? 'border-emerald-400 bg-emerald-50/70 text-emerald-900 dark:border-emerald-500/70 dark:bg-emerald-500/10 dark:text-emerald-100'
+                                                    : 'border-gray-200 text-gray-700 dark:border-gray-700 dark:text-gray-200'
+                                            )}
+                                        >
+                                            <p className="font-semibold">{list.name}</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                {list.description || list.button_text}
+                                            </p>
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {selectedList && (
+                                    <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900">
+                                        <div className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-200">
+                                            Selected List: {selectedList.name}
+                                        </div>
+                                        <div className="mt-3 flex justify-end gap-2">
+                                            <Button
+                                                type="button"
+                                                variant="secondary"
+                                                onClick={() => {
+                                                    setSelectedList(null);
+                                                }}
+                                            >
+                                                Clear
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                onClick={sendList}
+                                                className="bg-[#25D366] hover:bg-[#1DAA57] text-white"
+                                            >
+                                                Send List
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {showButtons && (
+                            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 block">
+                                            Body Text * (Max 1024 chars)
+                                        </label>
+                                        <Textarea
+                                            value={buttonBodyText}
+                                            onChange={(e) => setButtonBodyText(e.target.value)}
+                                            placeholder="Enter message body text"
+                                            maxLength={1024}
+                                            rows={3}
+                                            className="rounded-xl"
+                                        />
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                            {buttonBodyText.length}/1024 characters
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 block">
+                                            Header Text (Optional, Max 60 chars)
+                                        </label>
+                                        <TextInput
+                                            value={buttonHeaderText}
+                                            onChange={(e) => setButtonHeaderText(e.target.value)}
+                                            placeholder="Optional header text"
+                                            maxLength={60}
+                                            className="rounded-xl"
+                                        />
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                            {buttonHeaderText.length}/60 characters
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 block">
+                                            Footer Text (Optional, Max 60 chars)
+                                        </label>
+                                        <TextInput
+                                            value={buttonFooterText}
+                                            onChange={(e) => setButtonFooterText(e.target.value)}
+                                            placeholder="Optional footer text"
+                                            maxLength={60}
+                                            className="rounded-xl"
+                                        />
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                            {buttonFooterText.length}/60 characters
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                                                Buttons (Max 3)
+                                            </label>
+                                            {interactiveButtons.length < 3 && (
+                                                <Button
+                                                    type="button"
+                                                    onClick={addButton}
+                                                    variant="secondary"
+                                                    size="sm"
+                                                >
+                                                    <Plus className="h-3 w-3 mr-1" />
+                                                    Add Button
+                                                </Button>
+                                            )}
+                                        </div>
+                                        <div className="space-y-2">
+                                            {interactiveButtons.map((button, index) => (
+                                                <div
+                                                    key={index}
+                                                    className="flex items-center gap-2 border border-gray-200 dark:border-gray-700 rounded-lg p-2"
+                                                >
+                                                    <TextInput
+                                                        value={button.id}
+                                                        onChange={(e) => updateButton(index, 'id', e.target.value)}
+                                                        placeholder="Button ID (unique)"
+                                                        maxLength={256}
+                                                        className="flex-1 text-sm rounded-lg"
+                                                    />
+                                                    <TextInput
+                                                        value={button.text}
+                                                        onChange={(e) => updateButton(index, 'text', e.target.value)}
+                                                        placeholder="Button text (max 20)"
+                                                        maxLength={20}
+                                                        className="flex-1 text-sm rounded-lg"
+                                                    />
+                                                    {interactiveButtons.length > 1 && (
+                                                        <Button
+                                                            type="button"
+                                                            onClick={() => removeButton(index)}
+                                                            variant="ghost"
+                                                            size="sm"
+                                                        >
+                                                            <X className="h-3 w-3 text-red-500" />
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-4 flex justify-end gap-2">
+                                        <Button
+                                            type="button"
+                                            variant="secondary"
+                                            onClick={() => {
+                                                setShowButtons(false);
+                                                setInteractiveButtons([{ id: '', text: '' }]);
+                                                setButtonBodyText('');
+                                                setButtonHeaderText('');
+                                                setButtonFooterText('');
+                                            }}
+                                        >
+                                            Cancel
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            onClick={sendInteractiveButtons}
+                                            className="bg-[#25D366] hover:bg-[#1DAA57] text-white"
+                                        >
+                                            Send Buttons
+                                        </Button>
+                                    </div>
+                                </div>
                             </div>
                         )}
 

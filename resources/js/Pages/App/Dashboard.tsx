@@ -61,12 +61,12 @@ interface RecentConversation {
 }
 
 export default function Dashboard({ 
-    workspace, 
+    account, 
     stats, 
     message_trends, 
     recent_conversations 
 }: { 
-    workspace: any;
+    account: any;
     stats: Stats;
     message_trends: MessageTrend[];
     recent_conversations: RecentConversation[];
@@ -96,32 +96,28 @@ export default function Dashboard({
             change: `${stats.messages.today} today`,
             icon: MessageSquare,
             gradient: 'from-blue-500 to-blue-600',
-            bgGradient: 'from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20',
-        },
+            bgGradient: 'from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20'},
         {
             label: 'Active Connections',
             value: stats.connections.active,
             change: `${stats.connections.total} total`,
             icon: LinkIcon,
             gradient: 'from-green-500 to-emerald-600',
-            bgGradient: 'from-green-50 to-emerald-100 dark:from-green-900/20 dark:to-emerald-800/20',
-        },
+            bgGradient: 'from-green-50 to-emerald-100 dark:from-green-900/20 dark:to-emerald-800/20'},
         {
             label: 'Open Conversations',
             value: stats.conversations.open,
             change: `${stats.conversations.total} total`,
             icon: Inbox,
             gradient: 'from-purple-500 to-purple-600',
-            bgGradient: 'from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20',
-        },
+            bgGradient: 'from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20'},
         {
             label: 'Team Members',
             value: stats.team.total_members,
             change: `${stats.team.admins} admins`,
             icon: Users,
             gradient: 'from-amber-500 to-orange-600',
-            bgGradient: 'from-amber-50 to-orange-100 dark:from-amber-900/20 dark:to-orange-800/20',
-        },
+            bgGradient: 'from-amber-50 to-orange-100 dark:from-amber-900/20 dark:to-orange-800/20'},
     ];
 
     return (
@@ -135,7 +131,7 @@ export default function Dashboard({
                             Dashboard
                         </h1>
                         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                            Welcome back to <span className="font-semibold text-gray-900 dark:text-gray-100">{workspace?.name}</span>
+                            Welcome back
                         </p>
                     </div>
                 </div>
@@ -267,7 +263,7 @@ export default function Dashboard({
                                 </div>
                                 {hasRoute('app.whatsapp.conversations.index') && (
                                 <Link
-                                    href={route('app.whatsapp.conversations.index', { workspace: workspace.slug })}
+                                    href={route('app.whatsapp.conversations.index', {})}
                                     className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
                                 >
                                     View All →
@@ -286,8 +282,7 @@ export default function Dashboard({
                                 <div className="space-y-2">
                                     {recent_conversations.map((conversation) => {
                                         const conversationRoute = hasRoute('app.whatsapp.conversations.index')
-                                            ? route('app.whatsapp.conversations.show', { 
-                                                workspace: workspace.slug,
+                                            ? route('app.whatsapp.conversations.show', {
                                                 conversation: conversation.id 
                                             })
                                             : '#';
@@ -333,7 +328,7 @@ export default function Dashboard({
                             <div className="space-y-2">
                                 {hasRoute('app.whatsapp.connections.index') && (
                                 <Link
-                                    href={route('app.whatsapp.connections.index', { workspace: workspace.slug })}
+                                    href={route('app.whatsapp.connections.index', {})}
                                     className="flex items-center gap-4 p-4 rounded-xl hover:bg-gradient-to-r hover:from-blue-50 hover:to-blue-100 dark:hover:from-blue-900/20 dark:hover:to-blue-800/20 transition-all duration-200 border border-transparent hover:border-blue-200 dark:hover:border-blue-800 group"
                                 >
                                     <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl group-hover:scale-110 transition-transform duration-200 shadow-lg">
@@ -351,7 +346,7 @@ export default function Dashboard({
                                 
                                 {hasRoute('app.whatsapp.templates.index') && (
                                 <Link
-                                    href={route('app.whatsapp.templates.index', { workspace: workspace.slug })}
+                                    href={route('app.whatsapp.templates.index', {})}
                                     className="flex items-center gap-4 p-4 rounded-xl hover:bg-gradient-to-r hover:from-green-50 hover:to-emerald-100 dark:hover:from-green-900/20 dark:hover:to-emerald-800/20 transition-all duration-200 border border-transparent hover:border-green-200 dark:hover:border-green-800 group"
                                 >
                                     <div className="p-3 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl group-hover:scale-110 transition-transform duration-200 shadow-lg">
@@ -368,7 +363,7 @@ export default function Dashboard({
                                 )}
 
                                 <Link
-                                    href={route('app.settings', { workspace: workspace.slug })}
+                                    href={route('app.settings', {})}
                                     className="flex items-center gap-4 p-4 rounded-xl hover:bg-gradient-to-r hover:from-purple-50 hover:to-purple-100 dark:hover:from-purple-900/20 dark:hover:to-purple-800/20 transition-all duration-200 border border-transparent hover:border-purple-200 dark:hover:border-purple-800 group"
                                 >
                                     <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl group-hover:scale-110 transition-transform duration-200 shadow-lg">
@@ -384,7 +379,7 @@ export default function Dashboard({
                                 </Link>
 
                                 <Link
-                                    href={route('app.billing.index', { workspace: workspace.slug })}
+                                    href={route('app.billing.index', { })}
                                     className="flex items-center gap-4 p-4 rounded-xl hover:bg-gradient-to-r hover:from-amber-50 hover:to-orange-100 dark:hover:from-amber-900/20 dark:hover:to-orange-800/20 transition-all duration-200 border border-transparent hover:border-amber-200 dark:hover:border-amber-800 group"
                                 >
                                     <div className="p-3 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl group-hover:scale-110 transition-transform duration-200 shadow-lg">

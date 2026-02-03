@@ -58,7 +58,7 @@ All lock keys are namespaced to prevent collisions:
 
 ### Sync Locks
 - `template_sync:connection:{id}` - Template sync per connection (5 min)
-- `contact_import:workspace:{id}` - Contact import per workspace (10 min)
+- `contact_import:account:{id}` - Contact import per account (10 min)
 - `campaign_send:{id}` - Campaign sending per campaign (1 min)
 
 ### Processing Locks

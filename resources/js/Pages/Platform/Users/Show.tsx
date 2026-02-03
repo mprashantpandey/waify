@@ -9,14 +9,13 @@ interface User {
     name: string;
     email: string;
     is_super_admin: boolean;
-    owned_workspaces_count: number;
-    member_workspaces_count: number;
+    owned_accounts_count: number;
+    member_accounts_count: number;
     created_at: string;
 }
 
 export default function PlatformUsersShow({
-    user,
-}: {
+    user}: {
     user: User;
 }) {
     const { auth } = usePage().props as any;
@@ -83,20 +82,20 @@ export default function PlatformUsersShow({
 
                     <Card>
                         <CardHeader>
-                            <CardTitle>Workspace Statistics</CardTitle>
+                            <CardTitle>Tenant Statistics</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <dl className="space-y-4">
                                 <div>
-                                    <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Owned Workspaces</dt>
+                                    <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Owned Tenants</dt>
                                     <dd className="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">
-                                        {user.owned_workspaces_count}
+                                        {user.owned_accounts_count}
                                     </dd>
                                 </div>
                                 <div>
-                                    <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Member Workspaces</dt>
+                                    <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Member Tenants</dt>
                                     <dd className="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-100">
-                                        {user.member_workspaces_count}
+                                        {user.member_accounts_count}
                                     </dd>
                                 </div>
                             </dl>

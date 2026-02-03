@@ -12,8 +12,5 @@ return [
             'label' => 'Analytics',
             'href' => 'app.analytics.index',
             'icon' => 'BarChart3',
-            'group' => 'growth',
-        ],
-    ],
-];
+            'group' => 'growth']]];
 

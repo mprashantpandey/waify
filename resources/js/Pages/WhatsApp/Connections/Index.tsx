@@ -22,11 +22,10 @@ interface Connection {
 }
 
 export default function ConnectionsIndex({
-    workspace,
+    account,
     connections,
-    canCreate,
-}: {
-    workspace: any;
+    canCreate}: {
+    account: any;
     connections: Connection[];
     canCreate: boolean;
 }) {
@@ -79,14 +78,14 @@ export default function ConnectionsIndex({
                         </div>
                         <div className="flex flex-col gap-3 sm:flex-row">
                             {canCreate && (
-                                <Link href={route('app.whatsapp.connections.create', { workspace: workspace.slug })}>
+                                <Link href={route('app.whatsapp.connections.create', {})}>
                                     <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/40">
                                         <Plus className="h-4 w-4 mr-2" />
                                         Add Connection
                                     </Button>
                                 </Link>
                             )}
-                            <Link href={route('app.whatsapp.connections.wizard', { workspace: workspace.slug })}>
+                            <Link href={route('app.whatsapp.connections.wizard', {})}>
                                 <Button variant="secondary" className="border-blue-200/60 text-blue-700 hover:bg-blue-50 dark:border-blue-800/60 dark:text-blue-200 dark:hover:bg-blue-900/30">
                                     <Sparkles className="h-4 w-4 mr-2" />
                                     Guided Setup
@@ -174,7 +173,7 @@ export default function ConnectionsIndex({
                                 Try a different search or add a new WhatsApp connection.
                             </p>
                             {canCreate && (
-                                <Link href={route('app.whatsapp.connections.create', { workspace: workspace.slug })}>
+                                <Link href={route('app.whatsapp.connections.create', {})}>
                                     <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50">
                                         <Plus className="h-4 w-4 mr-2" />
                                         Create Connection
@@ -293,9 +292,7 @@ export default function ConnectionsIndex({
                                     <div className="grid gap-2 sm:grid-cols-2">
                                         <Link
                                             href={route('app.whatsapp.connections.edit', {
-                                                workspace: workspace.slug,
-                                                connection: connection.slug ?? connection.id,
-                                            })}
+                                                connection: connection.slug ?? connection.id})}
                                             className="block"
                                         >
                                             <Button variant="secondary" className="w-full group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 group-hover:border-blue-200 dark:group-hover:border-blue-800 transition-colors">
@@ -304,9 +301,7 @@ export default function ConnectionsIndex({
                                         </Link>
                                         <Link
                                             href={route('app.whatsapp.connections.health', {
-                                                workspace: workspace.slug,
-                                                connection: connection.slug ?? connection.id,
-                                            })}
+                                                connection: connection.slug ?? connection.id})}
                                             className="block"
                                         >
                                             <Button variant="ghost" className="w-full border border-transparent hover:border-blue-200 dark:hover:border-blue-800">

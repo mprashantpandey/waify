@@ -22,19 +22,19 @@ class SupportTicketTest extends TestCase
         }
     }
 
-    public function test_workspace_owner_can_create_ticket_with_tags_and_category(): void
+    public function test_account_owner_can_create_ticket_with_tags_and_category(): void
     {
         Notification::fake();
 
-        $workspace = $this->createWorkspaceWithPlan('free');
-        $owner = $this->actingAsWorkspaceOwner($workspace);
+        $account = $this->createAccountWithPlan('free');
+        $owner = $this->actingAsAccountOwner($account);
 
         $admin = User::factory()->create([
             'is_platform_admin' => true,
         ]);
 
         $response = $this->post(route('app.support.store', [
-            'workspace' => $workspace->slug,
+            'account' => $account->slug,
         ]), [
             'subject' => 'Webhook failure',
             'message' => 'We are seeing 403 on callbacks.',
@@ -44,7 +44,7 @@ class SupportTicketTest extends TestCase
 
         $response->assertRedirect();
 
-        $thread = SupportThread::where('workspace_id', $workspace->id)->first();
+        $thread = SupportThread::where('account_id', $account->id)->first();
         $this->assertNotNull($thread);
         $this->assertSame('WhatsApp', $thread->category);
         $this->assertSame(['webhook', 'urgent'], $thread->tags);

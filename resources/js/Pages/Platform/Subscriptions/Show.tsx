@@ -9,7 +9,7 @@ import { usePage } from '@inertiajs/react';
 interface Subscription {
     id: number;
     slug: string;
-    workspace: {
+    account: {
         id: number;
         name: string;
         slug: string;
@@ -46,8 +46,7 @@ export default function SubscriptionsShow({ subscription }: { subscription: Subs
             active: 'success',
             trialing: 'info',
             past_due: 'warning',
-            canceled: 'danger',
-        };
+            canceled: 'danger'};
         return <Badge variant={variants[status] || 'default'}>{status}</Badge>;
     };
 
@@ -64,7 +63,7 @@ export default function SubscriptionsShow({ subscription }: { subscription: Subs
 
     return (
         <PlatformShell auth={auth}>
-            <Head title={`Subscription: ${subscription.workspace.name}`} />
+            <Head title={`Subscription: ${subscription.account.name}`} />
             <div className="space-y-6">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
@@ -79,7 +78,7 @@ export default function SubscriptionsShow({ subscription }: { subscription: Subs
                                 Subscription Details
                             </h1>
                             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                                {subscription.workspace.name}
+                                {subscription.account.name}
                             </p>
                         </div>
                     </div>
@@ -94,13 +93,13 @@ export default function SubscriptionsShow({ subscription }: { subscription: Subs
                             <CardContent className="space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400">Workspace</p>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">Tenant</p>
                                         <Link
-                                            href={route('platform.workspaces.show', { workspace: subscription.workspace.id })}
+                                            href={route('platform.accounts.show', { account: subscription.account.id })}
                                             className="flex items-center gap-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
                                         >
                                             <Building2 className="h-4 w-4" />
-                                            {subscription.workspace.name}
+                                            {subscription.account.name}
                                         </Link>
                                     </div>
                                     <div>

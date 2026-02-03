@@ -25,7 +25,7 @@ interface WebhookHealth {
 interface ConnectionDetail {
     id: number;
     name: string;
-    workspace_id: number;
+    account_id: number;
     is_active: boolean;
     webhook_subscribed: boolean;
     has_error: boolean;
@@ -69,8 +69,7 @@ export default function SystemHealth({
     queue_status,
     storage_status,
     database_status,
-    recent_errors,
-}: {
+    recent_errors}: {
     webhook_health: WebhookHealth;
     connection_details: ConnectionDetail[];
     queue_status: QueueStatus;
@@ -159,7 +158,7 @@ export default function SystemHealth({
                                                     {conn.name}
                                                 </p>
                                                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                    Workspace ID: {conn.workspace_id}
+                                                    Tenant ID: {conn.account_id}
                                                 </p>
                                             </div>
                                         </div>

@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Workspace;
+use App\Models\Account;
 use App\Models\Plan;
 use App\Core\Billing\SubscriptionService;
 use Illuminate\Http\Request;
@@ -19,47 +19,44 @@ class OnboardingController extends Controller
     {
         $settingsService = app(\App\Services\PlatformSettingsService::class);
         
-        if (!$settingsService->isFeatureEnabled('workspace_creation')) {
-            abort(403, 'Workspace creation is currently disabled.');
+        if (!$settingsService->isFeatureEnabled('account_creation')) {
+            abort(403, 'Account creation is currently disabled.');
         }
         
         return Inertia::render('Onboarding');
     }
 
     /**
-     * Store a newly created workspace.
+     * Store a newly created account.
      */
     public function store(Request $request)
     {
         $settingsService = app(\App\Services\PlatformSettingsService::class);
         
-        if (!$settingsService->isFeatureEnabled('workspace_creation')) {
-            abort(403, 'Workspace creation is currently disabled.');
+        if (!$settingsService->isFeatureEnabled('account_creation')) {
+            abort(403, 'Account creation is currently disabled.');
         }
         
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-        ]);
+            'name' => 'required|string|max:255']);
 
         $user = Auth::user();
 
-        $workspace = Workspace::create([
+        $account = Account::create([
             'name' => $validated['name'],
-            'slug' => Workspace::generateSlug($validated['name']),
-            'owner_id' => $user->id,
-        ]);
+            'slug' => Account::generateSlug($validated['name']),
+            'owner_id' => $user->id]);
 
         // Add user as owner
-        $workspace->users()->attach($user->id, ['role' => 'owner']);
+        $account->users()->attach($user->id, ['role' => 'owner']);
 
         // Enable core modules by default
         $coreModules = \App\Models\Module::where('is_core', true)->get();
         foreach ($coreModules as $module) {
-            \App\Models\WorkspaceModule::create([
-                'workspace_id' => $workspace->id,
+            \App\Models\AccountModule::create([
+                'account_id' => $account->id,
                 'module_key' => $module->key,
-                'enabled' => true,
-            ]);
+                'enabled' => true]);
         }
 
         // Auto-subscribe to selected plan or default plan
@@ -79,17 +76,19 @@ class OnboardingController extends Controller
             $subscriptionService = app(SubscriptionService::class);
             
             if ($selectedPlan->trial_days > 0) {
-                $subscriptionService->startTrial($workspace, $selectedPlan, $user);
+                $subscriptionService->startTrial($account, $selectedPlan, $user);
             } else {
-                $subscriptionService->changePlan($workspace, $selectedPlan, $user);
+                $subscriptionService->changePlan($account, $selectedPlan, $user);
             }
         }
         
         // Clear selected plan from session
         session()->forget('selected_plan_key');
 
-        session(['current_workspace_id' => $workspace->id]);
+        session(['current_account_id' => $account->id]);
+        session(['redirect_after_profile_complete' => true]);
 
-        return redirect()->route('app.dashboard', ['workspace' => $workspace->slug]);
+        // Redirect to profile to complete user information
+        return redirect()->route('profile.edit')->with('status', 'Please complete your profile to continue. Name, Email, and Phone are required.');
     }
 }

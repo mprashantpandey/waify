@@ -32,10 +32,9 @@ interface HealthCheck {
 }
 
 export default function ConnectionHealthCheck({
-    workspace,
-    connection,
-}: {
-    workspace: any;
+    account,
+    connection}: {
+    account: any;
     connection: {
         id: number;
         slug?: string;
@@ -57,9 +56,7 @@ export default function ConnectionHealthCheck({
         try {
             const response = await axios.get(
                 route('app.whatsapp.connections.health.api', {
-                    workspace: workspace.slug,
-                    connection: connection.slug ?? connection.id,
-                })
+                    connection: connection.slug ?? connection.id})
             );
             setHealth(response.data);
         } catch (error: any) {
@@ -80,8 +77,7 @@ export default function ConnectionHealthCheck({
             healthy: 'success',
             warning: 'warning',
             unhealthy: 'danger',
-            unknown: 'default',
-        };
+            unknown: 'default'};
 
         return (
             <Badge variant={variants[status] || 'default'} className="px-3 py-1">
@@ -110,8 +106,7 @@ export default function ConnectionHealthCheck({
             webhook_activity: Clock,
             access_token: Shield,
             api_connectivity: Zap,
-            phone_number: Phone,
-        };
+            phone_number: Phone};
 
         const Icon = iconMap[checkName] || Activity;
         return <Icon className="h-4 w-4" />;
@@ -152,8 +147,7 @@ export default function ConnectionHealthCheck({
         healthy: 'from-green-500 to-green-600',
         warning: 'from-yellow-500 to-yellow-600',
         unhealthy: 'from-red-500 to-red-600',
-        unknown: 'from-gray-500 to-gray-600',
-    }[health.overall_status] || 'from-gray-500 to-gray-600';
+        unknown: 'from-gray-500 to-gray-600'}[health.overall_status] || 'from-gray-500 to-gray-600';
 
     return (
         <AppShell>
@@ -163,9 +157,7 @@ export default function ConnectionHealthCheck({
                     <div>
                         <Link
                             href={route('app.whatsapp.connections.edit', {
-                                workspace: workspace.slug,
-                                connection: connection.slug ?? connection.id,
-                            })}
+                                connection: connection.slug ?? connection.id})}
                             className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
                         >
                             <ArrowLeft className="h-4 w-4" />
@@ -255,8 +247,7 @@ export default function ConnectionHealthCheck({
                             healthy: 'from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200 dark:border-green-800',
                             warning: 'from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 border-yellow-200 dark:border-yellow-800',
                             unhealthy: 'from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 border-red-200 dark:border-red-800',
-                            unknown: 'from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border-gray-200 dark:border-gray-700',
-                        }[check.status] || 'from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border-gray-200 dark:border-gray-700';
+                            unknown: 'from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border-gray-200 dark:border-gray-700'}[check.status] || 'from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border-gray-200 dark:border-gray-700';
 
                         return (
                             <Card key={checkName} className={`border-0 shadow-lg ${statusColors.split(' ')[0]} border-2`}>

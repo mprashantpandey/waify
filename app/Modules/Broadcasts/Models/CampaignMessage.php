@@ -23,15 +23,13 @@ class CampaignMessage extends Model
         'sent_at',
         'delivered_at',
         'read_at',
-        'failed_at',
-    ];
+        'failed_at'];
 
     protected $casts = [
         'sent_at' => 'datetime',
         'delivered_at' => 'datetime',
         'read_at' => 'datetime',
-        'failed_at' => 'datetime',
-    ];
+        'failed_at' => 'datetime'];
 
     /**
      * Get the campaign.

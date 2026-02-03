@@ -10,7 +10,7 @@ interface Thread {
     slug: string;
     subject: string;
     status: string;
-    workspace: { id: number; name: string; slug: string } | null;
+    account: { id: number; name: string; slug: string } | null;
     last_message_at: string | null;
     created_at: string;
 }
@@ -53,8 +53,7 @@ export default function PlatformSupportIndex({ threads }: { threads: Thread[] })
     const supportContacts = useMemo(() => {
         return {
             email: branding?.support_email as string | undefined,
-            phone: branding?.support_phone as string | undefined,
-        };
+            phone: branding?.support_phone as string | undefined};
     }, [branding?.support_email, branding?.support_phone]);
 
     return (
@@ -135,7 +134,7 @@ export default function PlatformSupportIndex({ threads }: { threads: Thread[] })
                                                 {thread.subject}
                                             </div>
                                             <div className="text-xs text-gray-500 dark:text-gray-400">
-                                                Workspace: {thread.workspace?.name ?? 'Unknown'}
+                                                Tenant: {thread.account?.name ?? 'Unknown'}
                                             </div>
                                         </div>
                                         <div className="text-xs text-gray-500 dark:text-gray-400">

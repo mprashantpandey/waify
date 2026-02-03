@@ -9,7 +9,7 @@ use App\Modules\Support\Models\SupportThread;
 use App\Notifications\SupportCustomerReplied;
 use App\Notifications\SupportTicketCreated;
 use App\Models\PlatformSetting;
-use App\Models\Workspace;
+use App\Models\Account;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
@@ -20,9 +20,9 @@ class SupportController extends Controller
 {
     public function index(Request $request): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        $threads = SupportThread::where('workspace_id', $workspace->id)
+        $threads = SupportThread::where('account_id', $account->id)
             ->orderByDesc('last_message_at')
             ->orderByDesc('created_at')
             ->get()
@@ -41,19 +41,17 @@ class SupportController extends Controller
                     'first_response_due_at' => $thread->first_response_due_at?->toIso8601String(),
                     'escalation_level' => $thread->escalation_level ?? 0,
                     'last_message_at' => $thread->last_message_at?->toIso8601String(),
-                    'created_at' => $thread->created_at->toIso8601String(),
-                ];
+                    'created_at' => $thread->created_at->toIso8601String()];
             });
 
         return Inertia::render('Support/Index', [
-            'workspace' => $workspace,
-            'threads' => $threads,
-        ]);
+            'account' => $account,
+            'threads' => $threads]);
     }
 
     public function store(Request $request)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
         $hasFiles = $request->hasFile('attachments');
         if (!trim((string) $request->input('message')) && !$hasFiles) {
@@ -65,12 +63,11 @@ class SupportController extends Controller
             'message' => 'nullable|string|max:2000',
             'category' => 'nullable|string|max:100',
             'tags' => 'nullable',
-            'attachments.*' => $this->attachmentRules(),
-        ]);
+            'attachments.*' => $this->attachmentRules()]);
         $tags = $this->parseTags($request->input('tags'));
 
         $thread = SupportThread::create([
-            'workspace_id' => $workspace->id,
+            'account_id' => $account->id,
             'created_by' => $request->user()->id,
             'subject' => $validated['subject'],
             'status' => 'open',
@@ -81,16 +78,14 @@ class SupportController extends Controller
             'tags' => $tags,
             'first_response_due_at' => $this->firstResponseDueAt(),
             'due_at' => $this->ticketDueAt(),
-            'last_message_at' => now(),
-        ]);
+            'last_message_at' => now()]);
 
         $body = trim((string) $request->input('message', ''));
         $message = SupportMessage::create([
             'support_thread_id' => $thread->id,
             'sender_type' => 'user',
             'sender_id' => $request->user()->id,
-            'body' => $body,
-        ]);
+            'body' => $body]);
         $this->storeAttachments($message, $request->file('attachments', []));
         $message->load('thread');
         event(new SupportMessageCreated($message));
@@ -98,21 +93,19 @@ class SupportController extends Controller
         $this->notifyPlatformAdmins(new SupportTicketCreated($thread));
 
         return redirect()->route('app.support.show', [
-            'workspace' => $workspace->slug,
-            'thread' => $thread->slug,
-        ])->with('success', 'Support request created.');
+            'thread' => $thread->slug])->with('success', 'Support request created.');
     }
 
     public function show(Request $request, $thread)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
-        if (!$workspace && $request->route('workspace')) {
-            $workspace = Workspace::where('slug', $request->route('workspace'))->first();
+        $account = $request->attributes->get('account') ?? current_account();
+        if (!$account && $request->route('account')) {
+            $account = Account::where('slug', $request->route('account'))->first();
         }
         $threadValue = $thread instanceof SupportThread ? $thread->getKey() : $thread;
         $thread = SupportThread::resolveThread($threadValue);
-        if (!$thread && $workspace) {
-            $thread = SupportThread::where('workspace_id', $workspace->id)
+        if (!$thread && $account) {
+            $thread = SupportThread::where('account_id', $account->id)
                 ->where(function ($query) use ($threadValue) {
                     $query->where('slug', $threadValue)->orWhere('id', $threadValue);
                 })
@@ -124,29 +117,26 @@ class SupportController extends Controller
                 'thread_param' => $thread,
                 'thread_id' => $threadValue,
                 'route_params' => $request->route()?->parameters() ?? [],
-                'workspace_slug' => $request->route('workspace'),
-                'workspace_id' => $workspace?->id,
-            ]);
+                'account_slug' => $request->route('account'),
+                'account_id' => $account?->id]);
         }
 
-        if ($thread && $workspace && $thread->workspace_id !== $workspace->id) {
+        if ($thread && $account && $thread->account_id !== $account->id) {
             $user = $request->user();
-            $target = Workspace::find($thread->workspace_id);
-            if ($target && $user && $user->canAccessWorkspace($target)) {
-                return redirect()->route('app.support.show', [
-                    'workspace' => $target->slug,
-                    'thread' => $thread->slug,
-                ]);
+            $target = Account::find($thread->account_id);
+            if ($target && $user && $user->canAccessAccount($target)) {
+                session(['current_account_id' => $target->id]);
+                $account = $target;
             }
-            abort(403);
+            if ($account->id !== $thread->account_id) {
+                abort(403);
+            }
         }
 
         if (!$thread) {
             return redirect()
                 ->route('app.support.hub', [
-                    'workspace' => $workspace?->slug ?? $request->route('workspace'),
-                    'tab' => 'history',
-                ])
+                    'tab' => 'history'])
                 ->with('error', 'Support thread not found.');
         }
 
@@ -167,14 +157,12 @@ class SupportController extends Controller
                             'file_name' => $attachment->file_name,
                             'mime_type' => $attachment->mime_type,
                             'file_size' => $attachment->file_size,
-                            'url' => route('support.attachments.show', ['attachment' => $attachment->id]),
-                        ];
-                    })->values(),
-                ];
+                            'url' => route('support.attachments.show', ['attachment' => $attachment->id])];
+                    })->values()];
             });
 
         return Inertia::render('Support/Show', [
-            'workspace' => $workspace,
+            'account' => $account,
             'thread' => [
                 'id' => $thread->id,
                 'slug' => $thread->slug ?? (string) $thread->id,
@@ -188,18 +176,16 @@ class SupportController extends Controller
                 'due_at' => $thread->due_at?->toIso8601String(),
                 'first_response_due_at' => $thread->first_response_due_at?->toIso8601String(),
                 'escalation_level' => $thread->escalation_level ?? 0,
-                'created_at' => $thread->created_at->toIso8601String(),
-            ],
-            'messages' => $messages,
-        ]);
+                'created_at' => $thread->created_at->toIso8601String()],
+            'messages' => $messages]);
     }
 
     public function hub(Request $request): Response
     {
         $this->escalateOverdue();
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        $threads = SupportThread::where('workspace_id', $workspace->id)
+        $threads = SupportThread::where('account_id', $account->id)
             ->orderByDesc('last_message_at')
             ->orderByDesc('created_at')
             ->get()
@@ -218,8 +204,7 @@ class SupportController extends Controller
                     'first_response_due_at' => $thread->first_response_due_at?->toIso8601String(),
                     'escalation_level' => $thread->escalation_level ?? 0,
                     'last_message_at' => $thread->last_message_at?->toIso8601String(),
-                    'created_at' => $thread->created_at->toIso8601String(),
-                ];
+                    'created_at' => $thread->created_at->toIso8601String()];
             });
 
         $openThreads = $threads->filter(fn ($thread) => in_array($thread['status'], ['open', 'pending'], true) && ($thread['channel'] ?? 'ticket') === 'ticket')->values();
@@ -229,19 +214,18 @@ class SupportController extends Controller
         $faqs = $this->getFaqs();
 
         return Inertia::render('Support/Hub', [
-            'workspace' => $workspace,
+            'account' => $account,
             'threads' => $threads,
             'openThreads' => $openThreads,
             'closedThreads' => $closedThreads,
             'liveThreads' => $liveThreads,
-            'faqs' => $faqs,
-        ]);
+            'faqs' => $faqs]);
     }
 
     public function message(Request $request, $thread)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
-        $thread = SupportThread::where('workspace_id', $workspace->id)
+        $account = $request->attributes->get('account') ?? current_account();
+        $thread = SupportThread::where('account_id', $account->id)
             ->where(function ($query) use ($thread) {
                 $query->where('id', $thread)->orWhere('slug', $thread);
             })
@@ -254,22 +238,19 @@ class SupportController extends Controller
 
         $validated = $request->validate([
             'message' => 'nullable|string|max:2000',
-            'attachments.*' => $this->attachmentRules(),
-        ]);
+            'attachments.*' => $this->attachmentRules()]);
 
         $body = trim((string) $request->input('message', ''));
         $message = SupportMessage::create([
             'support_thread_id' => $thread->id,
             'sender_type' => 'user',
             'sender_id' => $request->user()->id,
-            'body' => $body,
-        ]);
+            'body' => $body]);
         $this->storeAttachments($message, $request->file('attachments', []));
 
         $thread->update([
             'last_message_at' => now(),
-            'last_response_at' => now(),
-        ]);
+            'last_response_at' => now()]);
         $message->load('thread');
         event(new SupportMessageCreated($message));
         $this->logAction($thread, 'customer_replied');
@@ -280,9 +261,9 @@ class SupportController extends Controller
 
     public function live(Request $request)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        $thread = SupportThread::where('workspace_id', $workspace->id)
+        $thread = SupportThread::where('account_id', $account->id)
             ->where('channel', 'live')
             ->orderByDesc('last_message_at')
             ->orderByDesc('created_at')
@@ -291,8 +272,7 @@ class SupportController extends Controller
         if (!$thread) {
             return response()->json([
                 'thread' => null,
-                'messages' => [],
-            ]);
+                'messages' => []]);
         }
 
         $messages = SupportMessage::where('support_thread_id', $thread->id)
@@ -313,10 +293,8 @@ class SupportController extends Controller
                             'file_name' => $attachment->file_name,
                             'mime_type' => $attachment->mime_type,
                             'file_size' => $attachment->file_size,
-                            'url' => route('support.attachments.show', ['attachment' => $attachment->id]),
-                        ];
-                    })->values(),
-                ];
+                            'url' => route('support.attachments.show', ['attachment' => $attachment->id])];
+                    })->values()];
             });
 
         return response()->json([
@@ -327,15 +305,13 @@ class SupportController extends Controller
                 'status' => $thread->status,
                 'mode' => $thread->mode ?? 'bot',
                 'channel' => $thread->channel ?? 'live',
-                'priority' => $thread->priority ?? 'normal',
-            ],
-            'messages' => $messages,
-        ]);
+                'priority' => $thread->priority ?? 'normal'],
+            'messages' => $messages]);
     }
 
     public function liveMessage(Request $request)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
         $hasFiles = $request->hasFile('attachments');
         if (!trim((string) $request->input('message')) && !$hasFiles) {
@@ -346,12 +322,11 @@ class SupportController extends Controller
             'message' => 'nullable|string|max:2000',
             'subject' => 'nullable|string|max:200',
             'thread_id' => 'nullable|string',
-            'attachments.*' => $this->attachmentRules(),
-        ]);
+            'attachments.*' => $this->attachmentRules()]);
 
         $thread = null;
         if (!empty($validated['thread_id'])) {
-            $thread = SupportThread::where('workspace_id', $workspace->id)
+            $thread = SupportThread::where('account_id', $account->id)
                 ->where(function ($query) use ($validated) {
                     $query->where('id', $validated['thread_id'])
                         ->orWhere('slug', $validated['thread_id']);
@@ -361,7 +336,7 @@ class SupportController extends Controller
 
         if (!$thread) {
             $thread = SupportThread::create([
-                'workspace_id' => $workspace->id,
+                'account_id' => $account->id,
                 'created_by' => $request->user()->id,
                 'subject' => $validated['subject'] ?? 'Live chat',
                 'status' => 'open',
@@ -370,8 +345,7 @@ class SupportController extends Controller
                 'priority' => 'normal',
                 'first_response_due_at' => $this->firstResponseDueAt(),
                 'due_at' => $this->ticketDueAt(),
-                'last_message_at' => now(),
-            ]);
+                'last_message_at' => now()]);
         } elseif (!$thread->channel) {
             $thread->update(['channel' => 'live']);
         }
@@ -384,14 +358,12 @@ class SupportController extends Controller
             'support_thread_id' => $thread->id,
             'sender_type' => 'user',
             'sender_id' => $request->user()->id,
-            'body' => $body,
-        ]);
+            'body' => $body]);
         $this->storeAttachments($message, $request->file('attachments', []));
 
         $thread->update([
             'last_message_at' => now(),
-            'last_response_at' => now(),
-        ]);
+            'last_response_at' => now()]);
         $message->load('thread');
         event(new SupportMessageCreated($message));
         $this->logAction($thread, 'customer_replied');
@@ -411,8 +383,7 @@ class SupportController extends Controller
                         'support_thread_id' => $thread->id,
                         'sender_type' => 'bot',
                         'sender_id' => null,
-                        'body' => $reply,
-                    ]);
+                        'body' => $reply]);
                     $botMessage->load('thread');
                     event(new SupportMessageCreated($botMessage));
                     $botReply = [
@@ -420,8 +391,7 @@ class SupportController extends Controller
                         'sender_type' => $botMessage->sender_type,
                         'sender_id' => $botMessage->sender_id,
                         'body' => $botMessage->body,
-                        'created_at' => $botMessage->created_at->toIso8601String(),
-                    ];
+                        'created_at' => $botMessage->created_at->toIso8601String()];
                 }
             } catch (\Throwable $e) {
                 // Ignore AI failures for live chat
@@ -436,8 +406,7 @@ class SupportController extends Controller
                 'status' => $thread->status,
                 'mode' => $thread->mode ?? 'bot',
                 'channel' => $thread->channel ?? 'live',
-                'priority' => $thread->priority ?? 'normal',
-            ],
+                'priority' => $thread->priority ?? 'normal'],
             'message' => [
                 'id' => $message->id,
                 'sender_type' => $message->sender_type,
@@ -450,18 +419,15 @@ class SupportController extends Controller
                         'file_name' => $attachment->file_name,
                         'mime_type' => $attachment->mime_type,
                         'file_size' => $attachment->file_size,
-                        'url' => route('support.attachments.show', ['attachment' => $attachment->id]),
-                    ];
-                })->values(),
-            ],
-            'bot' => $botReply,
-        ]);
+                        'url' => route('support.attachments.show', ['attachment' => $attachment->id])];
+                })->values()],
+            'bot' => $botReply]);
     }
 
     public function liveRequestHuman(Request $request)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
-        $thread = SupportThread::where('workspace_id', $workspace->id)
+        $account = $request->attributes->get('account') ?? current_account();
+        $thread = SupportThread::where('account_id', $account->id)
             ->where('channel', 'live')
             ->orderByDesc('last_message_at')
             ->orderByDesc('created_at')
@@ -469,7 +435,7 @@ class SupportController extends Controller
 
         if (!$thread) {
             $thread = SupportThread::create([
-                'workspace_id' => $workspace->id,
+                'account_id' => $account->id,
                 'created_by' => $request->user()->id,
                 'subject' => 'Live chat',
                 'status' => 'open',
@@ -478,22 +444,19 @@ class SupportController extends Controller
                 'priority' => 'normal',
                 'first_response_due_at' => $this->firstResponseDueAt(),
                 'due_at' => $this->ticketDueAt(),
-                'last_message_at' => now(),
-            ]);
+                'last_message_at' => now()]);
         } else {
             $thread->update([
                 'mode' => 'human',
                 'channel' => 'live',
-                'last_message_at' => now(),
-            ]);
+                'last_message_at' => now()]);
         }
 
         $systemMessage = SupportMessage::create([
             'support_thread_id' => $thread->id,
             'sender_type' => 'system',
             'sender_id' => null,
-            'body' => 'Customer requested a live agent.',
-        ]);
+            'body' => 'Customer requested a live agent.']);
         $systemMessage->load('thread');
         event(new SupportMessageCreated($systemMessage));
         $this->logAction($thread, 'live_agent_requested');
@@ -507,15 +470,13 @@ class SupportController extends Controller
                 'status' => $thread->status,
                 'mode' => $thread->mode ?? 'human',
                 'channel' => $thread->channel ?? 'live',
-                'priority' => $thread->priority ?? 'normal',
-            ],
-        ]);
+                'priority' => $thread->priority ?? 'normal']]);
     }
 
     public function close(Request $request, $thread)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
-        $thread = SupportThread::where('workspace_id', $workspace->id)
+        $account = $request->attributes->get('account') ?? current_account();
+        $thread = SupportThread::where('account_id', $account->id)
             ->where(function ($query) use ($thread) {
                 $query->where('id', $thread)->orWhere('slug', $thread);
             })
@@ -524,14 +485,12 @@ class SupportController extends Controller
         $thread->update([
             'status' => 'closed',
             'last_message_at' => now(),
-            'resolved_at' => now(),
-        ]);
+            'resolved_at' => now()]);
         $systemMessage = SupportMessage::create([
             'support_thread_id' => $thread->id,
             'sender_type' => 'system',
             'sender_id' => null,
-            'body' => 'Chat closed by customer.',
-        ]);
+            'body' => 'Chat closed by customer.']);
         $systemMessage->load('thread');
         event(new SupportMessageCreated($systemMessage));
         $this->logAction($thread, 'chat_closed');
@@ -541,8 +500,8 @@ class SupportController extends Controller
 
     public function reopen(Request $request, $thread)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
-        $thread = SupportThread::where('workspace_id', $workspace->id)
+        $account = $request->attributes->get('account') ?? current_account();
+        $thread = SupportThread::where('account_id', $account->id)
             ->where(function ($query) use ($thread) {
                 $query->where('id', $thread)->orWhere('slug', $thread);
             })
@@ -551,14 +510,12 @@ class SupportController extends Controller
         $thread->update([
             'status' => 'open',
             'last_message_at' => now(),
-            'resolved_at' => null,
-        ]);
+            'resolved_at' => null]);
         $systemMessage = SupportMessage::create([
             'support_thread_id' => $thread->id,
             'sender_type' => 'system',
             'sender_id' => null,
-            'body' => 'Chat reopened by customer.',
-        ]);
+            'body' => 'Chat reopened by customer.']);
         $systemMessage->load('thread');
         event(new SupportMessageCreated($systemMessage));
         $this->logAction($thread, 'chat_reopened');
@@ -568,8 +525,8 @@ class SupportController extends Controller
 
     public function liveClose(Request $request)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
-        $thread = SupportThread::where('workspace_id', $workspace->id)
+        $account = $request->attributes->get('account') ?? current_account();
+        $thread = SupportThread::where('account_id', $account->id)
             ->where('channel', 'live')
             ->where('status', 'open')
             ->orderByDesc('last_message_at')
@@ -579,21 +536,18 @@ class SupportController extends Controller
         if ($thread) {
             $thread->update([
                 'status' => 'closed',
-                'last_message_at' => now(),
-            ]);
+                'last_message_at' => now()]);
             $systemMessage = SupportMessage::create([
                 'support_thread_id' => $thread->id,
                 'sender_type' => 'system',
                 'sender_id' => null,
-                'body' => 'Live chat closed by customer.',
-            ]);
+                'body' => 'Live chat closed by customer.']);
             $systemMessage->load('thread');
             event(new SupportMessageCreated($systemMessage));
         }
 
         return response()->json([
-            'closed' => (bool) $thread,
-        ]);
+            'closed' => (bool) $thread]);
     }
 
     protected function getFaqs(): array
@@ -608,17 +562,13 @@ class SupportController extends Controller
             return [
                 [
                     'question' => 'How do I connect WhatsApp?',
-                    'answer' => 'Go to Connections and follow the setup wizard to connect your WhatsApp Business account.',
-                ],
+                    'answer' => 'Go to Connections and follow the setup wizard to connect your WhatsApp Business account.'],
                 [
                     'question' => 'How do I request a live agent?',
-                    'answer' => 'Open Live Chat and click "Talk to a live agent" to hand off to support.',
-                ],
+                    'answer' => 'Open Live Chat and click "Talk to a live agent" to hand off to support.'],
                 [
                     'question' => 'Where can I see my past tickets?',
-                    'answer' => 'Open Support Hub and check the Previous Chats tab.',
-                ],
-            ];
+                    'answer' => 'Open Support Hub and check the Previous Chats tab.']];
         }
 
         return $decoded;
@@ -642,8 +592,7 @@ class SupportController extends Controller
             'support_thread_id' => $thread->id,
             'user_id' => request()->user()?->id,
             'action' => $action,
-            'meta' => $meta,
-        ]);
+            'meta' => $meta]);
     }
 
     protected function escalateOverdue(): void
@@ -657,8 +606,7 @@ class SupportController extends Controller
         foreach ($overdue as $thread) {
             $thread->update([
                 'escalated_at' => now(),
-                'escalation_level' => max(1, (int) $thread->escalation_level + 1),
-            ]);
+                'escalation_level' => max(1, (int) $thread->escalation_level + 1)]);
             $this->logAction($thread, 'escalated', ['level' => $thread->escalation_level]);
         }
 
@@ -673,8 +621,7 @@ class SupportController extends Controller
                 continue;
             }
             $thread->update([
-                'escalation_level' => 1,
-            ]);
+                'escalation_level' => 1]);
             $this->logAction($thread, 'first_response_overdue');
         }
     }
@@ -736,8 +683,7 @@ class SupportController extends Controller
                 'file_name' => $file->getClientOriginalName(),
                 'file_path' => $path,
                 'mime_type' => $file->getClientMimeType(),
-                'file_size' => $file->getSize() ?: 0,
-            ]);
+                'file_size' => $file->getSize() ?: 0]);
         }
     }
 }

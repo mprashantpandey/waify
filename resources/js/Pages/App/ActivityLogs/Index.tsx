@@ -22,18 +22,17 @@ interface ActivityLog {
 }
 
 export default function ActivityLogsIndex({ 
-    workspace, 
+    account, 
     logs 
 }: { 
-    workspace: any;
+    account: any;
     logs: ActivityLog[];
 }) {
     const getTypeBadge = (type: string) => {
         const typeMap: Record<string, { variant: 'success' | 'warning' | 'danger' | 'info' | 'default'; icon: any; label: string; color: string }> = {
             message: { variant: 'info', icon: MessageSquare, label: 'Message', color: 'blue' },
             connection_success: { variant: 'success', icon: CheckCircle, label: 'Connection', color: 'green' },
-            connection_error: { variant: 'danger', icon: XCircle, label: 'Error', color: 'red' },
-        };
+            connection_error: { variant: 'danger', icon: XCircle, label: 'Error', color: 'red' }};
 
         const config = typeMap[type] || { variant: 'default' as const, icon: AlertCircle, label: type, color: 'gray' };
         const Icon = config.icon;
@@ -55,7 +54,7 @@ export default function ActivityLogsIndex({
                         Activity Logs
                     </h1>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                        View recent activity and events in your workspace
+                        View recent activity and events in your account
                     </p>
                 </div>
 

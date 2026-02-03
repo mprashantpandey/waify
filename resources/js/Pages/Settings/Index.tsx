@@ -1,18 +1,15 @@
-import { useState } from 'react';
-import { usePage } from '@inertiajs/react';
 import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent } from '@/Components/UI/Card';
 import { Tabs, TabsList, TabsTrigger, TabsContent, useTabs } from '@/Components/UI/Tabs';
-import { User, Building2, CreditCard, Bell, Shield, Settings as SettingsIcon } from 'lucide-react';
+import { User, CreditCard, Bell, Shield, Inbox } from 'lucide-react';
 import ProfileTab from './Tabs/ProfileTab';
-import WorkspaceTab from './Tabs/WorkspaceTab';
 import BillingTab from './Tabs/BillingTab';
 import SecurityTab from './Tabs/SecurityTab';
 import NotificationsTab from './Tabs/NotificationsTab';
+import InboxTab from './Tabs/InboxTab';
 import { Head } from '@inertiajs/react';
 
 export default function SettingsIndex() {
-    const { workspace, auth } = usePage().props as any;
     const { value: activeTab, setValue: setActiveTab } = useTabs('profile');
 
     const tabs = [
@@ -20,35 +17,28 @@ export default function SettingsIndex() {
             id: 'profile',
             label: 'Profile',
             icon: User,
-            component: <ProfileTab />,
-        },
-        {
-            id: 'workspace',
-            label: 'Workspace',
-            icon: Building2,
-            component: <WorkspaceTab workspace={workspace} />,
-            requiresWorkspace: true,
-        },
+            component: <ProfileTab />},
         {
             id: 'billing',
             label: 'Billing',
             icon: CreditCard,
-            component: <BillingTab workspace={workspace} />,
-            requiresWorkspace: true,
-        },
+            component: <BillingTab />},
         {
             id: 'security',
             label: 'Security',
             icon: Shield,
-            component: <SecurityTab />,
-        },
+            component: <SecurityTab />},
         {
             id: 'notifications',
             label: 'Notifications',
             icon: Bell,
-            component: <NotificationsTab />,
-        },
-    ].filter((tab) => !tab.requiresWorkspace || workspace);
+            component: <NotificationsTab />},
+        {
+            id: 'inbox',
+            label: 'Inbox',
+            icon: Inbox,
+            component: <InboxTab />},
+    ];
 
     return (
         <AppShell>
@@ -59,7 +49,7 @@ export default function SettingsIndex() {
                         Settings
                     </h1>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                        Manage your account and workspace settings
+                        Manage your account settings
                     </p>
                 </div>
 

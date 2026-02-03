@@ -19,13 +19,25 @@ class SupportMessageCreated implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
+        // Ensure thread relationship is loaded
+        if (!$this->message->relationLoaded('thread')) {
+            $this->message->load('thread');
+        }
+        
         $thread = $this->message->thread;
-        $workspaceId = $thread?->workspace_id;
+        $accountId = $thread?->account_id;
         $threadId = $thread?->id;
 
+        \Log::debug('SupportMessageCreated broadcasting', [
+            'message_id' => $this->message->id,
+            'thread_id' => $threadId,
+            'account_id' => $accountId,
+            'has_thread' => $thread !== null,
+        ]);
+
         $channels = [];
-        if ($workspaceId && $threadId) {
-            $channels[] = new PrivateChannel("workspace.{$workspaceId}.support.thread.{$threadId}");
+        if ($accountId && $threadId) {
+            $channels[] = new PrivateChannel("account.{$accountId}.support.thread.{$threadId}");
         }
         $channels[] = new PrivateChannel('platform.support');
 
@@ -39,6 +51,11 @@ class SupportMessageCreated implements ShouldBroadcastNow
 
     public function broadcastWith(): array
     {
+        // Ensure thread relationship is loaded
+        if (!$this->message->relationLoaded('thread')) {
+            $this->message->load('thread');
+        }
+        
         $thread = $this->message->thread;
         $this->message->loadMissing('attachments');
         $attachments = $this->message->attachments->map(function ($attachment) {
@@ -48,19 +65,24 @@ class SupportMessageCreated implements ShouldBroadcastNow
                 'file_path' => $attachment->file_path,
                 'mime_type' => $attachment->mime_type,
                 'file_size' => $attachment->file_size,
-                'url' => route('support.attachments.show', ['attachment' => $attachment->id]),
-            ];
+                'url' => route('support.attachments.show', ['attachment' => $attachment->id])];
         })->values();
 
-        return [
+        $data = [
             'id' => $this->message->id,
             'thread_id' => $this->message->support_thread_id,
-            'workspace_id' => $thread?->workspace_id,
+            'account_id' => $thread?->account_id,
             'sender_type' => $this->message->sender_type,
             'sender_id' => $this->message->sender_id,
             'body' => $this->message->body,
             'created_at' => $this->message->created_at?->toIso8601String(),
-            'attachments' => $attachments,
-        ];
+            'attachments' => $attachments];
+        
+        \Log::debug('SupportMessageCreated broadcastWith', [
+            'message_id' => $this->message->id,
+            'data' => $data,
+        ]);
+
+        return $data;
     }
 }

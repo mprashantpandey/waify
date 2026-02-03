@@ -19,7 +19,7 @@ import axios from 'axios';
 import PublicLayout from '@/Layouts/PublicLayout';
 
 interface Stats {
-    workspaces: number;
+    accounts: number;
     active_connections: number;
     templates: number;
     messages_sent: number;
@@ -30,8 +30,7 @@ interface Stats {
 export default function Landing({
     stats: initialStats,
     canLogin,
-    canRegister,
-}: {
+    canRegister}: {
     stats: Stats;
     canLogin: boolean;
     canRegister: boolean;
@@ -133,8 +132,8 @@ export default function Landing({
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <StatCard
                         icon={Users}
-                        label="Active Workspaces"
-                        value={stats.workspaces}
+                        label="Active Accounts"
+                        value={stats.accounts}
                         trend="Live"
                     />
                     <StatCard
@@ -221,7 +220,7 @@ export default function Landing({
                         <FeatureCard
                             icon={Shield}
                             title="Enterprise Security"
-                            description="Workspace isolation, role-based access, encrypted tokens, and audit logs."
+                            description="Account isolation, role-based access, encrypted tokens, and audit logs."
                         />
                     </div>
                 </div>

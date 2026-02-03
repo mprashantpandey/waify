@@ -12,8 +12,5 @@ return [
             'label' => 'Floaters',
             'href' => 'app.floaters',
             'icon' => 'Zap',
-            'group' => 'growth',
-        ],
-    ],
-];
+            'group' => 'growth']]];
 

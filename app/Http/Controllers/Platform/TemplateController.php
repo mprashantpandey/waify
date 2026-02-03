@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Platform;
 
 use App\Http\Controllers\Controller;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
-use App\Models\Workspace;
+use App\Models\Account;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -12,19 +12,19 @@ use Inertia\Response;
 class TemplateController extends Controller
 {
     /**
-     * Display all templates across all workspaces.
+     * Display all templates across all accounts.
      */
     public function index(Request $request): Response
     {
-        $query = WhatsAppTemplate::with(['workspace', 'connection']);
+        $query = WhatsAppTemplate::with(['account', 'connection']);
 
         // Filters
         if ($request->has('status') && $request->status) {
             $query->where('status', $request->status);
         }
 
-        if ($request->has('workspace_id') && $request->workspace_id) {
-            $query->where('workspace_id', $request->workspace_id);
+        if ($request->has('account_id') && $request->account_id) {
+            $query->where('account_id', $request->account_id);
         }
 
         if ($request->has('search') && $request->search) {
@@ -45,19 +45,16 @@ class TemplateController extends Controller
                     'category' => $template->category,
                     'status' => $template->status,
                     'quality_score' => $template->quality_score,
-                    'workspace' => [
-                        'id' => $template->workspace->id,
-                        'name' => $template->workspace->name,
-                        'slug' => $template->workspace->slug,
-                    ],
+                    'account' => [
+                        'id' => $template->account->id,
+                        'name' => $template->account->name,
+                        'slug' => $template->account->slug],
                     'connection' => $template->connection ? [
                         'id' => $template->connection->id,
-                        'name' => $template->connection->name,
-                    ] : null,
+                        'name' => $template->connection->name] : null,
                     'last_synced_at' => $template->last_synced_at?->toIso8601String(),
                     'last_meta_error' => $template->last_meta_error,
-                    'created_at' => $template->created_at->toIso8601String(),
-                ];
+                    'created_at' => $template->created_at->toIso8601String()];
             });
 
         // Get filter options
@@ -66,22 +63,19 @@ class TemplateController extends Controller
             ->pluck('status')
             ->toArray();
 
-        $workspaces = Workspace::select('id', 'name')
-            ->whereIn('id', WhatsAppTemplate::distinct()->pluck('workspace_id'))
+        $accounts = Account::select('id', 'name')
+            ->whereIn('id', WhatsAppTemplate::distinct()->pluck('account_id'))
             ->get();
 
         return Inertia::render('Platform/Templates/Index', [
             'templates' => $templates,
             'filters' => [
                 'status' => $request->status,
-                'workspace_id' => $request->workspace_id,
-                'search' => $request->search,
-            ],
+                'account_id' => $request->account_id,
+                'search' => $request->search],
             'filter_options' => [
                 'statuses' => $statuses,
-                'workspaces' => $workspaces,
-            ],
-        ]);
+                'accounts' => $accounts]]);
     }
 
     /**
@@ -89,7 +83,7 @@ class TemplateController extends Controller
      */
     public function show(WhatsAppTemplate $template): Response
     {
-        $template->load(['workspace', 'connection']);
+        $template->load(['account', 'connection']);
 
         return Inertia::render('Platform/Templates/Show', [
             'template' => [
@@ -106,20 +100,16 @@ class TemplateController extends Controller
                 'footer_text' => $template->footer_text,
                 'buttons' => $template->buttons,
                 'components' => $template->components,
-                'workspace' => [
-                    'id' => $template->workspace->id,
-                    'name' => $template->workspace->name,
-                    'slug' => $template->workspace->slug,
-                ],
+                'account' => [
+                    'id' => $template->account->id,
+                    'name' => $template->account->name,
+                    'slug' => $template->account->slug],
                 'connection' => $template->connection ? [
                     'id' => $template->connection->id,
-                    'name' => $template->connection->name,
-                ] : null,
+                    'name' => $template->connection->name] : null,
                 'last_synced_at' => $template->last_synced_at?->toIso8601String(),
                 'last_meta_error' => $template->last_meta_error,
                 'is_archived' => $template->is_archived,
-                'created_at' => $template->created_at->toIso8601String(),
-            ],
-        ]);
+                'created_at' => $template->created_at->toIso8601String()]]);
     }
 }

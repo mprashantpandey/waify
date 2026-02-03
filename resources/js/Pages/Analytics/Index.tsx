@@ -34,7 +34,7 @@ interface DailyActivity {
 }
 
 export default function AnalyticsIndex({
-    workspace,
+    account,
     date_range,
     message_trends,
     message_status_distribution,
@@ -42,9 +42,8 @@ export default function AnalyticsIndex({
     conversation_stats,
     peak_hours,
     daily_activity,
-    usage,
-}: {
-    workspace: any;
+    usage}: {
+    account: any;
     date_range: string;
     message_trends: MessageTrend[];
     message_status_distribution: Record<string, number>;
@@ -63,10 +62,9 @@ export default function AnalyticsIndex({
 
     const handleRangeChange = (range: string) => {
         setSelectedRange(range);
-        router.get(route('app.analytics.index', { workspace: workspace.slug }), { range }, {
+        router.get(route('app.analytics.index', { }), { range }, {
             preserveState: true,
-            preserveScroll: true,
-        });
+            preserveScroll: true});
     };
 
     const formatNumber = (num: number) => {

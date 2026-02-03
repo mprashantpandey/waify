@@ -8,6 +8,7 @@ use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Schema;
 
 class ConversationUpdated implements ShouldBroadcast
 {
@@ -23,15 +24,14 @@ class ConversationUpdated implements ShouldBroadcast
      */
     public function broadcastOn(): array
     {
-        $workspaceId = $this->conversation->workspace_id;
+        $accountId = $this->conversation->account_id;
         $conversationId = $this->conversation->id;
 
         return [
-            // Workspace inbox channel (for list updates)
-            new PrivateChannel("workspace.{$workspaceId}.whatsapp.inbox"),
+            // Account inbox channel (for list updates)
+            new PrivateChannel("account.{$accountId}.whatsapp.inbox"),
             // Conversation channel (for thread updates)
-            new PrivateChannel("workspace.{$workspaceId}.whatsapp.conversation.{$conversationId}"),
-        ];
+            new PrivateChannel("account.{$accountId}.whatsapp.conversation.{$conversationId}")];
     }
 
     /**
@@ -47,17 +47,35 @@ class ConversationUpdated implements ShouldBroadcast
      */
     public function broadcastWith(): array
     {
+        $tags = [];
+        if ($this->conversation->relationLoaded('contact') && $this->conversation->contact) {
+            $tags = $this->conversation->contact->tags?->map(function ($tag) {
+                return [
+                    'id' => $tag->id,
+                    'name' => $tag->name,
+                    'color' => $tag->color,
+                ];
+            })->values()->toArray() ?? [];
+        }
+
+        $priority = null;
+        if (Schema::hasColumn('whatsapp_conversations', 'priority')) {
+            $priority = $this->conversation->priority;
+        }
+
+        $assigneeId = null;
+        if (Schema::hasColumn('whatsapp_conversations', 'assigned_to')) {
+            $assigneeId = $this->conversation->assigned_to;
+        }
+
         return [
             'conversation' => [
                 'id' => $this->conversation->id,
                 'status' => $this->conversation->status,
-                'priority' => $this->conversation->priority ?? null,
-                'assignee_id' => $this->conversation->assignee_id ?? null,
-                'tags' => $this->conversation->tags ?? [],
+                'priority' => $priority,
+                'assignee_id' => $assigneeId,
+                'tags' => $tags,
                 'last_activity_at' => $this->conversation->last_message_at?->toIso8601String(),
-                'last_message_preview' => $this->conversation->last_message_preview,
-            ],
-        ];
+                'last_message_preview' => $this->conversation->last_message_preview]];
     }
 }
-

@@ -2,7 +2,7 @@
 
 namespace App\Modules\WhatsApp\Models;
 
-use App\Models\Workspace;
+use App\Models\Account;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,7 +15,7 @@ class WhatsAppConnection extends Model
     protected $table = 'whatsapp_connections';
 
     protected $fillable = [
-        'workspace_id',
+        'account_id',
         'name',
         'slug',
         'waba_id',
@@ -27,8 +27,7 @@ class WhatsAppConnection extends Model
         'webhook_subscribed',
         'webhook_last_received_at',
         'webhook_last_error',
-        'is_active',
-    ];
+        'is_active'];
 
     protected static function boot()
     {
@@ -59,7 +58,7 @@ class WhatsAppConnection extends Model
         $counter = 1;
 
         while (static::where('slug', $slug)
-            ->where('workspace_id', $connection->workspace_id ?? 0)
+            ->where('account_id', $connection->account_id ?? 0)
             ->where('id', '!=', $connection->id ?? 0)
             ->exists()) {
             $slug = $originalSlug . '-' . $counter;
@@ -80,8 +79,7 @@ class WhatsAppConnection extends Model
     protected $casts = [
         'webhook_subscribed' => 'boolean',
         'is_active' => 'boolean',
-        'webhook_last_received_at' => 'datetime',
-    ];
+        'webhook_last_received_at' => 'datetime'];
 
     /**
      * Get the decrypted access token.
@@ -112,11 +110,11 @@ class WhatsAppConnection extends Model
     }
 
     /**
-     * Get the workspace.
+     * Get the account.
      */
-    public function workspace(): BelongsTo
+    public function account(): BelongsTo
     {
-        return $this->belongsTo(Workspace::class);
+        return $this->belongsTo(Account::class);
     }
 
     /**

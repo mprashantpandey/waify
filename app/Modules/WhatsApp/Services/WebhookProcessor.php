@@ -3,14 +3,18 @@
 namespace App\Modules\WhatsApp\Services;
 
 use App\Modules\WhatsApp\Events\Inbox\ConversationUpdated;
+use App\Modules\WhatsApp\Events\Inbox\AuditEventAdded;
 use App\Modules\WhatsApp\Events\Inbox\MessageCreated;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
+use App\Modules\WhatsApp\Models\WhatsAppConversationAuditEvent;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
+use App\Models\Account;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class WebhookProcessor
 {
@@ -27,8 +31,7 @@ class WebhookProcessor
         if (!$lock->get()) {
             Log::channel('whatsapp')->warning('Webhook processing already in progress', [
                 'connection_id' => $connection->id,
-                'correlation_id' => $correlationId,
-            ]);
+                'correlation_id' => $correlationId]);
             // Don't throw, just skip to prevent webhook retries
             return;
         }
@@ -78,8 +81,7 @@ class WebhookProcessor
             // Update connection webhook status
             $connection->update([
                 'webhook_last_received_at' => now(),
-                'webhook_last_error' => null,
-            ]);
+                'webhook_last_error' => null]);
 
             DB::commit();
 
@@ -87,8 +89,7 @@ class WebhookProcessor
                 'correlation_id' => $correlationId,
                 'connection_id' => $connection->id,
                 'messages_count' => $messagesProcessed,
-                'statuses_count' => $statusesProcessed,
-            ]);
+                'statuses_count' => $statusesProcessed]);
         } catch (\Exception $e) {
             DB::rollBack();
 
@@ -99,12 +100,10 @@ class WebhookProcessor
                 'correlation_id' => $correlationId,
                 'connection_id' => $connection->id,
                 'error' => $errorMessage,
-                'payload_size' => strlen(json_encode($payload)),
-            ]);
+                'payload_size' => strlen(json_encode($payload))]);
 
             $connection->update([
-                'webhook_last_error' => $errorMessage,
-            ]);
+                'webhook_last_error' => $errorMessage]);
 
             throw $e;
         }
@@ -130,7 +129,7 @@ class WebhookProcessor
         }
 
         try {
-            $existingMessage = WhatsAppMessage::where('workspace_id', $connection->workspace_id)
+            $existingMessage = WhatsAppMessage::where('account_id', $connection->account_id)
                 ->where('meta_message_id', $metaMessageId)
                 ->lockForUpdate() // Row-level lock
                 ->first();
@@ -150,13 +149,11 @@ class WebhookProcessor
                 return WhatsAppContact::lockForUpdate()
                     ->firstOrCreate(
                         [
-                            'workspace_id' => $connection->workspace_id,
-                            'wa_id' => $fromWaId,
-                        ],
+                            'account_id' => $connection->account_id,
+                            'wa_id' => $fromWaId],
                         [
                             'name' => $value['contacts'][0]['profile']['name'] ?? null,
-                            'source' => 'webhook',
-                        ]
+                            'source' => 'webhook']
                     );
             });
 
@@ -164,21 +161,18 @@ class WebhookProcessor
             if (isset($value['contacts'][0]['profile']['name'])) {
                 $contact->lockForUpdate();
                 $contact->update([
-                    'name' => $value['contacts'][0]['profile']['name'],
-                ]);
+                    'name' => $value['contacts'][0]['profile']['name']]);
             }
 
             // Get or create conversation
             $conversation = WhatsAppConversation::lockForUpdate()
                 ->firstOrCreate(
                     [
-                        'workspace_id' => $connection->workspace_id,
+                        'account_id' => $connection->account_id,
                         'whatsapp_connection_id' => $connection->id,
-                        'whatsapp_contact_id' => $contact->id,
-                    ],
+                        'whatsapp_contact_id' => $contact->id],
                     [
-                        'status' => 'open',
-                    ]
+                        'status' => 'open']
                 );
 
             // Extract message type and text
@@ -195,7 +189,7 @@ class WebhookProcessor
 
             // Create message
             $message = WhatsAppMessage::create([
-                'workspace_id' => $connection->workspace_id,
+                'account_id' => $connection->account_id,
                 'whatsapp_conversation_id' => $conversation->id,
                 'direction' => 'inbound',
                 'meta_message_id' => $metaMessageId,
@@ -203,14 +197,15 @@ class WebhookProcessor
                 'text_body' => $textBody,
                 'payload' => $messageData,
                 'status' => 'delivered', // Inbound messages are considered delivered
-                'received_at' => now(),
-            ]);
+                'received_at' => now()]);
 
             // Update conversation
             $conversation->update([
                 'last_message_at' => now(),
-                'last_message_preview' => $textBody ? substr($textBody, 0, 100) : "[{$messageType}]",
-            ]);
+                'last_message_preview' => $textBody ? substr($textBody, 0, 100) : "[{$messageType}]"]);
+
+            // Auto-assign if enabled and conversation is unassigned
+            $this->autoAssignConversation($conversation, $connection);
 
             // Load relationships for broadcast
             $message->load('conversation.contact');
@@ -251,7 +246,7 @@ class WebhookProcessor
 
         try {
             // Check both regular messages and campaign messages
-            $message = WhatsAppMessage::where('workspace_id', $connection->workspace_id)
+            $message = WhatsAppMessage::where('account_id', $connection->account_id)
                 ->where('meta_message_id', $metaMessageId)
                 ->lockForUpdate()
                 ->first();
@@ -275,8 +270,7 @@ class WebhookProcessor
             if ($message) {
                 // Update regular message
                 $updates = [
-                    'status' => $status ?: $message->status,
-                ];
+                    'status' => $status ?: $message->status];
 
                 if ($status === 'sent') {
                     $updates['sent_at'] = $statusAt;
@@ -301,5 +295,94 @@ class WebhookProcessor
         } finally {
             $statusLock->release();
         }
+    }
+
+    /**
+     * Auto-assign a conversation when enabled.
+     */
+    protected function autoAssignConversation(WhatsAppConversation $conversation, WhatsAppConnection $connection): void
+    {
+        if (!Schema::hasColumn('whatsapp_conversations', 'assigned_to')) {
+            return;
+        }
+
+        if ($conversation->assigned_to) {
+            return;
+        }
+
+        $account = $connection->account ?: Account::find($connection->account_id);
+        if (!$account || !$account->auto_assign_enabled) {
+            return;
+        }
+
+        if (($account->auto_assign_strategy ?? 'round_robin') !== 'round_robin') {
+            return;
+        }
+
+        $agentIds = $this->getAssignableAgentIds($account);
+        if (empty($agentIds)) {
+            return;
+        }
+
+        $counterKey = "account:{$account->id}:auto_assign_rr";
+        $next = Cache::increment($counterKey);
+        if ($next === 1) {
+            Cache::put($counterKey, 1, now()->addDays(7));
+        }
+
+        $index = ($next - 1) % count($agentIds);
+        $assigneeId = $agentIds[$index] ?? null;
+
+        if (!$assigneeId) {
+            return;
+        }
+
+        $conversation->update([
+            'assigned_to' => $assigneeId,
+        ]);
+
+        $audit = WhatsAppConversationAuditEvent::create([
+            'account_id' => $account->id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'actor_id' => null,
+            'event_type' => 'auto_assigned',
+            'description' => 'Auto-assigned by round robin',
+            'meta' => [
+                'assigned_to' => $assigneeId,
+            ],
+        ]);
+
+        event(new AuditEventAdded($conversation, [
+            'id' => $audit->id,
+            'event_type' => $audit->event_type,
+            'description' => $audit->description,
+            'meta' => $audit->meta,
+            'created_at' => $audit->created_at->toIso8601String(),
+            'actor' => null,
+        ]));
+
+        event(new ConversationUpdated($conversation));
+    }
+
+    /**
+     * Build a list of assignable agent IDs.
+     */
+    protected function getAssignableAgentIds(Account $account): array
+    {
+        $ids = [];
+
+        if ($account->owner_id) {
+            $ids[] = $account->owner_id;
+        }
+
+        $memberIds = $account->users()
+            ->whereIn('account_users.role', ['admin', 'member'])
+            ->pluck('users.id')
+            ->toArray();
+
+        $ids = array_values(array_unique(array_merge($ids, $memberIds)));
+        sort($ids);
+
+        return $ids;
     }
 }

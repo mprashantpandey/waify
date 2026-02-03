@@ -30,8 +30,7 @@ export function RealtimeProvider({ children, pusherConfig }: RealtimeProviderPro
         const config = pusherConfig
             ? {
                   ...pusherConfig,
-                  pusherCluster: pusherConfig.pusherCluster?.trim() || undefined,
-              }
+                  pusherCluster: pusherConfig.pusherCluster?.trim() || undefined}
             : undefined;
 
         if (!config || !config.pusherKey) {
@@ -47,8 +46,7 @@ export function RealtimeProvider({ children, pusherConfig }: RealtimeProviderPro
             const echoInstance = initializeEcho({
                 pusherKey: config.pusherKey,
                 pusherCluster: config.pusherCluster,
-                authEndpoint: '/broadcasting/auth',
-            });
+                authEndpoint: '/broadcasting/auth'});
 
             setEcho(echoInstance);
             (window as any).__echo = echoInstance;
@@ -58,6 +56,7 @@ export function RealtimeProvider({ children, pusherConfig }: RealtimeProviderPro
             setConnected(pusher.connection.state === 'connected');
 
             pusher.connection.bind('connected', () => {
+                console.log('[RealtimeProvider] Pusher connected');
                 setConnected(true);
             });
 
@@ -110,8 +109,38 @@ export function RealtimeProvider({ children, pusherConfig }: RealtimeProviderPro
                     return () => {};
                 }
 
-                echoChannel.listen(event, callback);
+                // Handle subscription errors
+                echoChannel.error((error: any) => {
+                    console.error('[RealtimeProvider] Channel subscription error', {
+                        channel,
+                        event,
+                        error: error?.message || error,
+                        status: error?.status,
+                    });
+                });
+
+                // Set up event listener - Echo will handle subscription automatically
+                // The listener will work once the channel is subscribed
+                const eventHandler = (data: any) => {
+                    console.log('[RealtimeProvider] Received event', { channel, event, data });
+                    callback(data);
+                };
+                
+                echoChannel.listen(event, eventHandler);
+                
+                // Log when channel is subscribed for debugging
+                echoChannel.subscribed(() => {
+                    console.log('[RealtimeProvider] Channel subscribed successfully', { channel, event });
+                });
+                
+                // Also listen to all events on this channel for debugging
+                echoChannel.listen('.', (eventName: string, data: any) => {
+                    console.log('[RealtimeProvider] Received any event on channel', { channel, eventName, data });
+                });
+                
                 subscribedChannels.current.set(subscriptionKey, echoChannel);
+                
+                console.log('[RealtimeProvider] Successfully subscribed to channel', { channel, event });
 
                 return () => {
                     echoChannel.stopListening(event);

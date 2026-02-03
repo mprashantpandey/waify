@@ -13,13 +13,13 @@ return new class extends Migration
     {
         Schema::create('billing_events', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('workspace_id')->constrained()->onDelete('cascade');
+            $table->foreignId('account_id')->constrained()->onDelete('cascade');
             $table->foreignId('actor_id')->nullable()->constrained('users')->onDelete('set null');
             $table->string('type'); // plan_changed|trial_started|payment_recorded|subscription_canceled|addon_added|limit_blocked
             $table->json('data')->nullable();
             $table->timestamps();
 
-            $table->index('workspace_id');
+            $table->index('account_id');
             $table->index('type');
             $table->index('created_at');
         });

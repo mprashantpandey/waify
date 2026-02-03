@@ -2,7 +2,7 @@
 
 namespace App\Modules\WhatsApp\Models;
 
-use App\Models\Workspace;
+use App\Models\Account;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,26 +14,24 @@ class WhatsAppConversation extends Model
     protected $table = 'whatsapp_conversations';
 
     protected $fillable = [
-        'workspace_id',
+        'account_id',
         'whatsapp_connection_id',
         'whatsapp_contact_id',
         'status',
         'last_message_at',
         'last_message_preview',
-        'metadata',
-    ];
+        'metadata'];
 
     protected $casts = [
         'last_message_at' => 'datetime',
-        'metadata' => 'array',
-    ];
+        'metadata' => 'array'];
 
     /**
-     * Get the workspace.
+     * Get the account.
      */
-    public function workspace(): BelongsTo
+    public function account(): BelongsTo
     {
-        return $this->belongsTo(Workspace::class);
+        return $this->belongsTo(Account::class);
     }
 
     /**
@@ -58,5 +56,23 @@ class WhatsAppConversation extends Model
     public function messages(): HasMany
     {
         return $this->hasMany(WhatsAppMessage::class)->orderBy('created_at');
+    }
+
+    /**
+     * Get internal notes for this conversation.
+     */
+    public function notes(): HasMany
+    {
+        return $this->hasMany(WhatsAppConversationNote::class, 'whatsapp_conversation_id')
+            ->orderBy('created_at', 'desc');
+    }
+
+    /**
+     * Get audit events for this conversation.
+     */
+    public function auditEvents(): HasMany
+    {
+        return $this->hasMany(WhatsAppConversationAuditEvent::class, 'whatsapp_conversation_id')
+            ->orderBy('created_at', 'desc');
     }
 }

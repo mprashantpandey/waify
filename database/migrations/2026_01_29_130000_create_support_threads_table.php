@@ -13,14 +13,14 @@ return new class extends Migration
     {
         Schema::create('support_threads', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('workspace_id')->constrained()->onDelete('cascade');
+            $table->foreignId('account_id')->constrained()->onDelete('cascade');
             $table->foreignId('created_by')->constrained('users')->onDelete('cascade');
             $table->string('subject');
             $table->string('status')->default('open'); // open|closed
             $table->timestamp('last_message_at')->nullable();
             $table->timestamps();
 
-            $table->index(['workspace_id', 'status']);
+            $table->index(['account_id', 'status']);
         });
     }
 

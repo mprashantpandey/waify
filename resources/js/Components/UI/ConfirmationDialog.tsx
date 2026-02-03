@@ -4,8 +4,7 @@ import {
     DialogPanel,
     DialogTitle,
     Transition,
-    TransitionChild,
-} from '@headlessui/react';
+    TransitionChild} from '@headlessui/react';
 import Button from './Button';
 import { AlertTriangle, X } from 'lucide-react';
 
@@ -30,22 +29,17 @@ export default function ConfirmationDialog({
     confirmText = 'Confirm',
     cancelText = 'Cancel',
     variant = 'danger',
-    loading = false,
-}: ConfirmationDialogProps) {
+    loading = false}: ConfirmationDialogProps) {
     const variantStyles = {
         danger: {
             icon: 'text-red-600 dark:text-red-400',
-            button: 'bg-red-600 hover:bg-red-700 text-white',
-        },
+            button: 'bg-red-600 hover:bg-red-700 text-white'},
         warning: {
             icon: 'text-yellow-600 dark:text-yellow-400',
-            button: 'bg-yellow-600 hover:bg-yellow-700 text-white',
-        },
+            button: 'bg-yellow-600 hover:bg-yellow-700 text-white'},
         info: {
             icon: 'text-blue-600 dark:text-blue-400',
-            button: 'bg-blue-600 hover:bg-blue-700 text-white',
-        },
-    };
+            button: 'bg-blue-600 hover:bg-blue-700 text-white'}};
 
     const styles = variantStyles[variant];
 

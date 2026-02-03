@@ -30,9 +30,9 @@ class ConnectionController extends Controller
      */
     public function index(Request $request): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        $connections = WhatsAppConnection::where('workspace_id', $workspace->id)
+        $connections = WhatsAppConnection::where('account_id', $account->id)
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(function ($connection) {
@@ -46,15 +46,13 @@ class ConnectionController extends Controller
                     'webhook_subscribed' => $connection->webhook_subscribed,
                     'webhook_last_received_at' => $connection->webhook_last_received_at?->toIso8601String(),
                     'webhook_url' => $this->connectionService->getWebhookUrl($connection),
-                    'created_at' => $connection->created_at->toIso8601String(),
-                ];
+                    'created_at' => $connection->created_at->toIso8601String()];
             });
 
         return Inertia::render('WhatsApp/Connections/Index', [
-            'workspace' => $workspace,
+            'account' => $account,
             'connections' => $connections,
-            'canCreate' => Gate::allows('create', WhatsAppConnection::class),
-        ]);
+            'canCreate' => Gate::allows('create', WhatsAppConnection::class)]);
     }
 
     /**
@@ -62,17 +60,16 @@ class ConnectionController extends Controller
      */
     public function create(Request $request): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
         Gate::authorize('create', WhatsAppConnection::class);
 
         $embeddedSignup = $this->getEmbeddedSignupConfig();
 
         return Inertia::render('WhatsApp/Connections/Create', [
-            'workspace' => $workspace,
+            'account' => $account,
             'embeddedSignup' => $embeddedSignup,
-            'defaultApiVersion' => config('whatsapp.meta.api_version', 'v21.0'),
-        ]);
+            'defaultApiVersion' => config('whatsapp.meta.api_version', 'v21.0')]);
     }
 
     /**
@@ -80,17 +77,16 @@ class ConnectionController extends Controller
      */
     public function wizard(Request $request): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
         Gate::authorize('create', WhatsAppConnection::class);
 
         $embeddedSignup = $this->getEmbeddedSignupConfig();
 
         return Inertia::render('WhatsApp/Connections/EmbeddedWizard', [
-            'workspace' => $workspace,
+            'account' => $account,
             'embeddedSignup' => $embeddedSignup,
-            'defaultApiVersion' => config('whatsapp.meta.api_version', 'v21.0'),
-        ]);
+            'defaultApiVersion' => config('whatsapp.meta.api_version', 'v21.0')]);
     }
 
     /**
@@ -98,7 +94,7 @@ class ConnectionController extends Controller
      */
     public function store(Request $request)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
         Gate::authorize('create', WhatsAppConnection::class);
 
@@ -108,8 +104,7 @@ class ConnectionController extends Controller
             'phone_number_id' => 'required|string|max:255',
             'business_phone' => 'nullable|string|max:255',
             'access_token' => 'required|string',
-            'api_version' => 'nullable|string|max:10',
-        ]);
+            'api_version' => 'nullable|string|max:10']);
 
         if (!isset($validated['name']) || trim((string) $validated['name']) === '') {
             $seed = $validated['business_phone'] ?? $validated['phone_number_id'];
@@ -118,11 +113,9 @@ class ConnectionController extends Controller
             $validated['name'] = trim('WhatsApp '.($tail ?: 'Connection'));
         }
 
-        $connection = $this->connectionService->create($workspace, $validated);
+        $connection = $this->connectionService->create($account, $validated);
 
-        return redirect()->route('app.whatsapp.connections.index', [
-            'workspace' => $workspace->slug,
-        ])->with('success', 'Connection created successfully.');
+        return redirect()->route('app.whatsapp.connections.index')->with('success', 'Connection created successfully.');
     }
 
     /**
@@ -130,15 +123,14 @@ class ConnectionController extends Controller
      */
     public function testConnection(Request $request)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
         Gate::authorize('create', WhatsAppConnection::class);
 
         $validated = $request->validate([
             'phone_number_id' => 'required|string|max:255',
             'access_token' => 'required|string',
-            'waba_id' => 'nullable|string|max:255',
-        ]);
+            'waba_id' => 'nullable|string|max:255']);
 
         $accessToken = $validated['access_token'];
         $phoneNumberId = $validated['phone_number_id'];
@@ -150,8 +142,7 @@ class ConnectionController extends Controller
             $result = [
                 'ok' => true,
                 'display_phone_number' => $details['display_phone_number'] ?? null,
-                'verified_name' => $details['verified_name'] ?? null,
-            ];
+                'verified_name' => $details['verified_name'] ?? null];
 
             if ($wabaId) {
                 $numbers = $this->metaGraphService->listPhoneNumbers($wabaId, $accessToken);
@@ -163,8 +154,7 @@ class ConnectionController extends Controller
         } catch (\Throwable $e) {
             return response()->json([
                 'ok' => false,
-                'error' => $e->getMessage(),
-            ], 422);
+                'error' => $e->getMessage()], 422);
         }
     }
 
@@ -173,15 +163,14 @@ class ConnectionController extends Controller
      */
     public function storeEmbedded(Request $request)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
         Gate::authorize('create', WhatsAppConnection::class);
 
         $embeddedSignup = $this->getEmbeddedSignupConfig();
         if (!($embeddedSignup['enabled'] ?? false)) {
             return redirect()->back()->withErrors([
-                'embedded' => 'Embedded Signup is disabled. Please contact the platform administrator.',
-            ]);
+                'embedded' => 'Embedded Signup is disabled. Please contact the platform administrator.']);
         }
 
         $validated = $request->validate([
@@ -192,13 +181,11 @@ class ConnectionController extends Controller
             'access_token' => 'nullable|string',
             'code' => 'nullable|string',
             'redirect_uri' => 'nullable|url',
-            'pin' => 'nullable|digits:6',
-        ]);
+            'pin' => 'nullable|digits:6']);
 
         if (empty($validated['access_token']) && empty($validated['code'])) {
             return redirect()->back()->withErrors([
-                'embedded' => 'Missing Meta OAuth code or access token.',
-            ]);
+                'embedded' => 'Missing Meta OAuth code or access token.']);
         }
 
         try {
@@ -242,8 +229,7 @@ class ConnectionController extends Controller
                 } catch (\Throwable $e) {
                     Log::channel('whatsapp')->warning('Phone number details lookup failed', [
                         'phone_number_id' => $phoneNumberId,
-                        'error' => $e->getMessage(),
-                    ]);
+                        'error' => $e->getMessage()]);
                 }
             }
 
@@ -253,8 +239,7 @@ class ConnectionController extends Controller
             } catch (\Throwable $e) {
                 Log::channel('whatsapp')->warning('Subscribe app to WABA failed (continuing)', [
                     'waba_id' => $wabaId,
-                    'error' => $e->getMessage(),
-                ]);
+                    'error' => $e->getMessage()]);
             }
 
             // Register phone number if PIN provided
@@ -264,7 +249,7 @@ class ConnectionController extends Controller
 
             $connectionName = $validated['name'] ?: ($businessPhone ? "WhatsApp {$businessPhone}" : 'WhatsApp Connection');
 
-            $existing = WhatsAppConnection::where('workspace_id', $workspace->id)
+            $existing = WhatsAppConnection::where('account_id', $account->id)
                 ->where('phone_number_id', $phoneNumberId)
                 ->first();
 
@@ -274,35 +259,27 @@ class ConnectionController extends Controller
                     'waba_id' => $wabaId,
                     'business_phone' => $businessPhone,
                     'access_token' => $effectiveToken,
-                    'api_version' => $this->metaGraphService->getApiVersion(),
-                ]);
+                    'api_version' => $this->metaGraphService->getApiVersion()]);
 
-                return redirect()->route('app.whatsapp.connections.index', [
-                    'workspace' => $workspace->slug,
-                ])->with('success', 'Connection updated successfully.');
+                return redirect()->route('app.whatsapp.connections.index')->with('success', 'Connection updated successfully.');
             }
 
-            $this->connectionService->create($workspace, [
+            $this->connectionService->create($account, [
                 'name' => $connectionName,
                 'waba_id' => $wabaId,
                 'phone_number_id' => $phoneNumberId,
                 'business_phone' => $businessPhone,
                 'access_token' => $effectiveToken,
-                'api_version' => $this->metaGraphService->getApiVersion(),
-            ]);
+                'api_version' => $this->metaGraphService->getApiVersion()]);
 
-            return redirect()->route('app.whatsapp.connections.index', [
-                'workspace' => $workspace->slug,
-            ])->with('success', 'Connection created successfully.');
+            return redirect()->route('app.whatsapp.connections.index')->with('success', 'Connection created successfully.');
         } catch (\Throwable $e) {
             Log::channel('whatsapp')->error('Embedded signup failed', [
-                'workspace_id' => $workspace?->id,
-                'error' => $e->getMessage(),
-            ]);
+                'account_id' => $account?->id,
+                'error' => $e->getMessage()]);
 
             return redirect()->back()->withErrors([
-                'embedded' => $e->getMessage(),
-            ]);
+                'embedded' => $e->getMessage()]);
         }
     }
 
@@ -318,22 +295,21 @@ class ConnectionController extends Controller
             'enabled' => $enabled,
             'appId' => $enabled ? $appId : null,
             'configId' => $enabled ? $configId : null,
-            'apiVersion' => $apiVersion ?: 'v21.0',
-        ];
+            'apiVersion' => $apiVersion ?: 'v21.0'];
     }
 
     /**
      * Resolve connection from route parameter (handles both string ID and model instance).
      */
-    protected function resolveConnection($connection, $workspace): WhatsAppConnection
+    protected function resolveConnection($connection, $account): WhatsAppConnection
     {
-        // Always resolve fresh from database with workspace scoping for security
-        // Even if route binding provided an instance, we verify it belongs to the workspace
+        // Always resolve fresh from database with account scoping for security
+        // Even if route binding provided an instance, we verify it belongs to the account
         $connectionValue = $connection instanceof WhatsAppConnection ? ($connection->slug ?? $connection->id) : $connection;
         
         // Try to resolve by slug first, then by ID (for backward compatibility)
-        // Always scope by workspace for security
-        $resolved = WhatsAppConnection::where('workspace_id', $workspace->id)
+        // Always scope by account for security
+        $resolved = WhatsAppConnection::where('account_id', $account->id)
             ->where(function ($query) use ($connectionValue) {
                 $query->where('slug', $connectionValue);
                 // Also try as ID if the value is numeric
@@ -344,7 +320,7 @@ class ConnectionController extends Controller
             ->first();
         
         if (!$resolved) {
-            abort(404, 'Connection not found in this workspace.');
+            abort(404, 'Connection not found in this account.');
         }
         
         return $resolved;
@@ -368,10 +344,10 @@ class ConnectionController extends Controller
     /**
      * Show the form for editing a connection.
      */
-    public function edit(Request $request, $workspaceParam, $connection): Response
+    public function edit(Request $request, $connection): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
-        $connection = $this->resolveConnection($connection, $workspace);
+        $account = $request->attributes->get('account') ?? current_account();
+        $connection = $this->resolveConnection($connection, $account);
 
         Gate::authorize('update', $connection);
 
@@ -380,7 +356,7 @@ class ConnectionController extends Controller
         $maskedVerifyToken = $verifyToken ? substr($verifyToken, 0, 4) . str_repeat('*', max(0, strlen($verifyToken) - 4)) : null;
 
         return Inertia::render('WhatsApp/Connections/Edit', [
-            'workspace' => $workspace,
+            'account' => $account,
             'connection' => [
                 'id' => $connection->id,
                 'slug' => $connection->slug ?? (string) $connection->id,
@@ -394,40 +370,36 @@ class ConnectionController extends Controller
                 'webhook_url' => $this->connectionService->getWebhookUrl($connection),
                 'webhook_subscribed' => $connection->webhook_subscribed,
                 'webhook_last_received_at' => $connection->webhook_last_received_at?->toIso8601String(),
-                'webhook_last_error' => $connection->webhook_last_error,
-            ],
-            'canViewSecrets' => $workspace->owner_id === $request->user()->id || 
-                               $workspace->users()->where('user_id', $request->user()->id)->where('role', 'admin')->exists(),
-        ]);
+                'webhook_last_error' => $connection->webhook_last_error],
+            'canViewSecrets' => $account->owner_id === $request->user()->id || 
+                               $account->users()->where('user_id', $request->user()->id)->where('role', 'admin')->exists()]);
     }
 
     /**
      * Show health check page for a connection.
      */
-    public function showHealth(Request $request, $workspaceParam, $connection): Response
+    public function showHealth(Request $request, $connection): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
-        $connection = $this->resolveConnection($connection, $workspace);
+        $account = $request->attributes->get('account') ?? current_account();
+        $connection = $this->resolveConnection($connection, $account);
 
         Gate::authorize('view', $connection);
 
         return Inertia::render('WhatsApp/Connections/HealthCheck', [
-            'workspace' => $workspace,
+            'account' => $account,
             'connection' => [
                 'id' => $connection->id,
                 'slug' => $connection->slug ?? (string) $connection->id,
-                'name' => $connection->name,
-            ],
-        ]);
+                'name' => $connection->name]]);
     }
 
     /**
      * Update the specified connection.
      */
-    public function update(Request $request, $workspaceParam, $connection)
+    public function update(Request $request, $connection)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
-        $connection = $this->resolveConnection($connection, $workspace);
+        $account = $request->attributes->get('account') ?? current_account();
+        $connection = $this->resolveConnection($connection, $account);
 
         Gate::authorize('update', $connection);
 
@@ -437,23 +409,20 @@ class ConnectionController extends Controller
             'phone_number_id' => 'required|string|max:255',
             'business_phone' => 'nullable|string|max:255',
             'access_token' => 'nullable|string', // Optional on update
-            'api_version' => 'nullable|string|max:10',
-        ]);
+            'api_version' => 'nullable|string|max:10']);
 
         $this->connectionService->update($connection, $validated);
 
-        return redirect()->route('app.whatsapp.connections.index', [
-            'workspace' => $workspace->slug,
-        ])->with('success', 'Connection updated successfully.');
+        return redirect()->route('app.whatsapp.connections.index')->with('success', 'Connection updated successfully.');
     }
 
     /**
      * Rotate the webhook verify token.
      */
-    public function rotateVerifyToken(Request $request, $workspaceParam, $connection)
+    public function rotateVerifyToken(Request $request, $connection)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
-        $connection = $this->resolveConnection($connection, $workspace);
+        $account = $request->attributes->get('account') ?? current_account();
+        $connection = $this->resolveConnection($connection, $account);
 
         Gate::authorize('update', $connection);
 
@@ -465,10 +434,10 @@ class ConnectionController extends Controller
     /**
      * Test the webhook endpoint for this connection (internal verification).
      */
-    public function testWebhook(Request $request, $workspaceParam, $connection)
+    public function testWebhook(Request $request, $connection)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
-        $connection = $this->resolveConnection($connection, $workspace);
+        $account = $request->attributes->get('account') ?? current_account();
+        $connection = $this->resolveConnection($connection, $account);
 
         Gate::authorize('update', $connection);
 
@@ -479,37 +448,33 @@ class ConnectionController extends Controller
             $response = Http::timeout(10)->get($url, [
                 'hub.mode' => 'subscribe',
                 'hub.verify_token' => $connection->webhook_verify_token,
-                'hub.challenge' => $challenge,
-            ]);
+                'hub.challenge' => $challenge]);
 
             $ok = $response->ok() && trim((string) $response->body()) === $challenge;
 
             return response()->json([
                 'ok' => $ok,
                 'status' => $response->status(),
-                'message' => $ok ? 'Webhook verified successfully.' : 'Webhook verification failed.',
-            ], $ok ? 200 : 422);
+                'message' => $ok ? 'Webhook verified successfully.' : 'Webhook verification failed.'], $ok ? 200 : 422);
         } catch (\Throwable $e) {
             Log::warning('Webhook test failed', [
                 'connection_id' => $connection->id,
-                'workspace_id' => $workspace->id,
+                'account_id' => $account->id,
                 'error' => $e->getMessage(),
-                'url' => $url,
-            ]);
+                'url' => $url]);
             return response()->json([
                 'ok' => false,
-                'error' => 'Webhook test failed. Please check that your webhook URL is reachable and try again.',
-            ], 422);
+                'error' => 'Webhook test failed. Please check that your webhook URL is reachable and try again.'], 422);
         }
     }
 
     /**
      * Test an existing connection using the stored access token.
      */
-    public function testSavedConnection(Request $request, $workspaceParam, $connection)
+    public function testSavedConnection(Request $request, $connection)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
-        $connection = $this->resolveConnection($connection, $workspace);
+        $account = $request->attributes->get('account') ?? current_account();
+        $connection = $this->resolveConnection($connection, $account);
 
         Gate::authorize('update', $connection);
 
@@ -517,8 +482,7 @@ class ConnectionController extends Controller
         if (!$accessToken) {
             return response()->json([
                 'ok' => false,
-                'error' => 'No access token is stored for this connection.',
-            ], 422);
+                'error' => 'No access token is stored for this connection.'], 422);
         }
 
         try {
@@ -527,18 +491,15 @@ class ConnectionController extends Controller
             return response()->json([
                 'ok' => true,
                 'display_phone_number' => $details['display_phone_number'] ?? null,
-                'verified_name' => $details['verified_name'] ?? null,
-            ]);
+                'verified_name' => $details['verified_name'] ?? null]);
         } catch (\Throwable $e) {
             Log::warning('Connection test failed', [
                 'connection_id' => $connection->id,
-                'workspace_id' => $workspace->id,
-                'error' => $e->getMessage(),
-            ]);
+                'account_id' => $account->id,
+                'error' => $e->getMessage()]);
             return response()->json([
                 'ok' => false,
-                'error' => 'Connection test failed. Please verify your WhatsApp credentials and try again.',
-            ], 422);
+                'error' => 'Connection test failed. Please verify your WhatsApp credentials and try again.'], 422);
         }
     }
 }

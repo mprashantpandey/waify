@@ -2,8 +2,7 @@ import {
     Dialog,
     DialogPanel,
     Transition,
-    TransitionChild,
-} from '@headlessui/react';
+    TransitionChild} from '@headlessui/react';
 import { PropsWithChildren } from 'react';
 
 export default function Modal({
@@ -11,8 +10,7 @@ export default function Modal({
     show = false,
     maxWidth = '2xl',
     closeable = true,
-    onClose = () => {},
-}: PropsWithChildren<{
+    onClose = () => {}}: PropsWithChildren<{
     show: boolean;
     maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
     closeable?: boolean;
@@ -29,8 +27,7 @@ export default function Modal({
         md: 'sm:max-w-md',
         lg: 'sm:max-w-lg',
         xl: 'sm:max-w-xl',
-        '2xl': 'sm:max-w-2xl',
-    }[maxWidth];
+        '2xl': 'sm:max-w-2xl'}[maxWidth];
 
     return (
         <Transition show={show} leave="duration-200">

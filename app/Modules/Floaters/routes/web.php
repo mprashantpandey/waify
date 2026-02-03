@@ -3,7 +3,7 @@
 use App\Modules\Floaters\Http\Controllers\WidgetController;
 use Illuminate\Support\Facades\Route;
 
-// Note: Loaded inside app routes group (/app/{workspace})
+// Note: Loaded inside app routes group (/app)
 Route::middleware(['module.entitled:floaters'])->group(function () {
     Route::get('/floaters', [WidgetController::class, 'index'])->name('floaters');
     Route::get('/floaters/create', [WidgetController::class, 'create'])->name('floaters.create');

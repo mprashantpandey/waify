@@ -30,7 +30,7 @@ class SupportTicketCreated extends Notification
             ->greeting('Hello!')
             ->line('A new support ticket has been created.')
             ->line('Subject: ' . $this->thread->subject)
-            ->line('Workspace: ' . ($this->thread->workspace?->name ?? 'Unknown'))
+            ->line('Account: ' . ($this->thread->account?->name ?? 'Unknown'))
             ->action('View Ticket', $url)
             ->line('Please respond within the SLA window.');
     }

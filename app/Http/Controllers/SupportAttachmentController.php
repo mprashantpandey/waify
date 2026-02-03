@@ -10,16 +10,16 @@ class SupportAttachmentController extends Controller
 {
     public function show(Request $request, SupportMessageAttachment $attachment)
     {
-        $message = $attachment->message()->with('thread.workspace')->first();
+        $message = $attachment->message()->with('thread.account')->first();
         $thread = $message?->thread;
-        $workspace = $thread?->workspace;
+        $account = $thread?->account;
         $user = $request->user();
 
-        if (!$message || !$thread || !$workspace || !$user) {
+        if (!$message || !$thread || !$account || !$user) {
             abort(404);
         }
 
-        if (!$user->isSuperAdmin() && !$user->canAccessWorkspace($workspace)) {
+        if (!$user->isSuperAdmin() && !$user->canAccessAccount($account)) {
             abort(403);
         }
 
@@ -30,7 +30,6 @@ class SupportAttachmentController extends Controller
 
         return response()->file($path, [
             'Content-Type' => $attachment->mime_type ?: 'application/octet-stream',
-            'Content-Disposition' => 'inline; filename="' . $attachment->file_name . '"',
-        ]);
+            'Content-Disposition' => 'inline; filename="' . $attachment->file_name . '"']);
     }
 }

@@ -14,50 +14,42 @@ export default function FeaturesTab({ data, setData, errors }: FeaturesTabProps)
             key: 'user_registration',
             label: 'User Registration',
             description: 'Allow new users to register accounts',
-            category: 'Authentication',
-        },
+            category: 'Authentication'},
         {
             key: 'email_verification',
             label: 'Email Verification',
             description: 'Require email verification for new accounts',
-            category: 'Authentication',
-        },
+            category: 'Authentication'},
         {
-            key: 'workspace_creation',
-            label: 'Workspace Creation',
-            description: 'Allow users to create new workspaces',
-            category: 'Workspaces',
-        },
+            key: 'account_creation',
+            label: 'Tenant Creation',
+            description: 'Allow users to create new tenants',
+            category: 'Tenants'},
         {
             key: 'public_api',
             label: 'Public API',
             description: 'Enable public API access',
-            category: 'API',
-        },
+            category: 'API'},
         {
             key: 'webhooks',
             label: 'Webhooks',
             description: 'Enable webhook functionality',
-            category: 'Integrations',
-        },
+            category: 'Integrations'},
         {
             key: 'analytics',
             label: 'Analytics',
             description: 'Enable analytics tracking',
-            category: 'Analytics',
-        },
+            category: 'Analytics'},
         {
             key: 'beta_features',
             label: 'Beta Features',
             description: 'Show beta features to users',
-            category: 'Features',
-        },
+            category: 'Features'},
         {
             key: 'maintenance_mode',
             label: 'Maintenance Mode',
             description: 'Put platform in maintenance mode',
-            category: 'System',
-        },
+            category: 'System'},
     ];
 
     const groupedFeatures = features.reduce((acc, feature) => {
@@ -102,4 +94,3 @@ export default function FeaturesTab({ data, setData, errors }: FeaturesTabProps)
         </div>
     );
 }
-

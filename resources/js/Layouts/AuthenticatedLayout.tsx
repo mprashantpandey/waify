@@ -9,8 +9,7 @@ import { PropsWithChildren, ReactNode, useState } from 'react';
 
 export default function Authenticated({
     header,
-    children,
-}: PropsWithChildren<{ header?: ReactNode }>) {
+    children}: PropsWithChildren<{ header?: ReactNode }>) {
     const { auth } = usePage().props as any;
     const user = auth?.user;
 
@@ -22,7 +21,7 @@ export default function Authenticated({
         if (user?.is_super_admin) {
             return route('platform.dashboard');
         }
-        // For regular users, we'd need workspace context which isn't available here
+        // For regular users, we'd need account context which isn't available here
         // Return null to hide the link
         return null;
     };

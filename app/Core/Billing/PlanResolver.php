@@ -3,16 +3,16 @@
 namespace App\Core\Billing;
 
 use App\Models\Plan;
-use App\Models\Workspace;
+use App\Models\Account;
 
 class PlanResolver
 {
     /**
-     * Get the plan for a workspace.
+     * Get the plan for a account.
      */
-    public function getWorkspacePlan(Workspace $workspace): ?Plan
+    public function getAccountPlan(Account $account): ?Plan
     {
-        $subscription = $workspace->subscription;
+        $subscription = $account->subscription;
         
         if (!$subscription) {
             // Return default plan if no subscription
@@ -24,25 +24,25 @@ class PlanResolver
     }
 
     /**
-     * Get effective modules for a workspace.
+     * Get effective modules for a account.
      * 
-     * Returns array of module keys that are enabled for this workspace.
-     * Order: plan modules + addon modules → intersect with workspace toggles
+     * Returns array of module keys that are enabled for this account.
+     * Order: plan modules + addon modules → intersect with account toggles
      */
-    public function getEffectiveModules(Workspace $workspace): array
+    public function getEffectiveModules(Account $account): array
     {
         // Get platform-enabled modules first
         $platformEnabledModules = \App\Models\Module::where('is_enabled', true)
             ->pluck('key')
             ->toArray();
         
-        // Get workspace-enabled modules
-        $workspaceModules = \App\Models\WorkspaceModule::where('workspace_id', $workspace->id)
+        // Get account-enabled modules
+        $accountModules = \App\Models\AccountModule::where('account_id', $account->id)
             ->where('enabled', true)
             ->pluck('module_key')
             ->toArray();
         
-        $plan = $this->getWorkspacePlan($workspace);
+        $plan = $this->getAccountPlan($account);
         
         $effectiveModules = [];
         
@@ -51,9 +51,9 @@ class PlanResolver
             $modules = $plan->modules ?? [];
 
             // Add modules from active addons
-            $addons = $workspace->addons()->with('addon')->get();
-            foreach ($addons as $workspaceAddon) {
-                $addonModules = $workspaceAddon->addon->modules_delta ?? [];
+            $addons = $account->addons()->with('addon')->get();
+            foreach ($addons as $accountAddon) {
+                $addonModules = $accountAddon->addon->modules_delta ?? [];
                 $modules = array_merge($modules, $addonModules);
             }
 
@@ -63,8 +63,8 @@ class PlanResolver
             // Filter plan modules to only include platform-enabled ones
             $modules = array_intersect($modules, $platformEnabledModules);
             
-            // Get effective modules from plan (intersect with workspace-enabled)
-            $effectiveModules = array_intersect($modules, $workspaceModules);
+            // Get effective modules from plan (intersect with account-enabled)
+            $effectiveModules = array_intersect($modules, $accountModules);
         }
         
         // Also include core modules that are enabled at platform level
@@ -75,9 +75,9 @@ class PlanResolver
             ->pluck('key')
             ->toArray();
         
-        // Filter core modules to only those enabled in workspace (or enabled by default)
+        // Filter core modules to only those enabled in account (or enabled by default)
         // For core modules, if they're enabled at platform level, they're available
-        // if they're enabled in workspace OR if no workspace module record exists (enabled by default)
+        // if they're enabled in account OR if no account module record exists (enabled by default)
         $availableCoreModules = [];
         foreach ($coreModules as $moduleKey) {
             // Must be enabled at platform level (already filtered above)
@@ -85,15 +85,15 @@ class PlanResolver
                 continue;
             }
             
-            // Check if enabled in workspace
-            $workspaceModule = \App\Models\WorkspaceModule::where('workspace_id', $workspace->id)
+            // Check if enabled in account
+            $accountModule = \App\Models\AccountModule::where('account_id', $account->id)
                 ->where('module_key', $moduleKey)
                 ->first();
             
             // Core modules are available if:
-            // 1. No workspace module record exists (enabled by default), OR
-            // 2. Workspace module exists and is enabled
-            if (!$workspaceModule || $workspaceModule->enabled) {
+            // 1. No account module record exists (enabled by default), OR
+            // 2. Account module exists and is enabled
+            if (!$accountModule || $accountModule->enabled) {
                 $availableCoreModules[] = $moduleKey;
             }
         }
@@ -103,14 +103,14 @@ class PlanResolver
     }
 
     /**
-     * Get effective limits for a workspace.
+     * Get effective limits for a account.
      * 
      * Returns array of limit keys with their values.
      * Base plan limits + addon limits_delta * quantity
      */
-    public function getEffectiveLimits(Workspace $workspace): array
+    public function getEffectiveLimits(Account $account): array
     {
-        $plan = $this->getWorkspacePlan($workspace);
+        $plan = $this->getAccountPlan($account);
         
         if (!$plan) {
             return [];
@@ -120,10 +120,10 @@ class PlanResolver
         $limits = $plan->limits ?? [];
 
         // Add limits from active addons
-        $addons = $workspace->addons()->with('addon')->get();
-        foreach ($addons as $workspaceAddon) {
-            $addonLimits = $workspaceAddon->addon->limits_delta ?? [];
-            $quantity = $workspaceAddon->quantity;
+        $addons = $account->addons()->with('addon')->get();
+        foreach ($addons as $accountAddon) {
+            $addonLimits = $accountAddon->addon->limits_delta ?? [];
+            $quantity = $accountAddon->quantity;
             
             foreach ($addonLimits as $key => $value) {
                 if (isset($limits[$key])) {

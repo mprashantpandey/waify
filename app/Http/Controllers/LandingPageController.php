@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Workspace;
+use App\Models\Account;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
@@ -22,8 +22,7 @@ class LandingPageController extends Controller
         return Inertia::render('Landing', [
             'stats' => $stats,
             'canLogin' => \Route::has('login'),
-            'canRegister' => \Route::has('register'),
-        ]);
+            'canRegister' => \Route::has('register')]);
     }
 
     /**
@@ -33,8 +32,7 @@ class LandingPageController extends Controller
     {
         return response()->json([
             'stats' => $this->getStats(),
-            'timestamp' => now()->toIso8601String(),
-        ]);
+            'timestamp' => now()->toIso8601String()]);
     }
 
     /**
@@ -44,26 +42,23 @@ class LandingPageController extends Controller
     {
         try {
             return [
-                'workspaces' => $this->safeCount(Workspace::class),
+                'accounts' => $this->safeCount(Account::class),
                 'active_connections' => $this->safeCount(WhatsAppConnection::class, ['is_active' => true]),
                 'templates' => $this->safeCount(WhatsAppTemplate::class, ['status' => 'approved']),
                 'messages_sent' => $this->safeCount(WhatsAppMessage::class, [
                     'direction' => 'outbound',
-                    'status' => 'sent',
-                ]),
+                    'status' => 'sent']),
                 'messages_received' => $this->safeCount(WhatsAppMessage::class, ['direction' => 'inbound']),
-                'conversations' => $this->safeCount(\App\Modules\WhatsApp\Models\WhatsAppConversation::class, ['status' => 'open']),
-            ];
+                'conversations' => $this->safeCount(\App\Modules\WhatsApp\Models\WhatsAppConversation::class, ['status' => 'open'])];
         } catch (\Exception $e) {
             // Return zeros if tables don't exist yet
             return [
-                'workspaces' => 0,
+                'accounts' => 0,
                 'active_connections' => 0,
                 'templates' => 0,
                 'messages_sent' => 0,
                 'messages_received' => 0,
-                'conversations' => 0,
-            ];
+                'conversations' => 0];
         }
     }
 

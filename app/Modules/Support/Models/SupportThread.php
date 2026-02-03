@@ -3,7 +3,7 @@
 namespace App\Modules\Support\Models;
 
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Account;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,7 +16,7 @@ class SupportThread extends Model
 
     protected $fillable = [
         'slug',
-        'workspace_id',
+        'account_id',
         'created_by',
         'subject',
         'status',
@@ -33,8 +33,7 @@ class SupportThread extends Model
         'last_response_at',
         'escalated_at',
         'escalation_level',
-        'last_message_at',
-    ];
+        'last_message_at'];
 
     protected function casts(): array
     {
@@ -46,13 +45,12 @@ class SupportThread extends Model
             'resolved_at' => 'datetime',
             'last_response_at' => 'datetime',
             'escalated_at' => 'datetime',
-            'tags' => 'array',
-        ];
+            'tags' => 'array'];
     }
 
-    public function workspace(): BelongsTo
+    public function account(): BelongsTo
     {
-        return $this->belongsTo(Workspace::class);
+        return $this->belongsTo(Account::class);
     }
 
     public function creator(): BelongsTo

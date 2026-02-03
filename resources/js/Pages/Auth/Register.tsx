@@ -19,7 +19,7 @@ interface SelectedPlan {
 interface InviteInfo {
     token: string;
     email: string;
-    workspace_name?: string | null;
+    account_name?: string | null;
     role?: string | null;
 }
 
@@ -30,15 +30,13 @@ export default function Register({ selectedPlan, invite }: { selectedPlan?: Sele
         password: '',
         password_confirmation: '',
         plan_key: selectedPlan?.key || '',
-        invite_token: invite?.token || '',
-    });
+        invite_token: invite?.token || ''});
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
 
         post(route('register'), {
-            onFinish: () => reset('password', 'password_confirmation'),
-        });
+            onFinish: () => reset('password', 'password_confirmation')});
     };
 
     const formatPrice = (amount: number) => {
@@ -47,8 +45,7 @@ export default function Register({ selectedPlan, invite }: { selectedPlan?: Sele
         return new Intl.NumberFormat('en-IN', {
             style: 'currency',
             currency: 'INR',
-            minimumFractionDigits: 0,
-        }).format(major);
+            minimumFractionDigits: 0}).format(major);
     };
 
     return (
@@ -57,15 +54,15 @@ export default function Register({ selectedPlan, invite }: { selectedPlan?: Sele
 
             <div className="mb-6">
                 <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-                    {invite?.workspace_name
-                        ? `Join ${invite.workspace_name}`
+                    {invite?.account_name
+                        ? `Join ${invite.account_name}`
                         : selectedPlan
                             ? `Start Your ${selectedPlan.trial_days > 0 ? selectedPlan.trial_days + '-Day ' : ''}Trial`
                             : 'Create your account'}
                 </h2>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {invite?.workspace_name
-                        ? `You've been invited as a ${invite.role || 'member'}. Create your account to join the workspace.`
+                    {invite?.account_name
+                        ? `You've been invited as a ${invite.role || 'member'}. Create your account to join the team.`
                         : selectedPlan 
                             ? `Get started with ${selectedPlan.name} plan. ${selectedPlan.trial_days > 0 ? 'No credit card required!' : ''}`
                             : 'Get started with your free account today'

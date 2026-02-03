@@ -20,13 +20,13 @@ class EnsureModuleEntitled
      */
     public function handle(Request $request, Closure $next, string $moduleKey): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        if (!$workspace) {
-            abort(404, 'Workspace not found.');
+        if (!$account) {
+            abort(404, 'Account not found.');
         }
 
-        $this->entitlementService->assertModuleEnabled($workspace, $moduleKey);
+        $this->entitlementService->assertModuleEnabled($account, $moduleKey);
 
         return $next($request);
     }

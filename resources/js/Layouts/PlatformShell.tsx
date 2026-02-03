@@ -5,6 +5,7 @@ import { BrandingWrapper } from '@/Components/Branding/BrandingWrapper';
 import { Toaster } from '@/Components/UI/Toaster';
 import { GlobalFlashHandler } from '@/Components/Notifications/GlobalFlashHandler';
 import PlatformLiveChatWidget from '@/Components/Support/PlatformLiveChatWidget';
+import ProfileIncompleteModal from '@/Components/Profile/ProfileIncompleteModal';
 import { 
     LayoutDashboard, 
     Building2, 
@@ -66,63 +67,51 @@ export default function PlatformShell({ children, auth }: PlatformShellProps) {
         {
             name: 'Dashboard',
             href: route('platform.dashboard'),
-            icon: LayoutDashboard,
-        },
+            icon: LayoutDashboard},
         {
-            name: 'Workspaces',
-            href: route('platform.workspaces.index'),
-            icon: Building2,
-        },
+            name: 'Tenants',
+            href: route('platform.accounts.index'),
+            icon: Building2},
         {
             name: 'Users',
             href: route('platform.users.index'),
-            icon: Users,
-        },
+            icon: Users},
         {
             name: 'Plans',
             href: route('platform.plans.index'),
-            icon: CreditCard,
-        },
+            icon: CreditCard},
         {
             name: 'Modules',
             href: route('platform.modules.index'),
-            icon: Puzzle,
-        },
+            icon: Puzzle},
         {
             name: 'Subscriptions',
             href: route('platform.subscriptions.index'),
-            icon: FileText,
-        },
+            icon: FileText},
         {
             name: 'Analytics',
             href: route('platform.analytics'),
-            icon: BarChart3,
-        },
+            icon: BarChart3},
         {
             name: 'Templates',
             href: route('platform.templates.index'),
-            icon: FileText,
-        },
+            icon: FileText},
         {
             name: 'Support',
             href: route('platform.support.hub'),
-            icon: LifeBuoy,
-        },
+            icon: LifeBuoy},
         {
             name: 'Activity Logs',
             href: route('platform.activity-logs'),
-            icon: Activity,
-        },
+            icon: Activity},
         {
             name: 'System Health',
             href: route('platform.system-health'),
-            icon: Shield,
-        },
+            icon: Shield},
         {
             name: 'Settings',
             href: route('platform.settings'),
-            icon: Settings,
-        },
+            icon: Settings},
     ];
 
     const sidebarContent = (
@@ -223,8 +212,6 @@ export default function PlatformShell({ children, auth }: PlatformShellProps) {
                 {/* Main content */}
                 <div className="lg:pl-64">
                     <Topbar
-                        workspace={null}
-                        workspaces={[]}
                         user={auth?.user || null}
                         onMenuClick={() => setSidebarOpen(!sidebarOpen)}
                     />

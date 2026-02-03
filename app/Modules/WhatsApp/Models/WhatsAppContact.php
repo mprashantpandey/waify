@@ -2,7 +2,7 @@
 
 namespace App\Modules\WhatsApp\Models;
 
-use App\Models\Workspace;
+use App\Models\Account;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,7 +14,7 @@ class WhatsAppContact extends Model
     protected $table = 'whatsapp_contacts';
 
     protected $fillable = [
-        'workspace_id',
+        'account_id',
         'wa_id',
         'slug',
         'name',
@@ -28,16 +28,14 @@ class WhatsAppContact extends Model
         'last_contacted_at',
         'message_count',
         'metadata',
-        'custom_fields',
-    ];
+        'custom_fields'];
 
     protected $casts = [
         'last_seen_at' => 'datetime',
         'last_contacted_at' => 'datetime',
         'metadata' => 'array',
         'custom_fields' => 'array',
-        'message_count' => 'integer',
-    ];
+        'message_count' => 'integer'];
 
     protected static function boot()
     {
@@ -68,7 +66,7 @@ class WhatsAppContact extends Model
         $counter = 1;
 
         while (static::where('slug', $slug)
-            ->where('workspace_id', $contact->workspace_id ?? 0)
+            ->where('account_id', $contact->account_id ?? 0)
             ->where('id', '!=', $contact->id ?? 0)
             ->exists()) {
             $slug = $originalSlug . '-' . $counter;
@@ -87,11 +85,11 @@ class WhatsAppContact extends Model
     }
 
     /**
-     * Get the workspace.
+     * Get the account.
      */
-    public function workspace(): BelongsTo
+    public function account(): BelongsTo
     {
-        return $this->belongsTo(Workspace::class);
+        return $this->belongsTo(Account::class);
     }
 
     /**

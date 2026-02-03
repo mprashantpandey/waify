@@ -9,8 +9,7 @@ import { Alert } from '@/Components/UI/Alert';
 
 export default function ForgotPassword({ status }: { status?: string }) {
     const { data, setData, post, processing, errors } = useForm({
-        email: '',
-    });
+        email: ''});
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();

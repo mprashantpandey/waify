@@ -52,7 +52,7 @@ class ProcessDelayedAction implements ShouldQueue
 
             // Create context
             $context = new \App\Modules\Chatbots\Services\BotContext(
-                workspace: $execution->workspace,
+                account: $execution->account,
                 conversation: $conversation,
                 inboundMessage: $inboundMessage,
                 connection: $connection,
@@ -64,13 +64,11 @@ class ProcessDelayedAction implements ShouldQueue
 
             $actionJob->update([
                 'status' => $result['success'] ? 'done' : 'failed',
-                'last_error' => $result['error'] ?? null,
-            ]);
+                'last_error' => $result['error'] ?? null]);
         } catch (\Exception $e) {
             $actionJob->update([
                 'status' => 'failed',
-                'last_error' => $e->getMessage(),
-            ]);
+                'last_error' => $e->getMessage()]);
         }
     }
 }

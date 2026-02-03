@@ -26,9 +26,9 @@ All sync operations use Laravel's cache locks to prevent concurrent execution:
 - **Purpose**: Prevents concurrent processing of the same campaign
 
 #### Contact Import
-- **Lock Key**: `contact_import:workspace:{workspace_id}`
+- **Lock Key**: `contact_import:account:{account_id}`
 - **Duration**: 10 minutes
-- **Purpose**: Prevents concurrent imports for the same workspace
+- **Purpose**: Prevents concurrent imports for the same account
 
 ### 2. Rate Limiting
 

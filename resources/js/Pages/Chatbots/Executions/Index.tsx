@@ -20,10 +20,9 @@ interface Execution {
 }
 
 export default function ChatbotsExecutionsIndex({
-    workspace,
-    executions,
-}: {
-    workspace: any;
+    account,
+    executions}: {
+    account: any;
     executions: {
         data: Execution[];
         links: any;
@@ -35,8 +34,7 @@ export default function ChatbotsExecutionsIndex({
             success: { variant: 'success', icon: CheckCircle, label: 'Success' },
             failed: { variant: 'danger', icon: XCircle, label: 'Failed' },
             running: { variant: 'warning', icon: Clock, label: 'Running' },
-            skipped: { variant: 'default', icon: AlertCircle, label: 'Skipped' },
-        };
+            skipped: { variant: 'default', icon: AlertCircle, label: 'Skipped' }};
 
         const config = statusMap[status] || { variant: 'default' as const, icon: AlertCircle, label: status };
         const Icon = config.icon;
@@ -55,7 +53,7 @@ export default function ChatbotsExecutionsIndex({
             <div className="space-y-8">
                 <div>
                     <Link
-                        href={route('app.chatbots.index', { workspace: workspace.slug })}
+                        href={route('app.chatbots.index', {})}
                         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
                     >
                         <ArrowLeft className="h-4 w-4" />
@@ -157,9 +155,7 @@ export default function ChatbotsExecutionsIndex({
                                                 <td className="px-6 py-4">
                                                     <Link
                                                         href={route('app.chatbots.executions.show', {
-                                                            workspace: workspace.slug,
-                                                            execution: execution.id,
-                                                        })}
+                                                            execution: execution.id})}
                                                     >
                                                         <Button variant="ghost" size="sm" className="rounded-xl">
                                                             <Eye className="h-4 w-4 mr-1" />

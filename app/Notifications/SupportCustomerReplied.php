@@ -30,7 +30,7 @@ class SupportCustomerReplied extends Notification
             ->greeting('Hello!')
             ->line('A customer replied to a support ticket.')
             ->line('Subject: ' . $this->thread->subject)
-            ->line('Workspace: ' . ($this->thread->workspace?->name ?? 'Unknown'))
+            ->line('Account: ' . ($this->thread->account?->name ?? 'Unknown'))
             ->action('View Ticket', $url)
             ->line('Please respond as soon as possible.');
     }

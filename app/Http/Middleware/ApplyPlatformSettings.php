@@ -29,6 +29,15 @@ class ApplyPlatformSettings
         
         // Apply WhatsApp Meta configuration
         $settingsService->applyWhatsAppConfig();
+        
+        // Apply storage configuration
+        $settingsService->applyStorageConfig();
+        
+        // Apply payment configuration
+        $settingsService->applyPaymentConfig();
+        
+        // Apply AI configuration
+        $settingsService->applyAIConfig();
 
         return $next($request);
     }

@@ -15,8 +15,7 @@ class SupportMessageAttachment extends Model
         'file_name',
         'file_path',
         'mime_type',
-        'file_size',
-    ];
+        'file_size'];
 
     public function message(): BelongsTo
     {

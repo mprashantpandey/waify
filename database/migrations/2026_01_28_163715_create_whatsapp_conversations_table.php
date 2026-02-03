@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('whatsapp_conversations', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('workspace_id')->constrained()->onDelete('cascade');
+            $table->foreignId('account_id')->constrained()->onDelete('cascade');
             $table->foreignId('whatsapp_connection_id')->constrained()->onDelete('cascade');
             $table->foreignId('whatsapp_contact_id')->constrained()->onDelete('cascade');
             $table->string('status')->default('open'); // open/closed
@@ -22,7 +22,7 @@ return new class extends Migration
             $table->json('metadata')->nullable();
             $table->timestamps();
 
-            $table->index(['workspace_id', 'last_message_at']);
+            $table->index(['account_id', 'last_message_at']);
         });
     }
 

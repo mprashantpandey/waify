@@ -24,7 +24,6 @@ interface Plan {
     description: string | null;
     price_monthly: number | null;
     price_yearly: number | null;
-    currency: string;
     is_active: boolean;
     is_public: boolean;
     trial_days: number;
@@ -33,7 +32,7 @@ interface Plan {
     modules: string[];
 }
 
-export default function PlansEdit({ plan, modules }: { plan: Plan; modules: Module[] }) {
+export default function PlansEdit({ plan, modules, default_currency = 'USD' }: { plan: Plan; modules: Module[]; default_currency?: string }) {
     const { auth, flash } = usePage().props as any;
     const { addToast } = useToast();
 
@@ -42,15 +41,13 @@ export default function PlansEdit({ plan, modules }: { plan: Plan; modules: Modu
             addToast({
                 title: 'Success',
                 description: flash.success,
-                variant: 'success',
-            });
+                variant: 'success'});
         }
         if (flash?.error) {
             addToast({
                 title: 'Error',
                 description: flash.error,
-                variant: 'error',
-            });
+                variant: 'error'});
         }
     }, [flash, addToast]);
 
@@ -60,14 +57,12 @@ export default function PlansEdit({ plan, modules }: { plan: Plan; modules: Modu
         description: plan.description || '',
         price_monthly: plan.price_monthly,
         price_yearly: plan.price_yearly,
-        currency: plan.currency,
         is_active: plan.is_active,
         is_public: plan.is_public,
         trial_days: plan.trial_days,
         sort_order: plan.sort_order,
         limits: plan.limits || {},
-        modules: plan.modules || [],
-    });
+        modules: plan.modules || []});
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -76,17 +71,14 @@ export default function PlansEdit({ plan, modules }: { plan: Plan; modules: Modu
                 addToast({
                     title: 'Plan Updated',
                     description: 'The plan has been updated successfully.',
-                    variant: 'success',
-                });
+                    variant: 'success'});
             },
             onError: (errors) => {
                 addToast({
                     title: 'Error',
                     description: Object.values(errors)[0] as string || 'Failed to update plan. Please check the form.',
-                    variant: 'error',
-                });
-            },
-        });
+                    variant: 'error'});
+            }});
     };
 
     const toggleModule = (moduleKey: string) => {
@@ -102,8 +94,7 @@ export default function PlansEdit({ plan, modules }: { plan: Plan; modules: Modu
         const numValue = value === '' || value === '-1' ? -1 : parseInt(value) || 0;
         setData('limits', {
             ...data.limits,
-            [key]: numValue,
-        });
+            [key]: numValue});
     };
 
     return (
@@ -201,18 +192,15 @@ export default function PlansEdit({ plan, modules }: { plan: Plan; modules: Modu
                                 </div>
 
                                 <div>
-                                    <Label htmlFor="currency">Currency</Label>
-                                    <select
-                                        id="currency"
-                                        value={data.currency}
-                                        onChange={(e) => setData('currency', e.target.value)}
-                                        className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
-                                    >
-                                        <option value="INR">INR (₹)</option>
-                                        <option value="USD">USD ($)</option>
-                                        <option value="EUR">EUR (€)</option>
-                                        <option value="GBP">GBP (£)</option>
-                                    </select>
+                                    <Label>Currency</Label>
+                                    <div className="mt-1 p-3 bg-gray-50 dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700">
+                                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                                            Plans use the platform default currency: <span className="font-semibold text-gray-900 dark:text-gray-100">{default_currency}</span>
+                                        </p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                            To change the currency, update it in Platform Settings → Payment
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
 
@@ -234,7 +222,7 @@ export default function PlansEdit({ plan, modules }: { plan: Plan; modules: Modu
                                 <div>
                                     <Label htmlFor="is_public">Public</Label>
                                     <p className="text-sm text-gray-500">
-                                        Visible to workspace owners in plans page
+                                        Visible to tenant owners in plans page
                                     </p>
                                 </div>
                                 <Switch
@@ -417,4 +405,3 @@ export default function PlansEdit({ plan, modules }: { plan: Plan; modules: Modu
         </PlatformShell>
     );
 }
-

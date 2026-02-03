@@ -2,7 +2,7 @@
 
 namespace App\Modules\Floaters\Models;
 
-use App\Models\Workspace;
+use App\Models\Account;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,7 +16,7 @@ class FloaterWidget extends Model
     protected $table = 'floater_widgets';
 
     protected $fillable = [
-        'workspace_id',
+        'account_id',
         'whatsapp_connection_id',
         'name',
         'slug',
@@ -26,14 +26,12 @@ class FloaterWidget extends Model
         'position',
         'show_on',
         'welcome_message',
-        'whatsapp_phone',
-    ];
+        'whatsapp_phone'];
 
     protected $casts = [
         'is_active' => 'boolean',
         'theme' => 'array',
-        'show_on' => 'array',
-    ];
+        'show_on' => 'array'];
 
     protected static function booted(): void
     {
@@ -66,7 +64,7 @@ class FloaterWidget extends Model
         $original = $slug;
         $counter = 1;
 
-        while (static::where('workspace_id', $widget->workspace_id ?? 0)
+        while (static::where('account_id', $widget->account_id ?? 0)
             ->where('slug', $slug)
             ->where('id', '!=', $widget->id ?? 0)
             ->exists()) {
@@ -77,9 +75,9 @@ class FloaterWidget extends Model
         return $slug;
     }
 
-    public function workspace(): BelongsTo
+    public function account(): BelongsTo
     {
-        return $this->belongsTo(Workspace::class);
+        return $this->belongsTo(Account::class);
     }
 
     public function events(): HasMany

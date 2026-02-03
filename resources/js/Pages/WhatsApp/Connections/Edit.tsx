@@ -31,11 +31,10 @@ interface Connection {
 }
 
 export default function ConnectionsEdit({
-    workspace,
+    account,
     connection,
-    canViewSecrets = false,
-}: {
-    workspace: any;
+    canViewSecrets = false}: {
+    account: any;
     connection: Connection;
     canViewSecrets?: boolean;
 }) {
@@ -58,15 +57,12 @@ export default function ConnectionsEdit({
         phone_number_id: connection.phone_number_id,
         business_phone: connection.business_phone || '',
         access_token: '', // Optional on update
-        api_version: connection.api_version,
-    });
+        api_version: connection.api_version});
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
         put(route('app.whatsapp.connections.update', {
-            workspace: workspace.slug,
-            connection: connection.slug ?? connection.id,
-        }));
+            connection: connection.slug ?? connection.id}));
     };
 
     const copyToClipboard = (text: string, key: string) => {
@@ -80,21 +76,17 @@ export default function ConnectionsEdit({
         const confirmed = await confirm({
             title: 'Rotate Verify Token',
             message: 'Are you sure you want to rotate the verify token? You will need to update your webhook settings in Meta Business Manager.',
-            variant: 'warning',
-        });
+            variant: 'warning'});
 
         if (confirmed) {
             router.post(route('app.whatsapp.connections.rotate-verify-token', {
-                workspace: workspace.slug,
-                connection: connection.slug ?? connection.id,
-            }), {}, {
+                connection: connection.slug ?? connection.id}), {}, {
                 onSuccess: () => {
                     toast.success('Verify token rotated successfully');
                 },
                 onError: () => {
                     toast.error('Failed to rotate token');
-                },
-            });
+                }});
         }
     };
 
@@ -111,9 +103,7 @@ export default function ConnectionsEdit({
         try {
             const { data } = await axios.post(
                 route('app.whatsapp.connections.test-saved', {
-                    workspace: workspace.slug,
-                    connection: connection.slug ?? connection.id,
-                }) as string
+                    connection: connection.slug ?? connection.id}) as string
             );
             const summary = [
                 data.display_phone_number ? `Phone: ${data.display_phone_number}` : null,
@@ -139,9 +129,7 @@ export default function ConnectionsEdit({
         try {
             const { data } = await axios.post(
                 route('app.whatsapp.connections.webhook.test', {
-                    workspace: workspace.slug,
-                    connection: connection.slug ?? connection.id,
-                }) as string
+                    connection: connection.slug ?? connection.id}) as string
             );
             const message = data?.message || 'Webhook verified successfully.';
             setWebhookResult({ ok: true, message });
@@ -182,7 +170,7 @@ export default function ConnectionsEdit({
             <div className="space-y-8">
                 <div>
                     <Link
-                        href={route('app.whatsapp.connections.index', { workspace: workspace.slug })}
+                        href={route('app.whatsapp.connections.index', {})}
                         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
                     >
                         <ArrowLeft className="h-4 w-4" />
@@ -405,7 +393,7 @@ export default function ConnectionsEdit({
                                             {!canViewSecrets && (
                                                 <p className="mt-2 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
                                                     <AlertTriangle className="h-3.5 w-3.5" />
-                                                    Only workspace owners/admins can view the full token
+                                                    Only account owners/admins can view the full token
                                                 </p>
                                             )}
                                             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
@@ -450,14 +438,14 @@ export default function ConnectionsEdit({
                             </div>
 
                             <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
-                                <Link href={route('app.whatsapp.connections.health', { workspace: workspace.slug, connection: connection.slug ?? connection.id })}>
+                                <Link href={route('app.whatsapp.connections.health', { connection: connection.slug ?? connection.id })}>
                                     <Button type="button" variant="secondary" className="rounded-xl bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30">
                                         <Activity className="h-4 w-4 mr-2" />
                                         Health Check
                                     </Button>
                                 </Link>
                                 <div className="flex items-center gap-4">
-                                    <Link href={route('app.whatsapp.connections.index', { workspace: workspace.slug })}>
+                                    <Link href={route('app.whatsapp.connections.index', { })}>
                                         <Button type="button" variant="secondary" className="rounded-xl">
                                             Cancel
                                         </Button>

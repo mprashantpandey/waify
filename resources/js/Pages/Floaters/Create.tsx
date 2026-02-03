@@ -9,10 +9,9 @@ import { ArrowLeft, Palette, Sparkles } from 'lucide-react';
 import { useEffect } from 'react';
 
 export default function FloatersCreate({
-    workspace,
-    connections,
-}: {
-    workspace: any;
+    account,
+    connections}: {
+    account: any;
     connections: Array<{ id: number; name: string; business_phone: string | null }>;
 }) {
     const { data, setData, post, processing, errors } = useForm({
@@ -23,14 +22,11 @@ export default function FloatersCreate({
         welcome_message: 'Hello! How can we help you?',
         theme: {
             primary: '#25D366',
-            background: '#075E54',
-        },
+            background: '#075E54'},
         show_on: {
             include: '',
-            exclude: '',
-        },
-        is_active: true,
-    });
+            exclude: ''},
+        is_active: true});
 
     useEffect(() => {
         if (!data.whatsapp_connection_id) return;
@@ -42,7 +38,7 @@ export default function FloatersCreate({
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
-        post(route('app.floaters.store', { workspace: workspace.slug }));
+        post(route('app.floaters.store', {}));
     };
 
     return (
@@ -51,7 +47,7 @@ export default function FloatersCreate({
             <div className="space-y-8">
                 <div>
                     <Link
-                        href={route('app.floaters', { workspace: workspace.slug })}
+                        href={route('app.floaters', {})}
                         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
                     >
                         <ArrowLeft className="h-4 w-4" />
@@ -218,7 +214,7 @@ export default function FloatersCreate({
                     </Card>
 
                     <div className="flex items-center justify-end gap-3">
-                        <Link href={route('app.floaters', { workspace: workspace.slug })}>
+                        <Link href={route('app.floaters', { })}>
                             <Button variant="secondary">Cancel</Button>
                         </Link>
                         <Button

@@ -2,7 +2,7 @@ import { HTMLAttributes } from 'react';
 import { cn } from '@/lib/utils';
 
 interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
-    variant?: 'default' | 'success' | 'warning' | 'danger' | 'info';
+    variant?: 'default' | 'success' | 'warning' | 'danger' | 'info' | 'secondary' | 'outline';
 }
 
 export function Badge({ className, variant = 'default', children, ...props }: BadgeProps) {
@@ -17,7 +17,10 @@ export function Badge({ className, variant = 'default', children, ...props }: Ba
             'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
         info:
             'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-    };
+        secondary:
+            'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+        outline:
+            'bg-transparent border border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-300'};
 
     return (
         <span

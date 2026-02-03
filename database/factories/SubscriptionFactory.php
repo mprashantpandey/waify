@@ -4,7 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Plan;
 use App\Models\Subscription;
-use App\Models\Workspace;
+use App\Models\Account;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -22,7 +22,7 @@ class SubscriptionFactory extends Factory
     public function definition(): array
     {
         return [
-            'workspace_id' => Workspace::factory(),
+            'account_id' => Account::factory(),
             'plan_id' => Plan::factory(),
             'status' => 'active',
             'started_at' => now(),

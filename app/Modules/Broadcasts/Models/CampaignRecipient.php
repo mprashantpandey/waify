@@ -27,16 +27,14 @@ class CampaignRecipient extends Model
         'failure_reason',
         'message_id',
         'wamid',
-        'template_params',
-    ];
+        'template_params'];
 
     protected $casts = [
         'template_params' => 'array',
         'sent_at' => 'datetime',
         'delivered_at' => 'datetime',
         'read_at' => 'datetime',
-        'failed_at' => 'datetime',
-    ];
+        'failed_at' => 'datetime'];
 
     /**
      * Get the campaign.

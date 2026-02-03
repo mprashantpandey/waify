@@ -12,8 +12,5 @@ return [
             'label' => 'Contacts',
             'href' => 'app.contacts.index',
             'icon' => 'Users',
-            'group' => 'messaging',
-        ],
-    ],
-];
+            'group' => 'messaging']]];
 

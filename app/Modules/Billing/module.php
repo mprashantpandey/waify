@@ -12,8 +12,5 @@ return [
             'label' => 'Billing',
             'href' => 'app.billing.index',
             'icon' => 'CreditCard',
-            'group' => 'billing',
-        ],
-    ],
-];
+            'group' => 'billing']]];
 

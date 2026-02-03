@@ -7,8 +7,12 @@ use App\Core\Billing\UsageService;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use App\Modules\WhatsApp\Models\WhatsAppTemplateSend;
+use App\Modules\WhatsApp\Models\WhatsAppConversationAuditEvent;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Carbon;
+use Carbon\CarbonPeriod;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -19,18 +23,27 @@ class AnalyticsController extends Controller
     ) {}
 
     /**
-     * Display analytics dashboard for workspace.
+     * Display analytics dashboard for account.
      */
     public function index(Request $request): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
+        if (!$account) {
+            abort(404);
+        }
         
-        $dateRange = $request->get('range', '30'); // days
-        $startDate = now()->subDays((int) $dateRange);
+        $dateRange = (int) $request->get('range', 30); // days
+        if ($dateRange <= 0) {
+            $dateRange = 30;
+        }
+        if ($dateRange > 365) {
+            $dateRange = 365;
+        }
+        $startDate = now()->subDays($dateRange);
         $endDate = now();
 
         // Message Trends
-        $messageTrends = WhatsAppMessage::where('workspace_id', $workspace->id)
+        $messageTrends = WhatsAppMessage::where('account_id', $account->id)
             ->select(
                 DB::raw('DATE(created_at) as date'),
                 DB::raw('COUNT(*) as total'),
@@ -43,7 +56,7 @@ class AnalyticsController extends Controller
             ->get();
 
         // Message Status Distribution
-        $messageStatusDistribution = WhatsAppMessage::where('workspace_id', $workspace->id)
+        $messageStatusDistribution = WhatsAppMessage::where('account_id', $account->id)
             ->select('status', DB::raw('COUNT(*) as count'))
             ->whereBetween('created_at', [$startDate, $endDate])
             ->groupBy('status')
@@ -51,7 +64,7 @@ class AnalyticsController extends Controller
             ->toArray();
 
         // Template Performance
-        $templatePerformance = WhatsAppTemplateSend::where('whatsapp_template_sends.workspace_id', $workspace->id)
+        $templatePerformance = WhatsAppTemplateSend::where('whatsapp_template_sends.account_id', $account->id)
             ->join('whatsapp_templates', 'whatsapp_template_sends.whatsapp_template_id', '=', 'whatsapp_templates.id')
             ->leftJoin('whatsapp_messages', 'whatsapp_template_sends.whatsapp_message_id', '=', 'whatsapp_messages.id')
             ->select(
@@ -76,21 +89,19 @@ class AnalyticsController extends Controller
                     'read' => (int) $send->read,
                     'failed' => (int) $send->failed,
                     'delivery_rate' => $send->total_sends > 0 ? round(($send->delivered / $send->total_sends) * 100, 2) : 0,
-                    'read_rate' => $send->total_sends > 0 ? round(($send->read / $send->total_sends) * 100, 2) : 0,
-                ];
+                    'read_rate' => $send->total_sends > 0 ? round(($send->read / $send->total_sends) * 100, 2) : 0];
             });
 
         // Conversation Stats
         $conversationStats = [
-            'total' => WhatsAppConversation::where('workspace_id', $workspace->id)->count(),
-            'open' => WhatsAppConversation::where('workspace_id', $workspace->id)->where('status', 'open')->count(),
-            'closed' => WhatsAppConversation::where('workspace_id', $workspace->id)->where('status', 'closed')->count(),
-        ];
+            'total' => WhatsAppConversation::where('account_id', $account->id)->count(),
+            'open' => WhatsAppConversation::where('account_id', $account->id)->where('status', 'open')->count(),
+            'closed' => WhatsAppConversation::where('account_id', $account->id)->where('status', 'closed')->count()];
 
         // Peak Hours Analysis (database-agnostic)
         $dbDriver = DB::connection()->getDriverName();
         if ($dbDriver === 'sqlite') {
-            $peakHours = WhatsAppMessage::where('workspace_id', $workspace->id)
+            $peakHours = WhatsAppMessage::where('account_id', $account->id)
                 ->select(
                     DB::raw("CAST(strftime('%H', created_at) AS INTEGER) as hour"),
                     DB::raw('COUNT(*) as count')
@@ -100,7 +111,7 @@ class AnalyticsController extends Controller
                 ->orderBy('hour')
                 ->get();
         } else {
-            $peakHours = WhatsAppMessage::where('workspace_id', $workspace->id)
+            $peakHours = WhatsAppMessage::where('account_id', $account->id)
                 ->select(
                     DB::raw('HOUR(created_at) as hour'),
                     DB::raw('COUNT(*) as count')
@@ -112,12 +123,12 @@ class AnalyticsController extends Controller
         }
 
         // Usage Stats
-        $usage = $this->usageService->getCurrentUsage($workspace);
+        $usage = $this->usageService->getCurrentUsage($account);
         $planResolver = app(\App\Core\Billing\PlanResolver::class);
-        $limits = $planResolver->getEffectiveLimits($workspace);
+        $limits = $planResolver->getEffectiveLimits($account);
 
         // Daily Activity
-        $dailyActivity = WhatsAppMessage::where('workspace_id', $workspace->id)
+        $dailyActivity = WhatsAppMessage::where('account_id', $account->id)
             ->select(
                 DB::raw('DATE(created_at) as date'),
                 DB::raw('COUNT(*) as count')
@@ -127,8 +138,232 @@ class AnalyticsController extends Controller
             ->orderBy('date')
             ->get();
 
+        // Agent response time (first inbound -> first outbound after inbound)
+        $firstInboundSub = DB::table('whatsapp_messages')
+            ->select('whatsapp_conversation_id', DB::raw('MIN(created_at) as first_inbound_at'))
+            ->where('account_id', $account->id)
+            ->where('direction', 'inbound')
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->groupBy('whatsapp_conversation_id');
+
+        $firstResponseRows = DB::table('whatsapp_messages as m')
+            ->joinSub($firstInboundSub, 'inbound', function ($join) {
+                $join->on('m.whatsapp_conversation_id', '=', 'inbound.whatsapp_conversation_id');
+            })
+            ->where('m.account_id', $account->id)
+            ->where('m.direction', 'outbound')
+            ->whereColumn('m.created_at', '>=', 'inbound.first_inbound_at')
+            ->select(
+                'm.whatsapp_conversation_id',
+                'inbound.first_inbound_at',
+                DB::raw('MIN(m.created_at) as first_outbound_at')
+            )
+            ->groupBy('m.whatsapp_conversation_id', 'inbound.first_inbound_at')
+            ->get();
+
+        $conversationIdsForResponse = $firstResponseRows->pluck('whatsapp_conversation_id')->all();
+        $conversationMap = WhatsAppConversation::where('account_id', $account->id)
+            ->whereIn('id', $conversationIdsForResponse)
+            ->get(['id', 'assigned_to', 'created_at', 'status', 'updated_at'])
+            ->keyBy('id');
+
+        $agentMap = collect();
+        if ($account->owner) {
+            $agentMap->put($account->owner->id, $account->owner->name ?? 'Owner');
+        }
+        $accountUsers = $account->users()
+            ->get(['users.id', 'users.name', 'account_users.role']);
+        foreach ($accountUsers as $user) {
+            $agentMap->put($user->id, $user->name ?? 'Agent');
+        }
+
+        $responseTotals = [];
+        $responseCounts = [];
+        $overallResponseTotal = 0;
+        $overallResponseCount = 0;
+
+        foreach ($firstResponseRows as $row) {
+            if (!$row->first_inbound_at || !$row->first_outbound_at) {
+                continue;
+            }
+            $inboundAt = Carbon::parse($row->first_inbound_at);
+            $outboundAt = Carbon::parse($row->first_outbound_at);
+            if ($outboundAt->lessThan($inboundAt)) {
+                continue;
+            }
+            $minutes = $inboundAt->diffInSeconds($outboundAt) / 60;
+            $conv = $conversationMap->get($row->whatsapp_conversation_id);
+            $assigneeId = $conv?->assigned_to;
+            $bucket = $assigneeId ?: 0;
+            $responseTotals[$bucket] = ($responseTotals[$bucket] ?? 0) + $minutes;
+            $responseCounts[$bucket] = ($responseCounts[$bucket] ?? 0) + 1;
+            $overallResponseTotal += $minutes;
+            $overallResponseCount++;
+        }
+
+        $overallFirstResponse = $overallResponseCount > 0
+            ? round($overallResponseTotal / $overallResponseCount, 2)
+            : null;
+
+        // Resolution time (created_at -> closed)
+        $resolutionTotals = [];
+        $resolutionCounts = [];
+        $overallResolutionTotal = 0;
+        $overallResolutionCount = 0;
+
+        $closedEvents = collect();
+        if (Schema::hasTable('whatsapp_conversation_audit_events')) {
+            $closedEvents = WhatsAppConversationAuditEvent::where('account_id', $account->id)
+                ->where('event_type', 'status_changed')
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->get(['whatsapp_conversation_id', 'created_at', 'meta']);
+        }
+
+        $closedMap = collect();
+        foreach ($closedEvents as $event) {
+            $status = $event->meta['status'] ?? null;
+            if ($status !== 'closed') {
+                continue;
+            }
+            $closedMap->push([
+                'conversation_id' => $event->whatsapp_conversation_id,
+                'closed_at' => $event->created_at,
+            ]);
+        }
+
+        if ($closedMap->isEmpty()) {
+            $closedConversations = WhatsAppConversation::where('account_id', $account->id)
+                ->where('status', 'closed')
+                ->whereBetween('updated_at', [$startDate, $endDate])
+                ->get(['id', 'updated_at', 'created_at', 'assigned_to']);
+
+            foreach ($closedConversations as $conv) {
+                $closedMap->push([
+                    'conversation_id' => $conv->id,
+                    'closed_at' => $conv->updated_at,
+                ]);
+                $conversationMap->put($conv->id, $conv);
+            }
+        }
+
+        foreach ($closedMap as $closed) {
+            $conv = $conversationMap->get($closed['conversation_id']);
+            if (!$conv) {
+                $conv = WhatsAppConversation::where('account_id', $account->id)
+                    ->find($closed['conversation_id']);
+            }
+            if (!$conv) {
+                continue;
+            }
+            $createdAt = Carbon::parse($conv->created_at);
+            $closedAt = Carbon::parse($closed['closed_at']);
+            if ($closedAt->lessThan($createdAt)) {
+                continue;
+            }
+            $minutes = $createdAt->diffInSeconds($closedAt) / 60;
+            $assigneeId = $conv->assigned_to;
+            $bucket = $assigneeId ?: 0;
+            $resolutionTotals[$bucket] = ($resolutionTotals[$bucket] ?? 0) + $minutes;
+            $resolutionCounts[$bucket] = ($resolutionCounts[$bucket] ?? 0) + 1;
+            $overallResolutionTotal += $minutes;
+            $overallResolutionCount++;
+        }
+
+        $overallResolution = $overallResolutionCount > 0
+            ? round($overallResolutionTotal / $overallResolutionCount, 2)
+            : null;
+
+        $agentPerformance = [];
+        $agentIds = collect(array_keys($responseCounts + $resolutionCounts))->unique()->values();
+        foreach ($agentIds as $agentId) {
+            $agentPerformance[] = [
+                'agent_id' => $agentId,
+                'name' => $agentId === 0 ? 'Unassigned' : ($agentMap->get($agentId) ?? 'Agent'),
+                'response_time_avg_minutes' => isset($responseCounts[$agentId])
+                    ? round($responseTotals[$agentId] / max($responseCounts[$agentId], 1), 2)
+                    : null,
+                'response_count' => $responseCounts[$agentId] ?? 0,
+                'resolution_time_avg_minutes' => isset($resolutionCounts[$agentId])
+                    ? round($resolutionTotals[$agentId] / max($resolutionCounts[$agentId], 1), 2)
+                    : null,
+                'resolution_count' => $resolutionCounts[$agentId] ?? 0,
+            ];
+        }
+
+        // Backlog trend (open conversations over time)
+        $createdCounts = WhatsAppConversation::where('account_id', $account->id)
+            ->select(DB::raw('DATE(created_at) as date'), DB::raw('COUNT(*) as count'))
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->groupBy('date')
+            ->pluck('count', 'date')
+            ->toArray();
+
+        $closedCounts = [];
+        if ($closedMap->isNotEmpty()) {
+            foreach ($closedMap as $closed) {
+                $dateKey = Carbon::parse($closed['closed_at'])->format('Y-m-d');
+                $closedCounts[$dateKey] = ($closedCounts[$dateKey] ?? 0) + 1;
+            }
+        } else {
+            $fallbackClosed = WhatsAppConversation::where('account_id', $account->id)
+                ->where('status', 'closed')
+                ->whereBetween('updated_at', [$startDate, $endDate])
+                ->select(DB::raw('DATE(updated_at) as date'), DB::raw('COUNT(*) as count'))
+                ->groupBy('date')
+                ->pluck('count', 'date')
+                ->toArray();
+            $closedCounts = $fallbackClosed;
+        }
+
+        $createdBefore = WhatsAppConversation::where('account_id', $account->id)
+            ->where('created_at', '<', $startDate)
+            ->count();
+
+        $closedBefore = 0;
+        if (Schema::hasTable('whatsapp_conversation_audit_events')) {
+            $dbDriver = DB::connection()->getDriverName();
+            if ($dbDriver === 'sqlite') {
+                $closedBefore = WhatsAppConversationAuditEvent::where('account_id', $account->id)
+                    ->where('event_type', 'status_changed')
+                    ->where('created_at', '<', $startDate)
+                    ->get(['meta'])
+                    ->filter(function ($event) {
+                        return ($event->meta['status'] ?? null) === 'closed';
+                    })
+                    ->count();
+            } else {
+                $closedBefore = WhatsAppConversationAuditEvent::where('account_id', $account->id)
+                    ->where('event_type', 'status_changed')
+                    ->where('created_at', '<', $startDate)
+                    ->whereRaw("JSON_EXTRACT(meta, '$.status') = 'closed'")
+                    ->count();
+            }
+        } else {
+            $closedBefore = WhatsAppConversation::where('account_id', $account->id)
+                ->where('status', 'closed')
+                ->where('updated_at', '<', $startDate)
+                ->count();
+        }
+
+        $openCount = max($createdBefore - $closedBefore, 0);
+        $backlogTrend = [];
+        $period = CarbonPeriod::create($startDate->copy()->startOfDay(), $endDate->copy()->startOfDay());
+
+        foreach ($period as $day) {
+            $dateKey = $day->format('Y-m-d');
+            $openCount += $createdCounts[$dateKey] ?? 0;
+            $openCount -= $closedCounts[$dateKey] ?? 0;
+            if ($openCount < 0) {
+                $openCount = 0;
+            }
+            $backlogTrend[] = [
+                'date' => $dateKey,
+                'open_count' => $openCount,
+            ];
+        }
+
         return Inertia::render('Analytics/Index', [
-            'workspace' => $workspace,
+            'account' => $account,
             'date_range' => $dateRange,
             'message_trends' => $messageTrends,
             'message_status_distribution' => $messageStatusDistribution,
@@ -136,13 +371,14 @@ class AnalyticsController extends Controller
             'conversation_stats' => $conversationStats,
             'peak_hours' => $peakHours,
             'daily_activity' => $dailyActivity,
+            'agent_performance' => $agentPerformance,
+            'first_response_avg_minutes' => $overallFirstResponse,
+            'resolution_avg_minutes' => $overallResolution,
+            'backlog_trend' => $backlogTrend,
             'usage' => [
                 'messages_sent' => $usage->messages_sent,
                 'template_sends' => $usage->template_sends,
                 'messages_limit' => $limits['messages_monthly'] ?? 0,
-                'template_sends_limit' => $limits['template_sends_monthly'] ?? 0,
-            ],
-        ]);
+                'template_sends_limit' => $limits['template_sends_monthly'] ?? 0]]);
     }
 }
-

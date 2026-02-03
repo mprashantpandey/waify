@@ -16,7 +16,7 @@ import { useState } from 'react';
 import Button from '@/Components/UI/Button';
 
 export default function PublicLayout({ children }: PropsWithChildren) {
-    const { branding, auth, workspaces } = usePage().props as any;
+    const { branding, auth, accounts } = usePage().props as any;
     const platformName = branding?.platform_name || 'WACP';
     const logoUrl = branding?.logo_url;
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -47,8 +47,7 @@ export default function PublicLayout({ children }: PropsWithChildren) {
         legal: [
             { name: 'Privacy Policy', href: route('privacy') },
             { name: 'Terms of Service', href: route('terms') },
-        ],
-    };
+        ]};
 
     return (
         <BrandingWrapper>
@@ -104,8 +103,8 @@ export default function PublicLayout({ children }: PropsWithChildren) {
                                 {auth?.user && (
                                     <Link
                                         href={
-                                            Array.isArray(workspaces) && workspaces.length > 0
-                                                ? route('app.dashboard', { workspace: workspaces[0].slug })
+                                            Array.isArray(accounts) && accounts.length > 0
+                                                ? route('app.dashboard', { })
                                                 : route('onboarding')
                                         }
                                     >

@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('payment_orders', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('workspace_id')->constrained()->onDelete('cascade');
+            $table->foreignId('account_id')->constrained()->onDelete('cascade');
             $table->foreignId('plan_id')->constrained()->onDelete('restrict');
             $table->string('provider'); // razorpay
             $table->string('provider_order_id')->unique();
@@ -27,7 +27,7 @@ return new class extends Migration
             $table->timestamp('failed_at')->nullable();
             $table->timestamps();
 
-            $table->index(['workspace_id', 'status']);
+            $table->index(['account_id', 'status']);
             $table->index(['provider', 'provider_payment_id']);
         });
     }

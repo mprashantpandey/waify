@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('floater_widgets', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('workspace_id')->constrained()->onDelete('cascade');
+            $table->foreignId('account_id')->constrained()->onDelete('cascade');
             $table->foreignId('whatsapp_connection_id')->nullable()->constrained('whatsapp_connections')->nullOnDelete();
             $table->string('name');
             $table->string('slug');
@@ -23,8 +23,8 @@ return new class extends Migration
             $table->string('whatsapp_phone')->nullable();
             $table->timestamps();
 
-            $table->unique(['workspace_id', 'slug']);
-            $table->index(['workspace_id', 'is_active']);
+            $table->unique(['account_id', 'slug']);
+            $table->index(['account_id', 'is_active']);
         });
     }
 

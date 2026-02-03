@@ -20,8 +20,7 @@ export function GlobalFlashHandler() {
             addToast({
                 title: 'Success',
                 description: flash.success,
-                variant: 'success',
-            });
+                variant: 'success'});
         }
 
         // Handle error messages
@@ -29,8 +28,7 @@ export function GlobalFlashHandler() {
             addToast({
                 title: 'Error',
                 description: flash.error,
-                variant: 'error',
-            });
+                variant: 'error'});
         }
 
         // Handle warning messages
@@ -38,8 +36,7 @@ export function GlobalFlashHandler() {
             addToast({
                 title: 'Warning',
                 description: flash.warning,
-                variant: 'warning',
-            });
+                variant: 'warning'});
         }
 
         // Handle info messages
@@ -47,8 +44,7 @@ export function GlobalFlashHandler() {
             addToast({
                 title: 'Info',
                 description: flash.info,
-                variant: 'info',
-            });
+                variant: 'info'});
         }
 
         // Handle status messages (from Laravel)
@@ -56,24 +52,19 @@ export function GlobalFlashHandler() {
             const statusMessages: Record<string, { title: string; variant: 'success' | 'error' | 'warning' | 'info' }> = {
                 'verification-link-sent': {
                     title: 'Verification Link Sent',
-                    variant: 'success',
-                },
+                    variant: 'success'},
                 'password-updated': {
                     title: 'Password Updated',
-                    variant: 'success',
-                },
+                    variant: 'success'},
                 'profile-updated': {
                     title: 'Profile Updated',
-                    variant: 'success',
-                },
-            };
+                    variant: 'success'}};
 
             const config = statusMessages[flash.status] || { title: 'Status', variant: 'info' as const };
             addToast({
                 title: config.title,
                 description: flash.status,
-                variant: config.variant,
-            });
+                variant: config.variant});
         }
     }, [flash, addToast]);
 

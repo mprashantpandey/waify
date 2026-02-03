@@ -13,7 +13,7 @@ class WhatsAppConnectionPolicy
      */
     public function viewAny(User $user): bool
     {
-        // All workspace members can view connections
+        // All account members can view connections
         return true;
     }
 
@@ -22,9 +22,9 @@ class WhatsAppConnectionPolicy
      */
     public function view(User $user, WhatsAppConnection $whatsAppConnection): bool
     {
-        // User must be a member of the workspace
-        return $whatsAppConnection->workspace->users->contains($user) ||
-               $whatsAppConnection->workspace->owner_id === $user->id;
+        // User must be a member of the account
+        return $whatsAppConnection->account->users->contains($user) ||
+               $whatsAppConnection->account->owner_id === $user->id;
     }
 
     /**
@@ -33,17 +33,17 @@ class WhatsAppConnectionPolicy
     public function create(User $user): bool
     {
         // Only owners and admins can create connections
-        $workspace = current_workspace();
-        if (!$workspace) {
+        $account = current_account();
+        if (!$account) {
             return false;
         }
 
-        $membership = $workspace->users()->where('user_id', $user->id)->first();
+        $membership = $account->users()->where('user_id', $user->id)->first();
         if ($membership) {
             return in_array($membership->pivot->role, ['owner', 'admin']);
         }
 
-        return $workspace->owner_id === $user->id;
+        return $account->owner_id === $user->id;
     }
 
     /**
@@ -52,14 +52,14 @@ class WhatsAppConnectionPolicy
     public function update(User $user, WhatsAppConnection $whatsAppConnection): bool
     {
         // Only owners and admins can update connections
-        $workspace = $whatsAppConnection->workspace;
-        $membership = $workspace->users()->where('user_id', $user->id)->first();
+        $account = $whatsAppConnection->account;
+        $membership = $account->users()->where('user_id', $user->id)->first();
         
         if ($membership) {
             return in_array($membership->pivot->role, ['owner', 'admin']);
         }
 
-        return $workspace->owner_id === $user->id;
+        return $account->owner_id === $user->id;
     }
 
     /**

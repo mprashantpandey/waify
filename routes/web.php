@@ -5,7 +5,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ModuleController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\WorkspaceController;
+use App\Http\Controllers\AccountController;
 use App\Http\Controllers\Platform\ImpersonationController;
 use App\Http\Controllers\SupportAttachmentController;
 use Illuminate\Foundation\Application;
@@ -33,7 +33,11 @@ Route::post('/widgets/{widget}/event', [\App\Modules\Floaters\Http\Controllers\P
 // Auth routes
 require __DIR__.'/auth.php';
 
-// Onboarding (requires auth, no workspace)
+// CSRF token refresh endpoint (no auth required, but session must be valid)
+// This allows refreshing CSRF tokens even when user is not authenticated
+Route::get('/csrf-token/refresh', [\App\Http\Controllers\CsrfTokenController::class, 'refresh'])->name('csrf-token.refresh');
+
+// Onboarding (requires auth, no account)
 Route::middleware(['auth'])->group(function () {
     Route::get('/support/attachments/{attachment}', [SupportAttachmentController::class, 'show'])->name('support.attachments.show');
     Route::post('/impersonate/leave', [ImpersonationController::class, 'leave'])->name('impersonate.leave');
@@ -41,14 +45,14 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/onboarding', [OnboardingController::class, 'store'])->name('onboarding.store');
 });
 
-// Platform routes (requires auth + super admin, NO workspace)
+// Platform routes (requires auth + super admin, NO account)
 Route::middleware(['auth', 'super.admin'])->prefix('/platform')->name('platform.')->group(function () {
     Route::get('/', [\App\Http\Controllers\Platform\DashboardController::class, 'index'])->name('dashboard');
-    Route::get('/workspaces', [\App\Http\Controllers\Platform\PlatformWorkspaceController::class, 'index'])->name('workspaces.index');
-    Route::get('/workspaces/{workspace}', [\App\Http\Controllers\Platform\PlatformWorkspaceController::class, 'show'])->name('workspaces.show');
-    Route::post('/workspaces/{workspace}/impersonate', [ImpersonationController::class, 'start'])->name('workspaces.impersonate');
-    Route::post('/workspaces/{workspace}/disable', [\App\Http\Controllers\Platform\PlatformWorkspaceController::class, 'disable'])->name('workspaces.disable');
-    Route::post('/workspaces/{workspace}/enable', [\App\Http\Controllers\Platform\PlatformWorkspaceController::class, 'enable'])->name('workspaces.enable');
+    Route::get('/accounts', [\App\Http\Controllers\Platform\PlatformAccountController::class, 'index'])->name('accounts.index');
+    Route::get('/accounts/{account}', [\App\Http\Controllers\Platform\PlatformAccountController::class, 'show'])->name('accounts.show');
+    Route::post('/accounts/{account}/impersonate', [ImpersonationController::class, 'start'])->name('accounts.impersonate');
+    Route::post('/accounts/{account}/disable', [\App\Http\Controllers\Platform\PlatformAccountController::class, 'disable'])->name('accounts.disable');
+    Route::post('/accounts/{account}/enable', [\App\Http\Controllers\Platform\PlatformAccountController::class, 'enable'])->name('accounts.enable');
     Route::get('/users', [\App\Http\Controllers\Platform\PlatformUserController::class, 'index'])->name('users.index');
     Route::get('/users/{user}', [\App\Http\Controllers\Platform\PlatformUserController::class, 'show'])->name('users.show');
     Route::post('/users/{user}/make-super-admin', [\App\Http\Controllers\Platform\PlatformUserController::class, 'makeSuperAdmin'])->name('users.make-super-admin');
@@ -85,14 +89,14 @@ Route::middleware(['auth', 'super.admin'])->prefix('/platform')->name('platform.
     Route::post('/support/{thread}/update', [\App\Http\Controllers\Platform\SupportController::class, 'update'])->middleware('throttle:20,1')->name('support.update');
 });
 
-// App routes (requires auth + workspace + workspace active + workspace subscribed)
-Route::middleware(['auth', 'workspace.resolve', 'workspace.active', 'workspace.subscribed'])->prefix('/app/{workspace}')->name('app.')->group(function () {
+// App routes (requires auth + account + account active + account subscribed)
+Route::middleware(['auth', 'account.resolve', 'account.active', 'account.subscribed'])->prefix('/app')->name('app.')->group(function () {
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     
     // Modules management
-    Route::get('/modules', [WorkspaceController::class, 'modules'])->name('modules');
-    Route::post('/modules/{moduleKey}/toggle', [WorkspaceController::class, 'toggleModule'])->name('modules.toggle');
+    Route::get('/modules', [AccountController::class, 'modules'])->name('modules');
+    Route::post('/modules/{moduleKey}/toggle', [AccountController::class, 'toggleModule'])->name('modules.toggle');
     
     // Billing (always accessible)
     Route::prefix('/settings/billing')->name('billing.')->group(function () {
@@ -150,9 +154,9 @@ Route::middleware(['auth', 'workspace.resolve', 'workspace.active', 'workspace.s
     Route::get('/activity-logs', [\App\Http\Controllers\ActivityLogController::class, 'index'])->name('activity-logs');
 });
 
-// Workspace switching
-Route::middleware(['auth'])->group(function () {
-    Route::post('/workspaces/{workspace}/switch', [WorkspaceController::class, 'switch'])->name('workspaces.switch');
+// Account switching
+Route::middleware('auth')->prefix('/app')->name('app.')->group(function () {
+    Route::post('/accounts/{account}/switch', [AccountController::class, 'switch'])->name('accounts.switch');
 });
 
 // Profile routes
@@ -163,32 +167,63 @@ Route::middleware('auth')->group(function () {
     Route::patch('/password', [\App\Http\Controllers\Auth\PasswordController::class, 'update'])->name('password.update');
 });
 
-// Broadcasting auth (customized logging; overrides default route)
+// Broadcasting auth - custom route to ensure channels are loaded
 Route::middleware(['web', 'auth'])->post('/broadcasting/auth', function (\Illuminate\Http\Request $request) {
-    \Log::debug('Broadcast auth request', [
-        'user_id' => $request->user()?->id,
-        'channel' => $request->input('channel_name'),
-        'socket_id' => $request->input('socket_id'),
-        'session_id' => $request->session()->getId(),
-        'host' => $request->getHost(),
+    $user = $request->user();
+    $channelName = $request->input('channel_name');
+    
+    if (!$user) {
+        return response()->json(['error' => 'Unauthenticated'], 403);
+    }
+    
+    // Ensure channels are loaded - Broadcast::channel() registers them on the default broadcaster
+    // The channels file should be loaded via withBroadcasting() or we need to load it here
+    // Since we disabled withBroadcasting(), we need to load channels manually
+    static $channelsLoaded = false;
+    if (!$channelsLoaded) {
+        require __DIR__ . '/../routes/channels.php';
+        $channelsLoaded = true;
+    }
+    
+    // Get the broadcaster instance - channels are registered on the default connection
+    // Broadcast::channel() registers channels on the broadcaster instance returned by connection()
+    $broadcastManager = app('Illuminate\Broadcasting\BroadcastManager');
+    $broadcaster = $broadcastManager->connection();
+    
+    // Get channels from the broadcaster instance (channels are stored in the broadcaster, not the manager)
+    $channels = $broadcaster->getChannels();
+    $normalizedChannel = method_exists($broadcaster, 'normalizeChannelName') 
+        ? $broadcaster->normalizeChannelName($channelName) 
+        : str_replace('private-', '', $channelName);
+    
+    \Log::debug('Broadcast auth attempt', [
+        'user_id' => $user->id,
+        'channel' => $channelName,
+        'normalized_channel' => $normalizedChannel,
+        'channels_count' => $channels->count(),
+        'channel_patterns' => $channels->keys()->toArray(),
     ]);
-
+    
+    // Use Laravel's Broadcast::auth() which handles channel matching
+    // This uses the BroadcastManager which has the channels
     try {
         return \Illuminate\Support\Facades\Broadcast::auth($request);
-    } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
-        \Log::warning('Broadcast auth denied', [
-            'user_id' => $request->user()?->id,
-            'channel' => $request->input('channel_name'),
-            'socket_id' => $request->input('socket_id'),
-            'error' => $e->getMessage(),
+    } catch (\Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException $e) {
+        \Log::warning('Broadcast auth denied - no matching channel', [
+            'user_id' => $user->id,
+            'channel' => $channelName,
+            'normalized_channel' => $normalizedChannel,
+            'registered_patterns' => $channels->keys()->toArray(),
         ]);
         throw $e;
     }
 })->name('broadcasting.auth');
 
 // Settings route (unified settings page)
-Route::middleware(['auth', 'workspace.resolve'])->prefix('/app/{workspace}')->name('app.')->group(function () {
+Route::middleware(['auth', 'account.resolve'])->prefix('/app')->name('app.')->group(function () {
     Route::get('/settings', [\App\Http\Controllers\SettingsController::class, 'index'])->name('settings');
+    Route::post('/settings/inbox', [\App\Http\Controllers\SettingsController::class, 'updateInbox'])->name('settings.inbox');
+    Route::post('/settings/notifications', [\App\Http\Controllers\SettingsController::class, 'updateNotifications'])->name('settings.notifications');
 });
 
 // Webhook routes (public, no auth, but with security middleware)

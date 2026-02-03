@@ -3,7 +3,7 @@
 namespace Tests\Feature\WhatsApp;
 
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Account;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -15,7 +15,7 @@ class TemplateTest extends TestCase
     use RefreshDatabase;
 
     protected User $user;
-    protected Workspace $workspace;
+    protected Account $account;
     protected WhatsAppConnection $connection;
 
     protected function setUp(): void
@@ -23,17 +23,17 @@ class TemplateTest extends TestCase
         parent::setUp();
 
         $this->user = User::factory()->create();
-        $this->workspace = Workspace::factory()->create([
+        $this->account = Account::factory()->create([
             'owner_id' => $this->user->id,
         ]);
-        $this->workspace->users()->attach($this->user->id, ['role' => 'owner']);
+        $this->account->users()->attach($this->user->id, ['role' => 'owner']);
 
         $this->connection = WhatsAppConnection::factory()->create([
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
             'waba_id' => '123456789',
         ]);
 
-        session(['current_workspace_id' => $this->workspace->id]);
+        session(['current_account_id' => $this->account->id]);
     }
 
     public function test_owner_can_sync_templates(): void
@@ -64,13 +64,13 @@ class TemplateTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->user)
-            ->post(route('app.whatsapp.templates.sync', ['workspace' => $this->workspace->slug]), [
+            ->post(route('app.whatsapp.templates.sync', ['account' => $this->account->slug]), [
                 'connection_id' => $this->connection->id,
             ]);
 
         $response->assertRedirect();
         $this->assertDatabaseHas('whatsapp_templates', [
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
             'whatsapp_connection_id' => $this->connection->id,
             'name' => 'welcome_message',
             'language' => 'en_US',
@@ -105,7 +105,7 @@ class TemplateTest extends TestCase
 
         // First sync
         $this->actingAs($this->user)
-            ->post(route('app.whatsapp.templates.sync', ['workspace' => $this->workspace->slug]), [
+            ->post(route('app.whatsapp.templates.sync', ['account' => $this->account->slug]), [
                 'connection_id' => $this->connection->id,
             ]);
 
@@ -113,7 +113,7 @@ class TemplateTest extends TestCase
 
         // Second sync (should update, not create duplicate)
         $this->actingAs($this->user)
-            ->post(route('app.whatsapp.templates.sync', ['workspace' => $this->workspace->slug]), [
+            ->post(route('app.whatsapp.templates.sync', ['account' => $this->account->slug]), [
                 'connection_id' => $this->connection->id,
             ]);
 
@@ -125,7 +125,7 @@ class TemplateTest extends TestCase
     public function test_template_list_shows_filters(): void
     {
         WhatsAppTemplate::factory()->create([
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
             'whatsapp_connection_id' => $this->connection->id,
             'name' => 'test_template',
             'status' => 'approved',
@@ -134,7 +134,7 @@ class TemplateTest extends TestCase
 
         $response = $this->actingAs($this->user)
             ->get(route('app.whatsapp.templates.index', [
-                'workspace' => $this->workspace->slug,
+                'account' => $this->account->slug,
                 'status' => 'approved',
             ]));
 
@@ -148,7 +148,7 @@ class TemplateTest extends TestCase
     public function test_sending_template_creates_outbound_message(): void
     {
         $template = WhatsAppTemplate::factory()->create([
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
             'whatsapp_connection_id' => $this->connection->id,
             'name' => 'test_template',
             'language' => 'en_US',
@@ -167,7 +167,7 @@ class TemplateTest extends TestCase
 
         $response = $this->actingAs($this->user)
             ->post(route('app.whatsapp.templates.send.store', [
-                'workspace' => $this->workspace->slug,
+                'account' => $this->account->slug,
                 'template' => $template->id,
             ]), [
                 'to_wa_id' => '1234567890',
@@ -175,14 +175,14 @@ class TemplateTest extends TestCase
             ]);
 
         $this->assertDatabaseHas('whatsapp_messages', [
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
             'direction' => 'outbound',
             'type' => 'template',
             'status' => 'sent',
         ]);
 
         $this->assertDatabaseHas('whatsapp_template_sends', [
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
             'whatsapp_template_id' => $template->id,
             'to_wa_id' => '1234567890',
             'status' => 'sent',
@@ -192,10 +192,10 @@ class TemplateTest extends TestCase
     public function test_member_cannot_sync_templates(): void
     {
         $member = User::factory()->create();
-        $this->workspace->users()->attach($member->id, ['role' => 'member']);
+        $this->account->users()->attach($member->id, ['role' => 'member']);
 
         $response = $this->actingAs($member)
-            ->post(route('app.whatsapp.templates.sync', ['workspace' => $this->workspace->slug]), [
+            ->post(route('app.whatsapp.templates.sync', ['account' => $this->account->slug]), [
                 'connection_id' => $this->connection->id,
             ]);
 

@@ -4,7 +4,7 @@ namespace Tests\Feature\Billing;
 
 use App\Core\Billing\UsageService;
 use App\Models\Plan;
-use App\Models\Workspace;
+use App\Models\Account;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -23,19 +23,19 @@ class TemplateLimitTest extends TestCase
     public function test_template_sending_increments_both_counters(): void
     {
         
-        $workspace = $this->createWorkspaceWithPlan('starter'); // Has template sends
-        $user = $this->actingAsWorkspaceOwner($workspace);
+        $account = $this->createAccountWithPlan('starter'); // Has template sends
+        $user = $this->actingAsAccountOwner($account);
 
         $usageService = app(UsageService::class);
-        $initialUsage = $usageService->getCurrentUsage($workspace);
+        $initialUsage = $usageService->getCurrentUsage($account);
         $initialMessages = $initialUsage->messages_sent;
         $initialTemplates = $initialUsage->template_sends;
 
         // Simulate successful template send
-        $usageService->incrementMessages($workspace, 1);
-        $usageService->incrementTemplateSends($workspace, 1);
+        $usageService->incrementMessages($account, 1);
+        $usageService->incrementTemplateSends($account, 1);
 
-        $finalUsage = $usageService->getCurrentUsage($workspace);
+        $finalUsage = $usageService->getCurrentUsage($account);
         $this->assertEquals($initialMessages + 1, $finalUsage->messages_sent);
         $this->assertEquals($initialTemplates + 1, $finalUsage->template_sends);
     }
@@ -43,19 +43,19 @@ class TemplateLimitTest extends TestCase
     public function test_template_sending_blocked_when_template_limit_exceeded(): void
     {
         
-        $workspace = $this->createWorkspaceWithPlan('starter'); // 1000 template sends limit
-        $user = $this->actingAsWorkspaceOwner($workspace);
+        $account = $this->createAccountWithPlan('starter'); // 1000 template sends limit
+        $user = $this->actingAsAccountOwner($account);
 
         // Set template usage at limit
-        $this->setUsage($workspace, now()->format('Y-m'), 0, 1000);
+        $this->setUsage($account, now()->format('Y-m'), 0, 1000);
 
         // Try to send template (should be blocked)
         $template = \App\Modules\WhatsApp\Models\WhatsAppTemplate::factory()->create([
-            'workspace_id' => $workspace->id,
+            'account_id' => $account->id,
         ]);
 
         $response = $this->post(route('app.whatsapp.templates.send.store', [
-            'workspace' => $workspace->slug,
+            'account' => $account->slug,
             'template' => $template->id,
         ]), [
             'to_wa_id' => '1234567890',

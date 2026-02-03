@@ -20,13 +20,12 @@ class TemplateSyncController extends Controller
      */
     public function store(Request $request)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
         $validated = $request->validate([
-            'connection_id' => 'required|exists:whatsapp_connections,id',
-        ]);
+            'connection_id' => 'required|exists:whatsapp_connections,id']);
 
-        $connection = WhatsAppConnection::where('workspace_id', $workspace->id)
+        $connection = WhatsAppConnection::where('account_id', $account->id)
             ->findOrFail($validated['connection_id']);
 
         // Only owners/admins can sync
@@ -43,8 +42,7 @@ class TemplateSyncController extends Controller
             ));
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
-                'sync' => 'Failed to sync templates: ' . $e->getMessage(),
-            ]);
+                'sync' => 'Failed to sync templates: ' . $e->getMessage()]);
         }
     }
 }

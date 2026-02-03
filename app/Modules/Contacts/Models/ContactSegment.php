@@ -3,12 +3,13 @@
 namespace App\Modules\Contacts\Models;
 
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Account;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Builder;
 
 class ContactSegment extends Model
 {
@@ -17,26 +18,24 @@ class ContactSegment extends Model
     protected $table = 'contact_segments';
 
     protected $fillable = [
-        'workspace_id',
+        'account_id',
         'created_by',
         'name',
         'description',
         'filters',
         'contact_count',
-        'last_calculated_at',
-    ];
+        'last_calculated_at'];
 
     protected $casts = [
         'filters' => 'array',
-        'last_calculated_at' => 'datetime',
-    ];
+        'last_calculated_at' => 'datetime'];
 
     /**
-     * Get the workspace.
+     * Get the account.
      */
-    public function workspace(): BelongsTo
+    public function account(): BelongsTo
     {
-        return $this->belongsTo(Workspace::class);
+        return $this->belongsTo(Account::class);
     }
 
     /**
@@ -57,6 +56,25 @@ class ContactSegment extends Model
     }
 
     /**
+     * Build a contacts query for this segment.
+     */
+    public function contactsQuery(): Builder
+    {
+        $query = WhatsAppContact::where('account_id', $this->account_id);
+
+        if (!empty($this->filters)) {
+            return $this->applyFilters($query, $this->filters);
+        }
+
+        // If no filters, fall back to explicit segment membership if present.
+        if ($this->contacts()->exists()) {
+            return $query->whereIn('id', $this->contacts()->select('whatsapp_contacts.id'));
+        }
+
+        return $query;
+    }
+
+    /**
      * Calculate and update contact count based on filters.
      * Uses lock to prevent concurrent calculations.
      */
@@ -72,17 +90,12 @@ class ContactSegment extends Model
         }
 
         try {
-            $query = WhatsAppContact::where('workspace_id', $this->workspace_id);
-
-            if ($this->filters) {
-                $query = $this->applyFilters($query, $this->filters);
-            }
+            $query = $this->contactsQuery();
 
             $count = $query->count();
             $this->lockForUpdate()->update([
                 'contact_count' => $count,
-                'last_calculated_at' => now(),
-            ]);
+                'last_calculated_at' => now()]);
 
             return $count;
         } finally {
@@ -141,4 +154,3 @@ class ContactSegment extends Model
         return $query;
     }
 }
-

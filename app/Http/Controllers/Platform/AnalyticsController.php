@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Platform;
 use App\Http\Controllers\Controller;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
-use App\Models\Workspace;
+use App\Models\Account;
 use App\Models\Subscription;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -64,12 +64,11 @@ class AnalyticsController extends Controller
                     'status' => $item->status,
                     'send_count' => (int) $item->send_count,
                     'delivered' => (int) $item->delivered,
-                    'read_count' => (int) $item->read_count,
-                ];
+                    'read_count' => (int) $item->read_count];
             });
 
-        // Workspace Growth
-        $workspaceGrowth = Workspace::select(
+        // Account Growth
+        $accountGrowth = Account::select(
             DB::raw('DATE(created_at) as date'),
             DB::raw('COUNT(*) as count')
         )
@@ -99,28 +98,27 @@ class AnalyticsController extends Controller
             ->orderBy('hour')
             ->get();
 
-        // Top Workspaces by Activity
-        $topWorkspaces = Workspace::select(
-            'workspaces.id',
-            'workspaces.name',
-            'workspaces.slug',
+        // Top Accounts by Activity
+        $topAccounts = Account::select(
+            'accounts.id',
+            'accounts.name',
+            'accounts.slug',
             DB::raw('COUNT(whatsapp_messages.id) as message_count')
         )
             ->leftJoin('whatsapp_messages', function ($join) use ($startDate, $endDate) {
-                $join->on('whatsapp_messages.workspace_id', '=', 'workspaces.id')
+                $join->on('whatsapp_messages.account_id', '=', 'accounts.id')
                     ->whereBetween('whatsapp_messages.created_at', [$startDate, $endDate]);
             })
-            ->groupBy('workspaces.id', 'workspaces.name', 'workspaces.slug')
+            ->groupBy('accounts.id', 'accounts.name', 'accounts.slug')
             ->orderBy('message_count', 'desc')
             ->limit(10)
             ->get()
-            ->map(function ($workspace) {
+            ->map(function ($account) {
                 return [
-                    'id' => $workspace->id,
-                    'name' => $workspace->name,
-                    'slug' => $workspace->slug,
-                    'message_count' => (int) $workspace->message_count,
-                ];
+                    'id' => $account->id,
+                    'name' => $account->name,
+                    'slug' => $account->slug,
+                    'message_count' => (int) $account->message_count];
             })
             ->filter(fn($w) => $w['message_count'] > 0)
             ->values();
@@ -130,10 +128,9 @@ class AnalyticsController extends Controller
             'message_trends' => $messageTrends,
             'message_status_distribution' => $messageStatusDistribution,
             'template_performance' => $templatePerformance,
-            'workspace_growth' => $workspaceGrowth,
+            'account_growth' => $accountGrowth,
             'subscription_distribution' => $subscriptionDistribution,
             'peak_hours' => $peakHours,
-            'top_workspaces' => $topWorkspaces,
-        ]);
+            'top_accounts' => $topAccounts]);
     }
 }

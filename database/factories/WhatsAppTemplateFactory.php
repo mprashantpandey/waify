@@ -23,7 +23,7 @@ class WhatsAppTemplateFactory extends Factory
         $bodyText = $this->faker->sentence() . ' {{1}} ' . $this->faker->sentence();
 
         return [
-            'workspace_id' => \App\Models\Workspace::factory(),
+            'account_id' => \App\Models\Account::factory(),
             'whatsapp_connection_id' => WhatsAppConnection::factory(),
             'meta_template_id' => 'meta_' . $this->faker->uuid(),
             'name' => $this->faker->slug(),

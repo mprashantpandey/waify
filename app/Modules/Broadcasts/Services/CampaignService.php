@@ -5,6 +5,7 @@ namespace App\Modules\Broadcasts\Services;
 use App\Modules\Broadcasts\Models\Campaign;
 use App\Modules\Broadcasts\Models\CampaignMessage;
 use App\Modules\Broadcasts\Models\CampaignRecipient;
+use App\Modules\Contacts\Models\ContactSegment;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
 use App\Modules\WhatsApp\Services\TemplateComposer;
 use App\Modules\WhatsApp\Services\WhatsAppClient;
@@ -86,8 +87,7 @@ class CampaignService
                     'phone_number' => $recipient['phone_number'],
                     'name' => $recipient['name'] ?? null,
                     'template_params' => $recipient['template_params'] ?? null,
-                    'status' => 'pending',
-                ]);
+                    'status' => 'pending']);
             }
         });
 
@@ -102,7 +102,7 @@ class CampaignService
      */
     protected function getRecipientsFromContacts(Campaign $campaign): array
     {
-        $query = WhatsAppContact::where('workspace_id', $campaign->workspace_id);
+        $query = WhatsAppContact::where('account_id', $campaign->account_id);
 
         // Exclude opt-out and blocked contacts by default
         if ($campaign->respect_opt_out) {
@@ -134,8 +134,7 @@ class CampaignService
             return [
                 'contact_id' => $contact->id,
                 'phone_number' => $contact->wa_id,
-                'name' => $contact->name,
-            ];
+                'name' => $contact->name];
         })->toArray();
     }
 
@@ -152,8 +151,7 @@ class CampaignService
             return [
                 'phone_number' => $recipient['phone'] ?? $recipient,
                 'name' => $recipient['name'] ?? null,
-                'template_params' => $recipient['params'] ?? null,
-            ];
+                'template_params' => $recipient['params'] ?? null];
         }, $campaign->custom_recipients);
     }
 
@@ -162,8 +160,65 @@ class CampaignService
      */
     protected function getRecipientsFromSegment(Campaign $campaign): array
     {
-        // TODO: Implement segment-based recipient selection
-        return [];
+        $filters = $campaign->recipient_filters ?? [];
+        $segmentIds = [];
+
+        if (isset($filters['segment_id'])) {
+            $segmentIds[] = (int) $filters['segment_id'];
+        }
+        if (isset($filters['segment_ids']) && is_array($filters['segment_ids'])) {
+            $segmentIds = array_merge($segmentIds, array_map('intval', $filters['segment_ids']));
+        }
+        if (isset($filters['segments']) && is_array($filters['segments'])) {
+            $segmentIds = array_merge($segmentIds, array_map('intval', $filters['segments']));
+        }
+
+        $segmentIds = array_values(array_unique(array_filter($segmentIds)));
+
+        if (empty($segmentIds)) {
+            Log::warning('Campaign segment recipients requested without segment IDs', [
+                'campaign_id' => $campaign->id,
+                'account_id' => $campaign->account_id,
+            ]);
+            return [];
+        }
+
+        $segments = ContactSegment::where('account_id', $campaign->account_id)
+            ->whereIn('id', $segmentIds)
+            ->get();
+
+        if ($segments->isEmpty()) {
+            Log::warning('No segments found for campaign', [
+                'campaign_id' => $campaign->id,
+                'segment_ids' => $segmentIds,
+            ]);
+            return [];
+        }
+
+        $contacts = collect();
+
+        foreach ($segments as $segment) {
+            $query = $segment->contactsQuery();
+
+            if ($campaign->respect_opt_out) {
+                $query->whereNotIn('status', ['opt_out', 'blocked']);
+            }
+
+            $segmentContacts = $query->get(['id', 'wa_id', 'name']);
+            $contacts = $contacts->merge($segmentContacts);
+        }
+
+        return $contacts
+            ->unique('id')
+            ->map(function ($contact) {
+                return [
+                    'contact_id' => $contact->id,
+                    'phone_number' => $contact->wa_id,
+                    'name' => $contact->name,
+                ];
+            })
+            ->values()
+            ->toArray();
     }
 
     /**
@@ -177,8 +232,7 @@ class CampaignService
 
         $campaign->update([
             'status' => 'sending',
-            'started_at' => now(),
-        ]);
+            'started_at' => now()]);
 
         // Dispatch job to send campaign messages (on dedicated queue)
         \App\Modules\Broadcasts\Jobs\SendCampaignMessageJob::dispatch($campaign->id)
@@ -202,8 +256,7 @@ class CampaignService
             if ($contact && in_array($contact->status ?? 'active', ['opt_out', 'blocked'])) {
                 $recipient->lockForUpdate()->update([
                     'status' => 'skipped',
-                    'failure_reason' => "Contact has {$contact->status} status",
-                ]);
+                    'failure_reason' => "Contact has {$contact->status} status"]);
                 return false;
             }
         }
@@ -230,8 +283,7 @@ class CampaignService
                     'status' => 'sent',
                     'sent_at' => now(),
                     'wamid' => $wamid,
-                    'message_id' => $wamid,
-                ]);
+                    'message_id' => $wamid]);
 
                 // Create campaign message record (use updateOrCreate to handle unique constraint)
                 CampaignMessage::updateOrCreate(
@@ -242,8 +294,7 @@ class CampaignService
                         'campaign_id' => $campaign->id,
                         'wamid' => $wamid,
                         'status' => 'sent',
-                        'sent_at' => now(),
-                    ]
+                        'sent_at' => now()]
                 );
 
                 // Update campaign stats (with lock to prevent race conditions)
@@ -258,8 +309,7 @@ class CampaignService
             Log::error('Failed to send campaign message', [
                 'campaign_id' => $campaign->id,
                 'recipient_id' => $recipient->id,
-                'error' => $e->getMessage(),
-            ]);
+                'error' => $e->getMessage()]);
 
             $this->markRecipientFailed($recipient, $e->getMessage());
             return false;
@@ -321,8 +371,29 @@ class CampaignService
      */
     protected function sendMediaMessage(Campaign $campaign, CampaignRecipient $recipient): array
     {
-        // TODO: Implement media message sending
-        throw new \Exception('Media messages not yet implemented');
+        if (!$campaign->media_url || !$campaign->media_type) {
+            throw new \Exception('Media URL or media type not provided');
+        }
+
+        $caption = null;
+        if (in_array($campaign->media_type, ['image', 'video', 'document'], true)) {
+            $caption = $campaign->message_text ?: null;
+        }
+
+        $filename = null;
+        if ($campaign->media_type === 'document') {
+            $path = parse_url($campaign->media_url, PHP_URL_PATH);
+            $filename = $path ? basename($path) : null;
+        }
+
+        return $this->whatsappClient->sendMediaMessage(
+            $campaign->connection,
+            $recipient->phone_number,
+            $campaign->media_type,
+            $campaign->media_url,
+            $caption,
+            $filename
+        );
     }
 
     /**
@@ -333,8 +404,7 @@ class CampaignService
         $recipient->lockForUpdate()->update([
             'status' => 'failed',
             'failed_at' => now(),
-            'failure_reason' => $reason,
-        ]);
+            'failure_reason' => $reason]);
 
         // Update campaign stats with lock
         $recipient->campaign->lockForUpdate()->increment('failed_count');
@@ -404,9 +474,7 @@ class CampaignService
         if ($pendingCount === 0 && $campaign->status === 'sending') {
             $campaign->update([
                 'status' => 'completed',
-                'completed_at' => now(),
-            ]);
+                'completed_at' => now()]);
         }
     }
 }
-

@@ -20,8 +20,7 @@ class AuthenticatedSessionController extends Controller
     {
         return Inertia::render('Auth/Login', [
             'canResetPassword' => Route::has('password.request'),
-            'status' => session('status'),
-        ]);
+            'status' => session('status')]);
     }
 
     /**
@@ -35,18 +34,26 @@ class AuthenticatedSessionController extends Controller
 
         $user = $request->user();
         
-        // Check if there's an intended URL (e.g., user was trying to access /platform)
-        $intendedUrl = $request->session()->pull('url.intended');
-        
-        if ($intendedUrl) {
-            // If super admin and intended URL is platform route, allow it
-            if ($user->isSuperAdmin() && str_starts_with($intendedUrl, '/platform')) {
+        // Super admins should go directly to platform dashboard
+        if ($user->isSuperAdmin()) {
+            // Check if there's an intended URL
+            $intendedUrl = $request->session()->pull('url.intended');
+            
+            // If intended URL is a platform route, use it
+            if ($intendedUrl && str_starts_with($intendedUrl, '/platform')) {
                 return redirect($intendedUrl);
             }
             
-            // For other intended URLs, try to redirect there
-            // But validate it's not a platform route for non-super-admins
-            if (!$user->isSuperAdmin() && str_starts_with($intendedUrl, '/platform')) {
+            // Otherwise, redirect to platform dashboard
+            return redirect()->route('platform.dashboard');
+        }
+        
+        // Regular users: Check if there's an intended URL
+        $intendedUrl = $request->session()->pull('url.intended');
+        
+        if ($intendedUrl) {
+            // Validate it's not a platform route for non-super-admins
+            if (str_starts_with($intendedUrl, '/platform')) {
                 // Non-super-admin tried to access platform, redirect to default
                 $intendedUrl = null;
             }
@@ -57,18 +64,18 @@ class AuthenticatedSessionController extends Controller
             return redirect($intendedUrl);
         }
         
-        // Default redirect logic
-        // Check if user has workspaces
-        $workspaces = $user->workspaces()->get()->merge($user->ownedWorkspaces()->get());
+        // Default redirect logic for regular users
+        // Check if user has accounts
+        $accounts = $user->accounts()->get()->merge($user->ownedAccounts()->get());
         
-        if ($workspaces->isEmpty()) {
+        if ($accounts->isEmpty()) {
             // Redirect to onboarding
             return redirect()->route('onboarding');
         }
         
-        // Redirect to first workspace dashboard
-        $firstWorkspace = $workspaces->first();
-        return redirect()->route('app.dashboard', ['workspace' => $firstWorkspace->slug]);
+        // Redirect to first account dashboard
+        $firstAccount = $accounts->first();
+        return redirect()->route('app.dashboard');
     }
 
     /**

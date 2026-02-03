@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -15,8 +17,7 @@ class PublicPagesController extends Controller
     {
         $keyMap = [
             'whatsapp' => 'whatsapp.cloud',
-            'chatbots' => 'automation.chatbots',
-        ];
+            'chatbots' => 'automation.chatbots'];
 
         return array_map(function ($key) use ($keyMap) {
             return $keyMap[$key] ?? $key;
@@ -88,18 +89,16 @@ class PublicPagesController extends Controller
                     'description' => $plan->description,
                     'price_monthly' => $plan->price_monthly,
                     'price_yearly' => $plan->price_yearly,
-                    'currency' => $plan->currency,
+                    'currency' => app(\App\Services\PlatformSettingsService::class)->get('payment.default_currency', 'USD'), // Use platform default currency
                     'trial_days' => $plan->trial_days ?? 0,
                     'features' => $features,
                     'modules' => $normalizedModules,
-                    'limits' => $plan->limits ?? [],
-                ];
+                    'limits' => $plan->limits ?? []];
             });
 
         return Inertia::render('Public/Pricing', [
             'plans' => $plans,
-            'canRegister' => \Route::has('register'),
-        ]);
+            'canRegister' => \Route::has('register')]);
     }
 
     /**
@@ -134,8 +133,7 @@ class PublicPagesController extends Controller
         $faqs = \App\Models\PlatformSetting::get('support.faqs', []);
         
         return Inertia::render('Public/FAQs', [
-            'faqs' => is_array($faqs) ? $faqs : [],
-        ]);
+            'faqs' => is_array($faqs) ? $faqs : []]);
     }
 
     /**
@@ -163,13 +161,36 @@ class PublicPagesController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|email|max:255',
             'subject' => 'required|string|max:255',
-            'message' => 'required|string|max:5000',
-        ]);
+            'message' => 'required|string|max:5000']);
 
-        // TODO: Send email notification or save to database
-        // For now, just return success
+        $supportEmail = \App\Models\PlatformSetting::get('branding.support_email')
+            ?: \App\Models\PlatformSetting::get('general.support_email')
+            ?: config('mail.from.address');
+
+        if ($supportEmail) {
+            try {
+                Mail::raw(
+                    "New contact form submission:\n\nName: {$validated['name']}\nEmail: {$validated['email']}\nSubject: {$validated['subject']}\n\nMessage:\n{$validated['message']}\n",
+                    function ($message) use ($supportEmail, $validated) {
+                        $message->to($supportEmail)
+                            ->subject("Contact: {$validated['subject']}")
+                            ->replyTo($validated['email'], $validated['name']);
+                    }
+                );
+            } catch (\Throwable $e) {
+                Log::error('Failed to send contact form email', [
+                    'error' => $e->getMessage(),
+                    'support_email' => $supportEmail,
+                    'from' => $validated['email'],
+                ]);
+            }
+        } else {
+            Log::warning('Contact form submitted but no support email configured', [
+                'from' => $validated['email'],
+                'subject' => $validated['subject'],
+            ]);
+        }
 
         return back()->with('success', 'Thank you for contacting us! We will get back to you soon.');
     }
 }
-

@@ -12,8 +12,5 @@ return [
             'label' => 'Campaigns',
             'href' => 'app.broadcasts.index',
             'icon' => 'Megaphone',
-            'group' => 'messaging',
-        ],
-    ],
-];
+            'group' => 'messaging']]];
 

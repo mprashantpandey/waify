@@ -25,9 +25,9 @@ class ContactController extends Controller
      */
     public function index(Request $request): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        $query = WhatsAppContact::where('workspace_id', $workspace->id)
+        $query = WhatsAppContact::where('account_id', $account->id)
             ->with(['tags', 'segments']);
 
         // Search
@@ -80,24 +80,22 @@ class ContactController extends Controller
                         return [
                             'id' => $tag->id,
                             'name' => $tag->name,
-                            'color' => $tag->color,
-                        ];
+                            'color' => $tag->color];
                     }),
-                    'created_at' => $contact->created_at->toIso8601String(),
-                ];
+                    'created_at' => $contact->created_at->toIso8601String()];
             });
 
         // Get available tags and segments for filters
-        $tags = ContactTag::where('workspace_id', $workspace->id)
+        $tags = ContactTag::where('account_id', $account->id)
             ->orderBy('name')
             ->get(['id', 'name', 'color']);
 
-        $segments = ContactSegment::where('workspace_id', $workspace->id)
+        $segments = ContactSegment::where('account_id', $account->id)
             ->orderBy('name')
             ->get(['id', 'name', 'contact_count']);
 
         return Inertia::render('Contacts/Index', [
-            'workspace' => $workspace,
+            'account' => $account,
             'contacts' => $contacts,
             'tags' => $tags,
             'segments' => $segments,
@@ -105,9 +103,7 @@ class ContactController extends Controller
                 'search' => $request->search,
                 'status' => $request->status,
                 'tags' => $request->tags ?? [],
-                'segments' => $request->segments ?? [],
-            ],
-        ]);
+                'segments' => $request->segments ?? []]]);
     }
 
     /**
@@ -115,16 +111,15 @@ class ContactController extends Controller
      */
     public function create(Request $request): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        $tags = ContactTag::where('workspace_id', $workspace->id)
+        $tags = ContactTag::where('account_id', $account->id)
             ->orderBy('name')
             ->get(['id', 'name', 'color']);
 
         return Inertia::render('Contacts/Create', [
-            'workspace' => $workspace,
-            'tags' => $tags,
-        ]);
+            'account' => $account,
+            'tags' => $tags]);
     }
 
     /**
@@ -132,7 +127,7 @@ class ContactController extends Controller
      */
     public function store(Request $request)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
         $validated = $request->validate([
             'wa_id' => 'required|string',
@@ -143,12 +138,11 @@ class ContactController extends Controller
             'notes' => 'nullable|string',
             'status' => 'nullable|in:active,inactive,blocked,opt_out',
             'tags' => 'nullable|array',
-            'tags.*' => 'exists:contact_tags,id',
-        ]);
+            'tags.*' => 'exists:contact_tags,id']);
 
         $contact = $this->contactService->createOrUpdateContact(
             $validated,
-            $workspace->id,
+            $account->id,
             $request->user()->id
         );
 
@@ -158,9 +152,7 @@ class ContactController extends Controller
         }
 
         return redirect()->route('app.contacts.show', [
-            'workspace' => $workspace->slug,
-            'contact' => $contact->slug,
-        ])->with('success', 'Contact created successfully.');
+            'contact' => $contact->slug])->with('success', 'Contact created successfully.');
     }
 
     /**
@@ -168,9 +160,9 @@ class ContactController extends Controller
      */
     public function show(Request $request, WhatsAppContact $contact): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        if ($contact->workspace_id !== $workspace->id) {
+        if ($contact->account_id !== $account->id) {
             abort(404);
         }
 
@@ -191,18 +183,16 @@ class ContactController extends Controller
                     'description' => $activity->description,
                     'user' => $activity->user ? [
                         'id' => $activity->user->id,
-                        'name' => $activity->user->name,
-                    ] : null,
-                    'created_at' => $activity->created_at->toIso8601String(),
-                ];
+                        'name' => $activity->user->name] : null,
+                    'created_at' => $activity->created_at->toIso8601String()];
             });
 
-        $tags = ContactTag::where('workspace_id', $workspace->id)
+        $tags = ContactTag::where('account_id', $account->id)
             ->orderBy('name')
             ->get(['id', 'name', 'color']);
 
         return Inertia::render('Contacts/Show', [
-            'workspace' => $workspace,
+            'account' => $account,
             'contact' => [
                 'id' => $contact->id,
                 'slug' => $contact->slug,
@@ -221,20 +211,16 @@ class ContactController extends Controller
                     return [
                         'id' => $tag->id,
                         'name' => $tag->name,
-                        'color' => $tag->color,
-                    ];
+                        'color' => $tag->color];
                 }),
                 'segments' => $contact->segments->map(function ($segment) {
                     return [
                         'id' => $segment->id,
-                        'name' => $segment->name,
-                    ];
+                        'name' => $segment->name];
                 }),
-                'created_at' => $contact->created_at->toIso8601String(),
-            ],
+                'created_at' => $contact->created_at->toIso8601String()],
             'activities' => $activities,
-            'tags' => $tags,
-        ]);
+            'tags' => $tags]);
     }
 
     /**
@@ -242,9 +228,9 @@ class ContactController extends Controller
      */
     public function update(Request $request, WhatsAppContact $contact)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        if ($contact->workspace_id !== $workspace->id) {
+        if ($contact->account_id !== $account->id) {
             abort(404);
         }
 
@@ -256,8 +242,7 @@ class ContactController extends Controller
             'notes' => 'nullable|string',
             'status' => 'nullable|in:active,inactive,blocked,opt_out',
             'tags' => 'nullable|array',
-            'tags.*' => 'exists:contact_tags,id',
-        ]);
+            'tags.*' => 'exists:contact_tags,id']);
 
         $contact->update($validated);
 
@@ -267,13 +252,12 @@ class ContactController extends Controller
         }
 
         ContactActivity::create([
-            'workspace_id' => $workspace->id,
+            'account_id' => $account->id,
             'contact_id' => $contact->id,
             'user_id' => $request->user()->id,
             'type' => 'contact_updated',
             'title' => 'Contact updated',
-            'description' => 'Contact information was updated',
-        ]);
+            'description' => 'Contact information was updated']);
 
         return back()->with('success', 'Contact updated successfully.');
     }
@@ -283,15 +267,14 @@ class ContactController extends Controller
      */
     public function addNote(Request $request, WhatsAppContact $contact)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        if ($contact->workspace_id !== $workspace->id) {
+        if ($contact->account_id !== $account->id) {
             abort(404);
         }
 
         $validated = $request->validate([
-            'note' => 'required|string',
-        ]);
+            'note' => 'required|string']);
 
         $this->contactService->addNote($contact, $validated['note'], $request->user()->id);
 
@@ -303,11 +286,10 @@ class ContactController extends Controller
      */
     public function import(Request $request)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
         $request->validate([
-            'file' => 'required|file|mimes:csv,txt|max:10240',
-        ]);
+            'file' => 'required|file|mimes:csv,txt|max:10240']);
 
         $file = $request->file('file');
         $path = $file->store('imports');
@@ -315,7 +297,7 @@ class ContactController extends Controller
         try {
             $result = $this->contactService->importFromCsv(
                 storage_path("app/{$path}"),
-                $workspace->id,
+                $account->id,
                 $request->user()->id
             );
 
@@ -333,15 +315,14 @@ class ContactController extends Controller
      */
     public function export(Request $request)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
         $filters = [
             'tags' => $request->tags ?? [],
             'segments' => $request->segments ?? [],
-            'status' => $request->status,
-        ];
+            'status' => $request->status];
 
-        $filename = $this->contactService->exportToCsv($workspace->id, $filters);
+        $filename = $this->contactService->exportToCsv($account->id, $filters);
 
         return response()->download($filename)->deleteFileAfterSend();
     }
@@ -351,24 +332,21 @@ class ContactController extends Controller
      */
     public function merge(Request $request, WhatsAppContact $contact)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        if ($contact->workspace_id !== $workspace->id) {
+        if ($contact->account_id !== $account->id) {
             abort(404);
         }
 
         $validated = $request->validate([
             'duplicate_ids' => 'required|array',
-            'duplicate_ids.*' => 'exists:whatsapp_contacts,id',
-        ]);
+            'duplicate_ids.*' => 'exists:whatsapp_contacts,id']);
 
         try {
             $this->contactService->mergeContacts($contact, $validated['duplicate_ids']);
 
             return redirect()->route('app.contacts.show', [
-                'workspace' => $workspace->slug,
-                'contact' => $contact->id,
-            ])->with('success', 'Contacts merged successfully.');
+                'contact' => $contact->id])->with('success', 'Contacts merged successfully.');
         } catch (\Exception $e) {
             return back()->withErrors(['error' => 'Failed to merge contacts: ' . $e->getMessage()]);
         }

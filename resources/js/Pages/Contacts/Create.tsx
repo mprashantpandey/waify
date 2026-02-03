@@ -17,10 +17,9 @@ interface Tag {
 }
 
 export default function ContactsCreate({
-    workspace,
-    tags,
-}: {
-    workspace: any;
+    account,
+    tags}: {
+    account: any;
     tags: Tag[];
 }) {
     const { toast } = useToast();
@@ -33,19 +32,17 @@ export default function ContactsCreate({
         company: '',
         notes: '',
         status: 'active' as 'active' | 'inactive' | 'blocked' | 'opt_out',
-        tags: [] as number[],
-    });
+        tags: [] as number[]});
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
-        post(route('app.contacts.store', { workspace: workspace.slug }), {
+        post(route('app.contacts.store', {}), {
             onSuccess: () => {
                 toast.success('Contact created successfully');
             },
             onError: () => {
                 toast.error('Failed to create contact');
-            },
-        });
+            }});
     };
 
     const toggleTag = (tagId: number) => {
@@ -62,7 +59,7 @@ export default function ContactsCreate({
             <div className="space-y-6">
                 <div>
                     <Link
-                        href={route('app.contacts.index', { workspace: workspace.slug })}
+                        href={route('app.contacts.index', {})}
                         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
                     >
                         <ArrowLeft className="h-4 w-4" />
@@ -204,7 +201,7 @@ export default function ContactsCreate({
                     )}
 
                     <div className="flex justify-end gap-4">
-                        <Link href={route('app.contacts.index', { workspace: workspace.slug })}>
+                        <Link href={route('app.contacts.index', { })}>
                             <Button type="button" variant="secondary">
                                 Cancel
                             </Button>

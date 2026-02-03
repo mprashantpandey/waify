@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('bot_flows', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('workspace_id')->constrained()->onDelete('cascade');
+            $table->foreignId('account_id')->constrained()->onDelete('cascade');
             $table->foreignId('bot_id')->constrained()->onDelete('cascade');
             $table->string('name');
             $table->json('trigger'); // trigger config
@@ -21,7 +21,7 @@ return new class extends Migration
             $table->integer('priority')->default(100); // lower runs earlier
             $table->timestamps();
 
-            $table->index(['workspace_id', 'bot_id', 'enabled']);
+            $table->index(['account_id', 'bot_id', 'enabled']);
         });
     }
 

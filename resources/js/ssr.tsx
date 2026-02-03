@@ -25,11 +25,9 @@ createServer((page) =>
             global.route<RouteName> = (name, params, absolute) =>
                 route(name, params as any, absolute, {
                     ...page.props.ziggy,
-                    location: new URL(page.props.ziggy.location),
-                });
+                    location: new URL(page.props.ziggy.location)});
             /* eslint-enable */
 
             return <App {...props} />;
-        },
-    }),
+        }}),
 );

@@ -14,8 +14,7 @@ class PlatformSetting extends Model
         'value',
         'type',
         'group',
-        'description',
-    ];
+        'description'];
 
     /**
      * Get setting value with type casting.
@@ -67,8 +66,7 @@ class PlatformSetting extends Model
                 'value' => $value,
                 'type' => $type,
                 'group' => $group,
-                'description' => $description,
-            ]
+                'description' => $description]
         );
     }
 }

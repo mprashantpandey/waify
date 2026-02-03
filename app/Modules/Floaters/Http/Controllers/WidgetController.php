@@ -16,9 +16,9 @@ class WidgetController extends Controller
 {
     public function index(Request $request): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        $widgets = FloaterWidget::where('workspace_id', $workspace->id)
+        $widgets = FloaterWidget::where('account_id', $account->id)
             ->orderByDesc('created_at')
             ->get()
             ->map(function (FloaterWidget $widget) {
@@ -35,67 +35,62 @@ class WidgetController extends Controller
                     'public_id' => $widget->public_id,
                     'welcome_message' => $widget->welcome_message,
                     'whatsapp_phone' => $widget->whatsapp_phone,
-                    'created_at' => $widget->created_at->toIso8601String(),
-                ];
+                    'created_at' => $widget->created_at->toIso8601String()];
             });
 
-        $stats = $this->summaryStats($workspace->id);
+        $stats = $this->summaryStats($account->id);
 
         return Inertia::render('Floaters/Index', [
-            'workspace' => $workspace,
+            'account' => $account,
             'widgets' => $widgets,
-            'stats' => $stats,
-        ]);
+            'stats' => $stats]);
     }
 
     public function create(Request $request): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
         Gate::authorize('create', FloaterWidget::class);
 
-        $connections = WhatsAppConnection::where('workspace_id', $workspace->id)
+        $connections = WhatsAppConnection::where('account_id', $account->id)
             ->orderBy('name')
             ->get(['id', 'name', 'business_phone']);
 
         return Inertia::render('Floaters/Create', [
-            'workspace' => $workspace,
-            'connections' => $connections,
-        ]);
+            'account' => $account,
+            'connections' => $connections]);
     }
 
     public function store(Request $request)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
         Gate::authorize('create', FloaterWidget::class);
 
         $validated = $this->validateWidget($request);
-        $validated['workspace_id'] = $workspace->id;
+        $validated['account_id'] = $account->id;
         $validated['show_on'] = $this->normalizeShowOn($validated['show_on'] ?? []);
         $validated['theme'] = $this->normalizeTheme($validated['theme'] ?? []);
 
         $widget = FloaterWidget::create($validated);
 
         return redirect()->route('app.floaters.edit', [
-            'workspace' => $workspace->slug,
-            'widget' => $widget->slug,
-        ])->with('success', 'Widget created successfully.');
+            'widget' => $widget->slug])->with('success', 'Widget created successfully.');
     }
 
-    public function edit(Request $request, $workspaceParam, $widget): Response
+    public function edit(Request $request, $widget): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
-        $widget = $this->resolveWidget($widget, $workspace->id);
+        $account = $request->attributes->get('account') ?? current_account();
+        $widget = $this->resolveWidget($widget, $account->id);
 
         Gate::authorize('update', $widget);
 
-        $connections = WhatsAppConnection::where('workspace_id', $workspace->id)
+        $connections = WhatsAppConnection::where('account_id', $account->id)
             ->orderBy('name')
             ->get(['id', 'name', 'business_phone']);
 
         $stats = $this->widgetStats($widget->id);
 
         return Inertia::render('Floaters/Edit', [
-            'workspace' => $workspace,
+            'account' => $account,
             'widget' => [
                 'id' => $widget->id,
                 'slug' => $widget->slug,
@@ -108,21 +103,18 @@ class WidgetController extends Controller
                 'whatsapp_phone' => $widget->whatsapp_phone,
                 'whatsapp_connection_id' => $widget->whatsapp_connection_id,
                 'public_id' => $widget->public_id,
-                'created_at' => $widget->created_at->toIso8601String(),
-            ],
+                'created_at' => $widget->created_at->toIso8601String()],
             'connections' => $connections,
             'stats' => $stats,
             'embed' => [
                 'script' => $this->embedScript($widget->public_id),
-                'snippet' => $this->embedSnippet($widget->public_id),
-            ],
-        ]);
+                'snippet' => $this->embedSnippet($widget->public_id)]]);
     }
 
-    public function update(Request $request, $workspaceParam, $widget)
+    public function update(Request $request, $widget)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
-        $widget = $this->resolveWidget($widget, $workspace->id);
+        $account = $request->attributes->get('account') ?? current_account();
+        $widget = $this->resolveWidget($widget, $account->id);
         Gate::authorize('update', $widget);
 
         $validated = $this->validateWidget($request);
@@ -132,35 +124,30 @@ class WidgetController extends Controller
         $widget->update($validated);
 
         return redirect()->route('app.floaters.edit', [
-            'workspace' => $workspace->slug,
-            'widget' => $widget->slug,
-        ])->with('success', 'Widget updated successfully.');
+            'widget' => $widget->slug])->with('success', 'Widget updated successfully.');
     }
 
-    public function toggle(Request $request, $workspaceParam, $widget)
+    public function toggle(Request $request, $widget)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
-        $widget = $this->resolveWidget($widget, $workspace->id);
+        $account = $request->attributes->get('account') ?? current_account();
+        $widget = $this->resolveWidget($widget, $account->id);
         Gate::authorize('update', $widget);
 
         $widget->update([
-            'is_active' => !$widget->is_active,
-        ]);
+            'is_active' => !$widget->is_active]);
 
         return redirect()->back()->with('success', $widget->is_active ? 'Widget enabled.' : 'Widget disabled.');
     }
 
-    public function destroy(Request $request, $workspaceParam, $widget)
+    public function destroy(Request $request, $widget)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
-        $widget = $this->resolveWidget($widget, $workspace->id);
+        $account = $request->attributes->get('account') ?? current_account();
+        $widget = $this->resolveWidget($widget, $account->id);
         Gate::authorize('delete', $widget);
 
         $widget->delete();
 
-        return redirect()->route('app.floaters', [
-            'workspace' => $workspace->slug,
-        ])->with('success', 'Widget deleted successfully.');
+        return redirect()->route('app.floaters')->with('success', 'Widget deleted successfully.');
     }
 
     protected function validateWidget(Request $request): array
@@ -177,17 +164,16 @@ class WidgetController extends Controller
             'theme.background' => 'nullable|string|max:20',
             'show_on' => 'nullable',
             'show_on.include' => 'nullable',
-            'show_on.exclude' => 'nullable',
-        ]);
+            'show_on.exclude' => 'nullable']);
     }
 
-    protected function resolveWidget($value, int $workspaceId): FloaterWidget
+    protected function resolveWidget($value, int $accountId): FloaterWidget
     {
         if ($value instanceof FloaterWidget) {
             return $value;
         }
 
-        $query = FloaterWidget::where('workspace_id', $workspaceId);
+        $query = FloaterWidget::where('account_id', $accountId);
         if (is_numeric($value)) {
             $query->where('id', $value);
         } else {
@@ -197,10 +183,9 @@ class WidgetController extends Controller
         if (!$widget) {
             \Log::warning('Floater widget not found', [
                 'value' => $value,
-                'workspace_id' => $workspaceId,
+                'account_id' => $accountId,
                 'path' => request()->path(),
-                'route_params' => request()->route()?->parameters() ?? [],
-            ]);
+                'route_params' => request()->route()?->parameters() ?? []]);
             abort(404, 'Widget not found');
         }
 
@@ -220,23 +205,21 @@ class WidgetController extends Controller
 
         return [
             'include' => $include,
-            'exclude' => $exclude,
-        ];
+            'exclude' => $exclude];
     }
 
     protected function normalizeTheme(array $theme): array
     {
         return [
             'primary' => $theme['primary'] ?? '#25D366',
-            'background' => $theme['background'] ?? '#075E54',
-        ];
+            'background' => $theme['background'] ?? '#075E54'];
     }
 
-    protected function summaryStats(int $workspaceId): array
+    protected function summaryStats(int $accountId): array
     {
         $rangeStart = now()->subDays(30);
 
-        $stats = FloaterWidgetEvent::where('workspace_id', $workspaceId)
+        $stats = FloaterWidgetEvent::where('account_id', $accountId)
             ->where('created_at', '>=', $rangeStart)
             ->select('event_type', DB::raw('COUNT(*) as count'))
             ->groupBy('event_type')
@@ -245,8 +228,7 @@ class WidgetController extends Controller
         return [
             'impressions' => (int) ($stats['impression'] ?? 0),
             'clicks' => (int) ($stats['click'] ?? 0),
-            'leads' => (int) ($stats['lead'] ?? 0),
-        ];
+            'leads' => (int) ($stats['lead'] ?? 0)];
     }
 
     protected function widgetStats(int $widgetId): array
@@ -271,16 +253,14 @@ class WidgetController extends Controller
                 return [
                     'impressions' => (int) ($map['impression'] ?? 0),
                     'clicks' => (int) ($map['click'] ?? 0),
-                    'leads' => (int) ($map['lead'] ?? 0),
-                ];
+                    'leads' => (int) ($map['lead'] ?? 0)];
             });
 
         return [
             'impressions' => (int) ($stats['impression'] ?? 0),
             'clicks' => (int) ($stats['click'] ?? 0),
             'leads' => (int) ($stats['lead'] ?? 0),
-            'series' => $series,
-        ];
+            'series' => $series];
     }
 
     protected function embedScript(string $publicId): string

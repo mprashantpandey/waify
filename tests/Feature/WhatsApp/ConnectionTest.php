@@ -3,7 +3,7 @@
 namespace Tests\Feature\WhatsApp;
 
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Account;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -13,32 +13,32 @@ class ConnectionTest extends TestCase
     use RefreshDatabase;
 
     protected User $user;
-    protected Workspace $workspace;
+    protected Account $account;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->user = User::factory()->create();
-        $this->workspace = Workspace::factory()->create([
+        $this->account = Account::factory()->create([
             'owner_id' => $this->user->id,
         ]);
-        $this->workspace->users()->attach($this->user->id, ['role' => 'owner']);
+        $this->account->users()->attach($this->user->id, ['role' => 'owner']);
 
-        session(['current_workspace_id' => $this->workspace->id]);
+        session(['current_account_id' => $this->account->id]);
     }
 
-    public function test_workspace_member_can_view_connections(): void
+    public function test_account_member_can_view_connections(): void
     {
         $member = User::factory()->create();
-        $this->workspace->users()->attach($member->id, ['role' => 'member']);
+        $this->account->users()->attach($member->id, ['role' => 'member']);
 
         $connection = WhatsAppConnection::factory()->create([
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
         ]);
 
         $response = $this->actingAs($member)
-            ->get(route('app.whatsapp.connections.index', ['workspace' => $this->workspace->slug]));
+            ->get(route('app.whatsapp.connections.index', ['account' => $this->account->slug]));
 
         $response->assertStatus(200);
         $response->assertInertia(fn ($page) => $page
@@ -50,7 +50,7 @@ class ConnectionTest extends TestCase
     public function test_owner_can_create_connection(): void
     {
         $response = $this->actingAs($this->user)
-            ->post(route('app.whatsapp.connections.store', ['workspace' => $this->workspace->slug]), [
+            ->post(route('app.whatsapp.connections.store', ['account' => $this->account->slug]), [
                 'name' => 'Test Connection',
                 'phone_number_id' => '123456789',
                 'access_token' => 'test-token',
@@ -59,7 +59,7 @@ class ConnectionTest extends TestCase
 
         $response->assertRedirect();
         $this->assertDatabaseHas('whatsapp_connections', [
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
             'name' => 'Test Connection',
             'phone_number_id' => '123456789',
         ]);
@@ -68,10 +68,10 @@ class ConnectionTest extends TestCase
     public function test_member_cannot_create_connection(): void
     {
         $member = User::factory()->create();
-        $this->workspace->users()->attach($member->id, ['role' => 'member']);
+        $this->account->users()->attach($member->id, ['role' => 'member']);
 
         $response = $this->actingAs($member)
-            ->post(route('app.whatsapp.connections.store', ['workspace' => $this->workspace->slug]), [
+            ->post(route('app.whatsapp.connections.store', ['account' => $this->account->slug]), [
                 'name' => 'Test Connection',
                 'phone_number_id' => '123456789',
                 'access_token' => 'test-token',
@@ -83,13 +83,13 @@ class ConnectionTest extends TestCase
     public function test_owner_can_update_connection(): void
     {
         $connection = WhatsAppConnection::factory()->create([
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
             'name' => 'Original Name',
         ]);
 
         $response = $this->actingAs($this->user)
             ->put(route('app.whatsapp.connections.update', [
-                'workspace' => $this->workspace->slug,
+                'account' => $this->account->slug,
                 'connection' => $connection->id,
             ]), [
                 'name' => 'Updated Name',
@@ -106,14 +106,14 @@ class ConnectionTest extends TestCase
     public function test_owner_can_rotate_verify_token(): void
     {
         $connection = WhatsAppConnection::factory()->create([
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
         ]);
 
         $originalToken = $connection->webhook_verify_token;
 
         $response = $this->actingAs($this->user)
             ->post(route('app.whatsapp.connections.rotate-verify-token', [
-                'workspace' => $this->workspace->slug,
+                'account' => $this->account->slug,
                 'connection' => $connection->id,
             ]));
 

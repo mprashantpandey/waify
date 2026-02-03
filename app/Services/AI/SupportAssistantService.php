@@ -63,11 +63,9 @@ class SupportAssistantService
                 'model' => $model,
                 'messages' => [
                     ['role' => 'system', 'content' => $systemPrompt],
-                    ['role' => 'user', 'content' => $prompt],
-                ],
+                    ['role' => 'user', 'content' => $prompt]],
                 'temperature' => $temperature,
-                'max_tokens' => $maxTokens,
-            ]);
+                'max_tokens' => $maxTokens]);
 
         if (!$response->ok()) {
             throw new \RuntimeException('OpenAI request failed.');
@@ -93,15 +91,10 @@ class SupportAssistantService
                     [
                         'role' => 'user',
                         'parts' => [
-                            ['text' => "{$systemPrompt}\n\n{$prompt}"],
-                        ],
-                    ],
-                ],
+                            ['text' => "{$systemPrompt}\n\n{$prompt}"]]]],
                 'generationConfig' => [
                     'temperature' => $temperature,
-                    'maxOutputTokens' => $maxTokens,
-                ],
-            ]);
+                    'maxOutputTokens' => $maxTokens]]);
 
         if (!$response->ok()) {
             throw new \RuntimeException('Gemini request failed.');

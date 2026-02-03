@@ -28,7 +28,7 @@ interface Template {
     footer_text: string | null;
     buttons: any[] | null;
     components: any[] | null;
-    workspace: {
+    account: {
         id: number;
         name: string;
         slug: string;
@@ -50,8 +50,7 @@ export default function TemplatesShow({ template }: { template: Template }) {
         const statusMap: Record<string, { variant: 'success' | 'warning' | 'danger' | 'info' | 'default'; icon: any }> = {
             APPROVED: { variant: 'success', icon: CheckCircle },
             PENDING: { variant: 'warning', icon: Clock },
-            REJECTED: { variant: 'danger', icon: XCircle },
-        };
+            REJECTED: { variant: 'danger', icon: XCircle }};
 
         const config = statusMap[status] || { variant: 'default' as const, icon: AlertCircle };
         const Icon = config.icon;
@@ -204,18 +203,18 @@ export default function TemplatesShow({ template }: { template: Template }) {
                             </CardContent>
                         </Card>
 
-                        {/* Workspace Info */}
+                        {/* Tenant Info */}
                         <Card>
                             <CardHeader>
-                                <CardTitle>Workspace</CardTitle>
+                                <CardTitle>Tenant</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <Link
-                                    href={route('platform.workspaces.show', { workspace: template.workspace.id })}
+                                    href={route('platform.accounts.show', { account: template.account.id })}
                                     className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline"
                                 >
                                     <Building2 className="h-4 w-4" />
-                                    {template.workspace.name}
+                                    {template.account.name}
                                 </Link>
                                 {template.connection && (
                                     <div className="mt-3">

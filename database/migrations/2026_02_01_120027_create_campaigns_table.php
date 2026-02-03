@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('campaigns', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('workspace_id')->constrained()->onDelete('cascade');
+            $table->foreignId('account_id')->constrained()->onDelete('cascade');
             $table->foreignId('whatsapp_connection_id')->nullable()->constrained('whatsapp_connections')->onDelete('set null');
             $table->foreignId('whatsapp_template_id')->nullable()->constrained('whatsapp_templates')->onDelete('set null');
             $table->foreignId('created_by')->nullable()->constrained('users')->onDelete('set null');
@@ -53,8 +53,8 @@ return new class extends Migration
             
             $table->timestamps();
             
-            $table->index(['workspace_id', 'status']);
-            $table->index(['workspace_id', 'scheduled_at']);
+            $table->index(['account_id', 'status']);
+            $table->index(['account_id', 'scheduled_at']);
             $table->index('status');
         });
     }

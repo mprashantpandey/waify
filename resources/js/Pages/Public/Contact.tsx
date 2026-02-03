@@ -11,8 +11,7 @@ export default function Contact() {
         name: '',
         email: '',
         subject: '',
-        message: '',
-    });
+        message: ''});
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -25,22 +24,19 @@ export default function Contact() {
             label: 'Email',
             value: 'support@example.com',
             href: 'mailto:support@example.com',
-            gradient: 'from-blue-500 to-blue-600',
-        },
+            gradient: 'from-blue-500 to-blue-600'},
         {
             icon: Phone,
             label: 'Phone',
             value: '+1 (555) 123-4567',
             href: 'tel:+15551234567',
-            gradient: 'from-purple-500 to-purple-600',
-        },
+            gradient: 'from-purple-500 to-purple-600'},
         {
             icon: MapPin,
             label: 'Address',
             value: '123 Business St, City, State 12345',
             href: '#',
-            gradient: 'from-green-500 to-green-600',
-        },
+            gradient: 'from-green-500 to-green-600'},
     ];
 
     return (

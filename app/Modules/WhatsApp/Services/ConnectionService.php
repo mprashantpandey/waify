@@ -3,7 +3,7 @@
 namespace App\Modules\WhatsApp\Services;
 
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
-use App\Models\Workspace;
+use App\Models\Account;
 use Illuminate\Support\Str;
 
 class ConnectionService
@@ -11,9 +11,9 @@ class ConnectionService
     /**
      * Create a new WhatsApp connection.
      */
-    public function create(Workspace $workspace, array $data): WhatsAppConnection
+    public function create(Account $account, array $data): WhatsAppConnection
     {
-        $data['workspace_id'] = $workspace->id;
+        $data['account_id'] = $account->id;
         $data['webhook_verify_token'] = WhatsAppConnection::generateVerifyToken();
         $data['api_version'] = $data['api_version'] ?? config('whatsapp.meta.api_version', 'v21.0');
 
@@ -67,7 +67,6 @@ class ConnectionService
     public function getWebhookUrl(WhatsAppConnection $connection): string
     {
         return route('webhooks.whatsapp.receive', [
-            'connection' => $connection->id,
-        ]);
+            'connection' => $connection->id]);
     }
 }

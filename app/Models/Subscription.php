@@ -11,7 +11,7 @@ class Subscription extends Model
     use HasFactory;
 
     protected $fillable = [
-        'workspace_id',
+        'account_id',
         'plan_id',
         'slug',
         'status',
@@ -25,8 +25,7 @@ class Subscription extends Model
         'provider_ref',
         'last_payment_at',
         'last_payment_failed_at',
-        'last_error',
-    ];
+        'last_error'];
 
     protected static function boot()
     {
@@ -44,7 +43,7 @@ class Subscription extends Model
      */
     public static function generateSlug($subscription): string
     {
-        $baseSlug = 'sub-' . ($subscription->workspace_id ?? '') . '-' . ($subscription->plan_id ?? '');
+        $baseSlug = 'sub-' . ($subscription->account_id ?? '') . '-' . ($subscription->plan_id ?? '');
         $slug = \Illuminate\Support\Str::slug($baseSlug);
         $originalSlug = $slug;
         $counter = 1;
@@ -75,13 +74,12 @@ class Subscription extends Model
             'cancel_at_period_end' => 'boolean',
             'canceled_at' => 'datetime',
             'last_payment_at' => 'datetime',
-            'last_payment_failed_at' => 'datetime',
-        ];
+            'last_payment_failed_at' => 'datetime'];
     }
 
-    public function workspace(): BelongsTo
+    public function account(): BelongsTo
     {
-        return $this->belongsTo(Workspace::class);
+        return $this->belongsTo(Account::class);
     }
 
     public function plan(): BelongsTo

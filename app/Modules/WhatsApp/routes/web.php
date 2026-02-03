@@ -10,7 +10,7 @@ use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use Illuminate\Support\Facades\Route;
 
 // Note: These routes are loaded inside the app routes group, so they don't need their own prefix/middleware
-// Routes are prefixed with 'app.whatsapp.' and are already under '/app/{workspace}'
+// Routes are prefixed with 'app.whatsapp.' and are already under '/app'
 
 // Note: Connection model binding is handled in the controllers via resolveConnection() method
 // This avoids issues with route binding running before middleware
@@ -41,6 +41,20 @@ Route::middleware(['module.entitled:whatsapp.cloud'])->group(function () {
     Route::post('/conversations/{conversation}/send-template', [ConversationController::class, 'sendTemplateMessage'])->name('whatsapp.conversations.send-template');
     Route::post('/conversations/{conversation}/send-media', [ConversationController::class, 'sendMediaMessage'])->name('whatsapp.conversations.send-media');
     Route::post('/conversations/{conversation}/send-location', [ConversationController::class, 'sendLocationMessage'])->name('whatsapp.conversations.send-location');
+    Route::post('/conversations/{conversation}/send-list', [ConversationController::class, 'sendList'])->name('whatsapp.conversations.send-list');
+    Route::post('/conversations/{conversation}/send-buttons', [ConversationController::class, 'sendInteractiveButtons'])->name('whatsapp.conversations.send-buttons');
+    Route::post('/conversations/{conversation}/notes', [ConversationController::class, 'addInternalNote'])->name('whatsapp.conversations.notes.store');
+    Route::post('/conversations/{conversation}/update', [ConversationController::class, 'updateMeta'])->name('whatsapp.conversations.update');
+
+    // Lists (requires whatsapp.cloud entitlement)
+    Route::get('/lists', [\App\Modules\WhatsApp\Http\Controllers\ListController::class, 'index'])->name('whatsapp.lists.index');
+    Route::get('/lists/create', [\App\Modules\WhatsApp\Http\Controllers\ListController::class, 'create'])->name('whatsapp.lists.create');
+    Route::post('/lists', [\App\Modules\WhatsApp\Http\Controllers\ListController::class, 'store'])->name('whatsapp.lists.store');
+    Route::get('/lists/{list}', [\App\Modules\WhatsApp\Http\Controllers\ListController::class, 'show'])->name('whatsapp.lists.show');
+    Route::get('/lists/{list}/edit', [\App\Modules\WhatsApp\Http\Controllers\ListController::class, 'edit'])->name('whatsapp.lists.edit');
+    Route::put('/lists/{list}', [\App\Modules\WhatsApp\Http\Controllers\ListController::class, 'update'])->name('whatsapp.lists.update');
+    Route::delete('/lists/{list}', [\App\Modules\WhatsApp\Http\Controllers\ListController::class, 'destroy'])->name('whatsapp.lists.destroy');
+    Route::post('/lists/{list}/toggle', [\App\Modules\WhatsApp\Http\Controllers\ListController::class, 'toggle'])->name('whatsapp.lists.toggle');
 
     // Inbox stream endpoints (fallback polling)
     Route::get('/inbox/stream', [\App\Modules\WhatsApp\Http\Controllers\InboxStreamController::class, 'stream'])->name('whatsapp.inbox.stream');

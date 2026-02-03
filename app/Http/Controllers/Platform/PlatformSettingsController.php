@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Platform;
 
 use App\Http\Controllers\Controller;
 use App\Models\PlatformSetting;
+use App\Services\PlatformSettingsValidationService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -26,8 +27,7 @@ class PlatformSettingsController extends Controller
             'date_format' => $get('general.date_format', 'Y-m-d'),
             'time_format' => $get('general.time_format', '24'),
             'maintenance_mode' => $get('general.maintenance_mode', false),
-            'maintenance_message' => $get('general.maintenance_message'),
-        ];
+            'maintenance_message' => $get('general.maintenance_message')];
 
         // Security Settings
         $securitySettings = [
@@ -45,8 +45,7 @@ class PlatformSettingsController extends Controller
             'lockout_duration' => $get('security.lockout_duration', 15),
             'api_rate_limit' => $get('security.api_rate_limit', 60),
             'web_rate_limit' => $get('security.web_rate_limit', 120),
-            'ip_whitelist' => $get('security.ip_whitelist'),
-        ];
+            'ip_whitelist' => $get('security.ip_whitelist')];
 
         // Payment Settings
         $paymentSettings = [
@@ -58,8 +57,7 @@ class PlatformSettingsController extends Controller
             'currency_symbol_position' => $get('payment.currency_symbol_position', 'before'),
             'tax_rate' => $get('payment.tax_rate', 0),
             'invoice_prefix' => $get('payment.invoice_prefix', 'INV-'),
-            'invoice_number_start' => $get('payment.invoice_number_start', 1),
-        ];
+            'invoice_number_start' => $get('payment.invoice_number_start', 1)];
 
         // Integrations Settings
         $integrationsSettings = [
@@ -72,8 +70,7 @@ class PlatformSettingsController extends Controller
             'slack_webhook_url' => $get('integrations.slack_webhook_url'),
             'slack_enabled' => $get('integrations.slack_enabled', false),
             'discord_webhook_url' => $get('integrations.discord_webhook_url'),
-            'discord_enabled' => $get('integrations.discord_enabled', false),
-        ];
+            'discord_enabled' => $get('integrations.discord_enabled', false)];
 
         // Analytics Settings
         $analyticsSettings = [
@@ -85,8 +82,7 @@ class PlatformSettingsController extends Controller
             'sentry_environment' => $get('analytics.sentry_environment', 'production'),
             'sentry_enabled' => $get('analytics.sentry_enabled', false),
             'log_level' => $get('analytics.log_level', 'info'),
-            'log_api_requests' => $get('analytics.log_api_requests', false),
-        ];
+            'log_api_requests' => $get('analytics.log_api_requests', false)];
 
         // Compliance Settings
         $complianceSettings = [
@@ -98,8 +94,7 @@ class PlatformSettingsController extends Controller
             'data_officer_email' => $get('compliance.data_officer_email'),
             'cookie_consent_required' => $get('compliance.cookie_consent_required', false),
             'allow_data_export' => $get('compliance.allow_data_export', false),
-            'allow_data_deletion' => $get('compliance.allow_data_deletion', false),
-        ];
+            'allow_data_deletion' => $get('compliance.allow_data_deletion', false)];
 
         // Performance Settings
         $performanceSettings = [
@@ -113,28 +108,25 @@ class PlatformSettingsController extends Controller
             'query_timeout' => $get('performance.query_timeout', 30),
             'query_logging_enabled' => $get('performance.query_logging_enabled', false),
             'max_upload_size' => $get('performance.max_upload_size', 10),
-            'allowed_file_types' => $get('performance.allowed_file_types', 'jpg,jpeg,png,pdf,doc,docx'),
-        ];
+            'allowed_file_types' => $get('performance.allowed_file_types', 'jpg,jpeg,png,pdf,doc,docx')];
 
         // Features Settings
         $featuresSettings = [
             'user_registration' => $get('features.user_registration', true),
             'email_verification' => $get('features.email_verification', false),
-            'workspace_creation' => $get('features.workspace_creation', true),
+            'account_creation' => $get('features.account_creation', true),
             'public_api' => $get('features.public_api', false),
             'webhooks' => $get('features.webhooks', true),
             'analytics' => $get('features.analytics', true),
             'beta_features' => $get('features.beta_features', false),
-            'maintenance_mode' => $get('features.maintenance_mode', false),
-        ];
+            'maintenance_mode' => $get('features.maintenance_mode', false)];
 
         // Pusher Settings
         $pusherSettings = [
             'app_id' => $get('pusher.app_id', config('broadcasting.connections.pusher.app_id')),
             'key' => $get('pusher.key', config('broadcasting.connections.pusher.key')),
             'secret' => $get('pusher.secret', config('broadcasting.connections.pusher.secret')),
-            'cluster' => $get('pusher.cluster', config('broadcasting.connections.pusher.options.cluster')),
-        ];
+            'cluster' => $get('pusher.cluster', config('broadcasting.connections.pusher.options.cluster'))];
 
         // Mail Settings
         $mailSettings = [
@@ -145,8 +137,7 @@ class PlatformSettingsController extends Controller
             'password' => $get('mail.password', config('mail.mailers.smtp.password')),
             'encryption' => $get('mail.encryption', config('mail.mailers.smtp.encryption', 'tls')),
             'from_address' => $get('mail.from_address', config('mail.from.address')),
-            'from_name' => $get('mail.from_name', config('mail.from.name')),
-        ];
+            'from_name' => $get('mail.from_name', config('mail.from.name'))];
 
         // Storage Settings
         $storageSettings = [
@@ -154,8 +145,7 @@ class PlatformSettingsController extends Controller
             's3_key' => $get('storage.s3_key', config('filesystems.disks.s3.key')),
             's3_secret' => $get('storage.s3_secret', config('filesystems.disks.s3.secret')),
             's3_region' => $get('storage.s3_region', config('filesystems.disks.s3.region')),
-            's3_bucket' => $get('storage.s3_bucket', config('filesystems.disks.s3.bucket')),
-        ];
+            's3_bucket' => $get('storage.s3_bucket', config('filesystems.disks.s3.bucket'))];
 
         // Branding Settings
         $brandingService = app(\App\Services\BrandingService::class);
@@ -170,8 +160,7 @@ class PlatformSettingsController extends Controller
             'support_email' => $get('branding.support_email'),
             'support_phone' => $get('branding.support_phone'),
             'footer_text' => $get('branding.footer_text'),
-            'show_powered_by' => $get('branding.show_powered_by', false),
-        ];
+            'show_powered_by' => $get('branding.show_powered_by', false)];
 
         // AI Settings
         $aiSettings = [
@@ -183,8 +172,7 @@ class PlatformSettingsController extends Controller
             'gemini_model' => $get('ai.gemini_model', 'gemini-1.5-flash'),
             'system_prompt' => $get('ai.system_prompt'),
             'temperature' => $get('ai.temperature', 0.2),
-            'max_tokens' => $get('ai.max_tokens', 300),
-        ];
+            'max_tokens' => $get('ai.max_tokens', 300)];
 
         // WhatsApp Meta Settings
         $whatsappSettings = [
@@ -193,8 +181,7 @@ class PlatformSettingsController extends Controller
             'meta_app_secret' => $get('whatsapp.meta_app_secret', config('whatsapp.meta.app_secret')),
             'system_user_token' => $get('whatsapp.system_user_token', config('whatsapp.meta.system_user_token')),
             'embedded_signup_config_id' => $get('whatsapp.embedded_signup_config_id', config('whatsapp.meta.embedded_signup_config_id')),
-            'api_version' => $get('whatsapp.api_version', config('whatsapp.meta.api_version', 'v21.0')),
-        ];
+            'api_version' => $get('whatsapp.api_version', config('whatsapp.meta.api_version', 'v21.0'))];
 
         // Support Settings
         $supportFaqsRaw = $get('support.faqs');
@@ -204,13 +191,18 @@ class PlatformSettingsController extends Controller
         }
 
         $supportSettings = [
+            'live_chat_enabled' => (bool) $get('support.live_chat_enabled', true),
+            'ticket_support_enabled' => (bool) $get('support.ticket_support_enabled', true),
             'faqs' => is_array($supportFaqs) ? $supportFaqs : [],
             'sla_hours' => (int) $get('support.sla_hours', 48),
             'first_response_hours' => (int) $get('support.first_response_hours', 4),
             'email_notifications_enabled' => (bool) $get('support.email_notifications_enabled', true),
             'notify_admins' => (bool) $get('support.notify_admins', true),
-            'notify_customers' => (bool) $get('support.notify_customers', true),
-        ];
+            'notify_customers' => (bool) $get('support.notify_customers', true)];
+
+        // Check for misconfigured settings
+        $validationService = app(PlatformSettingsValidationService::class);
+        $misconfiguredSettings = $validationService->getMisconfiguredSettings();
 
         return Inertia::render('Platform/Settings', [
             'general' => $generalSettings,
@@ -228,7 +220,7 @@ class PlatformSettingsController extends Controller
             'ai' => $aiSettings,
             'whatsapp' => $whatsappSettings,
             'support' => $supportSettings,
-        ]);
+            'misconfigured_settings' => array_values($misconfiguredSettings)]);
     }
 
     /**
@@ -317,7 +309,7 @@ class PlatformSettingsController extends Controller
             // Features
             'features.user_registration' => 'nullable|boolean',
             'features.email_verification' => 'nullable|boolean',
-            'features.workspace_creation' => 'nullable|boolean',
+            'features.account_creation' => 'nullable|boolean',
             'features.public_api' => 'nullable|boolean',
             'features.webhooks' => 'nullable|boolean',
             'features.analytics' => 'nullable|boolean',
@@ -369,17 +361,23 @@ class PlatformSettingsController extends Controller
             'whatsapp.embedded_signup_config_id' => 'nullable|string|max:255',
             'whatsapp.api_version' => 'nullable|string|max:10',
             // Support
+            'support.live_chat_enabled' => 'nullable|boolean',
+            'support.ticket_support_enabled' => 'nullable|boolean',
             'support.faqs' => 'nullable|array',
             'support.faqs.*.question' => 'required_with:support.faqs|string|max:255',
-            'support.faqs.*.answer' => 'required_with:support.faqs|string|max:2000',
+            'support.faqs.*.answer' => 'required_with:support.faqs|string|max:5000',
+            'support.faqs.*.category' => 'nullable|string|max:100',
+            'support.faqs.*.enabled' => 'nullable|boolean',
+            'support.faqs.*.order' => 'nullable|integer|min:0',
+            'support.faqs.*.tags' => 'nullable|array',
+            'support.faqs.*.tags.*' => 'nullable|string|max:50',
             'support.sla_hours' => 'nullable|integer|min:1|max:720',
             'support.first_response_hours' => 'nullable|integer|min:1|max:168',
             'support.email_notifications_enabled' => 'nullable|boolean',
             'support.notify_admins' => 'nullable|boolean',
             'support.notify_customers' => 'nullable|boolean',
             'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
-            'favicon' => 'nullable|image|mimes:ico,png|max:512',
-        ]);
+            'favicon' => 'nullable|image|mimes:ico,png|max:512']);
 
         // Handle logo upload
         if ($request->hasFile('logo')) {
@@ -404,13 +402,12 @@ class PlatformSettingsController extends Controller
             'analytics' => ['google_analytics_enabled', 'mixpanel_enabled', 'sentry_enabled', 'log_api_requests'],
             'compliance' => ['gdpr_enabled', 'cookie_consent_required', 'allow_data_export', 'allow_data_deletion'],
             'performance' => ['cache_enabled', 'query_logging_enabled'],
-            'features' => ['user_registration', 'email_verification', 'workspace_creation', 'public_api', 'webhooks', 'analytics', 'beta_features', 'maintenance_mode'],
+            'features' => ['user_registration', 'email_verification', 'account_creation', 'public_api', 'webhooks', 'analytics', 'beta_features', 'maintenance_mode'],
             'general' => ['maintenance_mode'],
             'branding' => ['show_powered_by'],
             'ai' => ['enabled'],
             'whatsapp' => ['embedded_enabled'],
-            'support' => ['email_notifications_enabled', 'notify_admins', 'notify_customers'],
-        ];
+            'support' => ['live_chat_enabled', 'ticket_support_enabled', 'email_notifications_enabled', 'notify_admins', 'notify_customers']];
         
         foreach ($groups as $group) {
             // Handle both nested array format and dot-notation format

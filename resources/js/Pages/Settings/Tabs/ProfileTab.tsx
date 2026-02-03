@@ -4,7 +4,7 @@ import Button from '@/Components/UI/Button';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
-import { User, Save, Mail, CheckCircle2 } from 'lucide-react';
+import { User, Save, Mail, CheckCircle2, Phone } from 'lucide-react';
 import { usePage } from '@inertiajs/react';
 import { Transition } from '@headlessui/react';
 
@@ -15,14 +15,13 @@ export default function ProfileTab() {
     const { data, setData, patch, processing, errors, reset, recentlySuccessful } = useForm({
         name: user?.name || '',
         email: user?.email || '',
-    });
+        phone: user?.phone || ''});
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
         patch(route('profile.update'), {
             preserveScroll: true,
-            onSuccess: () => reset(),
-        });
+            onSuccess: () => reset()});
     };
 
     return (
@@ -71,6 +70,23 @@ export default function ProfileTab() {
                                 />
                             </div>
                             <InputError message={errors.email} className="mt-2" />
+                        </div>
+
+                        <div>
+                            <InputLabel htmlFor="phone" value="Phone Number" className="text-sm font-semibold mb-2" />
+                            <div className="relative">
+                                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                                <TextInput
+                                    id="phone"
+                                    type="tel"
+                                    value={data.phone}
+                                    onChange={(e) => setData('phone', e.target.value)}
+                                    className="mt-1 block w-full pl-10 rounded-xl"
+                                    required
+                                    placeholder="+1234567890"
+                                />
+                            </div>
+                            <InputError message={errors.phone} className="mt-2" />
                         </div>
 
                         <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">

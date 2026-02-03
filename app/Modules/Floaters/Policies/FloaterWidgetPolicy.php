@@ -14,35 +14,35 @@ class FloaterWidgetPolicy
 
     public function view(User $user, FloaterWidget $widget): bool
     {
-        return $widget->workspace->users->contains($user) ||
-            $widget->workspace->owner_id === $user->id;
+        return $widget->account->users->contains($user) ||
+            $widget->account->owner_id === $user->id;
     }
 
     public function create(User $user): bool
     {
-        $workspace = current_workspace();
-        if (!$workspace) {
+        $account = current_account();
+        if (!$account) {
             return false;
         }
 
-        $membership = $workspace->users()->where('user_id', $user->id)->first();
+        $membership = $account->users()->where('user_id', $user->id)->first();
         if ($membership) {
             return in_array($membership->pivot->role, ['owner', 'admin'], true);
         }
 
-        return $workspace->owner_id === $user->id;
+        return $account->owner_id === $user->id;
     }
 
     public function update(User $user, FloaterWidget $widget): bool
     {
-        $workspace = $widget->workspace;
-        $membership = $workspace->users()->where('user_id', $user->id)->first();
+        $account = $widget->account;
+        $membership = $account->users()->where('user_id', $user->id)->first();
 
         if ($membership) {
             return in_array($membership->pivot->role, ['owner', 'admin'], true);
         }
 
-        return $workspace->owner_id === $user->id;
+        return $account->owner_id === $user->id;
     }
 
     public function delete(User $user, FloaterWidget $widget): bool

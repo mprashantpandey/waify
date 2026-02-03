@@ -19,11 +19,10 @@ declare global {
 }
 
 export default function ConnectionsCreate({
-    workspace,
+    account,
     embeddedSignup,
-    defaultApiVersion,
-}: {
-    workspace: any;
+    defaultApiVersion}: {
+    account: any;
     embeddedSignup: { enabled?: boolean; appId?: string; configId?: string; apiVersion?: string };
     defaultApiVersion: string;
 }) {
@@ -40,12 +39,11 @@ export default function ConnectionsCreate({
         waba_id: '',
         phone_number_id: '',
         business_phone: '',
-        access_token: '',
-    });
+        access_token: ''});
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
-        post(route('app.whatsapp.connections.store', { workspace: workspace.slug }));
+        post(route('app.whatsapp.connections.store', {}));
     };
 
     const testConnection = async () => {
@@ -53,12 +51,11 @@ export default function ConnectionsCreate({
         setTestResult(null);
         try {
             const response = await axios.post(
-                route('app.whatsapp.connections.test', { workspace: workspace.slug }) as string,
+                route('app.whatsapp.connections.test', {}) as string,
                 {
                     phone_number_id: data.phone_number_id,
                     access_token: data.access_token,
-                    waba_id: data.waba_id || null,
-                }
+                    waba_id: data.waba_id || null}
             );
 
             const payload = response.data;
@@ -66,15 +63,13 @@ export default function ConnectionsCreate({
             setData('business_phone', payload.display_phone_number || data.business_phone);
             setTestResult({
                 ok: true,
-                message: `Success: ${display}`,
-            });
+                message: `Success: ${display}`});
             addToast({ title: 'Connection verified', variant: 'success' });
         } catch (error: any) {
             const message = error?.response?.data?.error || 'Unable to verify connection';
             setTestResult({
                 ok: false,
-                message,
-            });
+                message});
             addToast({ title: 'Connection test failed', variant: 'error' });
         } finally {
             setTesting(false);
@@ -90,8 +85,7 @@ export default function ConnectionsCreate({
         access_token: '',
         code: '',
         pin: '',
-        redirect_uri: '',
-    });
+        redirect_uri: ''});
 
     useEffect(() => {
         if (!embeddedEnabled) {
@@ -107,8 +101,7 @@ export default function ConnectionsCreate({
                 appId: embeddedSignup.appId,
                 cookie: true,
                 xfbml: true,
-                version: embeddedSignup.apiVersion || 'v21.0',
-            });
+                version: embeddedSignup.apiVersion || 'v21.0'});
             setEmbeddedReady(true);
         };
 
@@ -194,14 +187,13 @@ export default function ConnectionsCreate({
                 config_id: embeddedSignup.configId,
                 response_type: 'code',
                 override_default_response_type: true,
-                scope: 'whatsapp_business_management,whatsapp_business_messaging,business_management',
-            }
+                scope: 'whatsapp_business_management,whatsapp_business_messaging,business_management'}
         );
     };
 
     const submitEmbedded: FormEventHandler = (e) => {
         e.preventDefault();
-        embeddedForm.post(route('app.whatsapp.connections.store-embedded', { workspace: workspace.slug }));
+        embeddedForm.post(route('app.whatsapp.connections.store-embedded', {}));
     };
 
     return (
@@ -210,7 +202,7 @@ export default function ConnectionsCreate({
             <div className="space-y-8">
                 <div>
                     <Link
-                        href={route('app.whatsapp.connections.index', { workspace: workspace.slug })}
+                        href={route('app.whatsapp.connections.index', {})}
                         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
                     >
                         <ArrowLeft className="h-4 w-4" />
@@ -239,7 +231,7 @@ export default function ConnectionsCreate({
                                         <CardDescription>Connect directly via Meta for a verified, production-ready setup</CardDescription>
                                     </div>
                                 </div>
-                                <Link href={route('app.whatsapp.connections.wizard', { workspace: workspace.slug })}>
+                                <Link href={route('app.whatsapp.connections.wizard', {})}>
                                     <Button variant="secondary" size="sm" className="rounded-xl">
                                         <Sparkles className="h-4 w-4 mr-2" />
                                         Use Wizard
@@ -376,7 +368,7 @@ export default function ConnectionsCreate({
                             </p>
                             <div className="mt-4">
                                 <Link
-                                    href={route('app.support.hub', { workspace: workspace.slug })}
+                                    href={route('app.support.hub', {})}
                                     className="inline-flex items-center text-sm font-semibold text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
                                 >
                                     Contact support
@@ -539,7 +531,7 @@ export default function ConnectionsCreate({
                             </div>
 
                             <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                                <Link href={route('app.whatsapp.connections.index', { workspace: workspace.slug })}>
+                                <Link href={route('app.whatsapp.connections.index', { })}>
                                     <Button type="button" variant="secondary" className="rounded-xl">
                                         Cancel
                                     </Button>

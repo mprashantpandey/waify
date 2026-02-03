@@ -23,8 +23,7 @@ class Plan extends Model
         'sort_order',
         'limits',
         'modules',
-        'metadata',
-    ];
+        'metadata'];
 
     protected function casts(): array
     {
@@ -37,8 +36,7 @@ class Plan extends Model
             'sort_order' => 'integer',
             'limits' => 'array',
             'modules' => 'array',
-            'metadata' => 'array',
-        ];
+            'metadata' => 'array'];
     }
 
     public function subscriptions(): HasMany

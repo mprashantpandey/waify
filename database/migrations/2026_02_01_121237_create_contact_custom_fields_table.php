@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('contact_custom_fields', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('workspace_id')->constrained()->onDelete('cascade');
+            $table->foreignId('account_id')->constrained()->onDelete('cascade');
             $table->string('name');
             $table->string('type')->default('text'); // text, number, date, email, phone, select, multiselect
             $table->json('options')->nullable(); // For select/multiselect fields
@@ -21,8 +21,8 @@ return new class extends Migration
             $table->integer('order')->default(0);
             $table->timestamps();
 
-            $table->unique(['workspace_id', 'name']);
-            $table->index('workspace_id');
+            $table->unique(['account_id', 'name']);
+            $table->index('account_id');
         });
     }
 

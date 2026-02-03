@@ -48,12 +48,11 @@ interface Stats {
 }
 
 export default function BroadcastsShow({
-    workspace,
+    account,
     campaign,
     stats,
-    recipients,
-}: {
-    workspace: any;
+    recipients}: {
+    account: any;
     campaign: Campaign;
     stats: Stats;
     recipients: Recipient[];
@@ -72,8 +71,7 @@ export default function BroadcastsShow({
             sent: { variant: 'info', label: 'Sent' },
             delivered: { variant: 'success', label: 'Delivered' },
             read: { variant: 'success', label: 'Read' },
-            failed: { variant: 'danger', label: 'Failed' },
-        };
+            failed: { variant: 'danger', label: 'Failed' }};
 
         const config = statusMap[status] || { variant: 'default' as const, label: status };
         return <Badge variant={config.variant}>{config.label}</Badge>;
@@ -85,38 +83,35 @@ export default function BroadcastsShow({
     };
 
     const handleStart = () => {
-        router.post(route('app.broadcasts.start', { workspace: workspace.slug, campaign: campaign.slug }), {}, {
+        router.post(route('app.broadcasts.start', { campaign: campaign.slug }), {}, {
             onSuccess: () => {
                 toast.success('Campaign started');
             },
             onError: () => {
                 toast.error('Failed to start campaign');
-            },
-        });
+            }});
     };
 
     const handlePause = () => {
-        router.post(route('app.broadcasts.pause', { workspace: workspace.slug, campaign: campaign.slug }), {}, {
+        router.post(route('app.broadcasts.pause', { campaign: campaign.slug }), {}, {
             onSuccess: () => {
                 toast.success('Campaign paused');
             },
             onError: () => {
                 toast.error('Failed to pause campaign');
-            },
-        });
+            }});
     };
 
     const handleCancel = () => {
         if (!confirm('Are you sure you want to cancel this campaign?')) return;
 
-        router.post(route('app.broadcasts.cancel', { workspace: workspace.slug, campaign: campaign.slug }), {}, {
+        router.post(route('app.broadcasts.cancel', { campaign: campaign.slug }), {}, {
             onSuccess: () => {
                 toast.success('Campaign cancelled');
             },
             onError: () => {
                 toast.error('Failed to cancel campaign');
-            },
-        });
+            }});
     };
 
     return (
@@ -125,7 +120,7 @@ export default function BroadcastsShow({
             <div className="space-y-6">
                 <div>
                     <Link
-                        href={route('app.broadcasts.index', { workspace: workspace.slug })}
+                        href={route('app.broadcasts.index', { })}
                         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
                     >
                         <ArrowLeft className="h-4 w-4" />

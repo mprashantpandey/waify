@@ -6,13 +6,14 @@ import { Toaster } from '@/Components/UI/Toaster';
 import { BrandingWrapper } from '@/Components/Branding/BrandingWrapper';
 import { GlobalFlashHandler } from '@/Components/Notifications/GlobalFlashHandler';
 import LiveChatWidget from '@/Components/Support/LiveChatWidget';
+import ProfileIncompleteModal from '@/Components/Profile/ProfileIncompleteModal';
 
 interface AppShellProps {
     children: ReactNode;
 }
 
 export default function AppShell({ children }: AppShellProps) {
-    const { workspace, workspaces, navigation, auth, ziggy } = usePage().props as any;
+    const { account, navigation, auth, ziggy } = usePage().props as any;
     const currentRoute = window.location.pathname;
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -44,14 +45,12 @@ export default function AppShell({ children }: AppShellProps) {
                 <Sidebar
                     navigation={navigation || []}
                     currentRoute={currentRoute}
-                    workspace={workspace}
+                    account={account}
                     isOpen={sidebarOpen}
                     onClose={() => setSidebarOpen(false)}
                 />
                 <div className="lg:pl-72">
                     <Topbar
-                        workspace={workspace}
-                        workspaces={workspaces || []}
                         user={auth?.user}
                         onMenuClick={() => setSidebarOpen(!sidebarOpen)}
                     />
@@ -60,6 +59,7 @@ export default function AppShell({ children }: AppShellProps) {
                 <Toaster />
                 <GlobalFlashHandler />
                 <LiveChatWidget />
+                <ProfileIncompleteModal />
             </div>
         </BrandingWrapper>
     );

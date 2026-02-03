@@ -14,18 +14,16 @@ class FloaterWidgetEvent extends Model
 
     protected $fillable = [
         'floater_widget_id',
-        'workspace_id',
+        'account_id',
         'event_type',
         'path',
         'referrer',
         'user_agent',
         'ip_hash',
-        'metadata',
-    ];
+        'metadata'];
 
     protected $casts = [
-        'metadata' => 'array',
-    ];
+        'metadata' => 'array'];
 
     public function widget(): BelongsTo
     {

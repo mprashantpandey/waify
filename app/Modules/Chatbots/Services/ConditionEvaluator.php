@@ -117,9 +117,29 @@ class ConditionEvaluator
 
     protected function tagsContains(array $config, BotContext $context): bool
     {
-        // TODO: Implement when tags system exists
-        // For now, return true (no tags system yet)
-        return true;
+        $contact = $context->conversation->contact;
+        if (!$contact) {
+            return false;
+        }
+
+        $tagIds = $config['tag_ids'] ?? [];
+        $tagNames = $config['tags'] ?? $config['tag_names'] ?? [];
+
+        if (!is_array($tagIds)) {
+            $tagIds = [$tagIds];
+        }
+        if (!is_array($tagNames)) {
+            $tagNames = [$tagNames];
+        }
+
+        if (!empty($tagIds)) {
+            return $contact->tags()->whereIn('contact_tags.id', $tagIds)->exists();
+        }
+
+        if (!empty($tagNames)) {
+            return $contact->tags()->whereIn('contact_tags.name', $tagNames)->exists();
+        }
+
+        return false;
     }
 }
-

@@ -32,14 +32,13 @@ interface Plan {
 }
 
 export default function BillingPlans({
-    workspace,
+    account,
     plans,
     current_plan_key,
     current_modules = [],
     razorpay_enabled = false,
-    razorpay_key_id = null,
-}: {
-    workspace: any;
+    razorpay_key_id = null}: {
+    account: any;
     plans: Plan[];
     current_plan_key: string | null;
     current_modules?: string[];
@@ -59,32 +58,27 @@ export default function BillingPlans({
         return new Intl.NumberFormat('en-IN', {
             style: 'currency',
             currency: currency,
-            minimumFractionDigits: 0,
-        }).format(major);
+            minimumFractionDigits: 0}).format(major);
     };
 
     const handleSwitchPlan = async (planKey: string) => {
         const confirmed = await confirm({
             title: 'Switch Plan',
             message: 'Are you sure you want to switch to this plan?',
-            variant: 'info',
-        });
+            variant: 'info'});
 
         if (!confirmed) return;
 
         setSwitchingPlan(planKey);
         router.post(
             route('app.billing.switch-plan', {
-                workspace: workspace.slug,
-                plan: planKey,
-            }) as string,
+                plan: planKey}) as string,
             {},
             {
                 onSuccess: () => {
                     addToast({
                         title: 'Plan changed successfully',
-                        variant: 'success',
-                    });
+                        variant: 'success'});
                     router.reload({ only: ['plans', 'current_plan_key'] });
                 },
                 onError: (errors) => {
@@ -92,11 +86,9 @@ export default function BillingPlans({
                     addToast({
                         title: 'Failed to change plan',
                         description: errorMessage,
-                        variant: 'error',
-                    });
+                        variant: 'error'});
                 },
-                onFinish: () => setSwitchingPlan(null),
-            }
+                onFinish: () => setSwitchingPlan(null)}
         );
     };
 
@@ -135,8 +127,7 @@ export default function BillingPlans({
         const confirmed = await confirm({
             title: 'Purchase Plan',
             message: `Proceed to pay for ${plan.name}?`,
-            variant: 'info',
-        });
+            variant: 'info'});
         if (!confirmed) return;
 
         if (!razorpayEnabled) {
@@ -150,15 +141,12 @@ export default function BillingPlans({
             await loadRazorpay();
             
             // Create order
-            const orderUrl = `/app/${workspace.slug}/settings/billing/plans/${plan.key}/razorpay/order`;
-            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            // Axios will automatically include CSRF token from bootstrap.ts defaults
+            const orderUrl = route('app.billing.razorpay.order', { plan: plan.key });
             const orderResponse = await axios.post(orderUrl, {}, {
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json',
-                    ...(csrfToken && { 'X-CSRF-TOKEN': csrfToken }),
-                },
-            });
+                    'Accept': 'application/json'}});
 
             if (!orderResponse.data) {
                 throw new Error('Invalid response from server');
@@ -198,16 +186,15 @@ export default function BillingPlans({
                 amount: orderAmount,
                 currency: currency || 'INR',
                 order_id: order_id,
-                name: workspace.name || 'Waify',
+                name: account.name || 'Waify',
                 description: plan.description || plan.name,
                 handler: async (response: any) => {
                     try {
-                        const confirmUrl = `/app/${workspace.slug}/settings/billing/razorpay/confirm`;
+                        const confirmUrl = route('app.billing.razorpay.confirm');
                         await axios.post(confirmUrl, {
                             order_id: response.razorpay_order_id,
                             payment_id: response.razorpay_payment_id,
-                            signature: response.razorpay_signature,
-                        });
+                            signature: response.razorpay_signature});
                         addToast({ title: 'Payment successful. Plan activated.', variant: 'success' });
                         router.reload({ only: ['plans', 'current_plan_key', 'flash'] });
                     } catch (error: any) {
@@ -220,18 +207,14 @@ export default function BillingPlans({
                     }
                 },
                 prefill: {
-                    name: workspace?.owner?.name || '',
-                    email: workspace?.owner?.email || '',
-                },
+                    name: account?.owner?.name || '',
+                    email: account?.owner?.email || ''},
                 theme: {
-                    color: '#2563eb',
-                },
+                    color: '#2563eb'},
                 modal: {
                     ondismiss: () => {
                         setSwitchingPlan(null);
-                    },
-                },
-            };
+                    }}};
 
             // Suppress console warnings/errors for Razorpay (harmless browser security warnings)
             const originalWarn = console.warn;
@@ -343,7 +326,7 @@ export default function BillingPlans({
             <div className="space-y-8">
                 <div>
                     <Link
-                        href={route('app.billing.index', { workspace: workspace.slug })}
+                        href={route('app.billing.index', { })}
                         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
                     >
                         ← Back to Billing

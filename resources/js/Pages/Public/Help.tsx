@@ -23,12 +23,11 @@ export default function Help() {
             icon: BookOpen,
             description: 'Learn the basics and get up and running quickly',
             articles: [
-                'Creating your first workspace',
+                'Creating your first account',
                 'Connecting WhatsApp Business Account',
                 'Setting up your first template',
                 'Sending your first message',
-            ],
-        },
+            ]},
         {
             title: 'Templates & Messages',
             icon: FileText,
@@ -38,8 +37,7 @@ export default function Help() {
                 'Template approval process',
                 'Sending template messages',
                 'Message delivery tracking',
-            ],
-        },
+            ]},
         {
             title: 'Chatbots & Automation',
             icon: MessageSquare,
@@ -49,8 +47,7 @@ export default function Help() {
                 'Setting up flow nodes',
                 'Configuring triggers',
                 'Testing chatbots',
-            ],
-        },
+            ]},
         {
             title: 'Billing & Plans',
             icon: FileText,
@@ -60,8 +57,7 @@ export default function Help() {
                 'Upgrading or downgrading',
                 'Payment methods',
                 'Billing history',
-            ],
-        },
+            ]},
     ];
 
     const quickLinks = [

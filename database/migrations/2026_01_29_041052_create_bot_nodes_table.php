@@ -13,14 +13,14 @@ return new class extends Migration
     {
         Schema::create('bot_nodes', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('workspace_id')->constrained()->onDelete('cascade');
+            $table->foreignId('account_id')->constrained()->onDelete('cascade');
             $table->foreignId('bot_flow_id')->constrained()->onDelete('cascade');
             $table->string('type'); // condition|action|delay|router
             $table->json('config'); // node config
             $table->integer('sort_order'); // sequential execution
             $table->timestamps();
 
-            $table->index(['workspace_id', 'bot_flow_id', 'sort_order']);
+            $table->index(['account_id', 'bot_flow_id', 'sort_order']);
         });
     }
 

@@ -9,8 +9,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import ConfirmationDialog from '@/Components/UI/ConfirmationDialog';
 
 export default function DeleteUserForm({
-    className = '',
-}: {
+    className = ''}: {
     className?: string;
 }) {
     const { confirm, toast } = useNotifications();
@@ -24,10 +23,8 @@ export default function DeleteUserForm({
         processing,
         reset,
         errors,
-        clearErrors,
-    } = useForm({
-        password: '',
-    });
+        clearErrors} = useForm({
+        password: ''});
 
     const confirmUserDeletion = () => {
         setShowConfirmDialog(true);
@@ -40,8 +37,7 @@ export default function DeleteUserForm({
             title: 'Delete Account',
             message: 'Are you sure you want to delete your account? This action cannot be undone. All of your data will be permanently deleted.',
             variant: 'danger',
-            confirmText: 'Delete Account',
-        });
+            confirmText: 'Delete Account'});
 
         if (!confirmed) {
             return;
@@ -56,8 +52,7 @@ export default function DeleteUserForm({
                 passwordInput.current?.focus();
                 toast.error('Failed to delete account. Please check your password.');
             },
-            onFinish: () => reset(),
-        });
+            onFinish: () => reset()});
     };
 
     const closeModal = () => {

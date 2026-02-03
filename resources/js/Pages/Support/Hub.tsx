@@ -27,13 +27,12 @@ interface FaqItem {
 }
 
 export default function SupportHub({
-    workspace,
+    account,
     openThreads,
     closedThreads,
     liveThreads,
-    faqs,
-}: {
-    workspace: any;
+    faqs}: {
+    account: any;
     openThreads: Thread[];
     closedThreads: Thread[];
     liveThreads: Thread[];
@@ -86,7 +85,7 @@ export default function SupportHub({
                 </div>
                 <div className="flex justify-end">
                     <Link
-                        href={route('app.support.index', { workspace: workspace.slug })}
+                        href={route('app.support.index', {})}
                         className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
                     >
                         Create Ticket
@@ -118,7 +117,7 @@ export default function SupportHub({
                                         return (
                                             <Link
                                                 key={thread.id}
-                                                href={route('app.support.show', { workspace: workspace.slug, thread: threadKey })}
+                                                href={route('app.support.show', { thread: threadKey })}
                                                 className="block rounded-lg border border-blue-200 dark:border-blue-800 p-3 text-sm hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition"
                                             >
                                                 <div className="font-semibold text-gray-900 dark:text-gray-100">
@@ -158,7 +157,7 @@ export default function SupportHub({
                                         return (
                                             <Link
                                                 key={thread.id}
-                                                href={route('app.support.show', { workspace: workspace.slug, thread: threadKey })}
+                                                href={route('app.support.show', { thread: threadKey })}
                                                 className="block px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition"
                                             >
                                                 <div className="flex items-center justify-between">
@@ -203,7 +202,7 @@ export default function SupportHub({
                                         return (
                                             <Link
                                                 key={thread.id}
-                                                href={route('app.support.show', { workspace: workspace.slug, thread: threadKey })}
+                                                href={route('app.support.show', { thread: threadKey })}
                                                 className="block px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition"
                                             >
                                                 <div className="flex items-center justify-between">

@@ -12,8 +12,5 @@ return [
             'label' => 'Templates',
             'href' => 'app.whatsapp.templates.index',
             'icon' => 'FileText',
-            'group' => 'messaging',
-        ],
-    ],
-];
+            'group' => 'messaging']]];
 

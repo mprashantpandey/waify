@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('whatsapp_connections', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('workspace_id')->constrained()->onDelete('cascade');
+            $table->foreignId('account_id')->constrained()->onDelete('cascade');
             $table->string('name');
             $table->string('waba_id')->nullable();
             $table->string('phone_number_id');
@@ -27,8 +27,8 @@ return new class extends Migration
             $table->boolean('is_active')->default(true);
             $table->timestamps();
 
-            $table->unique(['workspace_id', 'phone_number_id']);
-            $table->index(['workspace_id', 'is_active']);
+            $table->unique(['account_id', 'phone_number_id']);
+            $table->index(['account_id', 'is_active']);
         });
     }
 

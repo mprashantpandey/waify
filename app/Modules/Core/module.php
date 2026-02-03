@@ -12,14 +12,10 @@ return [
             'label' => 'Dashboard',
             'href' => 'app.dashboard',
             'icon' => 'LayoutDashboard',
-            'group' => 'core',
-        ],
+            'group' => 'core'],
         [
             'label' => 'Modules',
             'href' => 'app.modules',
             'icon' => 'Puzzle',
-            'group' => 'core',
-        ],
-    ],
-];
+            'group' => 'core']]];
 

@@ -33,10 +33,10 @@ class TemplateSendController extends Controller
      */
     public function create(Request $request, WhatsAppTemplate $template)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        // Ensure template belongs to workspace
-        if ($template->workspace_id !== $workspace->id) {
+        // Ensure template belongs to account
+        if ($template->account_id !== $account->id) {
             abort(404);
         }
 
@@ -46,11 +46,11 @@ class TemplateSendController extends Controller
         $requiredVars = $this->composer->extractRequiredVariables($template);
 
         // Get contacts and conversations for selection
-        $contacts = WhatsAppContact::where('workspace_id', $workspace->id)
+        $contacts = WhatsAppContact::where('account_id', $account->id)
             ->orderBy('name')
             ->get(['id', 'wa_id', 'name']);
 
-        $conversations = WhatsAppConversation::where('workspace_id', $workspace->id)
+        $conversations = WhatsAppConversation::where('account_id', $account->id)
             ->with('contact')
             ->orderBy('last_message_at', 'desc')
             ->limit(50)
@@ -60,13 +60,11 @@ class TemplateSendController extends Controller
                     'id' => $conv->id,
                     'contact' => [
                         'wa_id' => $conv->contact->wa_id,
-                        'name' => $conv->contact->name ?? $conv->contact->wa_id,
-                    ],
-                ];
+                        'name' => $conv->contact->name ?? $conv->contact->wa_id]];
             });
 
         return \Inertia\Inertia::render('WhatsApp/Templates/Send', [
-            'workspace' => $workspace,
+            'account' => $account,
             'template' => [
                 'id' => $template->id,
                 'slug' => $template->slug,
@@ -77,11 +75,9 @@ class TemplateSendController extends Controller
                 'footer_text' => $template->footer_text,
                 'buttons' => $template->buttons,
                 'variable_count' => $template->variable_count,
-                'required_variables' => $requiredVars,
-            ],
+                'required_variables' => $requiredVars],
             'contacts' => $contacts,
-            'conversations' => $conversations,
-        ]);
+            'conversations' => $conversations]);
     }
 
     /**
@@ -89,10 +85,10 @@ class TemplateSendController extends Controller
      */
     public function store(Request $request, WhatsAppTemplate $template)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        // Ensure template belongs to workspace
-        if ($template->workspace_id !== $workspace->id) {
+        // Ensure template belongs to account
+        if ($template->account_id !== $account->id) {
             abort(404);
         }
 
@@ -101,20 +97,18 @@ class TemplateSendController extends Controller
         $validated = $request->validate([
             'to_wa_id' => 'required|string',
             'variables' => 'required|array',
-            'variables.*' => 'nullable|string',
-        ]);
+            'variables.*' => 'nullable|string']);
 
         // Validate variables count
         $requiredVars = $this->composer->extractRequiredVariables($template);
         if (count($validated['variables']) < $requiredVars['total']) {
             return redirect()->back()->withErrors([
-                'variables' => "Template requires {$requiredVars['total']} variables",
-            ]);
+                'variables' => "Template requires {$requiredVars['total']} variables"]);
         }
 
         // Check limits before sending
-        $this->entitlementService->assertWithinLimit($workspace, 'messages_monthly', 1);
-        $this->entitlementService->assertWithinLimit($workspace, 'template_sends_monthly', 1);
+        $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
+        $this->entitlementService->assertWithinLimit($account, 'template_sends_monthly', 1);
 
         try {
             DB::beginTransaction();
@@ -127,28 +121,26 @@ class TemplateSendController extends Controller
             );
 
             // Get or create conversation (with lock to prevent duplicates)
-            $conversation = $this->getOrCreateConversation($workspace, $template, $validated['to_wa_id']);
+            $conversation = $this->getOrCreateConversation($account, $template, $validated['to_wa_id']);
 
             // Create outbound message record (with lock)
             $message = WhatsAppMessage::lockForUpdate()->create([
-                'workspace_id' => $workspace->id,
+                'account_id' => $account->id,
                 'whatsapp_conversation_id' => $conversation->id,
                 'direction' => 'outbound',
                 'type' => 'template',
                 'text_body' => $this->composer->renderPreview($template, $validated['variables'])['body'],
                 'payload' => $payload,
-                'status' => 'queued',
-            ]);
+                'status' => 'queued']);
 
             // Create template send record
             $templateSend = WhatsAppTemplateSend::create([
-                'workspace_id' => $workspace->id,
+                'account_id' => $account->id,
                 'whatsapp_template_id' => $template->id,
                 'whatsapp_message_id' => $message->id,
                 'to_wa_id' => $validated['to_wa_id'],
                 'variables' => $validated['variables'],
-                'status' => 'queued',
-            ]);
+                'status' => 'queued']);
 
             // Load relationships for broadcast
             $message->load('conversation.contact');
@@ -170,24 +162,21 @@ class TemplateSendController extends Controller
             $message->update([
                 'meta_message_id' => $metaMessageId,
                 'status' => 'sent',
-                'sent_at' => now(),
-            ]);
+                'sent_at' => now()]);
 
             // Update template send
             $templateSend->update([
                 'status' => 'sent',
-                'sent_at' => now(),
-            ]);
+                'sent_at' => now()]);
 
             // Track usage (only on successful send)
-            $this->usageService->incrementMessages($workspace, 1);
-            $this->usageService->incrementTemplateSends($workspace, 1);
+            $this->usageService->incrementMessages($account, 1);
+            $this->usageService->incrementTemplateSends($account, 1);
 
             // Update conversation
             $conversation->update([
                 'last_message_at' => now(),
-                'last_message_preview' => substr($message->text_body, 0, 100),
-            ]);
+                'last_message_preview' => substr($message->text_body, 0, 100)]);
 
             // Broadcast message update and conversation update
             event(new MessageUpdated($message));
@@ -196,17 +185,14 @@ class TemplateSendController extends Controller
             DB::commit();
 
             return redirect()->route('app.whatsapp.conversations.show', [
-                'workspace' => $workspace->slug,
-                'conversation' => $message->whatsapp_conversation_id,
-            ])->with('success', 'Template message sent successfully.');
+                'conversation' => $message->whatsapp_conversation_id])->with('success', 'Template message sent successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
 
             if (isset($message)) {
                 $message->update([
                     'status' => 'failed',
-                    'error_message' => $e->getMessage(),
-                ]);
+                    'error_message' => $e->getMessage()]);
                 // Broadcast failed status
                 event(new MessageUpdated($message));
             }
@@ -214,13 +200,11 @@ class TemplateSendController extends Controller
             if (isset($templateSend)) {
                 $templateSend->update([
                     'status' => 'failed',
-                    'error_message' => $e->getMessage(),
-                ]);
+                    'error_message' => $e->getMessage()]);
             }
 
             return redirect()->back()->withErrors([
-                'send' => 'Failed to send template: ' . $e->getMessage(),
-            ]);
+                'send' => 'Failed to send template: ' . $e->getMessage()]);
         }
     }
 
@@ -228,35 +212,31 @@ class TemplateSendController extends Controller
      * Get or create conversation for template send.
      */
     protected function getOrCreateConversation(
-        $workspace,
+        $account,
         WhatsAppTemplate $template,
         string $toWaId
     ): WhatsAppConversation {
         // Use transaction with locks to prevent race conditions
-        return DB::transaction(function () use ($workspace, $template, $toWaId) {
+        return DB::transaction(function () use ($account, $template, $toWaId) {
             // Get or create contact (with lock)
             $contact = WhatsAppContact::lockForUpdate()
                 ->firstOrCreate(
                     [
-                        'workspace_id' => $workspace->id,
-                        'wa_id' => $toWaId,
-                    ],
+                        'account_id' => $account->id,
+                        'wa_id' => $toWaId],
                     [
-                        'source' => 'template_send',
-                    ]
+                        'source' => 'template_send']
                 );
 
             // Get or create conversation (with lock)
             return WhatsAppConversation::lockForUpdate()
                 ->firstOrCreate(
                     [
-                        'workspace_id' => $workspace->id,
+                        'account_id' => $account->id,
                         'whatsapp_connection_id' => $template->whatsapp_connection_id,
-                        'whatsapp_contact_id' => $contact->id,
-                    ],
+                        'whatsapp_contact_id' => $contact->id],
                     [
-                        'status' => 'open',
-                    ]
+                        'status' => 'open']
                 );
         });
     }

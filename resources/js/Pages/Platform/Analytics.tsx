@@ -30,7 +30,7 @@ interface TemplatePerformance {
     read_count: number;
 }
 
-interface WorkspaceGrowth {
+interface TenantGrowth {
     date: string;
     count: number;
 }
@@ -40,7 +40,7 @@ interface PeakHour {
     count: number;
 }
 
-interface TopWorkspace {
+interface TopTenant {
     id: number;
     name: string;
     slug: string;
@@ -52,19 +52,18 @@ export default function Analytics({
     message_trends,
     message_status_distribution,
     template_performance,
-    workspace_growth,
+    account_growth,
     subscription_distribution,
     peak_hours,
-    top_workspaces,
-}: {
+    top_accounts}: {
     date_range: string;
     message_trends: MessageTrend[];
     message_status_distribution: Record<string, number>;
     template_performance: TemplatePerformance[];
-    workspace_growth: WorkspaceGrowth[];
+    account_growth: TenantGrowth[];
     subscription_distribution: Record<string, number>;
     peak_hours: PeakHour[];
-    top_workspaces: TopWorkspace[];
+    top_accounts: TopTenant[];
 }) {
     const { auth } = usePage().props as any;
     const [selectedRange, setSelectedRange] = useState(date_range);
@@ -73,8 +72,7 @@ export default function Analytics({
         setSelectedRange(range);
         router.get(route('platform.analytics'), { range }, {
             preserveState: true,
-            preserveScroll: true,
-        });
+            preserveScroll: true});
     };
 
     const formatNumber = (num: number) => {
@@ -322,20 +320,20 @@ export default function Analytics({
                     </CardContent>
                 </Card>
 
-                {/* Top Workspaces */}
+                {/* Top Tenants */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Top Workspaces by Activity</CardTitle>
-                        <CardDescription>Most active workspaces in the selected period</CardDescription>
+                        <CardTitle>Top Tenants by Activity</CardTitle>
+                        <CardDescription>Most active tenants in the selected period</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        {top_workspaces.length === 0 ? (
-                            <p className="text-gray-500 dark:text-gray-400 text-center py-8">No workspace data available</p>
+                        {top_accounts.length === 0 ? (
+                            <p className="text-gray-500 dark:text-gray-400 text-center py-8">No tenant data available</p>
                         ) : (
                             <div className="space-y-3">
-                                {top_workspaces.map((workspace, index) => (
+                                {top_accounts.map((account, index) => (
                                     <div
-                                        key={workspace.id}
+                                        key={account.id}
                                         className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
                                     >
                                         <div className="flex items-center gap-3">
@@ -344,17 +342,17 @@ export default function Analytics({
                                             </div>
                                             <div>
                                                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                                    {workspace.name}
+                                                    {account.name}
                                                 </p>
                                                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                    {workspace.slug}
+                                                    {account.slug}
                                                 </p>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <MessageSquare className="h-4 w-4 text-gray-400" />
                                             <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                                {formatNumber(workspace.message_count)} messages
+                                                {formatNumber(account.message_count)} messages
                                             </span>
                                         </div>
                                     </div>
@@ -367,4 +365,3 @@ export default function Analytics({
         </PlatformShell>
     );
 }
-

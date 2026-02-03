@@ -91,8 +91,7 @@ class BrandingService
             'support_email' => $this->settingsService->get('branding.support_email'),
             'support_phone' => $this->settingsService->get('branding.support_phone'),
             'footer_text' => $this->settingsService->get('branding.footer_text'),
-            'show_powered_by' => (bool) $showPoweredBy,
-        ];
+            'show_powered_by' => (bool) $showPoweredBy];
     }
 
     /**

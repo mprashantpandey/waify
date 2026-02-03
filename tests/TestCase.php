@@ -5,50 +5,50 @@ namespace Tests;
 use App\Core\Billing\SubscriptionService;
 use App\Models\Plan;
 use App\Models\User;
-use App\Models\Workspace;
-use App\Models\WorkspaceUsage;
+use App\Models\Account;
+use App\Models\AccountUsage;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 
 abstract class TestCase extends BaseTestCase
 {
     /**
-     * Act as workspace owner.
+     * Act as account owner.
      */
-    protected function actingAsWorkspaceOwner(Workspace $workspace): User
+    protected function actingAsAccountOwner(Account $account): User
     {
-        $user = $workspace->owner;
+        $user = $account->owner;
         $this->actingAs($user);
         return $user;
     }
 
     /**
-     * Create workspace with plan.
+     * Create account with plan.
      */
-    protected function createWorkspaceWithPlan(string $planKey, string $status = 'active'): Workspace
+    protected function createAccountWithPlan(string $planKey, string $status = 'active'): Account
     {
         $plan = Plan::where('key', $planKey)->firstOrFail();
-        $workspace = Workspace::factory()->create();
+        $account = Account::factory()->create();
         
         $subscriptionService = app(SubscriptionService::class);
         
         if ($status === 'trialing' && $plan->trial_days > 0) {
-            $subscriptionService->startTrial($workspace, $plan);
+            $subscriptionService->startTrial($account, $plan);
         } else {
-            $subscriptionService->changePlan($workspace, $plan);
+            $subscriptionService->changePlan($account, $plan);
         }
         
-        return $workspace->fresh();
+        return $account->fresh();
     }
 
     /**
-     * Set workspace usage for a period.
+     * Set account usage for a period.
      */
-    protected function setUsage(Workspace $workspace, string $period, int $messagesSent = 0, int $templateSends = 0, int $aiCredits = 0): WorkspaceUsage
+    protected function setUsage(Account $account, string $period, int $messagesSent = 0, int $templateSends = 0, int $aiCredits = 0): AccountUsage
     {
-        return WorkspaceUsage::updateOrCreate(
+        return AccountUsage::updateOrCreate(
             [
-                'workspace_id' => $workspace->id,
+                'account_id' => $account->id,
                 'period' => $period,
             ],
             [

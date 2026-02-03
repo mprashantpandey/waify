@@ -33,30 +33,30 @@ class ModuleRegistry
     }
 
     /**
-     * Get enabled modules for a workspace.
-     * This checks both workspace module toggles AND plan entitlements.
+     * Get enabled modules for a account.
+     * This checks both account module toggles AND plan entitlements.
      */
-    public function getEnabledForWorkspace($workspace): Collection
+    public function getEnabledForAccount($account): Collection
     {
         // First, get all modules that are enabled at platform level
         $platformEnabledModules = \App\Models\Module::where('is_enabled', true)
             ->pluck('key')
             ->toArray();
 
-        // Get modules available on the workspace's plan
+        // Get modules available on the account's plan
         $planResolver = app(\App\Core\Billing\PlanResolver::class);
-        $availableModuleKeys = $planResolver->getEffectiveModules($workspace);
+        $availableModuleKeys = $planResolver->getEffectiveModules($account);
 
-        // Also get workspace-enabled modules (for core modules that are always available)
-        $workspaceModuleKeys = \App\Models\WorkspaceModule::where('workspace_id', $workspace->id)
+        // Also get account-enabled modules (for core modules that are always available)
+        $accountModuleKeys = \App\Models\AccountModule::where('account_id', $account->id)
             ->where('enabled', true)
             ->pluck('module_key')
             ->toArray();
 
         // Combine: modules must be:
         // 1. Enabled at platform level
-        // 2. Either on the plan AND enabled in workspace, OR core/enabled_by_default AND enabled in workspace
-        return $this->all()->filter(function ($module) use ($platformEnabledModules, $availableModuleKeys, $workspaceModuleKeys) {
+        // 2. Either on the plan AND enabled in account, OR core/enabled_by_default AND enabled in account
+        return $this->all()->filter(function ($module) use ($platformEnabledModules, $availableModuleKeys, $accountModuleKeys) {
             $moduleKey = $module['key'];
             
             // First check: module must be enabled at platform level
@@ -65,24 +65,24 @@ class ModuleRegistry
             }
             
             $isOnPlan = in_array($moduleKey, $availableModuleKeys);
-            $isEnabledInWorkspace = in_array($moduleKey, $workspaceModuleKeys);
+            $isEnabledInAccount = in_array($moduleKey, $accountModuleKeys);
             $isCore = $module['is_core'] ?? false;
             $enabledByDefault = $module['enabled_by_default'] ?? false;
 
             // Module is available if:
-            // 1. It's on the plan AND enabled in workspace, OR
-            // 2. It's core/enabled_by_default AND enabled in workspace
-            return $isOnPlan || (($isCore || $enabledByDefault) && $isEnabledInWorkspace);
+            // 1. It's on the plan AND enabled in account, OR
+            // 2. It's core/enabled_by_default AND enabled in account
+            return $isOnPlan || (($isCore || $enabledByDefault) && $isEnabledInAccount);
         });
     }
 
     /**
      * Get navigation items for enabled modules.
-     * Only shows navigation for modules that are both on the plan AND enabled in workspace.
+     * Only shows navigation for modules that are both on the plan AND enabled in account.
      */
-    public function getNavigationForWorkspace($workspace): array
+    public function getNavigationForAccount($account): array
     {
-        $enabledModules = $this->getEnabledForWorkspace($workspace);
+        $enabledModules = $this->getEnabledForAccount($account);
 
         $navItems = [];
 

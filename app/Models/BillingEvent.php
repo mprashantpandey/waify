@@ -11,22 +11,20 @@ class BillingEvent extends Model
     use HasFactory;
 
     protected $fillable = [
-        'workspace_id',
+        'account_id',
         'actor_id',
         'type',
-        'data',
-    ];
+        'data'];
 
     protected function casts(): array
     {
         return [
-            'data' => 'array',
-        ];
+            'data' => 'array'];
     }
 
-    public function workspace(): BelongsTo
+    public function account(): BelongsTo
     {
-        return $this->belongsTo(Workspace::class);
+        return $this->belongsTo(Account::class);
     }
 
     public function actor(): BelongsTo

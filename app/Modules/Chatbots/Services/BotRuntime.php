@@ -25,11 +25,11 @@ class BotRuntime
         WhatsAppMessage $inboundMessage,
         WhatsAppConversation $conversation
     ): void {
-        $workspace = $conversation->workspace;
+        $account = $conversation->account;
         $connection = $conversation->connection;
 
         // Get eligible bots
-        $bots = Bot::where('workspace_id', $workspace->id)
+        $bots = Bot::where('account_id', $account->id)
             ->where('status', 'active')
             ->get()
             ->filter(fn (Bot $bot) => $bot->appliesToConnection($connection->id));
@@ -40,7 +40,7 @@ class BotRuntime
 
         // Create context
         $context = new BotContext(
-            workspace: $workspace,
+            account: $account,
             conversation: $conversation,
             inboundMessage: $inboundMessage,
             connection: $connection
@@ -65,7 +65,7 @@ class BotRuntime
         $triggerEventId = $context->inboundMessage->meta_message_id ?? 
             "msg_{$context->inboundMessage->id}";
 
-        $existingExecution = BotExecution::where('workspace_id', $context->workspace->id)
+        $existingExecution = BotExecution::where('account_id', $context->account->id)
             ->where('trigger_event_id', $triggerEventId)
             ->where('bot_flow_id', $flow->id)
             ->first();
@@ -73,8 +73,7 @@ class BotRuntime
         if ($existingExecution) {
             Log::channel('chatbots')->debug('Skipping duplicate execution', [
                 'execution_id' => $existingExecution->id,
-                'trigger_event_id' => $triggerEventId,
-            ]);
+                'trigger_event_id' => $triggerEventId]);
             return;
         }
 
@@ -85,15 +84,14 @@ class BotRuntime
 
         // Create execution record
         $execution = BotExecution::create([
-            'workspace_id' => $context->workspace->id,
+            'account_id' => $context->account->id,
             'bot_id' => $flow->bot_id,
             'bot_flow_id' => $flow->id,
             'whatsapp_conversation_id' => $context->conversation->id,
             'trigger_event_id' => $triggerEventId,
             'status' => 'running',
             'started_at' => now(),
-            'logs' => [],
-        ]);
+            'logs' => []]);
 
         // Update context with execution ID
         $context->metadata['execution_id'] = $execution->id;
@@ -113,8 +111,7 @@ class BotRuntime
                         'node_id' => $node->id,
                         'type' => $node->type,
                         'result' => 'skipped',
-                        'reason' => 'Max actions limit reached',
-                    ];
+                        'reason' => 'Max actions limit reached'];
                     break;
                 }
 
@@ -125,8 +122,7 @@ class BotRuntime
                     $logs[] = [
                         'node_id' => $node->id,
                         'type' => 'condition',
-                        'result' => $passed ? 'passed' : 'failed',
-                    ];
+                        'result' => $passed ? 'passed' : 'failed'];
 
                     // Continue to next node (don't execute actions if condition failed)
                     continue;
@@ -138,8 +134,7 @@ class BotRuntime
                         'node_id' => $node->id,
                         'type' => $node->type,
                         'result' => 'skipped',
-                        'reason' => 'Condition not met',
-                    ];
+                        'reason' => 'Condition not met'];
                     continue;
                 }
 
@@ -150,8 +145,7 @@ class BotRuntime
                         'node_id' => $node->id,
                         'type' => $node->type,
                         'result' => $result['success'] ? 'success' : 'failed',
-                        'data' => $result,
-                    ];
+                        'data' => $result];
 
                     if ($result['success']) {
                         $actionCount++;
@@ -159,8 +153,7 @@ class BotRuntime
                         // Log error but continue
                         Log::channel('chatbots')->warning('Action failed', [
                             'node_id' => $node->id,
-                            'error' => $result['error'] ?? 'Unknown error',
-                        ]);
+                            'error' => $result['error'] ?? 'Unknown error']);
                     }
                 }
             }
@@ -175,14 +168,12 @@ class BotRuntime
             Log::channel('chatbots')->error('Bot execution failed', [
                 'execution_id' => $execution->id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
+                'trace' => $e->getTraceAsString()]);
 
             $execution->update([
                 'status' => 'failed',
                 'finished_at' => now(),
-                'error_message' => $e->getMessage(),
-            ]);
+                'error_message' => $e->getMessage()]);
         }
     }
 }

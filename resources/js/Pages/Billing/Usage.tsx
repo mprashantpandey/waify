@@ -38,13 +38,12 @@ interface BlockedEvent {
 }
 
 export default function BillingUsage({
-    workspace,
+    account,
     current_usage,
     limits,
     usage_history,
-    blocked_events,
-}: {
-    workspace: any;
+    blocked_events}: {
+    account: any;
     current_usage: Usage;
     limits: Limits;
     usage_history: UsageHistory[];
@@ -56,7 +55,7 @@ export default function BillingUsage({
             <div className="space-y-8">
                 <div>
                     <Link
-                        href={route('app.billing.index', { workspace: workspace.slug })}
+                        href={route('app.billing.index', { })}
                         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
                     >
                         <ArrowLeft className="h-4 w-4" />

@@ -14,31 +14,28 @@ class ContactService
     /**
      * Create or update a contact.
      */
-    public function createOrUpdateContact(array $data, int $workspaceId, ?int $userId = null): WhatsAppContact
+    public function createOrUpdateContact(array $data, int $accountId, ?int $userId = null): WhatsAppContact
     {
         $contact = WhatsAppContact::updateOrCreate(
             [
-                'workspace_id' => $workspaceId,
-                'wa_id' => $data['wa_id'] ?? $data['phone'] ?? null,
-            ],
+                'account_id' => $accountId,
+                'wa_id' => $data['wa_id'] ?? $data['phone'] ?? null],
             array_merge($data, [
-                'workspace_id' => $workspaceId,
-                'source' => $data['source'] ?? 'manual',
-            ])
+                'account_id' => $accountId,
+                'source' => $data['source'] ?? 'manual'])
         );
 
         // Log activity
         if ($userId) {
             ContactActivity::create([
-                'workspace_id' => $workspaceId,
+                'account_id' => $accountId,
                 'contact_id' => $contact->id,
                 'user_id' => $userId,
                 'type' => $contact->wasRecentlyCreated ? 'contact_created' : 'contact_updated',
                 'title' => $contact->wasRecentlyCreated ? 'Contact created' : 'Contact updated',
                 'description' => $contact->wasRecentlyCreated
                     ? "Contact {$contact->name} was created"
-                    : "Contact {$contact->name} was updated",
-            ]);
+                    : "Contact {$contact->name} was updated"]);
         }
 
         return $contact;
@@ -52,12 +49,11 @@ class ContactService
         $contact->tags()->syncWithoutDetaching($tagIds);
 
         ContactActivity::create([
-            'workspace_id' => $contact->workspace_id,
+            'account_id' => $contact->account_id,
             'contact_id' => $contact->id,
             'type' => 'tag_added',
             'title' => 'Tags added',
-            'description' => 'Tags were added to contact',
-        ]);
+            'description' => 'Tags were added to contact']);
     }
 
     /**
@@ -68,12 +64,11 @@ class ContactService
         $contact->tags()->detach($tagIds);
 
         ContactActivity::create([
-            'workspace_id' => $contact->workspace_id,
+            'account_id' => $contact->account_id,
             'contact_id' => $contact->id,
             'type' => 'tag_removed',
             'title' => 'Tags removed',
-            'description' => 'Tags were removed from contact',
-        ]);
+            'description' => 'Tags were removed from contact']);
     }
 
     /**
@@ -87,13 +82,12 @@ class ContactService
         $contact->update(['notes' => $newNotes]);
 
         ContactActivity::create([
-            'workspace_id' => $contact->workspace_id,
+            'account_id' => $contact->account_id,
             'contact_id' => $contact->id,
             'user_id' => $userId,
             'type' => 'note_added',
             'title' => 'Note added',
-            'description' => $note,
-        ]);
+            'description' => $note]);
     }
 
     /**
@@ -127,7 +121,7 @@ class ContactService
         try {
             // Get all duplicate contacts (with lock)
             $duplicates = WhatsAppContact::whereIn('id', $duplicateIds)
-                ->where('workspace_id', $primaryContact->workspace_id)
+                ->where('account_id', $primaryContact->account_id)
                 ->where('id', '!=', $primaryContact->id)
                 ->lockForUpdate()
                 ->get();
@@ -150,18 +144,16 @@ class ContactService
                 $primaryMetadata = $primaryContact->metadata ?? [];
                 $duplicateMetadata = $duplicate->metadata ?? [];
                 $primaryContact->update([
-                    'metadata' => array_merge($primaryMetadata, $duplicateMetadata),
-                ]);
+                    'metadata' => array_merge($primaryMetadata, $duplicateMetadata)]);
 
                 // Log merge activity
                 ContactActivity::create([
-                    'workspace_id' => $primaryContact->workspace_id,
+                    'account_id' => $primaryContact->account_id,
                     'contact_id' => $primaryContact->id,
                     'type' => 'contact_merged',
                     'title' => 'Contact merged',
                     'description' => "Contact {$duplicate->name} ({$duplicate->wa_id}) was merged into this contact",
-                    'metadata' => ['merged_contact_id' => $duplicate->id],
-                ]);
+                    'metadata' => ['merged_contact_id' => $duplicate->id]]);
 
                 // Delete duplicate
                 $duplicate->delete();
@@ -175,8 +167,7 @@ class ContactService
             Log::error('Failed to merge contacts', [
                 'primary_contact_id' => $primaryContact->id,
                 'duplicate_ids' => $duplicateIds,
-                'error' => $e->getMessage(),
-            ]);
+                'error' => $e->getMessage()]);
 
             throw $e;
         }
@@ -186,18 +177,18 @@ class ContactService
      * Import contacts from CSV.
      * Uses lock to prevent concurrent imports.
      */
-    public function importFromCsv(string $filePath, int $workspaceId, ?int $userId = null): array
+    public function importFromCsv(string $filePath, int $accountId, ?int $userId = null): array
     {
-        // Use cache lock to prevent concurrent imports for the same workspace
-        $lockKey = "contact_import:workspace:{$workspaceId}";
+        // Use cache lock to prevent concurrent imports for the same account
+        $lockKey = "contact_import:account:{$accountId}";
         $lock = \Illuminate\Support\Facades\Cache::lock($lockKey, 600); // 10 minute lock
 
         if (!$lock->get()) {
-            throw new \Exception('Contact import is already in progress for this workspace. Please wait.');
+            throw new \Exception('Contact import is already in progress for this account. Please wait.');
         }
 
         try {
-            return $this->performImport($filePath, $workspaceId, $userId);
+            return $this->performImport($filePath, $accountId, $userId);
         } finally {
             $lock->release();
         }
@@ -206,7 +197,7 @@ class ContactService
     /**
      * Perform the actual import operation.
      */
-    protected function performImport(string $filePath, int $workspaceId, ?int $userId = null): array
+    protected function performImport(string $filePath, int $accountId, ?int $userId = null): array
     {
         $imported = 0;
         $updated = 0;
@@ -231,8 +222,7 @@ class ContactService
             'email' => ['email', 'email_address'],
             'phone' => ['phone', 'phone_number', 'mobile'],
             'company' => ['company', 'organization', 'org'],
-            'notes' => ['notes', 'note', 'description'],
-        ];
+            'notes' => ['notes', 'note', 'description']];
 
         $columnIndexes = [];
         foreach ($headerMap as $field => $possibleHeaders) {
@@ -266,8 +256,8 @@ class ContactService
                 $data['source'] = 'csv_import';
 
                 // Use transaction and lock to prevent race conditions
-                \DB::transaction(function () use ($workspaceId, $data, $userId, &$imported, &$updated) {
-                    $contact = WhatsAppContact::where('workspace_id', $workspaceId)
+                \DB::transaction(function () use ($accountId, $data, $userId, &$imported, &$updated) {
+                    $contact = WhatsAppContact::where('account_id', $accountId)
                         ->where('wa_id', $data['wa_id'])
                         ->lockForUpdate() // Row-level lock
                         ->first();
@@ -276,7 +266,7 @@ class ContactService
                         $contact->update($data);
                         $updated++;
                     } else {
-                        $this->createOrUpdateContact($data, $workspaceId, $userId);
+                        $this->createOrUpdateContact($data, $accountId, $userId);
                         $imported++;
                     }
                 });
@@ -290,26 +280,25 @@ class ContactService
         return [
             'imported' => $imported,
             'updated' => $updated,
-            'errors' => $errors,
-        ];
+            'errors' => $errors];
     }
 
     /**
      * Export contacts to CSV.
      * Uses lock to prevent concurrent exports.
      */
-    public function exportToCsv(int $workspaceId, array $filters = []): string
+    public function exportToCsv(int $accountId, array $filters = []): string
     {
         // Use lock to prevent concurrent exports
-        $lockKey = "contact_export:workspace:{$workspaceId}";
+        $lockKey = "contact_export:account:{$accountId}";
         $lock = \Illuminate\Support\Facades\Cache::lock($lockKey, 300); // 5 minute lock
 
         if (!$lock->get()) {
-            throw new \Exception('Contact export is already in progress for this workspace. Please wait.');
+            throw new \Exception('Contact export is already in progress for this account. Please wait.');
         }
 
         try {
-            return $this->performExport($workspaceId, $filters);
+            return $this->performExport($accountId, $filters);
         } finally {
             $lock->release();
         }
@@ -318,9 +307,9 @@ class ContactService
     /**
      * Perform the actual export operation.
      */
-    protected function performExport(int $workspaceId, array $filters = []): string
+    protected function performExport(int $accountId, array $filters = []): string
     {
-        $query = WhatsAppContact::where('workspace_id', $workspaceId);
+        $query = WhatsAppContact::where('account_id', $accountId);
 
         // Apply filters
         if (isset($filters['tags']) && !empty($filters['tags'])) {
@@ -341,8 +330,8 @@ class ContactService
 
         $contacts = $query->with('tags')->get();
 
-        // Use unique filename with workspace ID and timestamp to prevent conflicts
-        $filename = storage_path("app/contacts_export_{$workspaceId}_" . time() . '_' . uniqid() . '.csv');
+        // Use unique filename with account ID and timestamp to prevent conflicts
+        $filename = storage_path("app/contacts_export_{$accountId}_" . time() . '_' . uniqid() . '.csv');
         $handle = fopen($filename, 'w');
 
         // Write header
@@ -360,8 +349,7 @@ class ContactService
                 $contact->status ?? 'active',
                 $tags,
                 $contact->notes ?? '',
-                $contact->created_at->toDateTimeString(),
-            ]);
+                $contact->created_at->toDateTimeString()]);
         }
 
         fclose($handle);
@@ -372,9 +360,9 @@ class ContactService
     /**
      * Find duplicate contacts.
      */
-    public function findDuplicates(int $workspaceId, string $field = 'wa_id'): array
+    public function findDuplicates(int $accountId, string $field = 'wa_id'): array
     {
-        $duplicates = WhatsAppContact::where('workspace_id', $workspaceId)
+        $duplicates = WhatsAppContact::where('account_id', $accountId)
             ->select($field, DB::raw('COUNT(*) as count'))
             ->groupBy($field)
             ->having('count', '>', 1)
@@ -382,7 +370,7 @@ class ContactService
 
         $groups = [];
         foreach ($duplicates as $duplicate) {
-            $contacts = WhatsAppContact::where('workspace_id', $workspaceId)
+            $contacts = WhatsAppContact::where('account_id', $accountId)
                 ->where($field, $duplicate->$field)
                 ->get();
 
@@ -396,18 +384,18 @@ class ContactService
      * Recalculate segment contact counts.
      * Uses lock to prevent concurrent recalculations.
      */
-    public function recalculateSegmentCounts(int $workspaceId): void
+    public function recalculateSegmentCounts(int $accountId): void
     {
         // Use lock to prevent concurrent recalculations
-        $lockKey = "segment_recalculate:workspace:{$workspaceId}";
+        $lockKey = "segment_recalculate:account:{$accountId}";
         $lock = \Illuminate\Support\Facades\Cache::lock($lockKey, 600); // 10 minute lock
 
         if (!$lock->get()) {
-            throw new \Exception('Segment recalculation is already in progress for this workspace.');
+            throw new \Exception('Segment recalculation is already in progress for this account.');
         }
 
         try {
-            $segments = ContactSegment::where('workspace_id', $workspaceId)->get();
+            $segments = ContactSegment::where('account_id', $accountId)->get();
 
             foreach ($segments as $segment) {
                 $segment->calculateContactCount();

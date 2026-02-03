@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('whatsapp_templates', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('workspace_id')->constrained()->onDelete('cascade');
+            $table->foreignId('account_id')->constrained()->onDelete('cascade');
             $table->foreignId('whatsapp_connection_id')->constrained()->onDelete('cascade');
             $table->string('meta_template_id')->nullable(); // ID from Meta if available
             $table->string('name'); // unique per connection+language
@@ -33,11 +33,11 @@ return new class extends Migration
             $table->timestamps();
 
             $table->unique(
-                ['workspace_id', 'whatsapp_connection_id', 'name', 'language'],
+                ['account_id', 'whatsapp_connection_id', 'name', 'language'],
                 'wa_tpl_ws_conn_name_lang_uq'
             );
-            $table->index(['workspace_id', 'status']);
-            $table->index(['workspace_id', 'category']);
+            $table->index(['account_id', 'status']);
+            $table->index(['account_id', 'category']);
         });
     }
 

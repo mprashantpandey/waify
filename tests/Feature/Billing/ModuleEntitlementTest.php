@@ -3,7 +3,7 @@
 namespace Tests\Feature\Billing;
 
 use App\Models\Plan;
-use App\Models\Workspace;
+use App\Models\Account;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -22,15 +22,15 @@ class ModuleEntitlementTest extends TestCase
     public function test_free_plan_cannot_access_templates_module(): void
     {
         
-        $workspace = $this->createWorkspaceWithPlan('free');
-        $user = $this->actingAsWorkspaceOwner($workspace);
+        $account = $this->createAccountWithPlan('free');
+        $user = $this->actingAsAccountOwner($account);
 
         // Ensure templates module is NOT in free plan
-        $plan = $workspace->subscription->plan;
+        $plan = $account->subscription->plan;
         $this->assertNotContains('templates', $plan->modules ?? []);
 
         // Try to access templates route
-        $response = $this->get(route('app.whatsapp.templates.index', ['workspace' => $workspace->slug]));
+        $response = $this->get(route('app.whatsapp.templates.index', ['account' => $account->slug]));
 
         $response->assertStatus(403);
         $response->assertSee('not available on your current plan');
@@ -39,18 +39,18 @@ class ModuleEntitlementTest extends TestCase
     public function test_starter_plan_can_access_templates_module(): void
     {
         
-        $workspace = $this->createWorkspaceWithPlan('starter');
-        $user = $this->actingAsWorkspaceOwner($workspace);
+        $account = $this->createAccountWithPlan('starter');
+        $user = $this->actingAsAccountOwner($account);
 
-        // Enable templates module in workspace
-        \App\Models\WorkspaceModule::create([
-            'workspace_id' => $workspace->id,
+        // Enable templates module in account
+        \App\Models\AccountModule::create([
+            'account_id' => $account->id,
             'module_key' => 'templates',
             'enabled' => true,
         ]);
 
         // Try to access templates route
-        $response = $this->get(route('app.whatsapp.templates.index', ['workspace' => $workspace->slug]));
+        $response = $this->get(route('app.whatsapp.templates.index', ['account' => $account->slug]));
 
         // Should succeed (200 or redirect, not 403)
         $this->assertNotEquals(403, $response->status());

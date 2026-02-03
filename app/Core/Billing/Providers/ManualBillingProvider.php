@@ -5,7 +5,7 @@ namespace App\Core\Billing\Providers;
 use App\Core\Billing\Contracts\BillingProvider;
 use App\Models\Plan;
 use App\Models\Subscription;
-use App\Models\Workspace;
+use App\Models\Account;
 use App\Models\User;
 use Carbon\Carbon;
 
@@ -28,7 +28,7 @@ class ManualBillingProvider implements BillingProvider
         return true;
     }
 
-    public function createSubscription(Workspace $workspace, Plan $plan, User $actor, array $metadata = []): Subscription
+    public function createSubscription(Account $account, Plan $plan, User $actor, array $metadata = []): Subscription
     {
         $now = now();
         $trialEndsAt = $plan->trial_days > 0 
@@ -39,7 +39,7 @@ class ManualBillingProvider implements BillingProvider
         $periodEnd = $trialEndsAt ?? $now->copy()->addMonth();
 
         return Subscription::updateOrCreate(
-            ['workspace_id' => $workspace->id],
+            ['account_id' => $account->id],
             [
                 'plan_id' => $plan->id,
                 'status' => $status,
@@ -48,8 +48,7 @@ class ManualBillingProvider implements BillingProvider
                 'current_period_start' => $now,
                 'current_period_end' => $periodEnd,
                 'provider' => $this->getName(),
-                'provider_ref' => null,
-            ]
+                'provider_ref' => null]
         );
     }
 
@@ -59,8 +58,7 @@ class ManualBillingProvider implements BillingProvider
             'plan_id' => $newPlan->id,
             'status' => $subscription->status === 'canceled' ? 'active' : $subscription->status,
             'cancel_at_period_end' => false,
-            'canceled_at' => null,
-        ]);
+            'canceled_at' => null]);
 
         return $subscription->fresh();
     }
@@ -71,12 +69,10 @@ class ManualBillingProvider implements BillingProvider
             $subscription->update([
                 'status' => 'canceled',
                 'canceled_at' => now(),
-                'cancel_at_period_end' => false,
-            ]);
+                'cancel_at_period_end' => false]);
         } else {
             $subscription->update([
-                'cancel_at_period_end' => true,
-            ]);
+                'cancel_at_period_end' => true]);
         }
 
         return $subscription->fresh();
@@ -87,8 +83,7 @@ class ManualBillingProvider implements BillingProvider
         $subscription->update([
             'status' => 'active',
             'cancel_at_period_end' => false,
-            'canceled_at' => null,
-        ]);
+            'canceled_at' => null]);
 
         return $subscription->fresh();
     }
@@ -102,24 +97,21 @@ class ManualBillingProvider implements BillingProvider
             $subscription->update([
                 'status' => 'active',
                 'current_period_start' => $subscription->trial_ends_at,
-                'current_period_end' => $subscription->trial_ends_at->copy()->addMonth(),
-            ]);
+                'current_period_end' => $subscription->trial_ends_at->copy()->addMonth()]);
         }
 
         if ($subscription->status === 'active' && $subscription->current_period_end && $subscription->current_period_end->isPast()) {
             // Extend period by one month (manual renewal)
             $subscription->update([
                 'current_period_start' => $subscription->current_period_end,
-                'current_period_end' => $subscription->current_period_end->copy()->addMonth(),
-            ]);
+                'current_period_end' => $subscription->current_period_end->copy()->addMonth()]);
         }
 
         if ($subscription->cancel_at_period_end && $subscription->current_period_end && $subscription->current_period_end->isPast()) {
             $subscription->update([
                 'status' => 'canceled',
                 'canceled_at' => now(),
-                'cancel_at_period_end' => false,
-            ]);
+                'cancel_at_period_end' => false]);
         }
 
         return $subscription->fresh();
@@ -130,7 +122,7 @@ class ManualBillingProvider implements BillingProvider
         // Manual provider doesn't receive webhooks
     }
 
-    public function getCheckoutUrl(Workspace $workspace, Plan $plan, User $actor, array $metadata = []): ?string
+    public function getCheckoutUrl(Account $account, Plan $plan, User $actor, array $metadata = []): ?string
     {
         // Manual provider doesn't have checkout URLs
         return null;

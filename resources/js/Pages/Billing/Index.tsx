@@ -38,20 +38,19 @@ interface Usage {
     storage_bytes: number;
 }
 
-interface Workspace {
+interface Account {
     slug: string;
     owner_id: number;
 }
 
 export default function BillingIndex({
-    workspace,
+    account,
     subscription,
     plan,
     usage,
     current_connections_count,
-    current_agents_count,
-}: {
-    workspace: Workspace;
+    current_agents_count}: {
+    account: Account;
     subscription: Subscription | null;
     plan: Plan | null;
     usage: Usage;
@@ -61,20 +60,18 @@ export default function BillingIndex({
     const { auth, flash } = usePage().props as any;
     const { addToast } = useToast();
     const { confirm } = useNotifications();
-    const isOwner = workspace.owner_id === auth?.user?.id;
+    const isOwner = account.owner_id === auth?.user?.id;
 
     useEffect(() => {
         if (flash?.success) {
             addToast({
                 title: flash.success,
-                variant: 'success',
-            });
+                variant: 'success'});
         }
         if (flash?.error) {
             addToast({
                 title: flash.error,
-                variant: 'error',
-            });
+                variant: 'error'});
         }
     }, [flash, addToast]);
 
@@ -83,8 +80,7 @@ export default function BillingIndex({
             trialing: { variant: 'default', label: 'Trial' },
             active: { variant: 'success', label: 'Active' },
             past_due: { variant: 'warning', label: 'Past Due' },
-            canceled: { variant: 'danger', label: 'Canceled' },
-        };
+            canceled: { variant: 'danger', label: 'Canceled' }};
 
         const config = statusMap[status] || { variant: 'default' as const, label: status };
         return <Badge variant={config.variant} className="px-3 py-1">{config.label}</Badge>;
@@ -97,8 +93,7 @@ export default function BillingIndex({
         return new Intl.NumberFormat('en-IN', {
             style: 'currency',
             currency: currency,
-            minimumFractionDigits: 0,
-        }).format(major);
+            minimumFractionDigits: 0}).format(major);
     };
 
     const getUsagePercentage = (used: number, limit: number | undefined) => {
@@ -159,7 +154,7 @@ export default function BillingIndex({
                         <Progress value={percentage} variant={variant} className="h-2.5" />
                         {percentage >= 90 && (
                             <p className="text-xs text-red-600 dark:text-red-400 font-medium">
-                                Near limit. <Link href={route('app.billing.plans', { workspace: workspace.slug })} className="underline hover:no-underline">Upgrade</Link>
+                                Near limit. <Link href={route('app.billing.plans', {})} className="underline hover:no-underline">Upgrade</Link>
                             </p>
                         )}
                     </>
@@ -197,7 +192,7 @@ export default function BillingIndex({
                                     {subscription.last_error}
                                 </p>
                             )}
-                            <Link href={route('app.billing.plans', { workspace: workspace.slug })}>
+                            <Link href={route('app.billing.plans', {})}>
                                 <Button variant="secondary" size="sm" className="rounded-xl">
                                     Update Payment
                                 </Button>
@@ -217,7 +212,7 @@ export default function BillingIndex({
                                 Your subscription was canceled on {subscription.canceled_at ? new Date(subscription.canceled_at).toLocaleDateString() : 'a previous date'}. 
                                 You can reactivate it or choose a new plan.
                             </p>
-                            <Link href={route('app.billing.plans', { workspace: workspace.slug })}>
+                            <Link href={route('app.billing.plans', {})}>
                                 <Button variant="secondary" size="sm" className="rounded-xl">
                                     View Plans
                                 </Button>
@@ -295,7 +290,7 @@ export default function BillingIndex({
                                     </div>
                                 )}
                                 <div className="flex items-center gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                                    <Link href={route('app.billing.plans', { workspace: workspace.slug })}>
+                                    <Link href={route('app.billing.plans', {})}>
                                         <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50 rounded-xl">
                                             Change Plan
                                         </Button>
@@ -307,10 +302,9 @@ export default function BillingIndex({
                                                 const confirmed = await confirm({
                                                     title: 'Cancel Subscription',
                                                     message: 'Are you sure you want to cancel your subscription?',
-                                                    variant: 'warning',
-                                                });
+                                                    variant: 'warning'});
                                                 if (confirmed) {
-                                                    router.post(route('app.billing.cancel', { workspace: workspace.slug }));
+                                                    router.post(route('app.billing.cancel', {}));
                                                 }
                                             }}
                                             className="rounded-xl"
@@ -322,7 +316,7 @@ export default function BillingIndex({
                                         <Button
                                             variant="success"
                                             onClick={() => {
-                                                router.post(route('app.billing.resume', { workspace: workspace.slug }));
+                                                router.post(route('app.billing.resume', {}));
                                             }}
                                             className="rounded-xl"
                                         >
@@ -381,14 +375,14 @@ export default function BillingIndex({
                         )}
                         <div className="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-4">
                             <Link
-                                href={route('app.billing.usage', { workspace: workspace.slug })}
+                                href={route('app.billing.usage', {})}
                                 className="inline-flex items-center gap-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
                             >
                                 View detailed usage
                                 <ArrowRight className="h-4 w-4" />
                             </Link>
                             <Link
-                                href={route('app.billing.history', { workspace: workspace.slug })}
+                                href={route('app.billing.history', { })}
                                 className="inline-flex items-center gap-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
                             >
                                 View payment history

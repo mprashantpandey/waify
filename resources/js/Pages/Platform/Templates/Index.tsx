@@ -26,7 +26,7 @@ interface Template {
     category: string;
     status: string;
     quality_score: string | null;
-    workspace: {
+    account: {
         id: number;
         name: string;
         slug: string;
@@ -52,11 +52,10 @@ interface PaginatedTemplates {
 export default function TemplatesIndex({
     templates,
     filters,
-    filter_options,
-}: {
+    filter_options}: {
     templates: PaginatedTemplates;
-    filters: { status?: string; workspace_id?: string; search?: string };
-    filter_options: { statuses: string[]; workspaces: Array<{ id: number; name: string }> };
+    filters: { status?: string; account_id?: string; search?: string };
+    filter_options: { statuses: string[]; accounts: Array<{ id: number; name: string }> };
 }) {
     const { auth } = usePage().props as any;
     const [localFilters, setLocalFilters] = useState(filters);
@@ -64,16 +63,14 @@ export default function TemplatesIndex({
     const applyFilters = () => {
         router.get(route('platform.templates.index'), localFilters as any, {
             preserveState: true,
-            preserveScroll: true,
-        });
+            preserveScroll: true});
     };
 
     const getStatusBadge = (status: string) => {
         const statusMap: Record<string, { variant: 'success' | 'warning' | 'danger' | 'info' | 'default'; icon: any }> = {
             APPROVED: { variant: 'success', icon: CheckCircle },
             PENDING: { variant: 'warning', icon: Clock },
-            REJECTED: { variant: 'danger', icon: XCircle },
-        };
+            REJECTED: { variant: 'danger', icon: XCircle }};
 
         const config = statusMap[status] || { variant: 'default' as const, icon: AlertCircle };
         const Icon = config.icon;
@@ -93,7 +90,7 @@ export default function TemplatesIndex({
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Message Templates</h1>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        Manage and monitor templates across all workspaces
+                        Manage and monitor templates across all tenants
                     </p>
                 </div>
 
@@ -135,17 +132,17 @@ export default function TemplatesIndex({
                                 </select>
                             </div>
                             <div>
-                                <Label htmlFor="filter-workspace">Workspace</Label>
+                                <Label htmlFor="filter-account">Tenant</Label>
                                 <select
-                                    id="filter-workspace"
-                                    value={localFilters.workspace_id || ''}
-                                    onChange={(e) => setLocalFilters({ ...localFilters, workspace_id: e.target.value || undefined })}
+                                    id="filter-account"
+                                    value={localFilters.account_id || ''}
+                                    onChange={(e) => setLocalFilters({ ...localFilters, account_id: e.target.value || undefined })}
                                     className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
                                 >
-                                    <option value="">All Workspaces</option>
-                                    {filter_options.workspaces.map((workspace) => (
-                                        <option key={workspace.id} value={workspace.id}>
-                                            {workspace.name}
+                                    <option value="">All Tenants</option>
+                                    {filter_options.accounts.map((account) => (
+                                        <option key={account.id} value={account.id}>
+                                            {account.name}
                                         </option>
                                     ))}
                                 </select>
@@ -187,7 +184,7 @@ export default function TemplatesIndex({
                                         <thead className="bg-gray-50 dark:bg-gray-900">
                                             <tr>
                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Template</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Workspace</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Tenant</th>
                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Category</th>
                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Language</th>
@@ -212,11 +209,11 @@ export default function TemplatesIndex({
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <Link
-                                                            href={route('platform.workspaces.show', { workspace: template.workspace.id })}
+                                                            href={route('platform.accounts.show', { account: template.account.id })}
                                                             className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
                                                         >
                                                             <Building2 className="h-3 w-3" />
-                                                            {template.workspace.name}
+                                                            {template.account.name}
                                                         </Link>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">

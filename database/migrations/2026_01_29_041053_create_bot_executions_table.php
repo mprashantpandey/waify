@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('bot_executions', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('workspace_id')->constrained()->onDelete('cascade');
+            $table->foreignId('account_id')->constrained()->onDelete('cascade');
             $table->foreignId('bot_id')->constrained()->onDelete('cascade');
             $table->foreignId('bot_flow_id')->constrained()->onDelete('cascade');
             $table->foreignId('whatsapp_conversation_id')->nullable()->constrained('whatsapp_conversations')->onDelete('set null');
@@ -26,8 +26,8 @@ return new class extends Migration
             $table->timestamps();
 
             // Idempotency guard
-            $table->unique(['workspace_id', 'trigger_event_id', 'bot_flow_id'], 'unique_execution');
-            $table->index(['workspace_id', 'bot_id', 'created_at']);
+            $table->unique(['account_id', 'trigger_event_id', 'bot_flow_id'], 'unique_execution');
+            $table->index(['account_id', 'bot_id', 'created_at']);
         });
     }
 

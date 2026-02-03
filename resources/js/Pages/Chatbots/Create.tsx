@@ -16,10 +16,9 @@ interface Connection {
 }
 
 export default function ChatbotsCreate({
-    workspace,
-    connections,
-}: {
-    workspace: any;
+    account,
+    connections}: {
+    account: any;
     connections: Connection[];
 }) {
     const { toast } = useToast();
@@ -29,20 +28,17 @@ export default function ChatbotsCreate({
         status: 'draft',
         applies_to: {
             all_connections: false,
-            connection_ids: [] as number[],
-        },
-    });
+            connection_ids: [] as number[]}});
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        post(route('app.chatbots.store', { workspace: workspace.slug }), {
+        post(route('app.chatbots.store', {}), {
             onSuccess: () => {
                 toast.success('Bot created successfully');
             },
             onError: () => {
                 toast.error('Failed to create bot');
-            },
-        });
+            }});
     };
 
     const toggleConnection = (connectionId: number) => {
@@ -50,13 +46,11 @@ export default function ChatbotsCreate({
         if (ids.includes(connectionId)) {
             setData('applies_to', {
                 ...data.applies_to,
-                connection_ids: ids.filter((id) => id !== connectionId),
-            });
+                connection_ids: ids.filter((id) => id !== connectionId)});
         } else {
             setData('applies_to', {
                 ...data.applies_to,
-                connection_ids: [...ids, connectionId],
-            });
+                connection_ids: [...ids, connectionId]});
         }
     };
 
@@ -66,7 +60,7 @@ export default function ChatbotsCreate({
             <div className="space-y-8">
                 <div>
                     <Link
-                        href={route('app.chatbots.index', { workspace: workspace.slug })}
+                        href={route('app.chatbots.index', {})}
                         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
                     >
                         <ArrowLeft className="h-4 w-4" />
@@ -160,8 +154,7 @@ export default function ChatbotsCreate({
                                         onChange={(e) =>
                                             setData('applies_to', {
                                                 ...data.applies_to,
-                                                all_connections: e.target.checked,
-                                            })
+                                                all_connections: e.target.checked})
                                         }
                                     />
                                     <div>
@@ -204,7 +197,7 @@ export default function ChatbotsCreate({
                     </Card>
 
                     <div className="flex items-center justify-end gap-4">
-                        <Link href={route('app.chatbots.index', { workspace: workspace.slug })}>
+                        <Link href={route('app.chatbots.index', { })}>
                             <Button type="button" variant="secondary" className="rounded-xl">
                                 Cancel
                             </Button>

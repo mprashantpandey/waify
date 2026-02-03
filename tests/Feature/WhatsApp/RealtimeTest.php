@@ -3,7 +3,7 @@
 namespace Tests\Feature\WhatsApp;
 
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Account;
 use App\Modules\WhatsApp\Events\Inbox\ConversationUpdated;
 use App\Modules\WhatsApp\Events\Inbox\MessageCreated;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
@@ -22,7 +22,7 @@ class RealtimeTest extends TestCase
 
     protected User $user;
     protected User $nonMember;
-    protected Workspace $workspace;
+    protected Account $account;
     protected WhatsAppConnection $connection;
 
     protected function setUp(): void
@@ -31,24 +31,24 @@ class RealtimeTest extends TestCase
 
         $this->user = User::factory()->create();
         $this->nonMember = User::factory()->create();
-        $this->workspace = Workspace::factory()->create([
+        $this->account = Account::factory()->create([
             'owner_id' => $this->user->id,
         ]);
-        $this->workspace->users()->attach($this->user->id, ['role' => 'member']);
+        $this->account->users()->attach($this->user->id, ['role' => 'member']);
 
         $this->connection = WhatsAppConnection::factory()->create([
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
         ]);
 
-        session(['current_workspace_id' => $this->workspace->id]);
+        session(['current_account_id' => $this->account->id]);
     }
 
-    public function test_workspace_member_can_authorize_inbox_channel(): void
+    public function test_account_member_can_authorize_inbox_channel(): void
     {
         $response = $this->actingAs($this->user)
             ->post('/broadcasting/auth', [
                 'socket_id' => 'test-socket-id',
-                'channel_name' => "private-workspace.{$this->workspace->id}.whatsapp.inbox",
+                'channel_name' => "private-account.{$this->account->id}.whatsapp.inbox",
             ]);
 
         $response->assertStatus(200);
@@ -60,7 +60,7 @@ class RealtimeTest extends TestCase
         $response = $this->actingAs($this->nonMember)
             ->post('/broadcasting/auth', [
                 'socket_id' => 'test-socket-id',
-                'channel_name' => "private-workspace.{$this->workspace->id}.whatsapp.inbox",
+                'channel_name' => "private-account.{$this->account->id}.whatsapp.inbox",
             ]);
 
         $response->assertStatus(403);
@@ -69,11 +69,11 @@ class RealtimeTest extends TestCase
     public function test_member_can_authorize_conversation_channel(): void
     {
         $contact = WhatsAppContact::factory()->create([
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
         ]);
 
         $conversation = WhatsAppConversation::factory()->create([
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
             'whatsapp_connection_id' => $this->connection->id,
             'whatsapp_contact_id' => $contact->id,
         ]);
@@ -81,7 +81,7 @@ class RealtimeTest extends TestCase
         $response = $this->actingAs($this->user)
             ->post('/broadcasting/auth', [
                 'socket_id' => 'test-socket-id',
-                'channel_name' => "private-workspace.{$this->workspace->id}.whatsapp.conversation.{$conversation->id}",
+                'channel_name' => "private-account.{$this->account->id}.whatsapp.conversation.{$conversation->id}",
             ]);
 
         $response->assertStatus(200);
@@ -90,11 +90,11 @@ class RealtimeTest extends TestCase
     public function test_non_member_cannot_authorize_conversation_channel(): void
     {
         $contact = WhatsAppContact::factory()->create([
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
         ]);
 
         $conversation = WhatsAppConversation::factory()->create([
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
             'whatsapp_connection_id' => $this->connection->id,
             'whatsapp_contact_id' => $contact->id,
         ]);
@@ -102,7 +102,7 @@ class RealtimeTest extends TestCase
         $response = $this->actingAs($this->nonMember)
             ->post('/broadcasting/auth', [
                 'socket_id' => 'test-socket-id',
-                'channel_name' => "private-workspace.{$this->workspace->id}.whatsapp.conversation.{$conversation->id}",
+                'channel_name' => "private-account.{$this->account->id}.whatsapp.conversation.{$conversation->id}",
             ]);
 
         $response->assertStatus(403);
@@ -151,16 +151,16 @@ class RealtimeTest extends TestCase
         $processor->process($webhookPayload, $this->connection);
 
         Broadcast::assertDispatched(MessageCreated::class, function ($event) {
-            return $event->message->workspace_id === $this->workspace->id;
+            return $event->message->account_id === $this->account->id;
         });
 
         Broadcast::assertDispatched(ConversationUpdated::class);
     }
 
-    public function test_inbox_stream_requires_workspace_membership(): void
+    public function test_inbox_stream_requires_account_membership(): void
     {
         $response = $this->actingAs($this->nonMember)
-            ->get(route('app.whatsapp.inbox.stream', ['workspace' => $this->workspace->slug]));
+            ->get(route('app.whatsapp.inbox.stream', ['account' => $this->account->slug]));
 
         $response->assertForbidden();
     }
@@ -168,11 +168,11 @@ class RealtimeTest extends TestCase
     public function test_inbox_stream_returns_updated_conversations(): void
     {
         $contact = WhatsAppContact::factory()->create([
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
         ]);
 
         $conversation = WhatsAppConversation::factory()->create([
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
             'whatsapp_connection_id' => $this->connection->id,
             'whatsapp_contact_id' => $contact->id,
             'last_message_at' => now(),
@@ -180,7 +180,7 @@ class RealtimeTest extends TestCase
 
         $response = $this->actingAs($this->user)
             ->get(route('app.whatsapp.inbox.stream', [
-                'workspace' => $this->workspace->slug,
+                'account' => $this->account->slug,
                 'since' => now()->subMinutes(10)->toIso8601String(),
             ]));
 
@@ -198,30 +198,30 @@ class RealtimeTest extends TestCase
     public function test_conversation_stream_returns_incremental_messages(): void
     {
         $contact = WhatsAppContact::factory()->create([
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
         ]);
 
         $conversation = WhatsAppConversation::factory()->create([
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
             'whatsapp_connection_id' => $this->connection->id,
             'whatsapp_contact_id' => $contact->id,
         ]);
 
         $message1 = WhatsAppMessage::factory()->create([
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
             'whatsapp_conversation_id' => $conversation->id,
             'direction' => 'inbound',
         ]);
 
         $message2 = WhatsAppMessage::factory()->create([
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
             'whatsapp_conversation_id' => $conversation->id,
             'direction' => 'inbound',
         ]);
 
         $response = $this->actingAs($this->user)
             ->get(route('app.whatsapp.inbox.conversation.stream', [
-                'workspace' => $this->workspace->slug,
+                'account' => $this->account->slug,
                 'conversation' => $conversation->id,
                 'after_message_id' => $message1->id,
             ]));
@@ -243,18 +243,18 @@ class RealtimeTest extends TestCase
     public function test_conversation_stream_forbids_non_members(): void
     {
         $contact = WhatsAppContact::factory()->create([
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
         ]);
 
         $conversation = WhatsAppConversation::factory()->create([
-            'workspace_id' => $this->workspace->id,
+            'account_id' => $this->account->id,
             'whatsapp_connection_id' => $this->connection->id,
             'whatsapp_contact_id' => $contact->id,
         ]);
 
         $response = $this->actingAs($this->nonMember)
             ->get(route('app.whatsapp.inbox.conversation.stream', [
-                'workspace' => $this->workspace->slug,
+                'account' => $this->account->slug,
                 'conversation' => $conversation->id,
             ]));
 

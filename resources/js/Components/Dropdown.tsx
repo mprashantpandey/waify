@@ -6,8 +6,7 @@ import {
     PropsWithChildren,
     SetStateAction,
     useContext,
-    useState,
-} from 'react';
+    useState} from 'react';
 
 const DropDownContext = createContext<{
     open: boolean;
@@ -16,8 +15,7 @@ const DropDownContext = createContext<{
 }>({
     open: false,
     setOpen: () => {},
-    toggleOpen: () => {},
-});
+    toggleOpen: () => {}});
 
 const Dropdown = ({ children }: PropsWithChildren) => {
     const [open, setOpen] = useState(false);
@@ -54,8 +52,7 @@ const Content = ({
     align = 'right',
     width = '48',
     contentClasses = 'py-1 bg-white',
-    children,
-}: PropsWithChildren<{
+    children}: PropsWithChildren<{
     align?: 'left' | 'right';
     width?: '48';
     contentClasses?: string;

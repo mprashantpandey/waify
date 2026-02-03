@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('subscriptions', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('workspace_id')->constrained()->onDelete('cascade');
+            $table->foreignId('account_id')->constrained()->onDelete('cascade');
             $table->foreignId('plan_id')->constrained()->onDelete('restrict');
             $table->string('status'); // trialing|active|past_due|canceled
             $table->timestamp('started_at');
@@ -29,7 +29,7 @@ return new class extends Migration
             $table->text('last_error')->nullable();
             $table->timestamps();
 
-            $table->unique('workspace_id');
+            $table->unique('account_id');
             $table->index('status');
         });
     }

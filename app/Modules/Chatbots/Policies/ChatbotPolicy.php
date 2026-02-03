@@ -3,7 +3,7 @@
 namespace App\Modules\Chatbots\Policies;
 
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Account;
 use App\Modules\Chatbots\Models\Bot;
 
 class ChatbotPolicy
@@ -11,28 +11,28 @@ class ChatbotPolicy
     /**
      * Determine if user can view bots.
      */
-    public function viewAny(User $user, Workspace $workspace): bool
+    public function viewAny(User $user, Account $account): bool
     {
         // Owner and admin can view
-        return $workspace->owner_id === $user->id ||
-               $workspace->users()->where('user_id', $user->id)->where('role', 'admin')->exists();
+        return $account->owner_id === $user->id ||
+               $account->users()->where('user_id', $user->id)->where('role', 'admin')->exists();
     }
 
     /**
      * Determine if user can manage bots.
      */
-    public function manage(User $user, Workspace $workspace): bool
+    public function manage(User $user, Account $account): bool
     {
         // Only owner and admin can manage
-        return $workspace->owner_id === $user->id ||
-               $workspace->users()->where('user_id', $user->id)->where('role', 'admin')->exists();
+        return $account->owner_id === $user->id ||
+               $account->users()->where('user_id', $user->id)->where('role', 'admin')->exists();
     }
 
     /**
      * Determine if user can run test.
      */
-    public function runTest(User $user, Workspace $workspace): bool
+    public function runTest(User $user, Account $account): bool
     {
-        return $this->manage($user, $workspace);
+        return $this->manage($user, $account);
     }
 }

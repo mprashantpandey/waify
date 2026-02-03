@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('whatsapp_template_versions', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('workspace_id')->constrained()->onDelete('cascade');
+            $table->foreignId('account_id')->constrained()->onDelete('cascade');
             $table->foreignId('whatsapp_template_id')->constrained()->onDelete('cascade');
             $table->integer('version')->default(1);
             $table->string('change_notes')->nullable();

@@ -6,7 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Core\Billing\SubscriptionService;
 use App\Models\Plan;
 use App\Models\Subscription;
-use App\Models\Workspace;
+use App\Models\Account;
+use App\Services\PlatformSettingsService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -22,9 +23,13 @@ class PlanController extends Controller
      */
     public function index(Request $request): Response
     {
+        // Get default currency from platform settings
+        $settingsService = app(PlatformSettingsService::class);
+        $defaultCurrency = $settingsService->get('payment.default_currency', 'USD');
+        
         $plans = Plan::orderBy('sort_order')
             ->get()
-            ->map(function ($plan) {
+            ->map(function ($plan) use ($defaultCurrency) {
                 return [
                     'id' => $plan->id,
                     'key' => $plan->key,
@@ -32,18 +37,17 @@ class PlanController extends Controller
                     'description' => $plan->description,
                     'price_monthly' => $plan->price_monthly,
                     'price_yearly' => $plan->price_yearly,
-                    'currency' => $plan->currency,
+                    'currency' => $defaultCurrency, // Use platform default currency
                     'is_active' => $plan->is_active,
                     'is_public' => $plan->is_public,
                     'trial_days' => $plan->trial_days,
                     'sort_order' => $plan->sort_order,
-                    'subscriptions_count' => $plan->subscriptions()->count(),
-                ];
+                    'subscriptions_count' => $plan->subscriptions()->count()];
             });
 
         return Inertia::render('Platform/Plans/Index', [
             'plans' => $plans,
-        ]);
+            'default_currency' => $defaultCurrency]);
     }
 
     /**
@@ -52,10 +56,14 @@ class PlanController extends Controller
     public function create(): Response
     {
         $modules = \App\Models\Module::orderBy('name')->get(['id', 'key', 'name']);
+        
+        // Get default currency from platform settings
+        $settingsService = app(PlatformSettingsService::class);
+        $defaultCurrency = $settingsService->get('payment.default_currency', 'USD');
 
         return Inertia::render('Platform/Plans/Create', [
             'modules' => $modules,
-        ]);
+            'default_currency' => $defaultCurrency]);
     }
 
     /**
@@ -69,18 +77,21 @@ class PlanController extends Controller
             'description' => 'nullable|string',
             'price_monthly' => 'nullable|integer|min:0',
             'price_yearly' => 'nullable|integer|min:0',
-            'currency' => 'required|string|max:3',
             'is_active' => 'boolean',
             'is_public' => 'boolean',
             'trial_days' => 'integer|min:0',
             'sort_order' => 'integer',
             'limits' => 'required|array',
-            'modules' => 'required|array',
-        ]);
+            'modules' => 'required|array']);
 
+        // Get default currency from platform settings
+        $settingsService = app(PlatformSettingsService::class);
+        $defaultCurrency = $settingsService->get('payment.default_currency', 'USD');
+        
         // Ensure limits and modules are properly formatted
         $validated['limits'] = $validated['limits'] ?? [];
         $validated['modules'] = $validated['modules'] ?? [];
+        $validated['currency'] = $defaultCurrency; // Use platform default currency
 
         Plan::create($validated);
 
@@ -93,7 +104,7 @@ class PlanController extends Controller
      */
     public function show($plan): Response
     {
-        $plan->load('subscriptions.workspace');
+        $plan->load('subscriptions.account');
 
         // Fetch all modules from database to get accurate names
         $modules = \App\Models\Module::all()->keyBy('key');
@@ -104,6 +115,10 @@ class PlanController extends Controller
         // Normalize old module keys to new ones for display
         $normalizedModules = $this->normalizeModuleKeys($plan->modules ?? []);
 
+        // Get default currency from platform settings
+        $settingsService = app(PlatformSettingsService::class);
+        $defaultCurrency = $settingsService->get('payment.default_currency', 'USD');
+        
         return Inertia::render('Platform/Plans/Show', [
             'plan' => [
                 'id' => $plan->id,
@@ -112,7 +127,7 @@ class PlanController extends Controller
                 'description' => $plan->description,
                 'price_monthly' => $plan->price_monthly,
                 'price_yearly' => $plan->price_yearly,
-                'currency' => $plan->currency,
+                'currency' => $defaultCurrency, // Use platform default currency
                 'is_active' => $plan->is_active,
                 'is_public' => $plan->is_public,
                 'trial_days' => $plan->trial_days,
@@ -122,18 +137,15 @@ class PlanController extends Controller
                 'subscriptions' => $plan->subscriptions->map(function ($sub) {
                     return [
                         'id' => $sub->id,
-                        'workspace' => [
-                            'id' => $sub->workspace->id,
-                            'name' => $sub->workspace->name,
-                            'slug' => $sub->workspace->slug,
-                        ],
+                        'account' => [
+                            'id' => $sub->account->id,
+                            'name' => $sub->account->name,
+                            'slug' => $sub->account->slug],
                         'status' => $sub->status,
-                        'started_at' => $sub->started_at->toIso8601String(),
-                    ];
-                }),
-            ],
+                        'started_at' => $sub->started_at->toIso8601String()];
+                })],
             'moduleNames' => $moduleNames,
-        ]);
+            'default_currency' => $defaultCurrency]);
     }
 
     /**
@@ -143,8 +155,7 @@ class PlanController extends Controller
     {
         $keyMap = [
             'whatsapp' => 'whatsapp.cloud',
-            'chatbots' => 'automation.chatbots',
-        ];
+            'chatbots' => 'automation.chatbots'];
 
         return array_map(function ($key) use ($keyMap) {
             return $keyMap[$key] ?? $key;
@@ -161,6 +172,10 @@ class PlanController extends Controller
         // Normalize old module keys to new ones
         $normalizedModules = $this->normalizeModuleKeys($plan->modules ?? []);
 
+        // Get default currency from platform settings
+        $settingsService = app(PlatformSettingsService::class);
+        $defaultCurrency = $settingsService->get('payment.default_currency', 'USD');
+        
         return Inertia::render('Platform/Plans/Edit', [
             'plan' => [
                 'id' => $plan->id,
@@ -169,16 +184,15 @@ class PlanController extends Controller
                 'description' => $plan->description,
                 'price_monthly' => $plan->price_monthly,
                 'price_yearly' => $plan->price_yearly,
-                'currency' => $plan->currency,
+                'currency' => $defaultCurrency, // Use platform default currency
                 'is_active' => $plan->is_active,
                 'is_public' => $plan->is_public,
                 'trial_days' => $plan->trial_days,
                 'sort_order' => $plan->sort_order,
                 'limits' => $plan->limits,
-                'modules' => $normalizedModules,
-            ],
+                'modules' => $normalizedModules],
             'modules' => $modules,
-        ]);
+            'default_currency' => $defaultCurrency]);
     }
 
     /**
@@ -192,20 +206,25 @@ class PlanController extends Controller
             'description' => 'nullable|string',
             'price_monthly' => 'nullable|integer|min:0',
             'price_yearly' => 'nullable|integer|min:0',
-            'currency' => 'required|string|max:3',
             'is_active' => 'boolean',
             'is_public' => 'boolean',
             'trial_days' => 'integer|min:0',
             'sort_order' => 'integer',
             'limits' => 'required|array',
-            'modules' => 'required|array',
-        ]);
+            'modules' => 'required|array']);
 
+        // Get default currency from platform settings
+        $settingsService = app(PlatformSettingsService::class);
+        $defaultCurrency = $settingsService->get('payment.default_currency', 'USD');
+        
         // Ensure limits and modules are properly formatted
         $validated['limits'] = $validated['limits'] ?? [];
         
         // Normalize module keys to ensure we're using the new keys
         $validated['modules'] = $this->normalizeModuleKeys($validated['modules'] ?? []);
+        
+        // Always use platform default currency
+        $validated['currency'] = $defaultCurrency;
 
         $plan->update($validated);
 
@@ -228,7 +247,7 @@ class PlanController extends Controller
      */
     public function subscriptions(Request $request): Response
     {
-        $query = Subscription::with(['workspace', 'plan']);
+        $query = Subscription::with(['account', 'plan']);
 
         if ($request->has('status') && $request->status) {
             $query->where('status', $request->status);
@@ -237,39 +256,33 @@ class PlanController extends Controller
         $subscriptions = $query->orderBy('created_at', 'desc')
             ->paginate(20)
             ->through(function ($subscription) {
-                $workspace = $subscription->workspace;
+                $account = $subscription->account;
                 $usageService = app(\App\Core\Billing\UsageService::class);
-                $currentUsage = $usageService->getCurrentUsage($workspace);
+                $currentUsage = $usageService->getCurrentUsage($account);
 
                 return [
                     'id' => $subscription->id,
                     'slug' => $subscription->slug,
-                    'workspace' => [
-                        'id' => $workspace->id,
-                        'name' => $workspace->name,
-                        'slug' => $workspace->slug,
-                    ],
+                    'account' => [
+                        'id' => $account->id,
+                        'name' => $account->name,
+                        'slug' => $account->slug],
                     'plan' => [
                         'key' => $subscription->plan->key,
-                        'name' => $subscription->plan->name,
-                    ],
+                        'name' => $subscription->plan->name],
                     'status' => $subscription->status,
                     'trial_ends_at' => $subscription->trial_ends_at?->toIso8601String(),
                     'current_period_end' => $subscription->current_period_end?->toIso8601String(),
                     'usage' => [
                         'messages_sent' => $currentUsage->messages_sent,
-                        'template_sends' => $currentUsage->template_sends,
-                    ],
-                    'started_at' => $subscription->started_at->toIso8601String(),
-                ];
+                        'template_sends' => $currentUsage->template_sends],
+                    'started_at' => $subscription->started_at->toIso8601String()];
             });
 
         return Inertia::render('Platform/Subscriptions/Index', [
             'subscriptions' => $subscriptions,
             'filters' => [
-                'status' => $request->status,
-            ],
-        ]);
+                'status' => $request->status]]);
     }
 
     /**
@@ -277,28 +290,26 @@ class PlanController extends Controller
      */
     public function showSubscription(Subscription $subscription): Response
     {
-        $subscription->load(['workspace', 'plan']);
-        $workspace = $subscription->workspace;
+        $subscription->load(['account', 'plan']);
+        $account = $subscription->account;
         
         $usageService = app(\App\Core\Billing\UsageService::class);
-        $currentUsage = $usageService->getCurrentUsage($workspace);
+        $currentUsage = $usageService->getCurrentUsage($account);
         
         $planResolver = app(\App\Core\Billing\PlanResolver::class);
-        $limits = $planResolver->getEffectiveLimits($workspace);
+        $limits = $planResolver->getEffectiveLimits($account);
 
         return Inertia::render('Platform/Subscriptions/Show', [
             'subscription' => [
                 'id' => $subscription->id,
                 'slug' => $subscription->slug,
-                'workspace' => [
-                    'id' => $workspace->id,
-                    'name' => $workspace->name,
-                    'slug' => $workspace->slug,
-                ],
+                'account' => [
+                    'id' => $account->id,
+                    'name' => $account->name,
+                    'slug' => $account->slug],
                 'plan' => [
                     'key' => $subscription->plan->key,
-                    'name' => $subscription->plan->name,
-                ],
+                    'name' => $subscription->plan->name],
                 'status' => $subscription->status,
                 'trial_ends_at' => $subscription->trial_ends_at?->toIso8601String(),
                 'current_period_start' => $subscription->current_period_start?->toIso8601String(),
@@ -309,10 +320,7 @@ class PlanController extends Controller
                 'usage' => [
                     'messages_sent' => $currentUsage->messages_sent,
                     'template_sends' => $currentUsage->template_sends,
-                    'ai_credits_used' => $currentUsage->ai_credits_used,
-                ],
-                'limits' => $limits,
-            ],
-        ]);
+                    'ai_credits_used' => $currentUsage->ai_credits_used],
+                'limits' => $limits]]);
     }
 }

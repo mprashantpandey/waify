@@ -13,14 +13,14 @@ return new class extends Migration
     {
         Schema::create('contact_tags', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('workspace_id')->constrained()->onDelete('cascade');
+            $table->foreignId('account_id')->constrained()->onDelete('cascade');
             $table->string('name');
             $table->string('color')->default('#3B82F6'); // Hex color for UI
             $table->text('description')->nullable();
             $table->timestamps();
 
-            $table->unique(['workspace_id', 'name']);
-            $table->index('workspace_id');
+            $table->unique(['account_id', 'name']);
+            $table->index('account_id');
         });
 
         // Pivot table for contact-tag relationship

@@ -9,30 +9,26 @@ export default function About() {
             icon: Target,
             title: 'Mission',
             description: 'To empower businesses of all sizes to communicate effectively with their customers through WhatsApp, making enterprise-grade messaging accessible to everyone.',
-            gradient: 'from-blue-500 to-blue-600',
-        },
+            gradient: 'from-blue-500 to-blue-600'},
         {
             icon: Users,
             title: 'Team',
             description: 'We\'re a passionate team of developers, designers, and customer success specialists dedicated to building the best WhatsApp communication platform.',
-            gradient: 'from-purple-500 to-purple-600',
-        },
+            gradient: 'from-purple-500 to-purple-600'},
         {
             icon: Award,
             title: 'Quality',
             description: 'We believe in delivering high-quality, reliable services with exceptional customer support. Your success is our success.',
-            gradient: 'from-green-500 to-green-600',
-        },
+            gradient: 'from-green-500 to-green-600'},
         {
             icon: Zap,
             title: 'Innovation',
             description: 'We continuously innovate and improve our platform based on customer feedback and industry best practices.',
-            gradient: 'from-orange-500 to-orange-600',
-        },
+            gradient: 'from-orange-500 to-orange-600'},
     ];
 
     const stats = [
-        { label: 'Active Workspaces', value: '1000+', icon: '🚀' },
+        { label: 'Active Accounts', value: '1000+', icon: '🚀' },
         { label: 'Messages Sent', value: '10M+', icon: '📨' },
         { label: 'Happy Customers', value: '500+', icon: '😊' },
         { label: 'Uptime', value: '99.9%', icon: '⚡' },

@@ -37,11 +37,10 @@ interface WizardState {
 }
 
 export default function EmbeddedWizard({
-    workspace,
+    account,
     embeddedSignup,
-    defaultApiVersion,
-}: {
-    workspace: any;
+    defaultApiVersion}: {
+    account: any;
     embeddedSignup: { enabled?: boolean; appId?: string; configId?: string; apiVersion?: string };
     defaultApiVersion: string;
 }) {
@@ -51,8 +50,7 @@ export default function EmbeddedWizard({
         step: 'init',
         progress: 0,
         message: 'Ready to start',
-        data: {},
-    });
+        data: {}});
     const messageHandlerRef = useRef<((event: MessageEvent) => void) | null>(null);
 
     const embeddedForm = useForm({
@@ -63,8 +61,7 @@ export default function EmbeddedWizard({
         access_token: '',
         code: '',
         pin: '',
-        redirect_uri: '',
-    });
+        redirect_uri: ''});
 
     // Initialize Meta SDK
     useEffect(() => {
@@ -72,8 +69,7 @@ export default function EmbeddedWizard({
             setWizardState(prev => ({
                 ...prev,
                 step: 'error',
-                error: 'Embedded Signup is disabled by your platform administrator.',
-            }));
+                error: 'Embedded Signup is disabled by your platform administrator.'}));
             return;
         }
 
@@ -81,8 +77,7 @@ export default function EmbeddedWizard({
             setWizardState(prev => ({
                 ...prev,
                 step: 'error',
-                error: 'Embedded Signup is not configured yet. Please contact support or use manual setup.',
-            }));
+                error: 'Embedded Signup is not configured yet. Please contact support or use manual setup.'}));
             return;
         }
 
@@ -95,14 +90,12 @@ export default function EmbeddedWizard({
                 appId: embeddedSignup.appId,
                 cookie: true,
                 xfbml: true,
-                version: embeddedSignup.apiVersion || 'v21.0',
-            });
+                version: embeddedSignup.apiVersion || 'v21.0'});
             setEmbeddedReady(true);
             setWizardState(prev => ({
                 ...prev,
                 step: 'init',
-                message: 'Meta SDK loaded. Click "Start Setup" to begin.',
-            }));
+                message: 'Meta SDK loaded. Click "Start Setup" to begin.'}));
         };
 
         if (window.FB) {
@@ -175,8 +168,7 @@ export default function EmbeddedWizard({
                     phone_number_id: data?.phone_number_id || payload?.phone_number_id || data?.phoneNumberId || payload?.phoneNumberId,
                     business_phone: data?.business_phone || payload?.business_phone || 
                                   data?.display_phone_number || payload?.display_phone_number ||
-                                  data?.businessPhone || payload?.businessPhone,
-                };
+                                  data?.businessPhone || payload?.businessPhone};
 
                 if (extractedData.waba_id || extractedData.phone_number_id) {
                     setWizardState(prev => ({
@@ -186,9 +178,7 @@ export default function EmbeddedWizard({
                         message: 'Received signup data from Meta',
                         data: {
                             ...prev.data,
-                            ...extractedData,
-                        },
-                    }));
+                            ...extractedData}}));
 
                     // Auto-fill form
                     if (extractedData.waba_id) {
@@ -219,9 +209,7 @@ export default function EmbeddedWizard({
                         message: 'Authorization code received',
                         data: {
                             ...prev.data,
-                            code,
-                        },
-                    }));
+                            code}}));
                 }
 
                 if (accessToken) {
@@ -233,9 +221,7 @@ export default function EmbeddedWizard({
                         message: 'Access token received',
                         data: {
                             ...prev.data,
-                            accessToken,
-                        },
-                    }));
+                            accessToken}}));
                 }
             }
         };
@@ -260,8 +246,7 @@ export default function EmbeddedWizard({
             step: 'auth',
             progress: 10,
             message: 'Starting Meta authorization...',
-            data: {},
-        });
+            data: {}});
 
         embeddedForm.setData('redirect_uri', window.location.href);
 
@@ -280,9 +265,7 @@ export default function EmbeddedWizard({
                             message: 'Authorization code received. Exchanging for access token...',
                             data: {
                                 ...prev.data,
-                                code,
-                            },
-                        }));
+                                code}}));
                     }
 
                     if (accessToken) {
@@ -294,9 +277,7 @@ export default function EmbeddedWizard({
                             message: 'Access token received',
                             data: {
                                 ...prev.data,
-                                accessToken,
-                            },
-                        }));
+                                accessToken}}));
                     }
 
                     if (code || accessToken) {
@@ -305,15 +286,13 @@ export default function EmbeddedWizard({
                         setWizardState(prev => ({
                             ...prev,
                             step: 'error',
-                            error: 'Authorization response missing code or access token',
-                        }));
+                            error: 'Authorization response missing code or access token'}));
                     }
                 } else {
                     setWizardState(prev => ({
                         ...prev,
                         step: 'error',
-                        error: 'Login was cancelled or did not fully authorize',
-                    }));
+                        error: 'Login was cancelled or did not fully authorize'}));
                     toast.error('Authorization cancelled');
                 }
             },
@@ -321,8 +300,7 @@ export default function EmbeddedWizard({
                 config_id: embeddedSignup.configId,
                 response_type: 'code',
                 override_default_response_type: true,
-                scope: 'whatsapp_business_management,whatsapp_business_messaging,business_management',
-            }
+                scope: 'whatsapp_business_management,whatsapp_business_messaging,business_management'}
         );
     };
 
@@ -338,28 +316,24 @@ export default function EmbeddedWizard({
             ...prev,
             step: 'complete',
             progress: 90,
-            message: 'Creating connection...',
-        }));
+            message: 'Creating connection...'}));
 
-        embeddedForm.post(route('app.whatsapp.connections.store-embedded', { workspace: workspace.slug }), {
+        embeddedForm.post(route('app.whatsapp.connections.store-embedded', {}), {
             onSuccess: () => {
                 setWizardState(prev => ({
                     ...prev,
                     step: 'complete',
                     progress: 100,
-                    message: 'Connection created successfully!',
-                }));
+                    message: 'Connection created successfully!'}));
                 toast.success('WhatsApp connection created successfully');
             },
             onError: (errors) => {
                 setWizardState(prev => ({
                     ...prev,
                     step: 'error',
-                    error: (errors as any)?.embedded || 'Failed to create connection',
-                }));
+                    error: (errors as any)?.embedded || 'Failed to create connection'}));
                 toast.error('Failed to create connection');
-            },
-        });
+            }});
     };
 
     const getStepIcon = (step: WizardStep) => {
@@ -396,7 +370,7 @@ export default function EmbeddedWizard({
             <div className="space-y-8">
                 <div>
                     <Link
-                        href={route('app.whatsapp.connections.create', { workspace: workspace.slug })}
+                        href={route('app.whatsapp.connections.create', {})}
                         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
                     >
                         <ArrowLeft className="h-4 w-4" />
@@ -674,7 +648,7 @@ export default function EmbeddedWizard({
                                 <p className="text-gray-600 dark:text-gray-400 mb-6">
                                     Your WhatsApp connection has been set up and is ready to use.
                                 </p>
-                                <Link href={route('app.whatsapp.connections.index', { workspace: workspace.slug })}>
+                                <Link href={route('app.whatsapp.connections.index', { })}>
                                     <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50 rounded-xl">
                                         View Connections
                                     </Button>

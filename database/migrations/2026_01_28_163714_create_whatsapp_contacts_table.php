@@ -13,14 +13,14 @@ return new class extends Migration
     {
         Schema::create('whatsapp_contacts', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('workspace_id')->constrained()->onDelete('cascade');
+            $table->foreignId('account_id')->constrained()->onDelete('cascade');
             $table->string('wa_id'); // WhatsApp user id
             $table->string('name')->nullable();
             $table->timestamp('last_seen_at')->nullable();
             $table->json('metadata')->nullable();
             $table->timestamps();
 
-            $table->unique(['workspace_id', 'wa_id']);
+            $table->unique(['account_id', 'wa_id']);
         });
     }
 

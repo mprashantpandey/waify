@@ -19,12 +19,12 @@ This document provides a complete analysis of all conflicts found and resolved a
 
 #### Issue 1.2: Contact Import Conflicts
 - **Problem**: Concurrent imports could create duplicate contacts
-- **Fix**: Added cache lock `contact_import:workspace:{id}` (10 min) + row-level locks
+- **Fix**: Added cache lock `contact_import:account:{id}` (10 min) + row-level locks
 - **Impact**: Prevents duplicate contacts and data corruption
 
 #### Issue 1.3: Contact Export Conflicts
 - **Problem**: Concurrent exports could create files with same name
-- **Fix**: Added cache lock `contact_export:workspace:{id}` (5 min) + unique filenames
+- **Fix**: Added cache lock `contact_export:account:{id}` (5 min) + unique filenames
 - **Impact**: Prevents file conflicts and data loss
 
 ### 2. Campaign Operations (5 issues)
@@ -99,17 +99,17 @@ This document provides a complete analysis of all conflicts found and resolved a
 
 #### Issue 6.1: Segment Calculation Conflicts
 - **Problem**: Concurrent calculations could cause incorrect counts
-- **Fix**: Added cache lock `segment_calculate:{id}` (1 min) + `segment_recalculate:workspace:{id}` (10 min)
+- **Fix**: Added cache lock `segment_calculate:{id}` (1 min) + `segment_recalculate:account:{id}` (10 min)
 - **Impact**: Accurate segment contact counts
 
 ## Complete Lock Registry
 
 ### Sync Locks (5 locks)
 - `template_sync:connection:{id}` - 5 minutes
-- `contact_import:workspace:{id}` - 10 minutes
-- `contact_export:workspace:{id}` - 5 minutes
+- `contact_import:account:{id}` - 10 minutes
+- `contact_export:account:{id}` - 5 minutes
 - `campaign_prepare_recipients:{id}` - 5 minutes
-- `segment_recalculate:workspace:{id}` - 10 minutes
+- `segment_recalculate:account:{id}` - 10 minutes
 
 ### Processing Locks (5 locks)
 - `webhook_process:connection:{id}` - 1 minute

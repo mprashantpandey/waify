@@ -24,9 +24,7 @@ class SupportAgentReplied extends Notification
     {
         $subject = 'Support replied: ' . $this->thread->subject;
         $url = route('app.support.show', [
-            'workspace' => $this->thread->workspace?->slug,
-            'thread' => $this->thread->slug ?? $this->thread->id,
-        ]);
+            'thread' => $this->thread->slug ?? $this->thread->id]);
 
         return (new MailMessage)
             ->subject($subject)

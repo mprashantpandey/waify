@@ -1,5 +1,5 @@
-import { Link } from '@inertiajs/react';
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { Link, usePage } from '@inertiajs/react';
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import AppShell from '@/Layouts/AppShell';
 import { Badge } from '@/Components/UI/Badge';
 import { MessageSquare, Search, X, Phone, Wifi, WifiOff } from 'lucide-react';
@@ -24,14 +24,15 @@ interface Conversation {
         id: number;
         name: string;
     };
+    assigned_to?: number | null;
+    priority?: string | null;
 }
 
 export default function ConversationsIndex({
-    workspace,
+    account,
     conversations: initialConversations,
-    connections,
-}: {
-    workspace: any;
+    connections}: {
+    account: any;
     conversations: {
         data: Conversation[];
         links: any;
@@ -41,6 +42,10 @@ export default function ConversationsIndex({
 }) {
     const { subscribe, connected } = useRealtime();
     const { addToast } = useToast();
+    const { auth } = usePage().props as any;
+    const currentUserId = auth?.user?.id;
+    const notifyAssignmentEnabled = auth?.user?.notify_assignment_enabled ?? true;
+    const soundEnabled = auth?.user?.notify_sound_enabled ?? true;
     const [conversations, setConversations] = useState<Conversation[]>(initialConversations.data);
     const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -49,6 +54,29 @@ export default function ConversationsIndex({
     const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
     const lastPollRef = useRef<Date>(new Date());
     const processedMessageIds = useRef<Set<string>>(new Set());
+    const assignmentStateRef = useRef<Map<number, number | null>>(
+        new Map(initialConversations.data.map((c) => [c.id, c.assigned_to ?? null]))
+    );
+
+    const playNotificationSound = useCallback(() => {
+        if (!soundEnabled) return;
+        try {
+            const AudioContextRef = (window as any).AudioContext || (window as any).webkitAudioContext;
+            if (!AudioContextRef) return;
+            const context = new AudioContextRef();
+            const oscillator = context.createOscillator();
+            const gain = context.createGain();
+            oscillator.type = 'sine';
+            oscillator.frequency.value = 880;
+            gain.gain.value = 0.04;
+            oscillator.connect(gain);
+            gain.connect(context.destination);
+            oscillator.start();
+            oscillator.stop(context.currentTime + 0.12);
+        } catch (error) {
+            console.warn('[Notifications] Unable to play sound');
+        }
+    }, [soundEnabled]);
 
     const formatTime = (value: string | null) => {
         if (!value) return '';
@@ -124,18 +152,36 @@ export default function ConversationsIndex({
 
     // Realtime subscription with dedup
     useEffect(() => {
-        if (!workspace?.id) return;
+        if (!account?.id) return;
 
-        const channel = `private-workspace.${workspace.id}.whatsapp.inbox`;
+        const channel = `private-account.${account.id}.whatsapp.inbox`;
         
         const unsubscribeConversationUpdated = subscribe(
             channel,
             '.whatsapp.conversation.updated',
             (data: any) => {
-                const eventId = `conv-updated-${data.conversation?.id}-${Date.now()}`;
+                const eventId = `conv-updated-${data.conversation?.id}-${data.conversation?.updated_at || data.conversation?.last_message_at || ''}`;
                 if (!processedMessageIds.current.has(eventId)) {
                     processedMessageIds.current.add(eventId);
-                    setConversations((prev) => applyConversationUpdated(prev, data.conversation));
+                    const incoming = {
+                        ...data.conversation,
+                        assigned_to: data.conversation?.assignee_id ?? data.conversation?.assigned_to ?? null,
+                        priority: data.conversation?.priority ?? null,
+                    };
+                    setConversations((prev) => applyConversationUpdated(prev, incoming));
+
+                    if (currentUserId && notifyAssignmentEnabled && incoming.assigned_to === currentUserId) {
+                        const previous = assignmentStateRef.current.get(incoming.id);
+                        if (previous !== incoming.assigned_to) {
+                            addToast({
+                                title: 'Conversation assigned',
+                                description: 'A chat was assigned to you.',
+                                variant: 'info',
+                                duration: 3000});
+                            playNotificationSound();
+                        }
+                    }
+                    assignmentStateRef.current.set(incoming.id, incoming.assigned_to);
                     if (processedMessageIds.current.size > 100) {
                         const ids = Array.from(processedMessageIds.current);
                         processedMessageIds.current = new Set(ids.slice(-50));
@@ -158,8 +204,7 @@ export default function ConversationsIndex({
                                 title: 'New message',
                                 description: `From ${data.contact?.name || data.message?.from}`,
                                 variant: 'info',
-                                duration: 3000,
-                            });
+                                duration: 3000});
                         }
                         return updated;
                     });
@@ -175,11 +220,11 @@ export default function ConversationsIndex({
             unsubscribeConversationUpdated();
             unsubscribeMessageCreated();
         };
-    }, [workspace?.id, subscribe, addToast]);
+    }, [account?.id, subscribe, addToast, currentUserId, notifyAssignmentEnabled, playNotificationSound]);
 
     // Fallback polling when disconnected
     useEffect(() => {
-        if (connected || !workspace?.id) {
+        if (connected || !account?.id) {
             if (pollingInterval) {
                 clearInterval(pollingInterval);
                 setPollingInterval(null);
@@ -190,12 +235,10 @@ export default function ConversationsIndex({
         const poll = async () => {
             try {
                 const response = await axios.get(
-                    route('app.whatsapp.inbox.stream', { workspace: workspace.slug }),
+                    route('app.whatsapp.inbox.stream', {}),
                     {
                         params: {
-                            since: lastPollRef.current.toISOString(),
-                        },
-                    }
+                            since: lastPollRef.current.toISOString()}}
                 );
 
                 if (response.data.updated_conversations?.length > 0) {
@@ -230,7 +273,7 @@ export default function ConversationsIndex({
         return () => {
             clearInterval(interval);
         };
-    }, [connected, workspace?.id, workspace?.slug]);
+    }, [connected, account?.id, account?.slug]);
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -351,9 +394,7 @@ export default function ConversationsIndex({
                                         <Link
                                             key={conversation.id}
                                             href={route('app.whatsapp.conversations.show', {
-                                                workspace: workspace.slug,
-                                                conversation: conversation.id,
-                                            })}
+                                                conversation: conversation.id})}
                                             className="group block px-4 py-3 hover:bg-[#f0f2f5] dark:hover:bg-gray-800 transition-colors"
                                         >
                                             <div className="flex items-start gap-3">

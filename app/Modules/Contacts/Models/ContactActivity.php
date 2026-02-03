@@ -3,7 +3,7 @@
 namespace App\Modules\Contacts\Models;
 
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Account;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,25 +16,23 @@ class ContactActivity extends Model
     protected $table = 'contact_activities';
 
     protected $fillable = [
-        'workspace_id',
+        'account_id',
         'contact_id',
         'user_id',
         'type',
         'title',
         'description',
-        'metadata',
-    ];
+        'metadata'];
 
     protected $casts = [
-        'metadata' => 'array',
-    ];
+        'metadata' => 'array'];
 
     /**
-     * Get the workspace.
+     * Get the account.
      */
-    public function workspace(): BelongsTo
+    public function account(): BelongsTo
     {
-        return $this->belongsTo(Workspace::class);
+        return $this->belongsTo(Account::class);
     }
 
     /**

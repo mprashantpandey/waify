@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Broadcasts\Jobs\SendScheduledCampaignJob;
 use App\Modules\Broadcasts\Models\Campaign;
 use App\Modules\Broadcasts\Services\CampaignService;
+use App\Modules\Contacts\Models\ContactSegment;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
@@ -27,9 +28,9 @@ class CampaignController extends Controller
      */
     public function index(Request $request): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        $query = Campaign::where('workspace_id', $workspace->id)
+        $query = Campaign::where('account_id', $account->id)
             ->with(['connection', 'template', 'creator'])
             ->orderBy('created_at', 'desc');
 
@@ -57,27 +58,21 @@ class CampaignController extends Controller
                 'completed_at' => $campaign->completed_at?->toIso8601String(),
                 'connection' => $campaign->connection ? [
                     'id' => $campaign->connection->id,
-                    'name' => $campaign->connection->name,
-                ] : null,
+                    'name' => $campaign->connection->name] : null,
                 'template' => $campaign->template ? [
                     'id' => $campaign->template->id,
-                    'name' => $campaign->template->name,
-                ] : null,
+                    'name' => $campaign->template->name] : null,
                 'created_by' => $campaign->creator ? [
                     'id' => $campaign->creator->id,
-                    'name' => $campaign->creator->name,
-                ] : null,
-                'created_at' => $campaign->created_at->toIso8601String(),
-            ];
+                    'name' => $campaign->creator->name] : null,
+                'created_at' => $campaign->created_at->toIso8601String()];
         });
 
         return Inertia::render('Broadcasts/Index', [
-            'workspace' => $workspace,
+            'account' => $account,
             'campaigns' => $campaigns,
             'filters' => [
-                'status' => $request->status,
-            ],
-        ]);
+                'status' => $request->status]]);
     }
 
     /**
@@ -85,22 +80,21 @@ class CampaignController extends Controller
      */
     public function create(Request $request): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
         // Get available connections
-        $connections = WhatsAppConnection::where('workspace_id', $workspace->id)
+        $connections = WhatsAppConnection::where('account_id', $account->id)
             ->where('is_active', true)
             ->get()
             ->map(function ($connection) {
                 return [
                     'id' => $connection->id,
                     'name' => $connection->name,
-                    'phone_number_id' => $connection->phone_number_id,
-                ];
+                    'phone_number_id' => $connection->phone_number_id];
             });
 
         // Get available templates
-        $templates = WhatsAppTemplate::where('workspace_id', $workspace->id)
+        $templates = WhatsAppTemplate::where('account_id', $account->id)
             ->where('status', 'APPROVED')
             ->where('is_archived', false)
             ->with('connection')
@@ -112,19 +106,22 @@ class CampaignController extends Controller
                     'language' => $template->language,
                     'category' => $template->category,
                     'body_text' => $template->body_text,
-                    'connection_id' => $template->whatsapp_connection_id,
-                ];
+                    'connection_id' => $template->whatsapp_connection_id];
             });
 
         // Get contacts count for recipient selection
-        $contactsCount = WhatsAppContact::where('workspace_id', $workspace->id)->count();
+        $contactsCount = WhatsAppContact::where('account_id', $account->id)->count();
+
+        $segments = ContactSegment::where('account_id', $account->id)
+            ->orderBy('name')
+            ->get(['id', 'name', 'contact_count']);
 
         return Inertia::render('Broadcasts/Create', [
-            'workspace' => $workspace,
+            'account' => $account,
             'connections' => $connections,
             'templates' => $templates,
             'contactsCount' => $contactsCount,
-        ]);
+            'segments' => $segments]);
     }
 
     /**
@@ -132,7 +129,7 @@ class CampaignController extends Controller
      */
     public function store(Request $request)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -146,19 +143,20 @@ class CampaignController extends Controller
             'media_type' => 'required_if:type,media|in:image,video,document,audio',
             'recipient_type' => 'required|in:contacts,custom,segment',
             'recipient_filters' => 'nullable|array',
+            'recipient_filters.segment_ids' => 'required_if:recipient_type,segment|array|min:1',
+            'recipient_filters.segment_ids.*' => 'integer|exists:contact_segments,id',
             'custom_recipients' => 'required_if:recipient_type,custom|array',
             'custom_recipients.*.phone' => 'required_with:custom_recipients|string',
             'custom_recipients.*.name' => 'nullable|string',
             'scheduled_at' => 'nullable|date|after:now',
             'send_delay_seconds' => 'nullable|integer|min:0|max:3600',
-            'respect_opt_out' => 'boolean',
-        ]);
+            'respect_opt_out' => 'boolean']);
 
         try {
             DB::beginTransaction();
 
             $campaign = Campaign::create([
-                'workspace_id' => $workspace->id,
+                'account_id' => $account->id,
                 'whatsapp_connection_id' => $validated['whatsapp_connection_id'],
                 'whatsapp_template_id' => $validated['whatsapp_template_id'] ?? null,
                 'created_by' => $request->user()->id,
@@ -175,8 +173,7 @@ class CampaignController extends Controller
                 'recipient_filters' => $validated['recipient_filters'] ?? null,
                 'custom_recipients' => $validated['custom_recipients'] ?? null,
                 'send_delay_seconds' => $validated['send_delay_seconds'] ?? 0,
-                'respect_opt_out' => $validated['respect_opt_out'] ?? true,
-            ]);
+                'respect_opt_out' => $validated['respect_opt_out'] ?? true]);
 
             // Prepare recipients
             $this->campaignService->prepareRecipients($campaign);
@@ -190,19 +187,15 @@ class CampaignController extends Controller
             DB::commit();
 
             return redirect()->route('app.broadcasts.show', [
-                'workspace' => $workspace->slug,
-                'campaign' => $campaign->id,
-            ])->with('success', 'Campaign created successfully.');
+                'campaign' => $campaign->id])->with('success', 'Campaign created successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Failed to create campaign', [
-                'workspace_id' => $workspace->id,
-                'error' => $e->getMessage(),
-            ]);
+                'account_id' => $account->id,
+                'error' => $e->getMessage()]);
 
             return back()->withErrors([
-                'error' => 'Failed to create campaign: ' . $e->getMessage(),
-            ])->withInput();
+                'error' => 'Failed to create campaign: ' . $e->getMessage()])->withInput();
         }
     }
 
@@ -211,9 +204,9 @@ class CampaignController extends Controller
      */
     public function show(Request $request, Campaign $campaign): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        if ($campaign->workspace_id !== $workspace->id) {
+        if ($campaign->account_id !== $account->id) {
             abort(404);
         }
 
@@ -230,11 +223,10 @@ class CampaignController extends Controller
             'pending' => $campaign->recipients()->where('status', 'pending')->count(),
             'completion_percentage' => $campaign->completion_percentage,
             'delivery_rate' => $campaign->delivery_rate,
-            'read_rate' => $campaign->read_rate,
-        ];
+            'read_rate' => $campaign->read_rate];
 
         return Inertia::render('Broadcasts/Show', [
-            'workspace' => $workspace,
+            'account' => $account,
             'campaign' => [
                 'id' => $campaign->id,
                 'slug' => $campaign->slug,
@@ -247,18 +239,14 @@ class CampaignController extends Controller
                 'completed_at' => $campaign->completed_at?->toIso8601String(),
                 'connection' => $campaign->connection ? [
                     'id' => $campaign->connection->id,
-                    'name' => $campaign->connection->name,
-                ] : null,
+                    'name' => $campaign->connection->name] : null,
                 'template' => $campaign->template ? [
                     'id' => $campaign->template->id,
-                    'name' => $campaign->template->name,
-                ] : null,
+                    'name' => $campaign->template->name] : null,
                 'created_by' => $campaign->creator ? [
                     'id' => $campaign->creator->id,
-                    'name' => $campaign->creator->name,
-                ] : null,
-                'created_at' => $campaign->created_at->toIso8601String(),
-            ],
+                    'name' => $campaign->creator->name] : null,
+                'created_at' => $campaign->created_at->toIso8601String()],
             'stats' => $stats,
             'recipients' => $campaign->recipients->map(function ($recipient) {
                 return [
@@ -270,10 +258,8 @@ class CampaignController extends Controller
                     'delivered_at' => $recipient->delivered_at?->toIso8601String(),
                     'read_at' => $recipient->read_at?->toIso8601String(),
                     'failed_at' => $recipient->failed_at?->toIso8601String(),
-                    'failure_reason' => $recipient->failure_reason,
-                ];
-            }),
-        ]);
+                    'failure_reason' => $recipient->failure_reason];
+            })]);
     }
 
     /**
@@ -281,16 +267,15 @@ class CampaignController extends Controller
      */
     public function start(Request $request, Campaign $campaign)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        if ($campaign->workspace_id !== $workspace->id) {
+        if ($campaign->account_id !== $account->id) {
             abort(404);
         }
 
         if (!$campaign->canStart()) {
             return back()->withErrors([
-                'error' => 'Campaign cannot be started in its current state.',
-            ]);
+                'error' => 'Campaign cannot be started in its current state.']);
         }
 
         try {
@@ -300,12 +285,10 @@ class CampaignController extends Controller
         } catch (\Exception $e) {
             Log::error('Failed to start campaign', [
                 'campaign_id' => $campaign->id,
-                'error' => $e->getMessage(),
-            ]);
+                'error' => $e->getMessage()]);
 
             return back()->withErrors([
-                'error' => 'Failed to start campaign: ' . $e->getMessage(),
-            ]);
+                'error' => 'Failed to start campaign: ' . $e->getMessage()]);
         }
     }
 
@@ -314,16 +297,15 @@ class CampaignController extends Controller
      */
     public function pause(Request $request, Campaign $campaign)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        if ($campaign->workspace_id !== $workspace->id) {
+        if ($campaign->account_id !== $account->id) {
             abort(404);
         }
 
         if ($campaign->status !== 'sending') {
             return back()->withErrors([
-                'error' => 'Only active campaigns can be paused.',
-            ]);
+                'error' => 'Only active campaigns can be paused.']);
         }
 
         $campaign->update(['status' => 'paused']);
@@ -336,16 +318,15 @@ class CampaignController extends Controller
      */
     public function cancel(Request $request, Campaign $campaign)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        if ($campaign->workspace_id !== $workspace->id) {
+        if ($campaign->account_id !== $account->id) {
             abort(404);
         }
 
         if (!in_array($campaign->status, ['draft', 'scheduled', 'sending', 'paused'])) {
             return back()->withErrors([
-                'error' => 'Campaign cannot be cancelled in its current state.',
-            ]);
+                'error' => 'Campaign cannot be cancelled in its current state.']);
         }
 
         $campaign->update(['status' => 'cancelled']);

@@ -29,31 +29,25 @@ export function useNotifications() {
                 addToast({
                     title: message,
                     description,
-                    variant: 'success',
-                });
+                    variant: 'success'});
             },
             error: (message: string, description?: string) => {
                 addToast({
                     title: message,
                     description,
-                    variant: 'error',
-                });
+                    variant: 'error'});
             },
             warning: (message: string, description?: string) => {
                 addToast({
                     title: message,
                     description,
-                    variant: 'warning',
-                });
+                    variant: 'warning'});
             },
             info: (message: string, description?: string) => {
                 addToast({
                     title: message,
                     description,
-                    variant: 'info',
-                });
-            },
-        },
-        confirm,
-    };
+                    variant: 'info'});
+            }},
+        confirm};
 }

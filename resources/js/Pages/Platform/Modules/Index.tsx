@@ -14,7 +14,7 @@ interface Module {
     description: string | null;
     is_core: boolean;
     is_enabled: boolean;
-    workspace_count: number;
+    account_count: number;
 }
 
 export default function PlatformModulesIndex({ modules }: { modules: Module[] }) {
@@ -27,17 +27,15 @@ export default function PlatformModulesIndex({ modules }: { modules: Module[] })
             addToast({
                 title: 'Cannot Disable',
                 description: 'Core modules cannot be disabled at the platform level.',
-                variant: 'error',
-            });
+                variant: 'error'});
             return;
         }
 
         const action = module.is_enabled ? 'disable' : 'enable';
         const confirmed = await confirm({
             title: `${action === 'enable' ? 'Enable' : 'Disable'} Module`,
-            message: `Are you sure you want to ${action} ${module.name} at the platform level? This will affect all workspaces.`,
-            variant: action === 'enable' ? 'info' : 'warning',
-        });
+            message: `Are you sure you want to ${action} ${module.name} at the platform level? This will affect all tenants.`,
+            variant: action === 'enable' ? 'info' : 'warning'});
 
         if (!confirmed) return;
 
@@ -50,18 +48,15 @@ export default function PlatformModulesIndex({ modules }: { modules: Module[] })
                     addToast({
                         title: 'Module Updated',
                         description: `${module.name} has been ${action}d at the platform level.`,
-                        variant: 'success',
-                    });
+                        variant: 'success'});
                     router.reload({ only: ['modules'] });
                 },
                 onError: (errors) => {
                     addToast({
                         title: 'Error',
                         description: errors?.message || 'Failed to update module status.',
-                        variant: 'error',
-                    });
-                },
-            }
+                        variant: 'error'});
+                }}
         );
     };
 
@@ -75,7 +70,7 @@ export default function PlatformModulesIndex({ modules }: { modules: Module[] })
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Module Management</h1>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                        Enable or disable modules systemwide. Disabled modules will not be available to any workspace.
+                        Enable or disable modules systemwide. Disabled modules will not be available to any tenant.
                     </p>
                 </div>
 
@@ -134,7 +129,7 @@ export default function PlatformModulesIndex({ modules }: { modules: Module[] })
                                                         </Badge>
                                                         <Badge variant="info">Core</Badge>
                                                         <span className="text-xs text-gray-500 dark:text-gray-400">
-                                                            {module.workspace_count} workspace{module.workspace_count !== 1 ? 's' : ''} using
+                                                            {module.account_count} tenant{module.account_count !== 1 ? 's' : ''} using
                                                         </span>
                                                     </div>
                                                 </div>
@@ -192,7 +187,7 @@ export default function PlatformModulesIndex({ modules }: { modules: Module[] })
                                                             {module.is_enabled ? 'Enabled' : 'Disabled'}
                                                         </Badge>
                                                         <span className="text-xs text-gray-500 dark:text-gray-400">
-                                                            {module.workspace_count} workspace{module.workspace_count !== 1 ? 's' : ''} using
+                                                            {module.account_count} tenant{module.account_count !== 1 ? 's' : ''} using
                                                         </span>
                                                     </div>
                                                 </div>

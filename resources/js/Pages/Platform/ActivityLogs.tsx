@@ -20,7 +20,7 @@ interface ActivityLog {
     id: string;
     type: string;
     description: string;
-    workspace_id: number | null;
+    account_id: number | null;
     metadata: Record<string, any>;
     created_at: string;
 }
@@ -36,11 +36,10 @@ interface PaginatedLogs {
 export default function ActivityLogs({
     logs,
     filters,
-    filter_options,
-}: {
+    filter_options}: {
     logs: PaginatedLogs;
-    filters: { type?: string; workspace_id?: string };
-    filter_options: { types: string[]; workspaces: Array<{ id: number; name: string }> };
+    filters: { type?: string; account_id?: string };
+    filter_options: { types: string[]; accounts: Array<{ id: number; name: string }> };
 }) {
     const { auth } = usePage().props as any;
     const [localFilters, setLocalFilters] = useState(filters);
@@ -48,8 +47,7 @@ export default function ActivityLogs({
     const applyFilters = () => {
         router.get(route('platform.activity-logs'), localFilters as any, {
             preserveState: true,
-            preserveScroll: true,
-        });
+            preserveScroll: true});
     };
 
     const getTypeBadge = (type: string) => {
@@ -57,10 +55,9 @@ export default function ActivityLogs({
             webhook_success: { variant: 'success', label: 'Webhook' },
             webhook_error: { variant: 'danger', label: 'Webhook Error' },
             system_error: { variant: 'danger', label: 'System Error' },
-            workspace_status_change: { variant: 'warning', label: 'Workspace' },
+            account_status_change: { variant: 'warning', label: 'Tenant' },
             user_action: { variant: 'info', label: 'User Action' },
-            api_call: { variant: 'info', label: 'API Call' },
-        };
+            api_call: { variant: 'info', label: 'API Call' }};
 
         const config = typeMap[type] || { variant: 'default' as const, label: type };
         return <Badge variant={config.variant}>{config.label}</Badge>;
@@ -110,17 +107,17 @@ export default function ActivityLogs({
                                 </select>
                             </div>
                             <div>
-                                <Label htmlFor="filter-workspace">Workspace</Label>
+                                <Label htmlFor="filter-account">Tenant</Label>
                                 <select
-                                    id="filter-workspace"
-                                    value={localFilters.workspace_id || ''}
-                                    onChange={(e) => setLocalFilters({ ...localFilters, workspace_id: e.target.value || undefined })}
+                                    id="filter-account"
+                                    value={localFilters.account_id || ''}
+                                    onChange={(e) => setLocalFilters({ ...localFilters, account_id: e.target.value || undefined })}
                                     className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
                                 >
-                                    <option value="">All Workspaces</option>
-                                    {filter_options.workspaces.map((workspace) => (
-                                        <option key={workspace.id} value={workspace.id}>
-                                            {workspace.name}
+                                    <option value="">All Tenants</option>
+                                    {filter_options.accounts.map((account) => (
+                                        <option key={account.id} value={account.id}>
+                                            {account.name}
                                         </option>
                                     ))}
                                 </select>
@@ -163,7 +160,7 @@ export default function ActivityLogs({
                                             <tr>
                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</th>
                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Description</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Workspace</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Tenant</th>
                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Time</th>
                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Details</th>
                                             </tr>
@@ -183,13 +180,13 @@ export default function ActivityLogs({
                                                         </p>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
-                                                        {log.workspace_id ? (
+                                                        {log.account_id ? (
                                                             <Link
-                                                                href={route('platform.workspaces.show', { workspace: log.workspace_id })}
+                                                                href={route('platform.accounts.show', { account: log.account_id })}
                                                                 className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
                                                             >
                                                                 <Building2 className="h-3 w-3" />
-                                                                Workspace #{log.workspace_id}
+                                                                Tenant #{log.account_id}
                                                             </Link>
                                                         ) : (
                                                             <span className="text-sm text-gray-400">N/A</span>
@@ -231,8 +228,7 @@ export default function ActivityLogs({
                                                     onClick={() => {
                                                         router.get(route('platform.activity-logs'), { ...localFilters, page }, {
                                                             preserveState: true,
-                                                            preserveScroll: true,
-                                                        });
+                                                            preserveScroll: true});
                                                     }}
                                                     className={`px-3 py-2 rounded-md text-sm ${
                                                         page === logs.current_page

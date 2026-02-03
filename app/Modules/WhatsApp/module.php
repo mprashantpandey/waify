@@ -12,20 +12,15 @@ return [
             'label' => 'Inbox',
             'href' => 'app.whatsapp.conversations.index',
             'icon' => 'Inbox',
-            'group' => 'messaging',
-        ],
+            'group' => 'messaging'],
         [
             'label' => 'Templates',
             'href' => 'app.whatsapp.templates.index',
             'icon' => 'FileText',
-            'group' => 'messaging',
-        ],
+            'group' => 'messaging'],
         [
             'label' => 'Connections',
             'href' => 'app.whatsapp.connections.index',
             'icon' => 'Settings',
-            'group' => 'messaging',
-        ],
-    ],
-];
+            'group' => 'messaging']]];
 

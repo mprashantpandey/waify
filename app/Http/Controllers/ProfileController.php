@@ -20,8 +20,7 @@ class ProfileController extends Controller
     {
         return Inertia::render('Profile/Edit', [
             'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
-            'status' => session('status'),
-        ]);
+            'status' => session('status')]);
     }
 
     /**
@@ -37,6 +36,20 @@ class ProfileController extends Controller
 
         $request->user()->save();
 
+        // Check if profile is now complete
+        $user = $request->user();
+        $isProfileComplete = !empty($user->name) && 
+                             !empty($user->email) && 
+                             !empty($user->phone);
+
+        if ($isProfileComplete) {
+            // If profile is complete and user came from onboarding, redirect to dashboard
+            if (session('redirect_after_profile_complete')) {
+                session()->forget('redirect_after_profile_complete');
+                return Redirect::route('app.dashboard')->with('success', 'Profile updated successfully.');
+            }
+        }
+
         return Redirect::back()->with('success', 'Profile updated successfully.');
     }
 
@@ -46,8 +59,7 @@ class ProfileController extends Controller
     public function destroy(Request $request): RedirectResponse
     {
         $request->validate([
-            'password' => ['required', 'current_password'],
-        ]);
+            'password' => ['required', 'current_password']]);
 
         $user = $request->user();
 

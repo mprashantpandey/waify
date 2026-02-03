@@ -17,11 +17,11 @@ class BotExecutionController extends Controller
      */
     public function index(Request $request): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        Gate::authorize('viewAny', [ChatbotPolicy::class, $workspace]);
+        Gate::authorize('viewAny', [ChatbotPolicy::class, $account]);
 
-        $executions = BotExecution::where('workspace_id', $workspace->id)
+        $executions = BotExecution::where('account_id', $account->id)
             ->with(['bot', 'flow', 'conversation.contact'])
             ->orderBy('created_at', 'desc')
             ->paginate(20)
@@ -30,19 +30,15 @@ class BotExecutionController extends Controller
                     'id' => $execution->id,
                     'bot' => [
                         'id' => $execution->bot->id,
-                        'name' => $execution->bot->name,
-                    ],
+                        'name' => $execution->bot->name],
                     'flow' => [
                         'id' => $execution->flow->id,
-                        'name' => $execution->flow->name,
-                    ],
+                        'name' => $execution->flow->name],
                     'conversation' => $execution->conversation ? [
                         'id' => $execution->conversation->id,
                         'contact' => [
                             'wa_id' => $execution->conversation->contact->wa_id,
-                            'name' => $execution->conversation->contact->name,
-                        ],
-                    ] : null,
+                            'name' => $execution->conversation->contact->name]] : null,
                     'status' => $execution->status,
                     'trigger_event_id' => $execution->trigger_event_id,
                     'started_at' => $execution->started_at->toIso8601String(),
@@ -50,14 +46,12 @@ class BotExecutionController extends Controller
                     'error_message' => $execution->error_message,
                     'duration' => $execution->finished_at 
                         ? $execution->started_at->diffInSeconds($execution->finished_at)
-                        : null,
-                ];
+                        : null];
             });
 
         return Inertia::render('Chatbots/Executions/Index', [
-            'workspace' => $workspace,
-            'executions' => $executions,
-        ]);
+            'account' => $account,
+            'executions' => $executions]);
     }
 
     /**
@@ -65,42 +59,36 @@ class BotExecutionController extends Controller
      */
     public function show(Request $request, BotExecution $execution): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        Gate::authorize('viewAny', [ChatbotPolicy::class, $workspace]);
+        Gate::authorize('viewAny', [ChatbotPolicy::class, $account]);
 
-        if ($execution->workspace_id !== $workspace->id) {
+        if ($execution->account_id !== $account->id) {
             abort(404);
         }
 
         $execution->load(['bot', 'flow', 'conversation.contact']);
 
         return Inertia::render('Chatbots/Executions/Show', [
-            'workspace' => $workspace,
+            'account' => $account,
             'execution' => [
                 'id' => $execution->id,
                 'bot' => [
                     'id' => $execution->bot->id,
-                    'name' => $execution->bot->name,
-                ],
+                    'name' => $execution->bot->name],
                 'flow' => [
                     'id' => $execution->flow->id,
-                    'name' => $execution->flow->name,
-                ],
+                    'name' => $execution->flow->name],
                 'conversation' => $execution->conversation ? [
                     'id' => $execution->conversation->id,
                     'contact' => [
                         'wa_id' => $execution->conversation->contact->wa_id,
-                        'name' => $execution->conversation->contact->name,
-                    ],
-                ] : null,
+                        'name' => $execution->conversation->contact->name]] : null,
                 'status' => $execution->status,
                 'trigger_event_id' => $execution->trigger_event_id,
                 'started_at' => $execution->started_at->toIso8601String(),
                 'finished_at' => $execution->finished_at?->toIso8601String(),
                 'error_message' => $execution->error_message,
-                'logs' => $execution->logs ?? [],
-            ],
-        ]);
+                'logs' => $execution->logs ?? []]]);
     }
 }

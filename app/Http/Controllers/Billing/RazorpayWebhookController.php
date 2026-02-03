@@ -52,25 +52,23 @@ class RazorpayWebhookController extends Controller
 
                 if ($paymentOrder) {
                     $plan = Plan::find($paymentOrder->plan_id);
-                    $workspace = $paymentOrder->workspace;
-                    if ($plan && $workspace) {
+                    $account = $paymentOrder->account;
+                    if ($plan && $account) {
                         try {
                             $this->subscriptionService->changePlan(
-                                $workspace,
+                                $account,
                                 $plan,
-                                $workspace->owner,
+                                $account->owner,
                                 'razorpay',
                                 [
                                     'payment_id' => $paymentId,
                                     'order_id' => $orderId,
-                                    'paid_at' => now(),
-                                ]
+                                    'paid_at' => now()]
                             );
                         } catch (\Throwable $e) {
                             Log::channel('stack')->error('Razorpay webhook plan activation failed', [
                                 'order_id' => $orderId,
-                                'error' => $e->getMessage(),
-                            ]);
+                                'error' => $e->getMessage()]);
                         }
                     }
                 }

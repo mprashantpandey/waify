@@ -35,8 +35,7 @@ const iconMap: Record<string, LucideIcon> = {
     LifeBuoy,
     Settings,
     Users,
-    Activity,
-};
+    Activity};
 
 interface NavItem {
     label: string;
@@ -48,12 +47,12 @@ interface NavItem {
 interface SidebarProps {
     navigation: NavItem[];
     currentRoute: string;
-    workspace: { slug: string } | null;
+    account: { slug: string } | null;
     isOpen?: boolean;
     onClose?: () => void;
 }
 
-export function Sidebar({ navigation, currentRoute, workspace, isOpen = false, onClose }: SidebarProps) {
+export function Sidebar({ navigation, currentRoute, account, isOpen = false, onClose }: SidebarProps) {
     const { branding } = usePage().props as any;
     const platformName = branding?.platform_name || 'WACP';
     const logoUrl = branding?.logo_url;
@@ -73,8 +72,7 @@ export function Sidebar({ navigation, currentRoute, workspace, isOpen = false, o
         automation: 'Automation',
         ai: 'AI',
         growth: 'Growth',
-        billing: 'Billing',
-    };
+        billing: 'Billing'};
 
     const renderNavItem = (item: NavItem, index: number) => {
         const Icon = iconMap[item.icon] || LayoutDashboard;
@@ -82,10 +80,10 @@ export function Sidebar({ navigation, currentRoute, workspace, isOpen = false, o
         // Try to generate the route
         let href = '#';
         try {
-            if (workspace) {
-                href = route(item.href, { workspace: workspace.slug });
+            if (account) {
+                href = route(item.href, { });
             } else {
-                // No workspace, can't generate route - skip this item
+                // No account, can't generate route - skip this item
                 return null;
             }
         } catch (error) {

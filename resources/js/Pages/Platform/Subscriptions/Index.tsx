@@ -12,7 +12,7 @@ import { useEffect } from 'react';
 interface Subscription {
     id: number;
     slug: string;
-    workspace: {
+    account: {
         id: number;
         name: string;
         slug: string;
@@ -57,15 +57,13 @@ export default function SubscriptionsIndex({
             addToast({
                 title: 'Success',
                 description: flash.success,
-                variant: 'success',
-            });
+                variant: 'success'});
         }
         if (flash?.error) {
             addToast({
                 title: 'Error',
                 description: flash.error,
-                variant: 'error',
-            });
+                variant: 'error'});
         }
     }, [flash, addToast]);
 
@@ -74,8 +72,7 @@ export default function SubscriptionsIndex({
             active: 'success',
             trialing: 'info',
             past_due: 'warning',
-            canceled: 'danger',
-        };
+            canceled: 'danger'};
         return <Badge variant={variants[status] || 'default'}>{status}</Badge>;
     };
 
@@ -91,7 +88,7 @@ export default function SubscriptionsIndex({
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Subscriptions</h1>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        View and manage all workspace subscriptions
+                        View and manage all tenant subscriptions
                     </p>
                 </div>
 
@@ -146,7 +143,7 @@ export default function SubscriptionsIndex({
                                         <thead className="bg-gray-50 dark:bg-gray-900">
                                             <tr>
                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                                    Workspace
+                                                    Tenant
                                                 </th>
                                                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                                     Plan
@@ -177,7 +174,7 @@ export default function SubscriptionsIndex({
                                                             className="flex items-center gap-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
                                                         >
                                                             <Building2 className="h-4 w-4" />
-                                                            {subscription.workspace.name}
+                                                            {subscription.account.name}
                                                         </Link>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">

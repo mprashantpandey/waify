@@ -25,14 +25,12 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             info:
                 'bg-blue-500 text-white hover:bg-blue-600 focus:ring-blue-400 dark:bg-blue-400 dark:hover:bg-blue-500',
             ghost:
-                'hover:bg-gray-100 text-gray-700 hover:text-gray-900 focus:ring-gray-500 dark:hover:bg-gray-800 dark:text-gray-300 dark:hover:text-gray-100',
-        };
+                'hover:bg-gray-100 text-gray-700 hover:text-gray-900 focus:ring-gray-500 dark:hover:bg-gray-800 dark:text-gray-300 dark:hover:text-gray-100'};
 
         const sizes = {
             sm: 'px-3 py-1.5 text-sm',
             md: 'px-4 py-2 text-base',
-            lg: 'px-6 py-3 text-lg',
-        };
+            lg: 'px-6 py-3 text-lg'};
 
         return (
             <button

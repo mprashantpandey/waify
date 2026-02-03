@@ -27,13 +27,11 @@ class EnsureMaintenanceMode
                 if ($request->expectsJson()) {
                     return response()->json([
                         'message' => $message,
-                        'maintenance' => true,
-                    ], 503);
+                        'maintenance' => true], 503);
                 }
                 
                 return response()->view('maintenance', [
-                    'message' => $message,
-                ], 503);
+                    'message' => $message], 503);
             }
         }
 

@@ -29,8 +29,7 @@ export default function Pricing({ plans, canRegister }: { plans: Plan[]; canRegi
         return new Intl.NumberFormat('en-IN', {
             style: 'currency',
             currency: currency,
-            minimumFractionDigits: 0,
-        }).format(major);
+            minimumFractionDigits: 0}).format(major);
     };
 
     const getPlanIcon = (key: string) => {

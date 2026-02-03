@@ -19,10 +19,9 @@ interface Payment {
 }
 
 export default function BillingHistory({
-    workspace,
-    payments,
-}: {
-    workspace: any;
+    account,
+    payments}: {
+    account: any;
     payments: Payment[];
 }) {
     const formatAmount = (amount: number, currency: string) => {
@@ -30,16 +29,14 @@ export default function BillingHistory({
         return new Intl.NumberFormat('en-IN', {
             style: 'currency',
             currency,
-            minimumFractionDigits: 0,
-        }).format(major);
+            minimumFractionDigits: 0}).format(major);
     };
 
     const statusBadge = (status: string) => {
         const map: Record<string, { label: string; variant: 'success' | 'warning' | 'danger' | 'default' }> = {
             created: { label: 'Created', variant: 'default' },
             paid: { label: 'Paid', variant: 'success' },
-            failed: { label: 'Failed', variant: 'danger' },
-        };
+            failed: { label: 'Failed', variant: 'danger' }};
         const config = map[status] || { label: status, variant: 'default' as const };
         return <Badge variant={config.variant}>{config.label}</Badge>;
     };
@@ -50,7 +47,7 @@ export default function BillingHistory({
             <div className="space-y-8">
                 <div>
                     <Link
-                        href={route('app.billing.index', { workspace: workspace.slug })}
+                        href={route('app.billing.index', { })}
                         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
                     >
                         ← Back to Billing

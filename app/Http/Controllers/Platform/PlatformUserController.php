@@ -34,16 +34,13 @@ class PlatformUserController extends Controller
                     'name' => $user->name,
                     'email' => $user->email,
                     'is_super_admin' => $user->isSuperAdmin(),
-                    'created_at' => $user->created_at->toIso8601String(),
-                ];
+                    'created_at' => $user->created_at->toIso8601String()];
             });
 
         return Inertia::render('Platform/Users/Index', [
             'users' => $users,
             'filters' => [
-                'search' => $request->search,
-            ],
-        ]);
+                'search' => $request->search]]);
     }
 
     /**
@@ -51,7 +48,7 @@ class PlatformUserController extends Controller
      */
     public function show(User $user): Response
     {
-        $user->load(['ownedWorkspaces', 'workspaces']);
+        $user->load(['ownedAccounts', 'accounts']);
 
         return Inertia::render('Platform/Users/Show', [
             'user' => [
@@ -59,11 +56,9 @@ class PlatformUserController extends Controller
                 'name' => $user->name,
                 'email' => $user->email,
                 'is_super_admin' => $user->isSuperAdmin(),
-                'owned_workspaces_count' => $user->ownedWorkspaces->count(),
-                'member_workspaces_count' => $user->workspaces->count(),
-                'created_at' => $user->created_at->toIso8601String(),
-            ],
-        ]);
+                'owned_accounts_count' => $user->ownedAccounts->count(),
+                'member_accounts_count' => $user->accounts->count(),
+                'created_at' => $user->created_at->toIso8601String()]]);
     }
 
     /**
@@ -75,8 +70,7 @@ class PlatformUserController extends Controller
         $superAdminCount = User::where('is_platform_admin', true)->count();
         if ($user->isSuperAdmin() && $superAdminCount <= 1) {
             return redirect()->back()->withErrors([
-                'error' => 'Cannot remove the last super admin.',
-            ]);
+                'error' => 'Cannot remove the last super admin.']);
         }
 
         $user->update(['is_platform_admin' => true]);
@@ -93,8 +87,7 @@ class PlatformUserController extends Controller
         $superAdminCount = User::where('is_platform_admin', true)->count();
         if ($superAdminCount <= 1) {
             return redirect()->back()->withErrors([
-                'error' => 'Cannot remove the last super admin.',
-            ]);
+                'error' => 'Cannot remove the last super admin.']);
         }
 
         $user->update(['is_platform_admin' => false]);

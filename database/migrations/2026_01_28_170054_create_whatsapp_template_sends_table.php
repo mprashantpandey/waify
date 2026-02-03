@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('whatsapp_template_sends', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('workspace_id')->constrained()->onDelete('cascade');
+            $table->foreignId('account_id')->constrained()->onDelete('cascade');
             $table->foreignId('whatsapp_template_id')->constrained()->onDelete('cascade');
             $table->foreignId('whatsapp_message_id')->constrained()->onDelete('cascade');
             $table->string('to_wa_id');
@@ -23,8 +23,8 @@ return new class extends Migration
             $table->timestamp('sent_at')->nullable();
             $table->timestamps();
 
-            $table->index(['workspace_id', 'whatsapp_template_id']);
-            $table->index(['workspace_id', 'status']);
+            $table->index(['account_id', 'whatsapp_template_id']);
+            $table->index(['account_id', 'status']);
         });
     }
 

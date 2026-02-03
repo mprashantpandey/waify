@@ -18,10 +18,9 @@ interface Thread {
 }
 
 export default function SupportIndex({
-    workspace,
-    threads,
-}: {
-    workspace: any;
+    account,
+    threads}: {
+    account: any;
     threads: Thread[];
 }) {
     const { flash, branding } = usePage().props as any;
@@ -30,22 +29,19 @@ export default function SupportIndex({
         message: '',
         category: '',
         tags: '',
-        attachments: [] as File[],
-    });
+        attachments: [] as File[]});
 
     const supportContacts = useMemo(() => {
         return {
             email: branding?.support_email as string | undefined,
-            phone: branding?.support_phone as string | undefined,
-        };
+            phone: branding?.support_phone as string | undefined};
     }, [branding?.support_email, branding?.support_phone]);
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
-        post(route('app.support.store', { workspace: workspace.slug }) as string, {
+        post(route('app.support.store', {}) as string, {
             forceFormData: true,
-            onSuccess: () => reset(),
-        });
+            onSuccess: () => reset()});
     };
 
     return (
@@ -184,7 +180,7 @@ export default function SupportIndex({
                             {threads.map((thread) => (
                                 <Link
                                     key={thread.id}
-                                    href={route('app.support.show', { workspace: workspace.slug, thread: thread.slug ?? thread.id })}
+                                    href={route('app.support.show', { thread: thread.slug ?? thread.id })}
                                     className="block px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition"
                                 >
                                     <div className="flex items-center justify-between">

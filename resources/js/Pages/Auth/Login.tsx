@@ -11,23 +11,20 @@ import { Alert } from '@/Components/UI/Alert';
 
 export default function Login({
     status,
-    canResetPassword,
-}: {
+    canResetPassword}: {
     status?: string;
     canResetPassword: boolean;
 }) {
     const { data, setData, post, processing, errors, reset } = useForm({
         email: '',
         password: '',
-        remember: false as boolean,
-    });
+        remember: false as boolean});
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
 
         post(route('login'), {
-            onFinish: () => reset('password'),
-        });
+            onFinish: () => reset('password')});
     };
 
     return (

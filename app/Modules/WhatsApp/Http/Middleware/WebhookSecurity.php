@@ -66,8 +66,7 @@ class WebhookSecurity
                 Log::channel('whatsapp')->warning('Webhook blocked: IP not in allowlist', [
                     'ip' => $requestIp,
                     'connection_id' => $request->route('connection')?->id,
-                    'allowed_ips' => $allowedIps,
-                ]);
+                    'allowed_ips' => $allowedIps]);
 
                 abort(403, 'Forbidden');
             }
@@ -92,8 +91,7 @@ class WebhookSecurity
 
             Log::channel('whatsapp')->info('Webhook request processed', [
                 'correlation_id' => $correlationId,
-                'status' => $response->getStatusCode(),
-            ]);
+                'status' => $response->getStatusCode()]);
 
             return $response;
         } catch (\Exception $e) {
@@ -110,8 +108,7 @@ class WebhookSecurity
             return response()->json([
                 'success' => false,
                 'error' => 'Webhook processing failed',
-                'correlation_id' => $correlationId,
-            ], 500);
+                'correlation_id' => $correlationId], 500);
         }
     }
 }

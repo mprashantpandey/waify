@@ -5,7 +5,7 @@ namespace App\Modules\Chatbots\Services;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
-use App\Models\Workspace;
+use App\Models\Account;
 
 /**
  * Context object passed to trigger/condition/action evaluators.
@@ -13,7 +13,7 @@ use App\Models\Workspace;
 class BotContext
 {
     public function __construct(
-        public Workspace $workspace,
+        public Account $account,
         public WhatsAppConversation $conversation,
         public WhatsAppMessage $inboundMessage,
         public WhatsAppConnection $connection,

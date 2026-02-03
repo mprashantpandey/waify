@@ -2,7 +2,7 @@
 
 namespace App\Modules\WhatsApp\Models;
 
-use App\Models\Workspace;
+use App\Models\Account;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,7 +15,7 @@ class WhatsAppTemplate extends Model
     protected $table = 'whatsapp_templates';
 
     protected $fillable = [
-        'workspace_id',
+        'account_id',
         'whatsapp_connection_id',
         'meta_template_id',
         'slug',
@@ -33,8 +33,7 @@ class WhatsAppTemplate extends Model
         'components',
         'last_synced_at',
         'last_meta_error',
-        'is_archived',
-    ];
+        'is_archived'];
 
     protected static function boot()
     {
@@ -84,15 +83,14 @@ class WhatsAppTemplate extends Model
         'buttons' => 'array',
         'components' => 'array',
         'last_synced_at' => 'datetime',
-        'is_archived' => 'boolean',
-    ];
+        'is_archived' => 'boolean'];
 
     /**
-     * Get the workspace.
+     * Get the account.
      */
-    public function workspace(): BelongsTo
+    public function account(): BelongsTo
     {
-        return $this->belongsTo(Workspace::class);
+        return $this->belongsTo(Account::class);
     }
 
     /**

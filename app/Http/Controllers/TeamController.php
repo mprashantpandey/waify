@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Workspace;
+use App\Models\Account;
 use App\Models\User;
-use App\Models\WorkspaceUser;
-use App\Models\WorkspaceInvitation;
-use App\Mail\WorkspaceInvitationMail;
+use App\Models\AccountUser;
+use App\Models\AccountInvitation;
+use App\Mail\AccountInvitationMail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
@@ -18,33 +18,33 @@ class TeamController extends Controller
     /**
      * Check if user can view team.
      */
-    private function canViewTeam(User $user, Workspace $workspace): bool
+    private function canViewTeam(User $user, Account $account): bool
     {
-        if ($workspace->owner_id === $user->id) {
+        if ($account->owner_id === $user->id) {
             return true;
         }
 
-        $workspaceUser = WorkspaceUser::where('workspace_id', $workspace->id)
+        $accountUser = AccountUser::where('account_id', $account->id)
             ->where('user_id', $user->id)
             ->first();
 
-        return (bool) $workspaceUser;
+        return (bool) $accountUser;
     }
 
     /**
      * Check if user can manage team.
      */
-    private function canManageTeam(User $user, Workspace $workspace): bool
+    private function canManageTeam(User $user, Account $account): bool
     {
-        if ($workspace->owner_id === $user->id) {
+        if ($account->owner_id === $user->id) {
             return true;
         }
 
-        $workspaceUser = WorkspaceUser::where('workspace_id', $workspace->id)
+        $accountUser = AccountUser::where('account_id', $account->id)
             ->where('user_id', $user->id)
             ->first();
 
-        return $workspaceUser && $workspaceUser->role === 'admin';
+        return $accountUser && $accountUser->role === 'admin';
     }
 
     /**
@@ -52,14 +52,14 @@ class TeamController extends Controller
      */
     public function index(Request $request): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
-        if (!$workspace) {
-            abort(404, 'Workspace not found.');
+        $account = $request->attributes->get('account') ?? current_account();
+        if (!$account) {
+            abort(404, 'Account not found.');
         }
         $user = $request->user();
         
         // Check if user can view team
-        if (!$this->canViewTeam($user, $workspace)) {
+        if (!$this->canViewTeam($user, $account)) {
             abort(403, 'You do not have permission to view team members.');
         }
 
@@ -67,65 +67,61 @@ class TeamController extends Controller
         $members = collect();
         
         // Add owner
-        if ($workspace->owner) {
+        if ($account->owner) {
             $members->push([
-                'id' => $workspace->owner->id,
-                'name' => $workspace->owner->name,
-                'email' => $workspace->owner->email,
+                'id' => $account->owner->id,
+                'name' => $account->owner->name,
+                'email' => $account->owner->email,
                 'role' => 'owner',
-                'joined_at' => $workspace->created_at->toIso8601String(),
-                'is_owner' => true,
-            ]);
+                'joined_at' => $account->created_at->toIso8601String(),
+                'is_owner' => true]);
         }
 
-        // Add workspace users (exclude owner to avoid duplicates)
-        $workspaceUsersQuery = WorkspaceUser::where('workspace_id', $workspace->id)
+        // Add account users (exclude owner to avoid duplicates)
+        $accountUsersQuery = AccountUser::where('account_id', $account->id)
             ->with('user');
             
         // Exclude owner if owner_id exists
-        if ($workspace->owner_id) {
-            $workspaceUsersQuery->where('user_id', '!=', $workspace->owner_id);
+        if ($account->owner_id) {
+            $accountUsersQuery->where('user_id', '!=', $account->owner_id);
         }
         
-        $workspaceUsers = $workspaceUsersQuery->get()
-            ->map(function ($workspaceUser) {
+        $accountUsers = $accountUsersQuery->get()
+            ->map(function ($accountUser) {
                 return [
-                    'id' => $workspaceUser->user->id,
-                    'name' => $workspaceUser->user->name,
-                    'email' => $workspaceUser->user->email,
-                    'role' => $workspaceUser->role,
-                    'joined_at' => $workspaceUser->created_at->toIso8601String(),
+                    'id' => $accountUser->user->id,
+                    'name' => $accountUser->user->name,
+                    'email' => $accountUser->user->email,
+                    'role' => $accountUser->role,
+                    'joined_at' => $accountUser->created_at->toIso8601String(),
                     'is_owner' => false,
-                    'workspace_user_id' => $workspaceUser->id,
-                ];
+                    'account_user_id' => $accountUser->id];
             });
 
-        $members = $members->merge($workspaceUsers);
+        $members = $members->merge($accountUsers);
 
         $currentUser = $request->user();
-        $canManage = $this->canManageTeam($currentUser, $workspace);
+        $canManage = $this->canManageTeam($currentUser, $account);
 
-        $pendingInvites = WorkspaceInvitation::where('workspace_id', $workspace->id)
+        $pendingInvites = AccountInvitation::where('account_id', $account->id)
             ->whereNull('accepted_at')
             ->orderByDesc('created_at')
             ->get()
-            ->map(function (WorkspaceInvitation $invitation) {
+            ->map(function (AccountInvitation $invitation) {
                 return [
                     'id' => $invitation->id,
                     'email' => $invitation->email,
                     'role' => $invitation->role,
                     'invited_at' => $invitation->created_at?->toIso8601String(),
-                    'expires_at' => $invitation->expires_at?->toIso8601String(),
-                ];
+                    'expires_at' => $invitation->expires_at?->toIso8601String()];
             });
 
         return Inertia::render('App/Team/Index', [
-            'workspace' => $workspace,
+            'account' => $account,
             'members' => $members->values(),
             'can_manage' => $canManage,
             'current_user_id' => $currentUser->id,
-            'pending_invites' => $pendingInvites->values(),
-        ]);
+            'pending_invites' => $pendingInvites->values()]);
     }
 
     /**
@@ -133,68 +129,64 @@ class TeamController extends Controller
      */
     public function invite(Request $request): \Illuminate\Http\RedirectResponse
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
-        if (!$workspace) {
-            abort(404, 'Workspace not found.');
+        $account = $request->attributes->get('account') ?? current_account();
+        if (!$account) {
+            abort(404, 'Account not found.');
         }
         $user = $request->user();
         
-        if (!$this->canManageTeam($user, $workspace)) {
+        if (!$this->canManageTeam($user, $account)) {
             abort(403, 'You do not have permission to manage team members.');
         }
 
         $request->validate([
             'email' => 'required|email',
-            'role' => 'required|in:admin,member',
-        ]);
+            'role' => 'required|in:admin,member']);
 
         $inviteEmail = strtolower(trim($request->email));
         $existingUser = User::where('email', $inviteEmail)->first();
 
         if ($existingUser && $existingUser->isSuperAdmin()) {
-            return back()->with('error', 'You cannot add the platform admin user to a workspace.');
+            return back()->with('error', 'You cannot add the platform admin user to a account.');
         }
 
         // Check if user is already a member
-        if ($existingUser && $workspace->users()->where('user_id', $existingUser->id)->exists()) {
-            return back()->with('error', 'User is already a member of this workspace.');
+        if ($existingUser && $account->users()->where('user_id', $existingUser->id)->exists()) {
+            return back()->with('error', 'User is already a member of this account.');
         }
 
         // Check if user is the owner
-        if ($existingUser && $workspace->owner_id === $existingUser->id) {
-            return back()->with('error', 'User is already the owner of this workspace.');
+        if ($existingUser && $account->owner_id === $existingUser->id) {
+            return back()->with('error', 'User is already the owner of this account.');
         }
 
         if ($existingUser) {
-            $workspace->users()->attach($existingUser->id, [
-                'role' => $request->role,
-            ]);
+            $account->users()->attach($existingUser->id, [
+                'role' => $request->role]);
 
             return back()->with('success', 'Member added successfully.');
         }
 
-        WorkspaceInvitation::where('workspace_id', $workspace->id)
+        AccountInvitation::where('account_id', $account->id)
             ->where('email', $inviteEmail)
             ->whereNull('accepted_at')
             ->delete();
 
-        $invitation = WorkspaceInvitation::create([
-            'workspace_id' => $workspace->id,
+        $invitation = AccountInvitation::create([
+            'account_id' => $account->id,
             'invited_by' => $user->id,
             'email' => $inviteEmail,
             'role' => $request->role,
-            'token' => WorkspaceInvitation::generateToken(),
-            'expires_at' => now()->addDays(7),
-        ]);
+            'token' => AccountInvitation::generateToken(),
+            'expires_at' => now()->addDays(7)]);
 
         try {
-            Mail::to($inviteEmail)->send(new WorkspaceInvitationMail($invitation));
+            Mail::to($inviteEmail)->send(new AccountInvitationMail($invitation));
         } catch (\Throwable $e) {
-            Log::warning('Failed to send workspace invitation email', [
+            Log::warning('Failed to send account invitation email', [
                 'email' => $inviteEmail,
-                'workspace_id' => $workspace->id,
-                'error' => $e->getMessage(),
-            ]);
+                'account_id' => $account->id,
+                'error' => $e->getMessage()]);
         }
 
         return back()->with('success', 'Invitation sent successfully.');
@@ -205,9 +197,9 @@ class TeamController extends Controller
      */
     public function updateRole(Request $request, $user): \Illuminate\Http\RedirectResponse
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
-        if (!$workspace) {
-            abort(404, 'Workspace not found.');
+        $account = $request->attributes->get('account') ?? current_account();
+        if (!$account) {
+            abort(404, 'Account not found.');
         }
         $currentUser = $request->user();
         
@@ -216,12 +208,12 @@ class TeamController extends Controller
             $user = User::findOrFail($user);
         }
         
-        if (!$this->canManageTeam($currentUser, $workspace)) {
+        if (!$this->canManageTeam($currentUser, $account)) {
             abort(403, 'You do not have permission to manage team members.');
         }
 
         // Cannot change owner role
-        if ($workspace->owner_id === $user->id) {
+        if ($account->owner_id === $user->id) {
             return back()->with('error', 'Cannot change owner role.');
         }
         if ($user->isSuperAdmin()) {
@@ -229,16 +221,14 @@ class TeamController extends Controller
         }
 
         $request->validate([
-            'role' => 'required|in:admin,member',
-        ]);
+            'role' => 'required|in:admin,member']);
 
-        if (!$workspace->users()->where('user_id', $user->id)->exists()) {
-            return back()->with('error', 'User is not a member of this workspace.');
+        if (!$account->users()->where('user_id', $user->id)->exists()) {
+            return back()->with('error', 'User is not a member of this account.');
         }
 
-        $workspace->users()->updateExistingPivot($user->id, [
-            'role' => $request->role,
-        ]);
+        $account->users()->updateExistingPivot($user->id, [
+            'role' => $request->role]);
 
         return back()->with('success', 'Member role updated successfully.');
     }
@@ -248,11 +238,11 @@ class TeamController extends Controller
      */
     public function remove(Request $request, $user)
     {
-        $workspace = null;
+        $account = null;
         try {
-            $workspace = $request->attributes->get('workspace') ?? current_workspace();
-            if (!$workspace) {
-                abort(404, 'Workspace not found.');
+            $account = $request->attributes->get('account') ?? current_account();
+            if (!$account) {
+                abort(404, 'Account not found.');
             }
             $currentUser = $request->user();
             
@@ -262,32 +252,32 @@ class TeamController extends Controller
                 $user = User::findOrFail($userId);
             }
             
-            if (!$this->canManageTeam($currentUser, $workspace)) {
+            if (!$this->canManageTeam($currentUser, $account)) {
                 abort(403, 'You do not have permission to manage team members.');
             }
 
             // Cannot remove owner
-            if ($workspace->owner_id === $user->id) {
-                return back()->with('error', 'Cannot remove workspace owner.');
+            if ($account->owner_id === $user->id) {
+                return back()->with('error', 'Cannot remove account owner.');
             }
             if ($user->isSuperAdmin()) {
-                return back()->with('error', 'Cannot remove platform admin from workspace.');
+                return back()->with('error', 'Cannot remove platform admin from account.');
             }
 
             // Cannot remove yourself
             if ($user->id === $request->user()->id) {
-                return back()->with('error', 'Cannot remove yourself from the workspace.');
+                return back()->with('error', 'Cannot remove yourself from the account.');
             }
 
-            if (!$workspace->users()->where('user_id', $user->id)->exists()) {
-                return back()->with('error', 'User is not a member of this workspace.');
+            if (!$account->users()->where('user_id', $user->id)->exists()) {
+                return back()->with('error', 'User is not a member of this account.');
             }
 
-            $workspace->users()->detach($user->id);
+            $account->users()->detach($user->id);
 
             // For Inertia requests, return a proper response
             if ($request->header('X-Inertia')) {
-                return redirect()->route('app.team.index', ['workspace' => $workspace->slug])
+                return redirect()->route('app.team.index')
                     ->with('success', 'Member removed successfully.');
             }
 
@@ -295,10 +285,9 @@ class TeamController extends Controller
         } catch (\Exception $e) {
             Log::error('Team member removal failed', [
                 'user_id' => $user instanceof User ? $user->id : $user,
-                'workspace_id' => $workspace?->id,
+                'account_id' => $account?->id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
+                'trace' => $e->getTraceAsString()]);
             
             return back()->with('error', 'Failed to remove member: ' . $e->getMessage());
         }
@@ -307,20 +296,20 @@ class TeamController extends Controller
     /**
      * Revoke a pending invite.
      */
-    public function revokeInvite(Request $request, WorkspaceInvitation $invitation): \Illuminate\Http\RedirectResponse
+    public function revokeInvite(Request $request, AccountInvitation $invitation): \Illuminate\Http\RedirectResponse
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
-        if (!$workspace) {
-            abort(404, 'Workspace not found.');
+        $account = $request->attributes->get('account') ?? current_account();
+        if (!$account) {
+            abort(404, 'Account not found.');
         }
         $currentUser = $request->user();
 
-        if (!$this->canManageTeam($currentUser, $workspace)) {
+        if (!$this->canManageTeam($currentUser, $account)) {
             abort(403, 'You do not have permission to manage team members.');
         }
 
-        if ($invitation->workspace_id !== $workspace->id) {
-            abort(403, 'Invite does not belong to this workspace.');
+        if ($invitation->account_id !== $account->id) {
+            abort(403, 'Invite does not belong to this account.');
         }
 
         if ($invitation->accepted_at) {
@@ -335,20 +324,20 @@ class TeamController extends Controller
     /**
      * Resend a pending invite.
      */
-    public function resendInvite(Request $request, WorkspaceInvitation $invitation): \Illuminate\Http\RedirectResponse
+    public function resendInvite(Request $request, AccountInvitation $invitation): \Illuminate\Http\RedirectResponse
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
-        if (!$workspace) {
-            abort(404, 'Workspace not found.');
+        $account = $request->attributes->get('account') ?? current_account();
+        if (!$account) {
+            abort(404, 'Account not found.');
         }
         $currentUser = $request->user();
 
-        if (!$this->canManageTeam($currentUser, $workspace)) {
+        if (!$this->canManageTeam($currentUser, $account)) {
             abort(403, 'You do not have permission to manage team members.');
         }
 
-        if ($invitation->workspace_id !== $workspace->id) {
-            abort(403, 'Invite does not belong to this workspace.');
+        if ($invitation->account_id !== $account->id) {
+            abort(403, 'Invite does not belong to this account.');
         }
 
         if ($invitation->accepted_at) {
@@ -361,19 +350,17 @@ class TeamController extends Controller
 
         if ($invitation->isExpired()) {
             $invitation->update([
-                'token' => WorkspaceInvitation::generateToken(),
-                'expires_at' => now()->addDays(7),
-            ]);
+                'token' => AccountInvitation::generateToken(),
+                'expires_at' => now()->addDays(7)]);
         }
 
         try {
-            Mail::to($invitation->email)->send(new WorkspaceInvitationMail($invitation->fresh()));
+            Mail::to($invitation->email)->send(new AccountInvitationMail($invitation->fresh()));
         } catch (\Throwable $e) {
-            Log::warning('Failed to resend workspace invitation email', [
+            Log::warning('Failed to resend account invitation email', [
                 'email' => $invitation->email,
-                'workspace_id' => $workspace->id,
-                'error' => $e->getMessage(),
-            ]);
+                'account_id' => $account->id,
+                'error' => $e->getMessage()]);
         }
 
         return back()->with('success', 'Invitation resent successfully.');

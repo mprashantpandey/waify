@@ -20,7 +20,7 @@ class WhatsAppConnectionFactory extends Factory
     public function definition(): array
     {
         return [
-            'workspace_id' => \App\Models\Workspace::factory(),
+            'account_id' => \App\Models\Account::factory(),
             'name' => $this->faker->company() . ' WhatsApp',
             'phone_number_id' => (string) $this->faker->numerify('##########'),
             'business_phone' => $this->faker->phoneNumber(),

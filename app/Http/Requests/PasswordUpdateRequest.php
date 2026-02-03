@@ -25,8 +25,7 @@ class PasswordUpdateRequest extends FormRequest
         $settingsService = app(PlatformSettingsService::class);
         return [
             'current_password' => ['required', 'current_password'],
-            'password' => $settingsService->getPasswordRules(),
-        ];
+            'password' => $settingsService->getPasswordRules()];
     }
 }
 

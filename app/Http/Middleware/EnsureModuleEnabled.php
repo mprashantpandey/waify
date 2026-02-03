@@ -15,14 +15,14 @@ class EnsureModuleEnabled
      */
     public function handle(Request $request, Closure $next, string $moduleKey): Response
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        if (!$workspace) {
-            abort(404, 'Workspace not found');
+        if (!$account) {
+            abort(404, 'Account not found');
         }
 
-        if (!module_enabled($workspace, $moduleKey)) {
-            abort(403, 'Module is not enabled for this workspace');
+        if (!module_enabled($account, $moduleKey)) {
+            abort(403, 'Module is not enabled for this account');
         }
 
         return $next($request);

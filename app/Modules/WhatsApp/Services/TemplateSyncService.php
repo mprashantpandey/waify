@@ -80,8 +80,7 @@ class TemplateSyncService
                     // Handle rate limiting
                     if ($errorCode === 4 || str_contains($errorMessage, 'rate limit')) {
                         Log::channel('whatsapp')->warning('Rate limit hit during template sync', [
-                            'connection_id' => $connection->id,
-                        ]);
+                            'connection_id' => $connection->id]);
                         throw new WhatsAppApiException(
                             "Rate limit exceeded. Please wait before syncing again.",
                             $responseData,
@@ -93,8 +92,7 @@ class TemplateSyncService
                         'connection_id' => $connection->id,
                         'waba_id' => $wabaId,
                         'error' => $responseData['error'] ?? [],
-                        'status' => $response->status(),
-                    ]);
+                        'status' => $response->status()]);
 
                     throw new WhatsAppApiException(
                         "WhatsApp API error: {$errorMessage}",
@@ -118,8 +116,7 @@ class TemplateSyncService
             } catch (\Exception $e) {
                 Log::channel('whatsapp')->error('Unexpected error syncing templates', [
                     'connection_id' => $connection->id,
-                    'error' => $e->getMessage(),
-                ]);
+                    'error' => $e->getMessage()]);
 
                 throw new WhatsAppApiException(
                     "Failed to sync templates: {$e->getMessage()}",
@@ -138,7 +135,7 @@ class TemplateSyncService
         \DB::transaction(function () use ($connection, $allTemplates, &$created, &$updated, &$errors) {
             foreach ($allTemplates as $templateData) {
                 try {
-                    $existing = WhatsAppTemplate::where('workspace_id', $connection->workspace_id)
+                    $existing = WhatsAppTemplate::where('account_id', $connection->account_id)
                         ->where('whatsapp_connection_id', $connection->id)
                         ->where('meta_template_id', $templateData['id'] ?? null)
                         ->first();
@@ -153,13 +150,11 @@ class TemplateSyncService
                 } catch (\Exception $e) {
                     $errors[] = [
                         'template' => $templateData['name'] ?? 'Unknown',
-                        'error' => $e->getMessage(),
-                    ];
+                        'error' => $e->getMessage()];
                     Log::channel('whatsapp')->error('Failed to upsert template', [
                         'connection_id' => $connection->id,
                         'template_data' => $templateData,
-                        'error' => $e->getMessage(),
-                    ]);
+                        'error' => $e->getMessage()]);
                 }
             }
         });
@@ -167,15 +162,13 @@ class TemplateSyncService
         // Update connection sync timestamp
         $connection->update([
             'last_synced_at' => now(),
-            'last_meta_error' => count($errors) > 0 ? json_encode($errors) : null,
-        ]);
+            'last_meta_error' => count($errors) > 0 ? json_encode($errors) : null]);
 
         return [
             'created' => $created,
             'updated' => $updated,
             'errors' => $errors,
-            'total' => count($allTemplates),
-        ];
+            'total' => count($allTemplates)];
     }
 
     /**
@@ -239,16 +232,14 @@ class TemplateSyncService
                 'type' => strtoupper($button['type'] ?? ''),
                 'text' => $button['text'] ?? '',
                 'url' => $button['url'] ?? null,
-                'phone_number' => $button['phone_number'] ?? null,
-            ];
+                'phone_number' => $button['phone_number'] ?? null];
         }
 
         $template = WhatsAppTemplate::updateOrCreate(
             [
-                'workspace_id' => $connection->workspace_id,
+                'account_id' => $connection->account_id,
                 'whatsapp_connection_id' => $connection->id,
-                'meta_template_id' => $templateData['id'] ?? null,
-            ],
+                'meta_template_id' => $templateData['id'] ?? null],
             [
                 'name' => $name,
                 'language' => $language,
@@ -262,8 +253,7 @@ class TemplateSyncService
                 'buttons' => $normalizedButtons,
                 'components' => $components,
                 'last_synced_at' => now(),
-                'last_meta_error' => null,
-            ]
+                'last_meta_error' => null]
         );
 
         return $template;

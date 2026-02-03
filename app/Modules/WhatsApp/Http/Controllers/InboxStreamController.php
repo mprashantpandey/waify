@@ -5,7 +5,10 @@ namespace App\Modules\WhatsApp\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
+use App\Modules\WhatsApp\Models\WhatsAppConversationNote;
+use App\Modules\WhatsApp\Models\WhatsAppConversationAuditEvent;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Carbon;
 
 class InboxStreamController extends Controller
@@ -15,13 +18,13 @@ class InboxStreamController extends Controller
      */
     public function stream(Request $request)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
         $since = $request->query('since');
         $sinceDate = $since ? Carbon::parse($since) : Carbon::now()->subMinutes(5);
 
         // Get conversations updated since timestamp
-        $updatedConversations = WhatsAppConversation::where('workspace_id', $workspace->id)
+        $updatedConversations = WhatsAppConversation::where('account_id', $account->id)
             ->where(function ($query) use ($sinceDate) {
                 $query->where('updated_at', '>', $sinceDate)
                     ->orWhere('last_message_at', '>', $sinceDate);
@@ -36,19 +39,16 @@ class InboxStreamController extends Controller
                     'contact' => [
                         'id' => $conversation->contact->id,
                         'wa_id' => $conversation->contact->wa_id,
-                        'name' => $conversation->contact->name ?? $conversation->contact->wa_id,
-                    ],
+                        'name' => $conversation->contact->name ?? $conversation->contact->wa_id],
                     'status' => $conversation->status,
                     'last_message_preview' => $conversation->last_message_preview,
                     'last_message_at' => $conversation->last_message_at?->toIso8601String(),
                     'connection' => [
-                        'name' => $conversation->connection->name,
-                    ],
-                ];
+                        'name' => $conversation->connection->name]];
             });
 
         // Get new message notifications (conversations with new messages)
-        $newMessageNotifications = WhatsAppConversation::where('workspace_id', $workspace->id)
+        $newMessageNotifications = WhatsAppConversation::where('account_id', $account->id)
             ->whereHas('messages', function ($query) use ($sinceDate) {
                 $query->where('created_at', '>', $sinceDate)
                     ->where('direction', 'inbound');
@@ -59,15 +59,13 @@ class InboxStreamController extends Controller
                 return [
                     'conversation_id' => $conversation->id,
                     'last_message_preview' => $conversation->last_message_preview,
-                    'last_activity_at' => $conversation->last_message_at?->toIso8601String(),
-                ];
+                    'last_activity_at' => $conversation->last_message_at?->toIso8601String()];
             });
 
         return response()->json([
             'server_time' => now()->toIso8601String(),
             'updated_conversations' => $updatedConversations,
-            'new_message_notifications' => $newMessageNotifications,
-        ]);
+            'new_message_notifications' => $newMessageNotifications]);
     }
 
     /**
@@ -75,10 +73,10 @@ class InboxStreamController extends Controller
      */
     public function conversationStream(Request $request, WhatsAppConversation $conversation)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
+        $account = $request->attributes->get('account') ?? current_account();
 
-        // Ensure conversation belongs to workspace
-        if ($conversation->workspace_id !== $workspace->id) {
+        // Ensure conversation belongs to account
+        if ($conversation->account_id !== $account->id) {
             abort(404);
         }
 
@@ -102,8 +100,7 @@ class InboxStreamController extends Controller
                     'created_at' => $message->created_at->toIso8601String(),
                     'sent_at' => $message->sent_at?->toIso8601String(),
                     'delivered_at' => $message->delivered_at?->toIso8601String(),
-                    'read_at' => $message->read_at?->toIso8601String(),
-                ];
+                    'read_at' => $message->read_at?->toIso8601String()];
             });
 
         // Get updated messages (status changes) - simplified, just return recent status changes
@@ -123,31 +120,72 @@ class InboxStreamController extends Controller
                     'status' => $message->status,
                     'sent_at' => $message->sent_at?->toIso8601String(),
                     'delivered_at' => $message->delivered_at?->toIso8601String(),
-                    'read_at' => $message->read_at?->toIso8601String(),
+                    'read_at' => $message->read_at?->toIso8601String()];
+            });
+
+        $newNotes = WhatsAppConversationNote::where('whatsapp_conversation_id', $conversation->id)
+            ->where('id', '>', $afterNoteId)
+            ->with('creator:id,name,email')
+            ->orderBy('id')
+            ->limit(50)
+            ->get()
+            ->map(function ($note) {
+                return [
+                    'id' => $note->id,
+                    'note' => $note->note,
+                    'created_at' => $note->created_at->toIso8601String(),
+                    'created_by' => $note->creator ? [
+                        'id' => $note->creator->id,
+                        'name' => $note->creator->name,
+                        'email' => $note->creator->email,
+                    ] : null,
                 ];
             });
 
-        // Notes and audit events - placeholder for future implementation
-        $newNotes = [];
-        $newAuditEvents = [];
+        $newAuditEvents = WhatsAppConversationAuditEvent::where('whatsapp_conversation_id', $conversation->id)
+            ->where('id', '>', $afterAuditId)
+            ->with('actor:id,name,email')
+            ->orderBy('id')
+            ->limit(50)
+            ->get()
+            ->map(function ($event) {
+                return [
+                    'id' => $event->id,
+                    'event_type' => $event->event_type,
+                    'description' => $event->description,
+                    'meta' => $event->meta,
+                    'created_at' => $event->created_at->toIso8601String(),
+                    'actor' => $event->actor ? [
+                        'id' => $event->actor->id,
+                        'name' => $event->actor->name,
+                        'email' => $event->actor->email,
+                    ] : null,
+                ];
+            });
 
         // Conversation meta if changed
         $conversationChanged = $conversation->updated_at > now()->subMinutes(5);
-        $conversationMeta = $conversationChanged
-            ? [
+        $conversationMeta = null;
+        if ($conversationChanged) {
+            $conversationMeta = [
                 'id' => $conversation->id,
                 'status' => $conversation->status,
-                'priority' => $conversation->priority ?? null,
-                'assignee_id' => $conversation->assignee_id ?? null,
-            ]
-            : null;
+            ];
+
+            if (Schema::hasColumn('whatsapp_conversations', 'assigned_to')) {
+                $conversationMeta['assigned_to'] = $conversation->assigned_to;
+            }
+
+            if (Schema::hasColumn('whatsapp_conversations', 'priority')) {
+                $conversationMeta['priority'] = $conversation->priority;
+            }
+        }
 
         return response()->json([
             'new_messages' => $newMessages,
             'updated_messages' => $updatedMessages,
             'new_notes' => $newNotes,
             'new_audit_events' => $newAuditEvents,
-            'conversation' => $conversationMeta,
-        ]);
+            'conversation' => $conversationMeta]);
     }
 }

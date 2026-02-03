@@ -41,8 +41,7 @@ class WebhookController extends Controller
 
             Log::channel('whatsapp')->info('Webhook verified', [
                 'connection_id' => $connection->id,
-                'ip' => $request->ip(),
-            ]);
+                'ip' => $request->ip()]);
 
             return response($challenge, 200);
         }
@@ -51,8 +50,7 @@ class WebhookController extends Controller
             'connection_id' => $connection->id,
             'ip' => $request->ip(),
             'mode' => $mode,
-            'token_match' => $token === $connection->webhook_verify_token,
-        ]);
+            'token_match' => $token === $connection->webhook_verify_token]);
 
         abort(403, 'Forbidden');
     }
@@ -73,14 +71,12 @@ class WebhookController extends Controller
             Log::channel('whatsapp')->warning('Webhook rate limit exceeded', [
                 'correlation_id' => $correlationId,
                 'connection_id' => $connection->id,
-                'ip' => $request->ip(),
-            ]);
+                'ip' => $request->ip()]);
 
             return response()->json([
                 'success' => false,
                 'error' => 'Rate limit exceeded',
-                'correlation_id' => $correlationId,
-            ], 429);
+                'correlation_id' => $correlationId], 429);
         }
         RateLimiter::hit($key, $decayMinutes * 60);
 
@@ -89,14 +85,12 @@ class WebhookController extends Controller
         if (empty($payload) || !isset($payload['entry'])) {
             Log::channel('whatsapp')->warning('Invalid webhook payload structure', [
                 'correlation_id' => $correlationId,
-                'connection_id' => $connection->id,
-            ]);
+                'connection_id' => $connection->id]);
 
             return response()->json([
                 'success' => false,
                 'error' => 'Invalid payload',
-                'correlation_id' => $correlationId,
-            ], 400);
+                'correlation_id' => $correlationId], 400);
         }
 
         // Log payload size (for monitoring)
@@ -105,8 +99,7 @@ class WebhookController extends Controller
             Log::channel('whatsapp')->warning('Large webhook payload', [
                 'correlation_id' => $correlationId,
                 'connection_id' => $connection->id,
-                'size_bytes' => $payloadSize,
-            ]);
+                'size_bytes' => $payloadSize]);
         }
 
         try {
@@ -115,24 +108,21 @@ class WebhookController extends Controller
 
             return response()->json([
                 'success' => true,
-                'correlation_id' => $correlationId,
-            ], 200);
+                'correlation_id' => $correlationId], 200);
         } catch (\Exception $e) {
             Log::channel('whatsapp')->error('Webhook processing error', [
                 'correlation_id' => $correlationId,
                 'connection_id' => $connection->id,
                 'error' => $e->getMessage(),
                 'file' => basename($e->getFile()),
-                'line' => $e->getLine(),
-            ]);
+                'line' => $e->getLine()]);
 
             // Still return 200 to Meta to prevent retries for processing errors
             // But log the error for investigation
             return response()->json([
                 'success' => false,
                 'error' => 'Processing failed',
-                'correlation_id' => $correlationId,
-            ], 200);
+                'correlation_id' => $correlationId], 200);
         }
     }
 }

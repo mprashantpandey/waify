@@ -6,11 +6,10 @@ import { Head, Link } from '@inertiajs/react';
 import { Activity, Plus, Sparkles } from 'lucide-react';
 
 export default function FloatersIndex({
-    workspace,
+    account,
     widgets,
-    stats,
-}: {
-    workspace: any;
+    stats}: {
+    account: any;
     widgets: Array<{
         id: number;
         slug: string;
@@ -37,7 +36,7 @@ export default function FloatersIndex({
                             Build a WhatsApp chat bubble to capture leads and start conversations.
                         </p>
                     </div>
-                    <Link href={route('app.floaters.create', { workspace: workspace.slug })}>
+                    <Link href={route('app.floaters.create', {})}>
                         <Button className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-lg shadow-emerald-500/40">
                             <Plus className="h-4 w-4 mr-2" />
                             New Widget
@@ -75,7 +74,7 @@ export default function FloatersIndex({
                             <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                                 Add a WhatsApp bubble to any website and track engagement.
                             </p>
-                            <Link href={route('app.floaters.create', { workspace: workspace.slug })} className="inline-flex mt-6">
+                            <Link href={route('app.floaters.create', {})} className="inline-flex mt-6">
                                 <Button className="bg-emerald-600 hover:bg-emerald-700 text-white">
                                     Create Widget
                                 </Button>
@@ -108,7 +107,7 @@ export default function FloatersIndex({
                                         Embed: <code className="break-all">/widgets/{widget.public_id}.js</code>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-3">
-                                        <Link href={route('app.floaters.edit', { workspace: workspace.slug, widget: widget.slug || widget.id })}>
+                                        <Link href={route('app.floaters.edit', { widget: widget.slug || widget.id })}>
                                             <Button variant="secondary">Manage</Button>
                                         </Link>
                                         <Button

@@ -3,7 +3,7 @@
 namespace Tests\Feature\Platform;
 
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Account;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -13,7 +13,7 @@ class PlatformAccessTest extends TestCase
 
     protected User $superAdmin;
     protected User $regularUser;
-    protected Workspace $workspace;
+    protected Account $account;
 
     protected function setUp(): void
     {
@@ -27,7 +27,7 @@ class PlatformAccessTest extends TestCase
             'is_platform_admin' => false,
         ]);
 
-        $this->workspace = Workspace::factory()->create([
+        $this->account = Account::factory()->create([
             'owner_id' => $this->regularUser->id,
             'status' => 'active',
         ]);
@@ -49,67 +49,67 @@ class PlatformAccessTest extends TestCase
         $response->assertStatus(200);
     }
 
-    public function test_non_super_admin_cannot_access_platform_workspaces(): void
+    public function test_non_super_admin_cannot_access_platform_accounts(): void
     {
         $response = $this->actingAs($this->regularUser)
-            ->get(route('platform.workspaces.index'));
+            ->get(route('platform.accounts.index'));
 
         $response->assertStatus(403);
     }
 
-    public function test_super_admin_can_access_platform_workspaces(): void
+    public function test_super_admin_can_access_platform_accounts(): void
     {
         $response = $this->actingAs($this->superAdmin)
-            ->get(route('platform.workspaces.index'));
+            ->get(route('platform.accounts.index'));
 
         $response->assertStatus(200);
     }
 
-    public function test_super_admin_can_disable_workspace(): void
+    public function test_super_admin_can_disable_account(): void
     {
         $response = $this->actingAs($this->superAdmin)
-            ->post(route('platform.workspaces.disable', ['workspace' => $this->workspace->id]), [
+            ->post(route('platform.accounts.disable', ['account' => $this->account->id]), [
                 'reason' => 'Test disable',
             ]);
 
         $response->assertRedirect();
-        $this->workspace->refresh();
-        $this->assertEquals('disabled', $this->workspace->status);
-        $this->assertEquals('Test disable', $this->workspace->disabled_reason);
+        $this->account->refresh();
+        $this->assertEquals('disabled', $this->account->status);
+        $this->assertEquals('Test disable', $this->account->disabled_reason);
     }
 
-    public function test_super_admin_can_enable_workspace(): void
+    public function test_super_admin_can_enable_account(): void
     {
-        $this->workspace->disable('Test');
-        $this->workspace->refresh();
+        $this->account->disable('Test');
+        $this->account->refresh();
 
         $response = $this->actingAs($this->superAdmin)
-            ->post(route('platform.workspaces.enable', ['workspace' => $this->workspace->id]));
+            ->post(route('platform.accounts.enable', ['account' => $this->account->id]));
 
         $response->assertRedirect();
-        $this->workspace->refresh();
-        $this->assertEquals('active', $this->workspace->status);
-        $this->assertNull($this->workspace->disabled_reason);
+        $this->account->refresh();
+        $this->assertEquals('active', $this->account->status);
+        $this->assertNull($this->account->disabled_reason);
     }
 
-    public function test_disabled_workspace_blocks_access_for_regular_users(): void
+    public function test_disabled_account_blocks_access_for_regular_users(): void
     {
-        $this->workspace->disable('Test disable');
-        session(['current_workspace_id' => $this->workspace->id]);
+        $this->account->disable('Test disable');
+        session(['current_account_id' => $this->account->id]);
 
         $response = $this->actingAs($this->regularUser)
-            ->get(route('app.dashboard', ['workspace' => $this->workspace->slug]));
+            ->get(route('app.dashboard', ['account' => $this->account->slug]));
 
         $response->assertStatus(403);
     }
 
-    public function test_super_admin_can_access_disabled_workspace(): void
+    public function test_super_admin_can_access_disabled_account(): void
     {
-        $this->workspace->disable('Test disable');
-        session(['current_workspace_id' => $this->workspace->id]);
+        $this->account->disable('Test disable');
+        session(['current_account_id' => $this->account->id]);
 
         $response = $this->actingAs($this->superAdmin)
-            ->get(route('app.dashboard', ['workspace' => $this->workspace->slug]));
+            ->get(route('app.dashboard', ['account' => $this->account->slug]));
 
         $response->assertStatus(200);
     }

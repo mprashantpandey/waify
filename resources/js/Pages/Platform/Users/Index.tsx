@@ -17,8 +17,7 @@ interface User {
 
 export default function PlatformUsersIndex({
     users,
-    filters,
-}: {
+    filters}: {
     users: {
         data: User[];
         links: any;
@@ -35,8 +34,7 @@ export default function PlatformUsersIndex({
     const applyFilters = () => {
         router.get(route('platform.users.index'), localFilters as any, {
             preserveState: true,
-            preserveScroll: true,
-        });
+            preserveScroll: true});
     };
 
     const handleToggleSuperAdmin = () => {
@@ -49,8 +47,7 @@ export default function PlatformUsersIndex({
         router.post(route(routeName, { user: confirmToggle.userId }), {}, {
             onSuccess: () => {
                 setConfirmToggle(null);
-            },
-        });
+            }});
     };
 
     return (
@@ -139,8 +136,7 @@ export default function PlatformUsersIndex({
                                                 <div className="flex items-center justify-end gap-2">
                                                     <Link
                                                         href={route('platform.users.show', {
-                                                            user: user.id,
-                                                        })}
+                                                            user: user.id})}
                                                     >
                                                         <Button variant="ghost" size="sm">
                                                             <Eye className="h-4 w-4 mr-1" />

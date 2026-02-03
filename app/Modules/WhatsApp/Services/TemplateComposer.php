@@ -38,8 +38,7 @@ class TemplateComposer
                 }
                 $components[] = [
                     'type' => 'header',
-                    'parameters' => $headerParams,
-                ];
+                    'parameters' => $headerParams];
             }
         }
 
@@ -54,8 +53,7 @@ class TemplateComposer
                 }
                 $components[] = [
                     'type' => 'body',
-                    'parameters' => $bodyParams,
-                ];
+                    'parameters' => $bodyParams];
             }
         }
 
@@ -73,8 +71,7 @@ class TemplateComposer
                             'type' => 'text',
                             'text' => $varValue,
                             'sub_type' => 'url',
-                            'index' => (string) $buttonIndex,
-                        ];
+                            'index' => (string) $buttonIndex];
                         $buttonIndex++;
                     }
                 }
@@ -85,8 +82,7 @@ class TemplateComposer
                     'type' => 'button',
                     'sub_type' => 'url',
                     'index' => '0',
-                    'parameters' => $buttonParams,
-                ];
+                    'parameters' => $buttonParams];
             }
         }
 
@@ -98,11 +94,8 @@ class TemplateComposer
             'template' => [
                 'name' => $template->name,
                 'language' => [
-                    'code' => $template->language,
-                ],
-                'components' => $components,
-            ],
-        ];
+                    'code' => $template->language],
+                'components' => $components]];
     }
 
     /**
@@ -140,8 +133,7 @@ class TemplateComposer
             'header_count' => count($headerVars),
             'body_count' => count($bodyVars),
             'button_count' => $buttonVars,
-            'total' => count($headerVars) + count($bodyVars) + $buttonVars,
-        ];
+            'total' => count($headerVars) + count($bodyVars) + $buttonVars];
     }
 
     /**
@@ -163,8 +155,7 @@ class TemplateComposer
             'header' => null,
             'body' => null,
             'footer' => null,
-            'buttons' => [],
-        ];
+            'buttons' => []];
 
         // Header
         if ($template->header_type === 'TEXT' && $template->header_text) {
@@ -186,8 +177,7 @@ class TemplateComposer
             foreach ($template->buttons as $button) {
                 $buttonPreview = [
                     'type' => $button['type'],
-                    'text' => $button['text'] ?? '',
-                ];
+                    'text' => $button['text'] ?? ''];
 
                 if ($button['type'] === 'URL' && isset($button['url'])) {
                     $buttonPreview['url'] = $this->replaceVariables($button['url'], $variables);

@@ -64,11 +64,11 @@ class ModuleServiceProvider extends ServiceProvider
     /**
      * Load routes from enabled modules.
      * Note: Routes that need to be inside app routes group should be loaded manually in routes/web.php
-     * This method is kept for any global module routes that don't need workspace context.
+     * This method is kept for any global module routes that don't need account context.
      */
     protected function loadModuleRoutes(): void
     {
-        // Module routes that need workspace context are loaded manually in routes/web.php
+        // Module routes that need account context are loaded manually in routes/web.php
         // This method can be used for global module routes if needed in the future
     }
 }

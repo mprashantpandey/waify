@@ -2,7 +2,7 @@
 
 namespace App\Modules\Contacts\Models;
 
-use App\Models\Workspace;
+use App\Models\Account;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,25 +14,23 @@ class ContactCustomField extends Model
     protected $table = 'contact_custom_fields';
 
     protected $fillable = [
-        'workspace_id',
+        'account_id',
         'name',
         'type',
         'options',
         'required',
-        'order',
-    ];
+        'order'];
 
     protected $casts = [
         'options' => 'array',
-        'required' => 'boolean',
-    ];
+        'required' => 'boolean'];
 
     /**
-     * Get the workspace.
+     * Get the account.
      */
-    public function workspace(): BelongsTo
+    public function account(): BelongsTo
     {
-        return $this->belongsTo(Workspace::class);
+        return $this->belongsTo(Account::class);
     }
 }
 

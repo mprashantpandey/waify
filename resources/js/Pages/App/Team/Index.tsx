@@ -28,7 +28,7 @@ interface Member {
     role: string;
     joined_at: string;
     is_owner: boolean;
-    workspace_user_id?: number;
+    account_user_id?: number;
 }
 
 interface PendingInvite {
@@ -40,13 +40,13 @@ interface PendingInvite {
 }
 
 export default function TeamIndex({ 
-    workspace, 
+    account, 
     members, 
     can_manage, 
     current_user_id,
     pending_invites
 }: { 
-    workspace: any;
+    account: any;
     members: Member[];
     can_manage: boolean;
     current_user_id: number;
@@ -65,11 +65,10 @@ export default function TeamIndex({
         }
 
         router.post(
-            route('app.team.invite', { workspace: workspace.slug }),
+            route('app.team.invite', {}),
             {
                 email: inviteEmail,
-                role: inviteRole,
-            },
+                role: inviteRole},
             {
                 onSuccess: () => {
                     toast.success('Member invited successfully');
@@ -83,8 +82,7 @@ export default function TeamIndex({
                     } else {
                         toast.error('Failed to invite member');
                     }
-                },
-            }
+                }}
         );
     };
 
@@ -94,12 +92,11 @@ export default function TeamIndex({
         const confirmed = await confirm({
             title: 'Update Role',
             message: `Change ${member.name}'s role to ${newRole}?`,
-            variant: 'info',
-        });
+            variant: 'info'});
 
         if (confirmed) {
             router.post(
-                route('app.team.update-role', { workspace: workspace.slug, user: member.id }),
+                route('app.team.update-role', { user: member.id }),
                 { role: newRole },
                 {
                     onSuccess: () => {
@@ -108,8 +105,7 @@ export default function TeamIndex({
                     },
                     onError: () => {
                         toast.error('Failed to update role');
-                    },
-                }
+                    }}
             );
         }
     };
@@ -117,14 +113,13 @@ export default function TeamIndex({
     const handleRemove = async (member: Member) => {
         const confirmed = await confirm({
             title: 'Remove Member',
-            message: `Are you sure you want to remove ${member.name} from this workspace?`,
+            message: `Are you sure you want to remove ${member.name} from this account?`,
             variant: 'danger',
-            confirmText: 'Remove',
-        });
+            confirmText: 'Remove'});
 
         if (confirmed) {
             router.delete(
-                route('app.team.remove', { workspace: workspace.slug, user: member.id }),
+                route('app.team.remove', { user: member.id }),
                 {
                     onSuccess: () => {
                         toast.success('Member removed successfully');
@@ -132,8 +127,7 @@ export default function TeamIndex({
                     },
                     onError: () => {
                         toast.error('Failed to remove member');
-                    },
-                }
+                    }}
             );
         }
     };
@@ -143,20 +137,18 @@ export default function TeamIndex({
             title: 'Revoke Invitation',
             message: `Revoke invitation for ${invite.email}?`,
             variant: 'danger',
-            confirmText: 'Revoke',
-        });
+            confirmText: 'Revoke'});
 
         if (confirmed) {
             router.delete(
-                route('app.team.invites.revoke', { workspace: workspace.slug, invitation: invite.id }),
+                route('app.team.invites.revoke', { invitation: invite.id }),
                 {
                     onSuccess: () => {
                         toast.success('Invitation revoked successfully');
                     },
                     onError: () => {
                         toast.error('Failed to revoke invitation');
-                    },
-                }
+                    }}
             );
         }
     };
@@ -170,12 +162,11 @@ export default function TeamIndex({
             title: 'Resend Invitation',
             message: `Resend invitation to ${invite.email}?`,
             variant: 'info',
-            confirmText: 'Resend',
-        });
+            confirmText: 'Resend'});
 
         if (confirmed) {
             router.post(
-                route('app.team.invites.resend', { workspace: workspace.slug, invitation: invite.id }),
+                route('app.team.invites.resend', { invitation: invite.id }),
                 {},
                 {
                     onSuccess: () => {
@@ -183,8 +174,7 @@ export default function TeamIndex({
                     },
                     onError: () => {
                         toast.error('Failed to resend invitation');
-                    },
-                }
+                    }}
             );
         }
     };
@@ -238,7 +228,7 @@ export default function TeamIndex({
                             Team
                         </h1>
                         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                            Manage your workspace team members
+                            Manage your team members
                         </p>
                     </div>
                     {can_manage && (
@@ -260,7 +250,7 @@ export default function TeamIndex({
                                 <Sparkles className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                                 Invite Team Member
                             </CardTitle>
-                            <CardDescription>Invite a user to join this workspace</CardDescription>
+                            <CardDescription>Invite a user to join your account</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-5 pt-6">
                             <div>

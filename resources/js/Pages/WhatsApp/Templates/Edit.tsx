@@ -55,10 +55,9 @@ const LANGUAGE_CODES = [
 ];
 
 export default function TemplatesEdit({
-    workspace,
-    template,
-}: {
-    workspace: any;
+    account,
+    template}: {
+    account: any;
     template: {
         id: number;
         slug: string;
@@ -105,15 +104,11 @@ export default function TemplatesEdit({
             formData.append('file', file);
             formData.append('type', data.header_type);
 
+            // Axios will automatically include CSRF token from bootstrap.ts defaults
+            // Don't set Content-Type for FormData - browser will set it with boundary
             const response = await axios.post(
-                route('app.whatsapp.templates.upload-media', { workspace: workspace.slug }),
-                formData,
-                {
-                    headers: {
-                        'Content-Type': 'multipart/form-data',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
-                    },
-                }
+                route('app.whatsapp.templates.upload-media', {}),
+                formData
             );
 
             setData('header_media_url', response.data.url);
@@ -149,8 +144,7 @@ export default function TemplatesEdit({
         body_text: template.body_text || '',
         body_examples: [],
         footer_text: template.footer_text || '',
-        buttons: template.buttons || [],
-    });
+        buttons: template.buttons || []});
 
     // Calculate variables in body text
     const updateVariableCount = (text: string) => {
@@ -218,7 +212,7 @@ export default function TemplatesEdit({
         const cleanedButtons = data.buttons?.filter(btn => btn.text.trim() !== '') || [];
         const cleanedExamples = data.body_examples?.filter(ex => ex.trim() !== '') || [];
         
-        put(route('app.whatsapp.templates.update', { workspace: workspace.slug, template: template.slug }), {
+        put(route('app.whatsapp.templates.update', { template: template.slug }), {
             onSuccess: () => {
                 toast.success('Template updated successfully! A new version has been submitted to Meta for approval.');
             },
@@ -228,8 +222,7 @@ export default function TemplatesEdit({
                 } else {
                     toast.error('Failed to update template. Please check the form for errors.');
                 }
-            },
-        });
+            }});
     };
 
     const renderPreview = () => {
@@ -300,7 +293,7 @@ export default function TemplatesEdit({
             <div className="space-y-8">
                 <div>
                     <Link
-                        href={route('app.whatsapp.templates.index', { workspace: workspace.slug })}
+                        href={route('app.whatsapp.templates.index', {})}
                         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
                     >
                         <ArrowLeft className="h-4 w-4" />
@@ -812,7 +805,7 @@ export default function TemplatesEdit({
 
                     <div className="flex items-center justify-between pt-6">
                         <Link
-                            href={route('app.whatsapp.templates.index', { workspace: workspace.slug })}
+                            href={route('app.whatsapp.templates.index', { })}
                         >
                             <Button variant="secondary">Cancel</Button>
                         </Link>

@@ -11,7 +11,7 @@ class PaymentOrder extends Model
     use HasFactory;
 
     protected $fillable = [
-        'workspace_id',
+        'account_id',
         'plan_id',
         'provider',
         'provider_order_id',
@@ -22,21 +22,19 @@ class PaymentOrder extends Model
         'metadata',
         'created_by',
         'paid_at',
-        'failed_at',
-    ];
+        'failed_at'];
 
     protected function casts(): array
     {
         return [
             'metadata' => 'array',
             'paid_at' => 'datetime',
-            'failed_at' => 'datetime',
-        ];
+            'failed_at' => 'datetime'];
     }
 
-    public function workspace(): BelongsTo
+    public function account(): BelongsTo
     {
-        return $this->belongsTo(Workspace::class);
+        return $this->belongsTo(Account::class);
     }
 
     public function plan(): BelongsTo

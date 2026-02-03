@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('floater_widget_events', function (Blueprint $table) {
             $table->id();
             $table->foreignId('floater_widget_id')->constrained('floater_widgets')->onDelete('cascade');
-            $table->foreignId('workspace_id')->constrained()->onDelete('cascade');
+            $table->foreignId('account_id')->constrained()->onDelete('cascade');
             $table->string('event_type', 32);
             $table->string('path')->nullable();
             $table->string('referrer')->nullable();
@@ -21,7 +21,7 @@ return new class extends Migration
             $table->timestamp('created_at')->useCurrent();
 
             $table->index(['floater_widget_id', 'event_type']);
-            $table->index(['workspace_id', 'created_at']);
+            $table->index(['account_id', 'created_at']);
         });
     }
 

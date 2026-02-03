@@ -2,7 +2,7 @@
 
 namespace App\Modules\WhatsApp\Models;
 
-use App\Models\Workspace;
+use App\Models\Account;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,27 +14,25 @@ class WhatsAppTemplateSend extends Model
     protected $table = 'whatsapp_template_sends';
 
     protected $fillable = [
-        'workspace_id',
+        'account_id',
         'whatsapp_template_id',
         'whatsapp_message_id',
         'to_wa_id',
         'variables',
         'status',
         'error_message',
-        'sent_at',
-    ];
+        'sent_at'];
 
     protected $casts = [
         'variables' => 'array',
-        'sent_at' => 'datetime',
-    ];
+        'sent_at' => 'datetime'];
 
     /**
-     * Get the workspace.
+     * Get the account.
      */
-    public function workspace(): BelongsTo
+    public function account(): BelongsTo
     {
-        return $this->belongsTo(Workspace::class);
+        return $this->belongsTo(Account::class);
     }
 
     /**

@@ -5,10 +5,9 @@ import Button from '@/Components/UI/Button';
 import { Head } from '@inertiajs/react';
 
 export default function BillingPastDue({
-    workspace,
-    subscription,
-}: {
-    workspace: {
+    account,
+    subscription}: {
+    account: {
         name: string;
         slug: string;
     };
@@ -30,7 +29,7 @@ export default function BillingPastDue({
                             Subscription Past Due
                         </h1>
                         <p className="text-gray-600 dark:text-gray-400 mb-6">
-                            Your subscription for <strong className="text-gray-900 dark:text-gray-100">{workspace.name}</strong> is past due.
+                            Your subscription for <strong className="text-gray-900 dark:text-gray-100">{account.name}</strong> is past due.
                         </p>
                         {subscription.last_error && (
                             <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-4 mb-6 text-left">
@@ -42,7 +41,7 @@ export default function BillingPastDue({
                         <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
                             Please update your payment method or contact support to restore access.
                         </p>
-                        <Link href={route('app.billing.index', { workspace: workspace.slug })}>
+                        <Link href={route('app.billing.index', { })}>
                             <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50 rounded-xl w-full">
                                 Go to Billing
                             </Button>

@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('whatsapp_messages', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('workspace_id')->constrained()->onDelete('cascade');
+            $table->foreignId('account_id')->constrained()->onDelete('cascade');
             $table->foreignId('whatsapp_conversation_id')->constrained()->onDelete('cascade');
             $table->string('direction'); // inbound/outbound
             $table->string('meta_message_id')->nullable(); // id from Meta
@@ -28,9 +28,9 @@ return new class extends Migration
             $table->timestamp('received_at')->nullable();
             $table->timestamps();
 
-            $table->unique(['workspace_id', 'meta_message_id'], 'unique_meta_message_id');
+            $table->unique(['account_id', 'meta_message_id'], 'unique_meta_message_id');
             $table->index(
-                ['workspace_id', 'whatsapp_conversation_id', 'created_at'],
+                ['account_id', 'whatsapp_conversation_id', 'created_at'],
                 'wm_ws_conv_created_idx'
             );
         });

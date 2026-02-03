@@ -37,12 +37,11 @@ interface Filters {
 }
 
 export default function TemplatesIndex({
-    workspace,
+    account,
     templates,
     connections,
-    filters,
-}: {
-    workspace: any;
+    filters}: {
+    account: any;
     templates: {
         data: Template[];
         links: any;
@@ -60,10 +59,9 @@ export default function TemplatesIndex({
     const [deleting, setDeleting] = useState<string | null>(null);
 
     const applyFilters = () => {
-        router.get(route('app.whatsapp.templates.index', { workspace: workspace.slug }), localFilters as any, {
+        router.get(route('app.whatsapp.templates.index', {}), localFilters as any, {
             preserveState: true,
-            preserveScroll: true,
-        });
+            preserveScroll: true});
     };
 
     const clearFilters = () => {
@@ -72,10 +70,9 @@ export default function TemplatesIndex({
             status: '',
             category: '',
             language: '',
-            search: '',
-        };
+            search: ''};
         setLocalFilters(emptyFilters);
-        router.get(route('app.whatsapp.templates.index', { workspace: workspace.slug }), emptyFilters);
+        router.get(route('app.whatsapp.templates.index', {}), emptyFilters);
     };
 
     const copyTemplateName = (name: string, language: string) => {
@@ -87,34 +84,29 @@ export default function TemplatesIndex({
     };
 
     const syncTemplates = () => {
-        router.post(route('app.whatsapp.templates.sync', { workspace: workspace.slug }), {
-            connection_id: localFilters.connection || connections[0]?.id,
-        }, {
+        router.post(route('app.whatsapp.templates.sync', {}), {
+            connection_id: localFilters.connection || connections[0]?.id}, {
             onSuccess: () => {
                 toast.success('Templates synced successfully');
                 router.reload({ only: ['templates'] });
             },
             onError: () => {
                 toast.error('Failed to sync templates');
-            },
-        });
+            }});
     };
 
     const handleArchive = async (template: Template) => {
         const confirmed = await confirm({
             title: 'Archive Template',
             message: `Are you sure you want to archive "${template.name}"? You can restore it later.`,
-            variant: 'warning',
-        });
+            variant: 'warning'});
 
         if (!confirmed) return;
 
         setArchiving(template.slug);
         router.post(
             route('app.whatsapp.templates.archive', {
-                workspace: workspace.slug,
-                template: template.slug,
-            }),
+                template: template.slug}),
             {},
             {
                 onSuccess: () => {
@@ -124,8 +116,7 @@ export default function TemplatesIndex({
                 onError: () => {
                     toast.error('Failed to archive template');
                 },
-                onFinish: () => setArchiving(null),
-            }
+                onFinish: () => setArchiving(null)}
         );
     };
 
@@ -134,17 +125,14 @@ export default function TemplatesIndex({
             title: 'Delete Template',
             message: `Are you sure you want to permanently delete "${template.name}"? This action cannot be undone.`,
             variant: 'danger',
-            confirmText: 'Delete',
-        });
+            confirmText: 'Delete'});
 
         if (!confirmed) return;
 
         setDeleting(template.slug);
         router.delete(
             route('app.whatsapp.templates.destroy', {
-                workspace: workspace.slug,
-                template: template.slug,
-            }),
+                template: template.slug}),
             {
                 onSuccess: () => {
                     toast.success('Template deleted successfully');
@@ -153,8 +141,7 @@ export default function TemplatesIndex({
                 onError: () => {
                     toast.error('Failed to delete template');
                 },
-                onFinish: () => setDeleting(null),
-            }
+                onFinish: () => setDeleting(null)}
         );
     };
 
@@ -164,8 +151,7 @@ export default function TemplatesIndex({
             pending: { variant: 'warning', label: 'Pending' },
             rejected: { variant: 'danger', label: 'Rejected' },
             paused: { variant: 'default', label: 'Paused' },
-            disabled: { variant: 'default', label: 'Disabled' },
-        };
+            disabled: { variant: 'default', label: 'Disabled' }};
 
         const config = statusMap[status.toLowerCase()] || { variant: 'default' as const, label: status };
         return <Badge variant={config.variant} className="px-3 py-1">{config.label}</Badge>;
@@ -186,7 +172,7 @@ export default function TemplatesIndex({
                     </div>
                     <div className="flex items-center gap-2">
                         <Link
-                            href={route('app.whatsapp.templates.create', { workspace: workspace.slug })}
+                            href={route('app.whatsapp.templates.create', {})}
                         >
                             <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50">
                                 <FileText className="h-4 w-4 mr-2" />
@@ -420,9 +406,7 @@ export default function TemplatesIndex({
                                                     <div className="flex items-center justify-end gap-2">
                                                         <Link
                                                             href={route('app.whatsapp.templates.show', {
-                                                                workspace: workspace.slug,
-                                                                template: template.slug,
-                                                            })}
+                                                                template: template.slug})}
                                                         >
                                                             <Button variant="ghost" size="sm" className="rounded-lg">
                                                                 View
@@ -430,9 +414,7 @@ export default function TemplatesIndex({
                                                         </Link>
                                                         <Link
                                                             href={route('app.whatsapp.templates.send', {
-                                                                workspace: workspace.slug,
-                                                                template: template.slug,
-                                                            })}
+                                                                template: template.slug})}
                                                         >
                                                             <Button size="sm" className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 rounded-lg">
                                                                 <Send className="h-4 w-4 mr-1" />

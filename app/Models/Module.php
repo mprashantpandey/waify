@@ -12,19 +12,17 @@ class Module extends Model
         'name',
         'description',
         'is_core',
-        'is_enabled',
-    ];
+        'is_enabled'];
 
     protected $casts = [
         'is_core' => 'boolean',
-        'is_enabled' => 'boolean',
-    ];
+        'is_enabled' => 'boolean'];
 
     /**
-     * Get all workspace module states for this module.
+     * Get all account module states for this module.
      */
-    public function workspaceModules(): HasMany
+    public function accountModules(): HasMany
     {
-        return $this->hasMany(WorkspaceModule::class, 'module_key', 'key');
+        return $this->hasMany(AccountModule::class, 'module_key', 'key');
     }
 }

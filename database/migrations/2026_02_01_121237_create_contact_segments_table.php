@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('contact_segments', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('workspace_id')->constrained()->onDelete('cascade');
+            $table->foreignId('account_id')->constrained()->onDelete('cascade');
             $table->foreignId('created_by')->nullable()->constrained('users')->onDelete('set null');
             $table->string('name');
             $table->text('description')->nullable();
@@ -22,7 +22,7 @@ return new class extends Migration
             $table->timestamp('last_calculated_at')->nullable();
             $table->timestamps();
 
-            $table->index('workspace_id');
+            $table->index('account_id');
         });
 
         // Pivot table for contact-segment relationship

@@ -22,14 +22,14 @@ class ConnectionHealthController extends Controller
     /**
      * Resolve connection from route parameter (handles both string ID and model instance).
      */
-    protected function resolveConnection($connection, $workspace): WhatsAppConnection
+    protected function resolveConnection($connection, $account): WhatsAppConnection
     {
         if ($connection instanceof WhatsAppConnection) {
             return $connection;
         }
 
         // Try to resolve by slug first, then by ID (for backward compatibility)
-        $query = WhatsAppConnection::where('workspace_id', $workspace->id);
+        $query = WhatsAppConnection::where('account_id', $account->id);
         
         if (is_numeric($connection)) {
             $query->where('id', $connection);
@@ -51,10 +51,10 @@ class ConnectionHealthController extends Controller
      * - API connectivity
      * - Phone number status
      */
-    public function check(Request $request, $workspaceParam, $connection)
+    public function check(Request $request, $connection)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
-        $connection = $this->resolveConnection($connection, $workspace);
+        $account = $request->attributes->get('account') ?? current_account();
+        $connection = $this->resolveConnection($connection, $account);
 
         Gate::authorize('view', $connection);
 
@@ -63,8 +63,7 @@ class ConnectionHealthController extends Controller
             'connection_name' => $connection->name,
             'overall_status' => 'unknown',
             'checks' => [],
-            'timestamp' => now()->toIso8601String(),
-        ];
+            'timestamp' => now()->toIso8601String()];
 
         // Check 1: Connection Active Status
         $health['checks']['connection_active'] = [
@@ -73,9 +72,7 @@ class ConnectionHealthController extends Controller
                 ? 'Connection is marked as active' 
                 : 'Connection is marked as inactive',
             'details' => [
-                'is_active' => $connection->is_active,
-            ],
-        ];
+                'is_active' => $connection->is_active]];
 
         // Check 2: Webhook Subscription
         $health['checks']['webhook_subscription'] = [
@@ -87,9 +84,7 @@ class ConnectionHealthController extends Controller
                 'subscribed' => $connection->webhook_subscribed,
                 'webhook_url' => app(\App\Modules\WhatsApp\Services\ConnectionService::class)->getWebhookUrl($connection),
                 'last_received_at' => $connection->webhook_last_received_at?->toIso8601String(),
-                'last_error' => $connection->webhook_last_error,
-            ],
-        ];
+                'last_error' => $connection->webhook_last_error]];
 
         // Check 3: Webhook Recent Activity
         if ($connection->webhook_last_received_at) {
@@ -103,15 +98,12 @@ class ConnectionHealthController extends Controller
                         : "No webhook activity in " . round($minutesSinceLastWebhook / 60) . " hours"),
                 'details' => [
                     'minutes_since_last' => $minutesSinceLastWebhook,
-                    'last_received_at' => $connection->webhook_last_received_at->toIso8601String(),
-                ],
-            ];
+                    'last_received_at' => $connection->webhook_last_received_at->toIso8601String()]];
         } else {
             $health['checks']['webhook_activity'] = [
                 'status' => 'warning',
                 'message' => 'No webhook activity recorded yet',
-                'details' => [],
-            ];
+                'details' => []];
         }
 
         // Check 4: Access Token Validity (cached to avoid rate limits)
@@ -122,8 +114,7 @@ class ConnectionHealthController extends Controller
                     return [
                         'status' => 'unhealthy',
                         'message' => 'Access token not available',
-                        'error' => 'No access token stored',
-                    ];
+                        'error' => 'No access token stored'];
                 }
 
                 $debugData = $this->metaGraphService->debugToken($connection->access_token);
@@ -139,20 +130,16 @@ class ConnectionHealthController extends Controller
                         'is_valid' => $isValid,
                         'expires_at' => $expiresAt,
                         'app_id' => $debugData['app_id'] ?? null,
-                        'user_id' => $debugData['user_id'] ?? null,
-                    ],
-                ];
+                        'user_id' => $debugData['user_id'] ?? null]];
             } catch (\Throwable $e) {
                 Log::channel('whatsapp')->warning('Token health check failed', [
                     'connection_id' => $connection->id,
-                    'error' => $e->getMessage(),
-                ]);
+                    'error' => $e->getMessage()]);
 
                 return [
                     'status' => 'unknown',
                     'message' => 'Unable to verify token (API error)',
-                    'error' => $e->getMessage(),
-                ];
+                    'error' => $e->getMessage()];
             }
         });
 
@@ -166,8 +153,7 @@ class ConnectionHealthController extends Controller
                     return [
                         'status' => 'unhealthy',
                         'message' => 'Missing required connection data',
-                        'error' => 'Phone number ID or access token missing',
-                    ];
+                        'error' => 'Phone number ID or access token missing'];
                 }
 
                 // Try to get phone number details (lightweight call)
@@ -181,20 +167,16 @@ class ConnectionHealthController extends Controller
                     'message' => 'API connectivity verified',
                     'details' => [
                         'phone_number' => $details['display_phone_number'] ?? null,
-                        'verified_name' => $details['verified_name'] ?? null,
-                    ],
-                ];
+                        'verified_name' => $details['verified_name'] ?? null]];
             } catch (\Throwable $e) {
                 Log::channel('whatsapp')->warning('API connectivity check failed', [
                     'connection_id' => $connection->id,
-                    'error' => $e->getMessage(),
-                ]);
+                    'error' => $e->getMessage()]);
 
                 return [
                     'status' => 'unhealthy',
                     'message' => 'API connectivity test failed',
-                    'error' => $e->getMessage(),
-                ];
+                    'error' => $e->getMessage()];
             }
         });
 
@@ -208,15 +190,12 @@ class ConnectionHealthController extends Controller
                 'details' => [
                     'phone_number_id' => $connection->phone_number_id,
                     'business_phone' => $connection->business_phone,
-                    'waba_id' => $connection->waba_id,
-                ],
-            ];
+                    'waba_id' => $connection->waba_id]];
         } else {
             $health['checks']['phone_number'] = [
                 'status' => 'unhealthy',
                 'message' => 'Phone number ID not configured',
-                'details' => [],
-            ];
+                'details' => []];
         }
 
         // Calculate overall status
@@ -241,8 +220,7 @@ class ConnectionHealthController extends Controller
             'healthy' => count(array_filter($statuses, fn($s) => $s === 'healthy')),
             'warnings' => count(array_filter($statuses, fn($s) => $s === 'warning')),
             'unhealthy' => count(array_filter($statuses, fn($s) => $s === 'unhealthy')),
-            'unknown' => count(array_filter($statuses, fn($s) => $s === 'unknown')),
-        ];
+            'unknown' => count(array_filter($statuses, fn($s) => $s === 'unknown'))];
 
         return response()->json($health);
     }
@@ -250,10 +228,10 @@ class ConnectionHealthController extends Controller
     /**
      * Quick health check (lightweight, no API calls).
      */
-    public function quickCheck(Request $request, $workspaceParam, $connection)
+    public function quickCheck(Request $request, $connection)
     {
-        $workspace = $request->attributes->get('workspace') ?? current_workspace();
-        $connection = $this->resolveConnection($connection, $workspace);
+        $account = $request->attributes->get('account') ?? current_account();
+        $connection = $this->resolveConnection($connection, $account);
 
         Gate::authorize('view', $connection);
 
@@ -270,7 +248,6 @@ class ConnectionHealthController extends Controller
             'has_access_token' => !empty($connection->access_token),
             'has_phone_number_id' => !empty($connection->phone_number_id),
             'status' => $connection->is_active && $connection->webhook_subscribed ? 'healthy' : 'warning',
-            'timestamp' => now()->toIso8601String(),
-        ]);
+            'timestamp' => now()->toIso8601String()]);
     }
 }

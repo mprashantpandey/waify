@@ -31,8 +31,7 @@ class RegisterRequest extends FormRequest
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
             'password' => $settingsService->getPasswordRules(),
             'plan_key' => ['nullable', 'string', 'exists:plans,key'],
-            'invite_token' => ['nullable', 'string'],
-        ];
+            'invite_token' => ['nullable', 'string']];
     }
 
     /**
@@ -41,7 +40,6 @@ class RegisterRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'password.required' => 'User registration is currently disabled.',
-        ];
+            'password.required' => 'User registration is currently disabled.'];
     }
 }

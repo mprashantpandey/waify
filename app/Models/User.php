@@ -20,9 +20,12 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'phone',
         'password',
         'is_platform_admin',
-    ];
+        'notify_assignment_enabled',
+        'notify_mention_enabled',
+        'notify_sound_enabled'];
 
     /**
      * The attributes that should be hidden for serialization.
@@ -31,8 +34,7 @@ class User extends Authenticatable
      */
     protected $hidden = [
         'password',
-        'remember_token',
-    ];
+        'remember_token'];
 
     /**
      * Get the attributes that should be cast.
@@ -45,25 +47,27 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_platform_admin' => 'boolean',
-        ];
+            'notify_assignment_enabled' => 'boolean',
+            'notify_mention_enabled' => 'boolean',
+            'notify_sound_enabled' => 'boolean'];
     }
 
     /**
-     * Get the workspaces that the user belongs to.
+     * Get the accounts that the user belongs to.
      */
-    public function workspaces()
+    public function accounts()
     {
-        return $this->belongsToMany(Workspace::class, 'workspace_users')
+        return $this->belongsToMany(Account::class, 'account_users')
             ->withPivot('role')
             ->withTimestamps();
     }
 
     /**
-     * Get the workspaces that the user owns.
+     * Get the accounts that the user owns.
      */
-    public function ownedWorkspaces()
+    public function ownedAccounts()
     {
-        return $this->hasMany(Workspace::class, 'owner_id');
+        return $this->hasMany(Account::class, 'owner_id');
     }
 
     /**
@@ -83,21 +87,21 @@ class User extends Authenticatable
     }
 
     /**
-     * Check if user can access a workspace (platform admin or workspace member/owner).
+     * Check if user can access a account (platform admin or account member/owner).
      */
-    public function canAccessWorkspace(Workspace $workspace): bool
+    public function canAccessAccount(Account $account): bool
     {
-        // Platform admins can access all workspaces
+        // Platform admins can access all accounts
         if ($this->isPlatformAdmin()) {
             return true;
         }
 
         // Check if user is owner
-        if ($workspace->owner_id === $this->id) {
+        if ($account->owner_id === $this->id) {
             return true;
         }
 
         // Check if user is a member
-        return $workspace->users()->where('user_id', $this->id)->exists();
+        return $account->users()->where('user_id', $this->id)->exists();
     }
 }

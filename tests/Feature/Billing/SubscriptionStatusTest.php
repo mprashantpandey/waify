@@ -4,7 +4,7 @@ namespace Tests\Feature\Billing;
 
 use App\Models\Plan;
 use App\Models\Subscription;
-use App\Models\Workspace;
+use App\Models\Account;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -23,18 +23,18 @@ class SubscriptionStatusTest extends TestCase
     public function test_past_due_subscription_blocks_app_routes(): void
     {
         
-        $workspace = $this->createWorkspaceWithPlan('free');
-        $user = $this->actingAsWorkspaceOwner($workspace);
+        $account = $this->createAccountWithPlan('free');
+        $user = $this->actingAsAccountOwner($account);
 
         // Mark subscription as past_due
-        $workspace->subscription->update([
+        $account->subscription->update([
             'status' => 'past_due',
             'last_payment_failed_at' => now(),
             'last_error' => 'Payment failed',
         ]);
 
         // Try to access dashboard
-        $response = $this->get(route('app.dashboard', ['workspace' => $workspace->slug]));
+        $response = $this->get(route('app.dashboard', ['account' => $account->slug]));
 
         $response->assertStatus(402);
         $response->assertSee('Past Due');
@@ -43,36 +43,36 @@ class SubscriptionStatusTest extends TestCase
     public function test_billing_pages_remain_accessible_when_past_due(): void
     {
         
-        $workspace = $this->createWorkspaceWithPlan('free');
-        $user = $this->actingAsWorkspaceOwner($workspace);
+        $account = $this->createAccountWithPlan('free');
+        $user = $this->actingAsAccountOwner($account);
 
         // Mark subscription as past_due
-        $workspace->subscription->update([
+        $account->subscription->update([
             'status' => 'past_due',
         ]);
 
         // Billing pages should still be accessible
-        $response = $this->get(route('app.billing.index', ['workspace' => $workspace->slug]));
+        $response = $this->get(route('app.billing.index', ['account' => $account->slug]));
         $response->assertStatus(200);
 
-        $response = $this->get(route('app.billing.plans', ['workspace' => $workspace->slug]));
+        $response = $this->get(route('app.billing.plans', ['account' => $account->slug]));
         $response->assertStatus(200);
     }
 
     public function test_canceled_subscription_blocks_app_routes(): void
     {
         
-        $workspace = $this->createWorkspaceWithPlan('free');
-        $user = $this->actingAsWorkspaceOwner($workspace);
+        $account = $this->createAccountWithPlan('free');
+        $user = $this->actingAsAccountOwner($account);
 
         // Mark subscription as canceled
-        $workspace->subscription->update([
+        $account->subscription->update([
             'status' => 'canceled',
             'canceled_at' => now(),
         ]);
 
         // Try to access dashboard
-        $response = $this->get(route('app.dashboard', ['workspace' => $workspace->slug]));
+        $response = $this->get(route('app.dashboard', ['account' => $account->slug]));
 
         $response->assertStatus(402);
     }

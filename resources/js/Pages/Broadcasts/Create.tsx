@@ -25,20 +25,28 @@ interface Template {
     connection_id: number;
 }
 
+interface Segment {
+    id: number;
+    name: string;
+    contact_count?: number | null;
+}
+
 export default function BroadcastsCreate({
-    workspace,
+    account,
     connections,
     templates,
     contactsCount,
-}: {
-    workspace: any;
+    segments}: {
+    account: any;
     connections: Connection[];
     templates: Template[];
     contactsCount: number;
+    segments: Segment[];
 }) {
     const { toast } = useToast();
     const [campaignType, setCampaignType] = useState<'template' | 'text' | 'media'>('template');
-    const [recipientType, setRecipientType] = useState<'contacts' | 'custom'>('contacts');
+    const [recipientType, setRecipientType] = useState<'contacts' | 'custom' | 'segment'>('contacts');
+    const [selectedSegments, setSelectedSegments] = useState<number[]>([]);
     const [selectedConnection, setSelectedConnection] = useState<number | ''>('');
     const [selectedTemplate, setSelectedTemplate] = useState<number | ''>('');
 
@@ -57,19 +65,17 @@ export default function BroadcastsCreate({
         custom_recipients: [] as Array<{ phone: string; name?: string }>,
         scheduled_at: '',
         send_delay_seconds: 0,
-        respect_opt_out: true,
-    });
+        respect_opt_out: true});
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
-        post(route('app.broadcasts.store', { workspace: workspace.slug }), {
+        post(route('app.broadcasts.store', {}), {
             onSuccess: () => {
                 toast.success('Campaign created successfully');
             },
             onError: () => {
                 toast.error('Failed to create campaign');
-            },
-        });
+            }});
     };
 
     const addCustomRecipient = () => {
@@ -89,6 +95,14 @@ export default function BroadcastsCreate({
         setData('custom_recipients', updated);
     };
 
+    const toggleSegment = (segmentId: number) => {
+        const next = selectedSegments.includes(segmentId)
+            ? selectedSegments.filter((id) => id !== segmentId)
+            : [...selectedSegments, segmentId];
+        setSelectedSegments(next);
+        setData('recipient_filters', { ...(data.recipient_filters || {}), segment_ids: next });
+    };
+
     // Filter templates by selected connection
     const availableTemplates = selectedConnection
         ? templates.filter((t) => t.connection_id === selectedConnection)
@@ -100,7 +114,7 @@ export default function BroadcastsCreate({
             <div className="space-y-6">
                 <div>
                     <Link
-                        href={route('app.broadcasts.index', { workspace: workspace.slug })}
+                        href={route('app.broadcasts.index', {})}
                         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
                     >
                         <ArrowLeft className="h-4 w-4" />
@@ -252,7 +266,7 @@ export default function BroadcastsCreate({
                             <CardDescription>Who should receive this campaign?</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="flex gap-4">
+                            <div className="flex flex-wrap gap-4">
                                 <label className="flex items-center">
                                     <input
                                         type="radio"
@@ -261,6 +275,8 @@ export default function BroadcastsCreate({
                                         onChange={(e) => {
                                             setRecipientType('contacts');
                                             setData('recipient_type', 'contacts');
+                                            setSelectedSegments([]);
+                                            setData('recipient_filters', {});
                                         }}
                                         className="mr-2"
                                     />
@@ -274,10 +290,26 @@ export default function BroadcastsCreate({
                                         onChange={(e) => {
                                             setRecipientType('custom');
                                             setData('recipient_type', 'custom');
+                                            setSelectedSegments([]);
+                                            setData('recipient_filters', {});
                                         }}
                                         className="mr-2"
                                     />
                                     Custom List
+                                </label>
+                                <label className="flex items-center">
+                                    <input
+                                        type="radio"
+                                        value="segment"
+                                        checked={recipientType === 'segment'}
+                                        onChange={() => {
+                                            setRecipientType('segment');
+                                            setData('recipient_type', 'segment');
+                                            setData('recipient_filters', { segment_ids: selectedSegments });
+                                        }}
+                                        className="mr-2"
+                                    />
+                                    Segments
                                 </label>
                             </div>
 
@@ -311,6 +343,43 @@ export default function BroadcastsCreate({
                                     <Button type="button" variant="secondary" onClick={addCustomRecipient}>
                                         Add Recipient
                                     </Button>
+                                </div>
+                            )}
+
+                            {recipientType === 'segment' && (
+                                <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
+                                        Select segments
+                                    </div>
+                                    {segments.length === 0 ? (
+                                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                                            No segments available yet.
+                                        </div>
+                                    ) : (
+                                        <div className="grid gap-2 sm:grid-cols-2">
+                                            {segments.map((segment) => (
+                                                <label
+                                                    key={segment.id}
+                                                    className="flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedSegments.includes(segment.id)}
+                                                        onChange={() => toggleSegment(segment.id)}
+                                                    />
+                                                    <span className="flex-1">{segment.name}</span>
+                                                    <span className="text-xs text-gray-500">
+                                                        {segment.contact_count ?? '—'}
+                                                    </span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {selectedSegments.length === 0 && (
+                                        <div className="mt-2 text-xs text-amber-600">
+                                            Select at least one segment to continue.
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </CardContent>
@@ -351,7 +420,7 @@ export default function BroadcastsCreate({
                     </Card>
 
                     <div className="flex justify-end gap-4">
-                        <Link href={route('app.broadcasts.index', { workspace: workspace.slug })}>
+                        <Link href={route('app.broadcasts.index', { })}>
                             <Button type="button" variant="secondary">
                                 Cancel
                             </Button>

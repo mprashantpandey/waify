@@ -22,20 +22,20 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
 | WhatsApp Inbox Channels
 |--------------------------------------------------------------------------
 |
-| Private channels for workspace-scoped WhatsApp inbox realtime updates.
+| Private channels for account-scoped WhatsApp inbox realtime updates.
 |
 */
 
-// Workspace inbox channel - for conversation list updates
-Broadcast::channel('workspace.{workspaceId}.whatsapp.inbox', function ($user, $workspaceId) {
-    $workspace = \App\Models\Workspace::find($workspaceId);
+// Account inbox channel - for conversation list updates
+Broadcast::channel('account.{accountId}.whatsapp.inbox', function ($user, $accountId) {
+    $account = \App\Models\Account::find($accountId);
     
-    if (!$workspace) {
+    if (!$account) {
         return false;
     }
     
-    // Check if user is a member of this workspace
-    $membership = $workspace->users()->where('user_id', $user->id)->first();
+    // Check if user is a member of this account
+    $membership = $account->users()->where('user_id', $user->id)->first();
     
     if (!$membership) {
         return false;
@@ -49,24 +49,24 @@ Broadcast::channel('workspace.{workspaceId}.whatsapp.inbox', function ($user, $w
 });
 
 // Conversation thread channel - for message updates within a conversation
-Broadcast::channel('workspace.{workspaceId}.whatsapp.conversation.{conversationId}', function ($user, $workspaceId, $conversationId) {
-    $workspace = \App\Models\Workspace::find($workspaceId);
+Broadcast::channel('account.{accountId}.whatsapp.conversation.{conversationId}', function ($user, $accountId, $conversationId) {
+    $account = \App\Models\Account::find($accountId);
     
-    if (!$workspace) {
+    if (!$account) {
         return false;
     }
     
-    // Check if user is a member of this workspace
-    $membership = $workspace->users()->where('user_id', $user->id)->first();
+    // Check if user is a member of this account
+    $membership = $account->users()->where('user_id', $user->id)->first();
     
     if (!$membership) {
         return false;
     }
     
-    // Verify conversation belongs to this workspace
+    // Verify conversation belongs to this account
     $conversation = \App\Modules\WhatsApp\Models\WhatsAppConversation::find($conversationId);
     
-    if (!$conversation || $conversation->workspace_id !== (int) $workspaceId) {
+    if (!$conversation || $conversation->account_id !== (int) $accountId) {
         return false;
     }
     
@@ -83,62 +83,101 @@ Broadcast::channel('workspace.{workspaceId}.whatsapp.conversation.{conversationI
 |--------------------------------------------------------------------------
 */
 
-Broadcast::channel('workspace.{workspaceId}.support.thread.{threadId}', function ($user, $workspaceId, $threadId) {
-    if (app()->environment('local')) {
-        \Log::debug('Support channel auth attempt', [
-            'user_id' => $user?->id,
-            'workspace_id' => $workspaceId,
-            'thread_id' => $threadId,
-            'has_user' => $user !== null,
-        ]);
-    }
+Broadcast::channel('account.{accountId}.support.thread.{threadId}', function ($user, $accountId, $threadId) {
+    \Log::debug('Support channel auth attempt', [
+        'user_id' => $user?->id,
+        'user_email' => $user?->email,
+        'account_id' => $accountId,
+        'thread_id' => $threadId,
+        'has_user' => $user !== null,
+        'is_platform_admin' => $user?->isPlatformAdmin() ?? false,
+    ]);
 
     if (!$user) {
         \Log::warning('Support channel auth denied: unauthenticated', [
-            'workspace_id' => $workspaceId,
+            'account_id' => $accountId,
             'thread_id' => $threadId,
         ]);
         return false;
     }
 
+    // Platform admins can access any support thread
     if ($user->isPlatformAdmin()) {
+        \Log::debug('Support channel auth granted: platform admin', [
+            'user_id' => $user->id,
+            'account_id' => $accountId,
+            'thread_id' => $threadId,
+        ]);
         return [
             'id' => $user->id,
             'name' => $user->name,
         ];
     }
 
-    $workspace = \App\Models\Workspace::find($workspaceId);
-    if (!$workspace) {
-        \Log::warning('Support channel auth denied: workspace missing', [
-            'user_id' => $user?->id,
-            'workspace_id' => $workspaceId,
+    // Validate account exists
+    $account = \App\Models\Account::find($accountId);
+    if (!$account) {
+        \Log::warning('Support channel auth denied: account missing', [
+            'user_id' => $user->id,
+            'account_id' => $accountId,
             'thread_id' => $threadId,
         ]);
         return false;
     }
 
-    $membership = $workspace->users()->where('user_id', $user->id)->first();
-    if (!$membership && $workspace->owner_id !== $user->id) {
+    // Check user membership (owner or member)
+    $isOwner = $account->owner_id === $user->id;
+    $membership = $account->users()->where('user_id', $user->id)->first();
+    
+    if (!$membership && !$isOwner) {
         \Log::warning('Support channel auth denied: no membership', [
-            'user_id' => $user?->id,
-            'workspace_id' => $workspaceId,
+            'user_id' => $user->id,
+            'account_id' => $accountId,
             'thread_id' => $threadId,
-            'owner_id' => $workspace->owner_id,
+            'owner_id' => $account->owner_id,
+            'is_owner' => $isOwner,
         ]);
         return false;
     }
 
-    $thread = \App\Modules\Support\Models\SupportThread::find($threadId);
-    if (!$thread || $thread->workspace_id !== (int) $workspaceId) {
-        \Log::warning('Support channel auth denied: thread mismatch', [
-            'user_id' => $user?->id,
-            'workspace_id' => $workspaceId,
+    // Validate thread exists and belongs to account
+    // Convert threadId to integer if it's numeric
+    $threadIdInt = is_numeric($threadId) ? (int) $threadId : null;
+    if (!$threadIdInt) {
+        \Log::warning('Support channel auth denied: invalid thread ID', [
+            'user_id' => $user->id,
+            'account_id' => $accountId,
             'thread_id' => $threadId,
-            'thread_workspace_id' => $thread?->workspace_id,
+            'thread_id_type' => gettype($threadId),
         ]);
         return false;
     }
+
+    $thread = \App\Modules\Support\Models\SupportThread::find($threadIdInt);
+    if (!$thread) {
+        \Log::warning('Support channel auth denied: thread not found', [
+            'user_id' => $user->id,
+            'account_id' => $accountId,
+            'thread_id' => $threadIdInt,
+        ]);
+        return false;
+    }
+
+    if ($thread->account_id !== (int) $accountId) {
+        \Log::warning('Support channel auth denied: thread account mismatch', [
+            'user_id' => $user->id,
+            'account_id' => $accountId,
+            'thread_id' => $threadIdInt,
+            'thread_account_id' => $thread->account_id,
+        ]);
+        return false;
+    }
+
+    \Log::debug('Support channel auth granted', [
+        'user_id' => $user->id,
+        'account_id' => $accountId,
+        'thread_id' => $threadIdInt,
+    ]);
 
     return [
         'id' => $user->id,

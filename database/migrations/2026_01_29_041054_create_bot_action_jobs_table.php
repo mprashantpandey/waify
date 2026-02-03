@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('bot_action_jobs', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('workspace_id')->constrained()->onDelete('cascade');
+            $table->foreignId('account_id')->constrained()->onDelete('cascade');
             $table->foreignId('bot_execution_id')->constrained()->onDelete('cascade');
             $table->foreignId('node_id')->constrained('bot_nodes')->onDelete('cascade');
             $table->timestamp('run_at');
@@ -22,7 +22,7 @@ return new class extends Migration
             $table->text('last_error')->nullable();
             $table->timestamps();
 
-            $table->index(['workspace_id', 'run_at', 'status']);
+            $table->index(['account_id', 'run_at', 'status']);
         });
     }
 

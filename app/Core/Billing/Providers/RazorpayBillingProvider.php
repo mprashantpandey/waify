@@ -8,7 +8,7 @@ use App\Models\Plan;
 use App\Models\PlatformSetting;
 use App\Models\Subscription;
 use App\Models\User;
-use App\Models\Workspace;
+use App\Models\Account;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -28,13 +28,13 @@ class RazorpayBillingProvider implements BillingProvider
             && !empty($this->getKeySecret());
     }
 
-    public function createSubscription(Workspace $workspace, Plan $plan, User $actor, array $metadata = []): Subscription
+    public function createSubscription(Account $account, Plan $plan, User $actor, array $metadata = []): Subscription
     {
         $now = now();
         $periodEnd = $now->copy()->addMonth();
 
         return Subscription::updateOrCreate(
-            ['workspace_id' => $workspace->id],
+            ['account_id' => $account->id],
             [
                 'plan_id' => $plan->id,
                 'status' => 'active',
@@ -48,8 +48,7 @@ class RazorpayBillingProvider implements BillingProvider
                 'last_payment_failed_at' => null,
                 'last_error' => null,
                 'cancel_at_period_end' => false,
-                'canceled_at' => null,
-            ]
+                'canceled_at' => null]
         );
     }
 
@@ -64,8 +63,7 @@ class RazorpayBillingProvider implements BillingProvider
             'last_payment_failed_at' => null,
             'last_error' => null,
             'cancel_at_period_end' => false,
-            'canceled_at' => null,
-        ]);
+            'canceled_at' => null]);
 
         return $subscription->fresh();
     }
@@ -76,12 +74,10 @@ class RazorpayBillingProvider implements BillingProvider
             $subscription->update([
                 'status' => 'canceled',
                 'canceled_at' => now(),
-                'cancel_at_period_end' => false,
-            ]);
+                'cancel_at_period_end' => false]);
         } else {
             $subscription->update([
-                'cancel_at_period_end' => true,
-            ]);
+                'cancel_at_period_end' => true]);
         }
 
         return $subscription->fresh();
@@ -92,8 +88,7 @@ class RazorpayBillingProvider implements BillingProvider
         $subscription->update([
             'status' => 'active',
             'cancel_at_period_end' => false,
-            'canceled_at' => null,
-        ]);
+            'canceled_at' => null]);
 
         return $subscription->fresh();
     }
@@ -130,8 +125,7 @@ class RazorpayBillingProvider implements BillingProvider
             $paymentOrder->update([
                 'status' => 'paid',
                 'provider_payment_id' => $paymentId ?? $paymentOrder->provider_payment_id,
-                'paid_at' => now(),
-            ]);
+                'paid_at' => now()]);
         }
 
         if ($event === 'payment.failed') {
@@ -153,17 +147,16 @@ class RazorpayBillingProvider implements BillingProvider
             $paymentOrder->update([
                 'status' => 'failed',
                 'provider_payment_id' => $paymentId ?? $paymentOrder->provider_payment_id,
-                'failed_at' => now(),
-            ]);
+                'failed_at' => now()]);
         }
     }
 
-    public function getCheckoutUrl(Workspace $workspace, Plan $plan, User $actor, array $metadata = []): ?string
+    public function getCheckoutUrl(Account $account, Plan $plan, User $actor, array $metadata = []): ?string
     {
         return null;
     }
 
-    public function createOrder(Workspace $workspace, Plan $plan, User $actor): array
+    public function createOrder(Account $account, Plan $plan, User $actor): array
     {
         if (!$this->isEnabled()) {
             throw new \RuntimeException('Razorpay is not enabled.');
@@ -179,13 +172,11 @@ class RazorpayBillingProvider implements BillingProvider
         $payload = [
             'amount' => $amount,
             'currency' => 'INR',
-            'receipt' => "ws_{$workspace->id}_plan_{$plan->id}_" . time(),
+            'receipt' => "ws_{$account->id}_plan_{$plan->id}_" . time(),
             'notes' => [
-                'workspace_id' => (string) $workspace->id,
+                'account_id' => (string) $account->id,
                 'plan_id' => (string) $plan->id,
-                'user_id' => (string) $actor->id,
-            ],
-        ];
+                'user_id' => (string) $actor->id]];
 
         $response = Http::withBasicAuth($this->getKeyId(), $this->getKeySecret())
             ->post("{$this->baseUrl}/orders", $payload);
@@ -194,8 +185,7 @@ class RazorpayBillingProvider implements BillingProvider
         if (!$response->successful()) {
             Log::channel('stack')->error('Razorpay order creation failed', [
                 'status' => $response->status(),
-                'error' => $data,
-            ]);
+                'error' => $data]);
             throw new \RuntimeException($data['error']['description'] ?? 'Unable to create Razorpay order');
         }
 

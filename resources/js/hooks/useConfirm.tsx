@@ -61,8 +61,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                 onCancel: () => {
                     setState(null);
                     resolve(false);
-                },
-            });
+                }});
         });
     }, []);
 

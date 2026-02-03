@@ -13,6 +13,8 @@ use App\Modules\WhatsApp\Services\TemplateComposer;
 use App\Modules\WhatsApp\Services\WhatsAppClient;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use App\Modules\Contacts\Models\ContactTag;
 
 class ActionExecutor
 {
@@ -58,7 +60,7 @@ class ActionExecutor
     {
         try {
             // Check message limit
-            $this->entitlementService->assertWithinLimit($context->workspace, 'messages_monthly', 1);
+            $this->entitlementService->assertWithinLimit($context->account, 'messages_monthly', 1);
 
             // Rate limit check (max 5 messages per conversation per minute)
             $rateLimitKey = "bot_rate_limit:{$context->conversation->id}";
@@ -79,7 +81,7 @@ class ActionExecutor
 
             // Create message record
             $message = WhatsAppMessage::create([
-                'workspace_id' => $context->workspace->id,
+                'account_id' => $context->account->id,
                 'whatsapp_conversation_id' => $context->conversation->id,
                 'direction' => 'outbound',
                 'type' => 'text',
@@ -87,17 +89,15 @@ class ActionExecutor
                 'status' => 'sent',
                 'sent_at' => now(),
                 'meta_message_id' => $response['messages'][0]['id'] ?? null,
-                'payload' => $response,
-            ]);
+                'payload' => $response]);
 
             // Track usage
-            $this->usageService->incrementMessages($context->workspace, 1);
+            $this->usageService->incrementMessages($context->account, 1);
 
             // Update conversation
             $context->conversation->update([
                 'last_message_at' => now(),
-                'last_message_preview' => substr($messageText, 0, 100),
-            ]);
+                'last_message_preview' => substr($messageText, 0, 100)]);
 
             // Broadcast events
             event(new MessageCreated($message));
@@ -109,13 +109,11 @@ class ActionExecutor
             return [
                 'success' => true,
                 'message_id' => $message->id,
-                'meta_message_id' => $message->meta_message_id,
-            ];
+                'meta_message_id' => $message->meta_message_id];
         } catch (\Exception $e) {
             Log::channel('chatbots')->error('Failed to send text message', [
                 'error' => $e->getMessage(),
-                'context' => $context->workspace->id,
-            ]);
+                'context' => $context->account->id]);
 
             return ['success' => false, 'error' => $e->getMessage()];
         }
@@ -125,8 +123,8 @@ class ActionExecutor
     {
         try {
             // Check limits
-            $this->entitlementService->assertWithinLimit($context->workspace, 'messages_monthly', 1);
-            $this->entitlementService->assertWithinLimit($context->workspace, 'template_sends_monthly', 1);
+            $this->entitlementService->assertWithinLimit($context->account, 'messages_monthly', 1);
+            $this->entitlementService->assertWithinLimit($context->account, 'template_sends_monthly', 1);
 
             $templateId = $config['template_id'] ?? null;
             $variables = $config['variables'] ?? [];
@@ -136,7 +134,7 @@ class ActionExecutor
             }
 
             $template = \App\Modules\WhatsApp\Models\WhatsAppTemplate::find($templateId);
-            if (!$template || $template->workspace_id !== $context->workspace->id) {
+            if (!$template || $template->account_id !== $context->account->id) {
                 return ['success' => false, 'error' => 'Template not found'];
             }
 
@@ -156,7 +154,7 @@ class ActionExecutor
 
             // Create message record
             $message = WhatsAppMessage::create([
-                'workspace_id' => $context->workspace->id,
+                'account_id' => $context->account->id,
                 'whatsapp_conversation_id' => $context->conversation->id,
                 'direction' => 'outbound',
                 'type' => 'template',
@@ -164,18 +162,16 @@ class ActionExecutor
                 'status' => 'sent',
                 'sent_at' => now(),
                 'meta_message_id' => $response['messages'][0]['id'] ?? null,
-                'payload' => $payload,
-            ]);
+                'payload' => $payload]);
 
             // Track usage
-            $this->usageService->incrementMessages($context->workspace, 1);
-            $this->usageService->incrementTemplateSends($context->workspace, 1);
+            $this->usageService->incrementMessages($context->account, 1);
+            $this->usageService->incrementTemplateSends($context->account, 1);
 
             // Update conversation
             $context->conversation->update([
                 'last_message_at' => now(),
-                'last_message_preview' => substr($message->text_body, 0, 100),
-            ]);
+                'last_message_preview' => substr($message->text_body, 0, 100)]);
 
             // Broadcast events
             event(new MessageCreated($message));
@@ -184,13 +180,11 @@ class ActionExecutor
             return [
                 'success' => true,
                 'message_id' => $message->id,
-                'meta_message_id' => $message->meta_message_id,
-            ];
+                'meta_message_id' => $message->meta_message_id];
         } catch (\Exception $e) {
             Log::channel('chatbots')->error('Failed to send template message', [
                 'error' => $e->getMessage(),
-                'context' => $context->workspace->id,
-            ]);
+                'context' => $context->account->id]);
 
             return ['success' => false, 'error' => $e->getMessage()];
         }
@@ -198,20 +192,63 @@ class ActionExecutor
 
     protected function assignAgent(array $config, BotContext $context): array
     {
-        // TODO: Implement when assignee_id field exists on conversations
-        // For now, return success but log that it's not implemented
-        Log::channel('chatbots')->info('Assign agent action called but not yet implemented', [
-            'conversation_id' => $context->conversation->id,
-            'agent_id' => $config['agent_id'] ?? null,
-        ]);
+        $agentId = $config['agent_id'] ?? null;
 
-        return ['success' => true, 'note' => 'Agent assignment not yet implemented'];
+        if (!$agentId) {
+            return ['success' => false, 'error' => 'Agent ID is required'];
+        }
+
+        if (!Schema::hasColumn('whatsapp_conversations', 'assigned_to')) {
+            Log::channel('chatbots')->info('Assign agent action skipped (assigned_to not available)', [
+                'conversation_id' => $context->conversation->id,
+                'agent_id' => $agentId]);
+            return ['success' => true, 'note' => 'Agent assignment not available'];
+        }
+
+        $context->conversation->update(['assigned_to' => $agentId]);
+        event(new ConversationUpdated($context->conversation));
+
+        return ['success' => true];
     }
 
     protected function addTag(array $config, BotContext $context): array
     {
-        // TODO: Implement when tags system exists
-        return ['success' => true, 'note' => 'Tags system not yet implemented'];
+        $contact = $context->conversation->contact;
+        if (!$contact) {
+            return ['success' => false, 'error' => 'No contact available for tagging'];
+        }
+
+        $tagId = $config['tag_id'] ?? null;
+        $tagName = $config['tag'] ?? $config['tag_name'] ?? null;
+
+        if (!$tagId && !$tagName) {
+            return ['success' => false, 'error' => 'Tag ID or name is required'];
+        }
+
+        $tag = null;
+        if ($tagId) {
+            $tag = ContactTag::where('account_id', $context->account->id)
+                ->where('id', $tagId)
+                ->first();
+        } else {
+            $tag = ContactTag::firstOrCreate(
+                [
+                    'account_id' => $context->account->id,
+                    'name' => $tagName,
+                ],
+                [
+                    'color' => $config['color'] ?? '#64748b',
+                ]
+            );
+        }
+
+        if (!$tag) {
+            return ['success' => false, 'error' => 'Tag not found'];
+        }
+
+        $contact->tags()->syncWithoutDetaching([$tag->id]);
+
+        return ['success' => true];
     }
 
     protected function setStatus(array $config, BotContext $context): array
@@ -226,13 +263,22 @@ class ActionExecutor
 
     protected function setPriority(array $config, BotContext $context): array
     {
-        // TODO: Implement when priority field exists on conversations
-        Log::channel('chatbots')->info('Set priority action called but not yet implemented', [
-            'conversation_id' => $context->conversation->id,
-            'priority' => $config['priority'] ?? null,
-        ]);
+        $priority = $config['priority'] ?? null;
+        if (!$priority) {
+            return ['success' => false, 'error' => 'Priority is required'];
+        }
 
-        return ['success' => true, 'note' => 'Priority system not yet implemented'];
+        if (!Schema::hasColumn('whatsapp_conversations', 'priority')) {
+            Log::channel('chatbots')->info('Set priority action skipped (priority not available)', [
+                'conversation_id' => $context->conversation->id,
+                'priority' => $priority]);
+            return ['success' => true, 'note' => 'Priority not available'];
+        }
+
+        $context->conversation->update(['priority' => $priority]);
+        event(new ConversationUpdated($context->conversation));
+
+        return ['success' => true];
     }
 
     protected function scheduleDelay(BotNode $node, BotContext $context): array
@@ -261,12 +307,11 @@ class ActionExecutor
 
         // Create action job record
         $actionJob = \App\Modules\Chatbots\Models\BotActionJob::create([
-            'workspace_id' => $context->workspace->id,
+            'account_id' => $context->account->id,
             'bot_execution_id' => $executionId,
             'node_id' => $nextNode->id, // Store the next node to execute
             'run_at' => $runAt,
-            'status' => 'queued',
-        ]);
+            'status' => 'queued']);
 
         // Dispatch queued job
         \App\Modules\Chatbots\Jobs\ProcessDelayedAction::dispatch($actionJob->id)
@@ -287,17 +332,14 @@ class ActionExecutor
 
         try {
             $payload = [
-                'workspace_id' => $context->workspace->id,
+                'account_id' => $context->account->id,
                 'conversation_id' => $context->conversation->id,
                 'message' => [
                     'id' => $context->inboundMessage->id,
-                    'text' => $context->inboundMessage->text_body,
-                ],
+                    'text' => $context->inboundMessage->text_body],
                 'connection' => [
                     'id' => $context->connection->id,
-                    'name' => $context->connection->name,
-                ],
-            ];
+                    'name' => $context->connection->name]];
 
             $response = \Illuminate\Support\Facades\Http::timeout($timeout)
                 ->{strtolower($method)}($url, $payload);
@@ -312,4 +354,3 @@ class ActionExecutor
         }
     }
 }
-

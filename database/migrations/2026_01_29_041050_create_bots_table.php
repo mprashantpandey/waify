@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('bots', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('workspace_id')->constrained()->onDelete('cascade');
+            $table->foreignId('account_id')->constrained()->onDelete('cascade');
             $table->string('name');
             $table->text('description')->nullable();
             $table->string('status')->default('draft'); // draft|active|paused
@@ -24,7 +24,7 @@ return new class extends Migration
             $table->foreignId('updated_by')->nullable()->constrained('users')->onDelete('set null');
             $table->timestamps();
 
-            $table->index(['workspace_id', 'status']);
+            $table->index(['account_id', 'status']);
         });
     }
 

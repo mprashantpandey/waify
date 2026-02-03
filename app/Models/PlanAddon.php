@@ -17,8 +17,7 @@ class PlanAddon extends Model
         'currency',
         'limits_delta',
         'modules_delta',
-        'is_active',
-    ];
+        'is_active'];
 
     protected function casts(): array
     {
@@ -26,7 +25,6 @@ class PlanAddon extends Model
             'price_monthly' => 'integer',
             'is_active' => 'boolean',
             'limits_delta' => 'array',
-            'modules_delta' => 'array',
-        ];
+            'modules_delta' => 'array'];
     }
 }

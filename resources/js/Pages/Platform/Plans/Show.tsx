@@ -8,7 +8,7 @@ import { usePage } from '@inertiajs/react';
 
 interface Subscription {
     id: number;
-    workspace: {
+    account: {
         id: number;
         name: string;
         slug: string;
@@ -46,8 +46,7 @@ export default function PlansShow({ plan, moduleNames = {} }: PlansShowProps) {
         if (amount === null || amount === 0) return 'Free';
         return new Intl.NumberFormat('en-US', {
             style: 'currency',
-            currency: currency || 'USD',
-        }).format(amount / 100);
+            currency: currency || 'USD'}).format(amount / 100);
     };
 
     const formatLimit = (value: number) => {
@@ -60,8 +59,7 @@ export default function PlansShow({ plan, moduleNames = {} }: PlansShowProps) {
             active: 'success',
             trialing: 'info',
             past_due: 'warning',
-            canceled: 'danger',
-        };
+            canceled: 'danger'};
         return <Badge variant={variants[status] || 'default'}>{status}</Badge>;
     };
 
@@ -218,7 +216,7 @@ export default function PlansShow({ plan, moduleNames = {} }: PlansShowProps) {
                             <CardHeader>
                                 <CardTitle>Subscriptions</CardTitle>
                                 <CardDescription>
-                                    {plan.subscriptions.length} workspace{plan.subscriptions.length !== 1 ? 's' : ''} using this plan
+                                    {plan.subscriptions.length} tenant{plan.subscriptions.length !== 1 ? 's' : ''} using this plan
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
@@ -231,14 +229,14 @@ export default function PlansShow({ plan, moduleNames = {} }: PlansShowProps) {
                                         {plan.subscriptions.map((subscription) => (
                                             <Link
                                                 key={subscription.id}
-                                                href={route('platform.workspaces.show', { workspace: subscription.workspace.id })}
+                                                href={route('platform.accounts.show', { account: subscription.account.id })}
                                                 className="block p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                                             >
                                                 <div className="flex items-center justify-between mb-2">
                                                     <div className="flex items-center gap-2">
                                                         <Building2 className="h-4 w-4 text-gray-400" />
                                                         <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                                            {subscription.workspace.name}
+                                                            {subscription.account.name}
                                                         </span>
                                                     </div>
                                                     {getStatusBadge(subscription.status)}
@@ -258,4 +256,3 @@ export default function PlansShow({ plan, moduleNames = {} }: PlansShowProps) {
         </PlatformShell>
     );
 }
-

@@ -2,7 +2,7 @@
 
 namespace App\Modules\Chatbots\Models;
 
-use App\Models\Workspace;
+use App\Models\Account;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,26 +12,24 @@ class BotActionJob extends Model
     use HasFactory;
 
     protected $fillable = [
-        'workspace_id',
+        'account_id',
         'bot_execution_id',
         'node_id',
         'run_at',
         'status',
         'attempts',
-        'last_error',
-    ];
+        'last_error'];
 
     protected function casts(): array
     {
         return [
             'run_at' => 'datetime',
-            'attempts' => 'integer',
-        ];
+            'attempts' => 'integer'];
     }
 
-    public function workspace(): BelongsTo
+    public function account(): BelongsTo
     {
-        return $this->belongsTo(Workspace::class);
+        return $this->belongsTo(Account::class);
     }
 
     public function execution(): BelongsTo

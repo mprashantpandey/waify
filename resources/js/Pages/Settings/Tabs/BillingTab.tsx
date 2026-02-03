@@ -3,20 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Com
 import Button from '@/Components/UI/Button';
 import { CreditCard, TrendingUp, ArrowRight } from 'lucide-react';
 
-export default function BillingTab({ workspace }: { workspace: any }) {
-    if (!workspace) {
-        return (
-            <Card className="border-0 shadow-lg">
-                <CardContent className="py-12 text-center">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
-                        <CreditCard className="h-8 w-8 text-gray-400" />
-                    </div>
-                    <p className="text-gray-500 dark:text-gray-400 font-medium">No workspace selected</p>
-                </CardContent>
-            </Card>
-        );
-    }
-
+export default function BillingTab() {
     return (
         <div className="space-y-6">
             <Card className="border-0 shadow-lg">
@@ -35,7 +22,7 @@ export default function BillingTab({ workspace }: { workspace: any }) {
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                         View your current plan, manage billing, and upgrade or downgrade your subscription.
                     </p>
-                    <Link href={route('app.billing.index', { workspace: workspace.slug })}>
+                    <Link href={route('app.billing.index', {})}>
                         <Button variant="secondary" className="rounded-xl group">
                             <CreditCard className="h-4 w-4 mr-2" />
                             Go to Billing
@@ -61,7 +48,7 @@ export default function BillingTab({ workspace }: { workspace: any }) {
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                         Monitor your usage across messages, templates, connections, and more.
                     </p>
-                    <Link href={route('app.billing.usage', { workspace: workspace.slug })}>
+                    <Link href={route('app.billing.usage', { })}>
                         <Button variant="secondary" className="rounded-xl group">
                             <TrendingUp className="h-4 w-4 mr-2" />
                             View Usage Details

@@ -2,7 +2,7 @@
 
 namespace App\Modules\Contacts\Models;
 
-use App\Models\Workspace;
+use App\Models\Account;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,18 +16,17 @@ class ContactTag extends Model
     protected $table = 'contact_tags';
 
     protected $fillable = [
-        'workspace_id',
+        'account_id',
         'name',
         'color',
-        'description',
-    ];
+        'description'];
 
     /**
-     * Get the workspace.
+     * Get the account.
      */
-    public function workspace(): BelongsTo
+    public function account(): BelongsTo
     {
-        return $this->belongsTo(Workspace::class);
+        return $this->belongsTo(Account::class);
     }
 
     /**

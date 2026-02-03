@@ -64,7 +64,7 @@ php artisan db:seed --class=SuperAdminSeeder
 ```
 
 This will:
-- Create all necessary tables (users, workspaces, modules, etc.)
+- Create all necessary tables (users, tenants, modules, etc.)
 - Seed core modules into the database
 - Create the super admin user (if env variables are set)
 
@@ -182,9 +182,9 @@ Currently, the app doesn't require cron jobs, but this is ready for future sched
 ## Login Flow
 
 1. **Register** a new account at `/register`
-2. After registration, you'll be redirected to **onboarding** to create your first workspace
-3. Once workspace is created, you'll be redirected to the **dashboard** at `/app/{workspace-slug}/dashboard`
-4. You can switch workspaces using the workspace switcher in the topbar
+2. After registration, you'll be redirected to **onboarding** to create your first tenant
+3. Once tenant is created, you'll be redirected to the **dashboard** at `/app/dashboard`
+4. You can switch tenants using the tenant switcher in the topbar
 
 ## Project Structure
 
@@ -194,7 +194,7 @@ app/
 │   ├── Modules/          # Module system core
 │   │   ├── ModuleRegistry.php
 │   │   └── ModuleServiceProvider.php
-│   └── Workspace/        # Workspace-related services
+│   └── Tenant/        # Tenant-related services
 ├── Http/
 │   ├── Controllers/      # Application controllers
 │   └── Middleware/       # Custom middleware
@@ -265,8 +265,8 @@ Create `app/Modules/YourModule/routes/web.php`:
 
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth', 'workspace.resolve'])
-    ->prefix('/app/{workspace}')
+Route::middleware(['auth', 'tenant.resolve'])
+    ->prefix('/app')
     ->name('app.')
     ->group(function () {
         Route::get('/yourmodule', [YourModuleController::class, 'index'])
@@ -280,10 +280,10 @@ Create a controller and Inertia page, and the module will automatically appear i
 
 The module system allows you to:
 
-- **Enable/Disable** modules per workspace
+- **Enable/Disable** modules per tenant
 - **Dynamic Navigation** - Navigation items are built from enabled modules
 - **Route Loading** - Module routes are automatically loaded
-- **Workspace-Aware** - Each workspace can have different modules enabled
+- **Tenant-Aware** - Each tenant can have different modules enabled
 
 ## Platform Owner (Super Admin)
 
@@ -326,46 +326,46 @@ UPDATE users SET is_platform_admin = true WHERE email = 'your@email.com';
 Super admins can access the platform panel at `/platform`:
 
 - **Dashboard** - Platform overview and statistics
-- **Workspaces** - Manage all workspaces (view, disable/enable)
+- **Tenants** - Manage all tenants (view, disable/enable)
 - **Users** - Manage all users (view, make/remove super admin)
 - **Settings** - View platform configuration status
 
-### Workspace Status Management
+### Tenant Status Management
 
-Workspaces can have three statuses:
+Tenants can have three statuses:
 - **active** - Normal operation (default)
 - **suspended** - Temporarily suspended
 - **disabled** - Permanently disabled
 
-When a workspace is disabled:
-- Regular users cannot access `/app/{workspace}` routes
-- Super admins can still access disabled workspaces
-- A friendly "Workspace Disabled" page is shown to regular users
+When a tenant is disabled:
+- Regular users cannot access `/app` routes
+- Super admins can still access disabled tenants
+- A friendly "Tenant Disabled" page is shown to regular users
 
 ### Access Control
 
 - **Super Admin** (`is_platform_admin = true`):
   - Can access `/platform/*` routes
-  - Can access all workspaces (even disabled ones)
-  - Can disable/enable workspaces
+  - Can access all tenants (even disabled ones)
+  - Can disable/enable tenants
   - Can manage user super admin status
 
-- **Workspace Owner**:
-  - Owns a specific workspace
-  - Can manage workspace settings, members, modules
-  - Scoped to their workspace only
+- **Tenant Owner**:
+  - Owns a specific tenant
+  - Can manage tenant settings, members, modules
+  - Scoped to their tenant only
 
-- **Workspace Admin/Member**:
+- **Tenant Admin/Member**:
   - Can view/send messages (admin can also manage connections)
-  - Scoped to their workspace only
+  - Scoped to their tenant only
 
-## Workspace System
+## Tenant System
 
-- Users can belong to **multiple workspaces**
-- Each workspace has an **owner** and **members** with roles (owner/admin/member)
-- Workspace switching is handled via the topbar
-- Current workspace is stored in session
-- Workspaces can be disabled by super admins
+- Users can belong to **multiple tenants**
+- Each tenant has an **owner** and **members** with roles (owner/admin/member)
+- Tenant switching is handled via the topbar
+- Current tenant is stored in session
+- Tenants can be disabled by super admins
 
 ## Dark Mode
 
@@ -400,7 +400,7 @@ php artisan test
 ## Key Features (Phase 1)
 
 ✅ **Module System** - Fully functional module registry and loader  
-✅ **Workspace System** - Multi-workspace support with switching  
+✅ **Tenant System** - Multi-tenant support with switching  
 ✅ **Authentication** - Laravel Breeze with Inertia + React  
 ✅ **Modern UI** - Tailwind CSS with dark mode support  
 ✅ **Dynamic Navigation** - Module-based navigation system  
@@ -413,7 +413,7 @@ Phase 2 implements the core WhatsApp Cloud API integration module.
 ### Features
 
 ✅ **Connection Management**
-- Create and manage WhatsApp Cloud API connections per workspace
+- Create and manage WhatsApp Cloud API connections per tenant
 - Encrypted access token storage
 - Webhook URL generation and verification token management
 - Connection status tracking
@@ -447,7 +447,7 @@ Phase 2 implements the core WhatsApp Cloud API integration module.
 ### Security
 
 - Access tokens encrypted using Laravel Crypt
-- Workspace-scoped data isolation
+- Tenant-scoped data isolation
 - Role-based authorization (owners/admins can manage connections)
 - Rate-limited webhook endpoints
 - Secure webhook verification
@@ -481,16 +481,16 @@ php artisan test --filter WhatsApp
 
 ### API Endpoints
 
-**App Routes** (requires auth + workspace):
-- `GET /app/{workspace}/whatsapp/connections` - List connections
-- `GET /app/{workspace}/whatsapp/connections/create` - Create form
-- `POST /app/{workspace}/whatsapp/connections` - Store connection
-- `GET /app/{workspace}/whatsapp/connections/{id}/edit` - Edit form
-- `PUT /app/{workspace}/whatsapp/connections/{id}` - Update connection
-- `POST /app/{workspace}/whatsapp/connections/{id}/rotate-verify-token` - Rotate token
-- `GET /app/{workspace}/whatsapp/conversations` - List conversations
-- `GET /app/{workspace}/whatsapp/conversations/{id}` - View thread
-- `POST /app/{workspace}/whatsapp/conversations/{id}/send` - Send message
+**App Routes** (requires auth + tenant):
+- `GET /app/whatsapp/connections` - List connections
+- `GET /app/whatsapp/connections/create` - Create form
+- `POST /app/whatsapp/connections` - Store connection
+- `GET /app/whatsapp/connections/{id}/edit` - Edit form
+- `PUT /app/whatsapp/connections/{id}` - Update connection
+- `POST /app/whatsapp/connections/{id}/rotate-verify-token` - Rotate token
+- `GET /app/whatsapp/conversations` - List conversations
+- `GET /app/whatsapp/conversations/{id}` - View thread
+- `POST /app/whatsapp/conversations/{id}/send` - Send message
 
 **Webhook Routes** (public, no auth):
 - `GET /webhooks/whatsapp/{connection}` - Verify webhook
@@ -528,7 +528,7 @@ Phase 3 implements comprehensive WhatsApp template management.
 
 ### Database Tables
 
-- `whatsapp_templates` - Template library per workspace
+- `whatsapp_templates` - Template library per tenant
 - `whatsapp_template_versions` - Template edit history (for future use)
 - `whatsapp_template_sends` - Analytics and troubleshooting for template sends
 
@@ -555,11 +555,11 @@ Phase 3 implements comprehensive WhatsApp template management.
 ### API Endpoints
 
 **Template Routes:**
-- `GET /app/{workspace}/whatsapp/templates` - List templates (with filters)
-- `GET /app/{workspace}/whatsapp/templates/{id}` - View template details
-- `POST /app/{workspace}/whatsapp/templates/sync` - Sync from Meta
-- `GET /app/{workspace}/whatsapp/templates/{id}/send` - Send form
-- `POST /app/{workspace}/whatsapp/templates/{id}/send` - Send template message
+- `GET /app/whatsapp/templates` - List templates (with filters)
+- `GET /app/whatsapp/templates/{id}` - View template details
+- `POST /app/whatsapp/templates/sync` - Sync from Meta
+- `GET /app/whatsapp/templates/{id}/send` - Send form
+- `POST /app/whatsapp/templates/{id}/send` - Send template message
 
 ### Requirements
 
@@ -585,7 +585,7 @@ Phase 4 implements real-time updates for the WhatsApp inbox using Pusher Channel
 - Instant message notifications (inbound/outbound)
 - Real-time message status updates (sent/delivered/read)
 - Live conversation updates (status, assignment, tags)
-- Workspace-scoped private channels
+- Tenant-scoped private channels
 - Automatic fallback to polling when WebSocket disconnected
 
 ✅ **Broadcast Events**
@@ -596,8 +596,8 @@ Phase 4 implements real-time updates for the WhatsApp inbox using Pusher Channel
 - `AuditEventAdded` - Audit events appear instantly (scaffold)
 
 ✅ **Channel Authorization**
-- Workspace membership required for all channels
-- Conversation channels verify conversation belongs to workspace
+- Tenant membership required for all channels
+- Conversation channels verify conversation belongs to tenant
 - Secure private channel authentication
 
 ✅ **Fallback Polling**
@@ -663,7 +663,7 @@ Then use `PUSHER_HOST=localhost` and `PUSHER_PORT=6001` in your `.env`.
 **403 on `/broadcasting/auth`**
 - Ensure user is authenticated
 - Check CSRF token is included
-- Verify workspace membership
+- Verify tenant membership
 
 **Connection fails**
 - Check `PUSHER_APP_KEY` matches Pusher dashboard
@@ -677,8 +677,8 @@ Then use `PUSHER_HOST=localhost` and `PUSHER_PORT=6001` in your `.env`.
 - Ensure `PUSHER_SCHEME` matches your app URL scheme
 
 **Private channels require auth**
-- All workspace channels are private
-- User must be workspace member
+- All tenant channels are private
+- User must be tenant member
 - Authorization handled in `routes/channels.php`
 
 **Fallback polling active**
@@ -688,21 +688,21 @@ Then use `PUSHER_HOST=localhost` and `PUSHER_PORT=6001` in your `.env`.
 
 ### Channel Design
 
-**Workspace Inbox Channel:**
-- `private-workspace.{workspaceId}.whatsapp.inbox`
+**Tenant Inbox Channel:**
+- `private-tenant.{tenantId}.whatsapp.inbox`
 - Broadcasts: conversation updates, new message notifications
 - Subscribed on: Conversations list page
 
 **Conversation Channel:**
-- `private-workspace.{workspaceId}.whatsapp.conversation.{conversationId}`
+- `private-tenant.{tenantId}.whatsapp.conversation.{conversationId}`
 - Broadcasts: new messages, message status updates, notes, audit events
 - Subscribed on: Conversation thread page
 
 ### API Endpoints
 
 **Stream Endpoints** (fallback polling):
-- `GET /app/{workspace}/whatsapp/inbox/stream?since=<iso>` - Inbox updates
-- `GET /app/{workspace}/whatsapp/inbox/{conversation}/stream?after_message_id=<id>` - Conversation updates
+- `GET /app/whatsapp/inbox/stream?since=<iso>` - Inbox updates
+- `GET /app/whatsapp/inbox/{conversation}/stream?after_message_id=<id>` - Conversation updates
 
 **Broadcasting Auth:**
 - `POST /broadcasting/auth` - Channel authorization (handled by Laravel)
@@ -724,7 +724,7 @@ Tests cover:
 
 - Pusher account and app credentials
 - WebSocket support in browser
-- Workspace membership for all realtime features
+- Tenant membership for all realtime features
 
 ## Phase 5: Billing & Plans (✅ Complete)
 
@@ -740,7 +740,7 @@ Phase 5 implements a comprehensive SaaS billing system with plans, subscriptions
 - Platform admin can CRUD plans
 
 ✅ **Auto-Subscription**
-- Workspaces automatically subscribe to default plan on creation
+- Tenants automatically subscribe to default plan on creation
 - Trial periods automatically applied if plan supports it
 - Subscription status tracking (trialing, active, past_due, canceled)
 
@@ -751,13 +751,13 @@ Phase 5 implements a comprehensive SaaS billing system with plans, subscriptions
 
 ✅ **Limit Enforcement**
 - Server-side enforcement (middleware + service checks)
-- Connection limits (per workspace)
+- Connection limits (per tenant)
 - Message limits (monthly)
 - Template send limits (monthly)
 - Module access gating
 
 ✅ **Billing UI**
-- Workspace billing overview with usage meters
+- Tenant billing overview with usage meters
 - Plans comparison and switching
 - Usage details and history
 - Past due handling
@@ -767,7 +767,7 @@ Phase 5 implements a comprehensive SaaS billing system with plans, subscriptions
 Add billing configuration to your `.env` file:
 
 ```env
-# Default plan for new workspaces
+# Default plan for new tenants
 DEFAULT_PLAN_KEY=free
 
 # Billing provider (manual for now, Stripe/Razorpay later)
@@ -780,10 +780,10 @@ BILLING_PROVIDER=manual
 ### Database Tables
 
 - `plans` - Plan definitions with limits and modules
-- `subscriptions` - Workspace subscriptions with status tracking
+- `subscriptions` - Tenant subscriptions with status tracking
 - `plan_addons` - Optional add-ons (for future use)
-- `workspace_addons` - Active add-ons per workspace (for future use)
-- `workspace_usage` - Monthly usage counters per workspace
+- `tenant_addons` - Active add-ons per tenant (for future use)
+- `tenant_usage` - Monthly usage counters per tenant
 - `billing_events` - Audit trail of billing actions
 
 ### Default Plans
@@ -816,7 +816,7 @@ BILLING_PROVIDER=manual
 
 ### How Auto-Subscription Works
 
-1. When a workspace is created (via onboarding), it automatically:
+1. When a tenant is created (via onboarding), it automatically:
    - Subscribes to the default plan (`DEFAULT_PLAN_KEY` env var, or "free")
    - Starts trial if plan has `trial_days > 0`
    - Sets subscription status to "trialing" or "active"
@@ -877,25 +877,25 @@ INSERT INTO plans (key, name, price_monthly, limits, modules, ...) VALUES (...);
 When a subscription is `past_due` or `canceled`:
 
 **Blocked:**
-- All `/app/{workspace}/*` routes (except billing pages)
+- All `/app/*` routes (except billing pages)
 - Shows "Past Due" page with billing link
 
 **Still Accessible:**
-- `/app/{workspace}/settings/billing/*` routes
+- `/app/settings/billing/*` routes
 - Billing overview, plans, usage pages
-- Allows workspace owner to update payment or upgrade
+- Allows tenant owner to update payment or upgrade
 
 **Middleware:**
-- `EnsureWorkspaceSubscribed` middleware checks subscription status
+- `EnsureTenantSubscribed` middleware checks subscription status
 - Allows billing routes to remain accessible
 - Returns 402 (Payment Required) for blocked routes
 
 ### Common Issues
 
-**Mismatch between plan.modules and workspace_modules toggles:**
-- Effective modules = plan.modules ∩ enabled workspace_modules
-- If plan includes "templates" but workspace has it disabled, user cannot access
-- Solution: Enable module in workspace settings OR upgrade plan
+**Mismatch between plan.modules and tenant_modules toggles:**
+- Effective modules = plan.modules ∩ enabled tenant_modules
+- If plan includes "templates" but tenant has it disabled, user cannot access
+- Solution: Enable module in tenant settings OR upgrade plan
 
 **Month reset logic:**
 - Usage is tracked per period (format: "YYYY-MM", e.g., "2026-01")
@@ -911,7 +911,7 @@ When a subscription is `past_due` or `canceled`:
 ### Testing Checklist
 
 **Exceed Message Limit:**
-1. Set workspace usage near limit: `setUsage($workspace, '2026-01', 500, 0)`
+1. Set tenant usage near limit: `setUsage($tenant, '2026-01', 500, 0)`
 2. Try to send message
 3. Should see 402 error with upgrade message
 4. Check `billing_events` table for `limit_blocked` event
@@ -923,26 +923,26 @@ When a subscription is `past_due` or `canceled`:
 4. Verify existing connections still exist
 
 **Switch Plan:**
-1. As workspace owner, go to `/app/{workspace}/settings/billing/plans`
+1. As tenant owner, go to `/app/settings/billing/plans`
 2. Click "Switch to this Plan"
 3. Verify subscription.plan_id updated
 4. Check `billing_events` for `plan_changed` event
 
 **Module Access:**
-1. Free plan user tries to access `/app/{workspace}/whatsapp/templates`
+1. Free plan user tries to access `/app/whatsapp/templates`
 2. Should see 403 error with upgrade message
 3. Upgrade to Starter plan
 4. Should now be able to access templates
 
 ### API Endpoints
 
-**Workspace Billing Routes:**
-- `GET /app/{workspace}/settings/billing` - Billing overview
-- `GET /app/{workspace}/settings/billing/plans` - Available plans
-- `POST /app/{workspace}/settings/billing/plans/{plan}/switch` - Switch plan
-- `POST /app/{workspace}/settings/billing/cancel` - Cancel subscription
-- `POST /app/{workspace}/settings/billing/resume` - Resume subscription
-- `GET /app/{workspace}/settings/billing/usage` - Usage details
+**Tenant Billing Routes:**
+- `GET /app/settings/billing` - Billing overview
+- `GET /app/settings/billing/plans` - Available plans
+- `POST /app/settings/billing/plans/{plan}/switch` - Switch plan
+- `POST /app/settings/billing/cancel` - Cancel subscription
+- `POST /app/settings/billing/resume` - Resume subscription
+- `GET /app/settings/billing/usage` - Usage details
 
 **Platform Routes (Super Admin):**
 - `GET /platform/plans` - List all plans
@@ -962,7 +962,7 @@ php artisan test --filter=Billing
 ```
 
 Tests cover:
-- Auto-subscription on workspace creation
+- Auto-subscription on tenant creation
 - Plan resolver effective modules/limits
 - Module entitlement enforcement
 - Subscription status blocking
@@ -976,7 +976,7 @@ Tests cover:
 Currently, billing uses "manual" provider:
 
 1. **Plan Changes:**
-   - Workspace owner selects plan in UI
+   - Tenant owner selects plan in UI
    - Subscription updated immediately
    - No payment processing (for testing)
 
@@ -997,7 +997,7 @@ Phase 6 implements a comprehensive chatbot automation system for WhatsApp conver
 ### Features
 
 ✅ **Bot Management**
-- Create, edit, and manage bots per workspace
+- Create, edit, and manage bots per tenant
 - Bot status: draft, active, paused
 - Apply bots to specific connections or all connections
 - Version tracking
@@ -1070,8 +1070,8 @@ Phase 6 implements a comprehensive chatbot automation system for WhatsApp conver
 
 The Chatbots module requires:
 - Module key: `automation.chatbots`
-- Plan entitlement: Must be included in workspace plan modules
-- Workspace owner/admin access for management
+- Plan entitlement: Must be included in tenant plan modules
+- Tenant owner/admin access for management
 
 ### Usage
 
@@ -1162,21 +1162,21 @@ The Chatbots module requires:
 ### API Endpoints
 
 **Bot Routes:**
-- `GET /app/{workspace}/chatbots` - List bots
-- `GET /app/{workspace}/chatbots/create` - Create form
-- `POST /app/{workspace}/chatbots` - Store bot
-- `GET /app/{workspace}/chatbots/{bot}` - View bot
-- `PATCH /app/{workspace}/chatbots/{bot}` - Update bot
-- `DELETE /app/{workspace}/chatbots/{bot}` - Delete bot
+- `GET /app/chatbots` - List bots
+- `GET /app/chatbots/create` - Create form
+- `POST /app/chatbots` - Store bot
+- `GET /app/chatbots/{bot}` - View bot
+- `PATCH /app/chatbots/{bot}` - Update bot
+- `DELETE /app/chatbots/{bot}` - Delete bot
 
 **Flow Routes:**
-- `POST /app/{workspace}/chatbots/{bot}/flows` - Create flow
-- `PATCH /app/{workspace}/chatbots/flows/{flow}` - Update flow
-- `DELETE /app/{workspace}/chatbots/flows/{flow}` - Delete flow
+- `POST /app/chatbots/{bot}/flows` - Create flow
+- `PATCH /app/chatbots/flows/{flow}` - Update flow
+- `DELETE /app/chatbots/flows/{flow}` - Delete flow
 
 **Execution Routes:**
-- `GET /app/{workspace}/chatbots/executions` - List executions
-- `GET /app/{workspace}/chatbots/executions/{execution}` - View execution details
+- `GET /app/chatbots/executions` - List executions
+- `GET /app/chatbots/executions/{execution}` - View execution details
 
 ### Testing
 
@@ -1190,7 +1190,7 @@ php artisan test --filter=Chatbot
 
 - WhatsApp module enabled
 - Plan with `automation.chatbots` module entitlement
-- Workspace owner/admin role for management
+- Tenant owner/admin role for management
 - Queue worker running for delayed actions
 
 ## Next Steps (Future Phases)

@@ -26,13 +26,11 @@ class ModuleController extends Controller
                     'description' => $module->description,
                     'is_core' => $module->is_core,
                     'is_enabled' => $module->is_enabled,
-                    'workspace_count' => $module->workspaceModules()->where('enabled', true)->count(),
-                ];
+                    'account_count' => $module->accountModules()->where('enabled', true)->count()];
             });
 
         return Inertia::render('Platform/Modules/Index', [
-            'modules' => $modules,
-        ]);
+            'modules' => $modules]);
     }
 
     /**
@@ -61,8 +59,7 @@ class ModuleController extends Controller
         $request->validate([
             'is_enabled' => 'sometimes|boolean',
             'name' => 'sometimes|string|max:255',
-            'description' => 'sometimes|nullable|string',
-        ]);
+            'description' => 'sometimes|nullable|string']);
 
         // Core modules cannot be disabled
         if ($module->is_core && isset($request->is_enabled) && !$request->is_enabled) {

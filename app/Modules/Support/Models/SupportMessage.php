@@ -16,8 +16,7 @@ class SupportMessage extends Model
         'support_thread_id',
         'sender_type',
         'sender_id',
-        'body',
-    ];
+        'body'];
 
     public function thread(): BelongsTo
     {

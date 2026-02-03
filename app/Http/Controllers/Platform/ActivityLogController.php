@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Platform;
 
 use App\Http\Controllers\Controller;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
-use App\Models\Workspace;
+use App\Models\Account;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -36,15 +36,13 @@ class ActivityLogController extends Controller
                     'description' => $conn->webhook_last_error 
                         ? "Webhook error for connection: {$conn->name}" 
                         : "Webhook received for connection: {$conn->name}",
-                    'workspace_id' => $conn->workspace_id,
+                    'account_id' => $conn->account_id,
                     'metadata' => [
                         'connection_id' => $conn->id,
                         'connection_name' => $conn->name,
                         'error' => $conn->webhook_last_error,
-                        'last_received_at' => $conn->webhook_last_received_at?->toIso8601String(),
-                    ],
-                    'created_at' => $conn->webhook_last_received_at ?? $conn->updated_at,
-                ];
+                        'last_received_at' => $conn->webhook_last_received_at?->toIso8601String()],
+                    'created_at' => $conn->webhook_last_received_at ?? $conn->updated_at];
             });
 
         // Failed jobs
@@ -58,39 +56,35 @@ class ActivityLogController extends Controller
                     'id' => 'failed_job_' . $job->id,
                     'type' => 'system_error',
                     'description' => "Failed job: " . ($payload['displayName'] ?? $payload['job'] ?? 'Unknown'),
-                    'workspace_id' => null,
+                    'account_id' => null,
                     'metadata' => [
                         'queue' => $job->queue,
                         'connection' => $job->connection,
-                        'exception' => substr($job->exception, 0, 200),
-                    ],
-                    'created_at' => $job->failed_at,
-                ];
+                        'exception' => substr($job->exception, 0, 200)],
+                    'created_at' => $job->failed_at];
             });
 
-        // Workspace status changes (from workspace updates)
-        $workspaceLogs = Workspace::whereNotNull('disabled_at')
+        // Account status changes (from account updates)
+        $accountLogs = Account::whereNotNull('disabled_at')
             ->orWhereNotNull('disabled_reason')
             ->get()
-            ->map(function ($workspace) {
+            ->map(function ($account) {
                 return [
-                    'id' => 'workspace_' . $workspace->id,
-                    'type' => 'workspace_status_change',
-                    'description' => "Workspace '{$workspace->name}' status changed to: {$workspace->status}",
-                    'workspace_id' => $workspace->id,
+                    'id' => 'account_' . $account->id,
+                    'type' => 'account_status_change',
+                    'description' => "Account '{$account->name}' status changed to: {$account->status}",
+                    'account_id' => $account->id,
                     'metadata' => [
-                        'workspace_id' => $workspace->id,
-                        'workspace_name' => $workspace->name,
-                        'status' => $workspace->status,
-                        'disabled_reason' => $workspace->disabled_reason,
-                        'disabled_at' => $workspace->disabled_at?->toIso8601String(),
-                    ],
-                    'created_at' => $workspace->disabled_at ?? $workspace->updated_at,
-                ];
+                        'account_id' => $account->id,
+                        'account_name' => $account->name,
+                        'status' => $account->status,
+                        'disabled_reason' => $account->disabled_reason,
+                        'disabled_at' => $account->disabled_at?->toIso8601String()],
+                    'created_at' => $account->disabled_at ?? $account->updated_at];
             });
 
         // Combine and sort
-        $allLogs = $webhookLogs->concat($failedJobLogs)->concat($workspaceLogs)
+        $allLogs = $webhookLogs->concat($failedJobLogs)->concat($accountLogs)
             ->sortByDesc('created_at')
             ->values();
 
@@ -99,8 +93,8 @@ class ActivityLogController extends Controller
             $allLogs = $allLogs->filter(fn($log) => $log['type'] === $request->type);
         }
 
-        if ($request->has('workspace_id') && $request->workspace_id) {
-            $allLogs = $allLogs->filter(fn($log) => $log['workspace_id'] == $request->workspace_id);
+        if ($request->has('account_id') && $request->account_id) {
+            $allLogs = $allLogs->filter(fn($log) => $log['account_id'] == $request->account_id);
         }
 
         // Paginate manually
@@ -111,7 +105,7 @@ class ActivityLogController extends Controller
 
         // Get filter options
         $types = $allLogs->pluck('type')->unique()->values()->toArray();
-        $workspaces = Workspace::select('id', 'name')->get();
+        $accounts = Account::select('id', 'name')->get();
 
         return Inertia::render('Platform/ActivityLogs', [
             'logs' => [
@@ -119,17 +113,13 @@ class ActivityLogController extends Controller
                 'current_page' => (int) $page,
                 'last_page' => (int) ceil($total / $perPage),
                 'per_page' => $perPage,
-                'total' => $total,
-            ],
+                'total' => $total],
             'filters' => [
                 'type' => $request->type,
-                'workspace_id' => $request->workspace_id,
-            ],
+                'account_id' => $request->account_id],
             'filter_options' => [
                 'types' => $types,
-                'workspaces' => $workspaces,
-            ],
-        ]);
+                'accounts' => $accounts]]);
     }
 }
 

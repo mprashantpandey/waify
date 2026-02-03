@@ -9,8 +9,7 @@ import { Mail, Lock, ArrowRight, Shield } from 'lucide-react';
 
 export default function ResetPassword({
     token,
-    email,
-}: {
+    email}: {
     token: string;
     email: string;
 }) {
@@ -18,15 +17,13 @@ export default function ResetPassword({
         token: token,
         email: email,
         password: '',
-        password_confirmation: '',
-    });
+        password_confirmation: ''});
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
 
         post(route('password.store'), {
-            onFinish: () => reset('password', 'password_confirmation'),
-        });
+            onFinish: () => reset('password', 'password_confirmation')});
     };
 
     return (

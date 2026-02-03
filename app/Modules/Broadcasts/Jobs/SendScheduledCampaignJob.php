@@ -38,8 +38,7 @@ class SendScheduledCampaignJob implements ShouldQueue
         if ($campaign->status !== 'scheduled') {
             Log::info('Campaign is not in scheduled status', [
                 'campaign_id' => $this->campaignId,
-                'status' => $campaign->status,
-            ]);
+                'status' => $campaign->status]);
             return;
         }
 

@@ -9,8 +9,7 @@ import { User, Shield, Trash2 } from 'lucide-react';
 
 export default function Edit({
     mustVerifyEmail,
-    status,
-}: PageProps<{ mustVerifyEmail: boolean; status?: string }>) {
+    status}: PageProps<{ mustVerifyEmail: boolean; status?: string }>) {
     return (
         <AppShell>
             <Head title="Profile" />
