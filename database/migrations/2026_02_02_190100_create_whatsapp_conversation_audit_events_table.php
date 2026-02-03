@@ -11,8 +11,15 @@ return new class extends Migration
         Schema::create('whatsapp_conversation_audit_events', function (Blueprint $table) {
             $table->id();
             $table->foreignId('account_id')->constrained()->onDelete('cascade');
-            $table->foreignId('whatsapp_conversation_id')->constrained('whatsapp_conversations')->onDelete('cascade');
-            $table->foreignId('actor_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('whatsapp_conversation_id')
+                ->constrained('whatsapp_conversations')
+                ->onDelete('cascade')
+                ->name('wa_conv_audit_conv_id_fk');
+            $table->foreignId('actor_id')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete()
+                ->name('wa_conv_audit_actor_id_fk');
             $table->string('event_type');
             $table->text('description')->nullable();
             $table->json('meta')->nullable();
