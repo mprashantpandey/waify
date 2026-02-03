@@ -22,8 +22,17 @@ class WebhookController extends Controller
     /**
      * Verify webhook endpoint (GET).
      */
-    public function verify(Request $request, WhatsAppConnection $connection)
+    public function verify(Request $request, $connection)
     {
+        $connection = $this->resolveConnection($connection);
+        if (!$connection) {
+            Log::channel('whatsapp')->warning('Webhook verification failed: connection not found', [
+                'connection_param' => $request->route('connection'),
+                'ip' => $request->ip(),
+                'path' => $request->path(),
+            ]);
+            abort(404, 'Connection not found');
+        }
         // Log immediately when method is called
         Log::channel('whatsapp')->info('WebhookController::verify called', [
             'connection_id' => $connection->id,
@@ -50,16 +59,19 @@ class WebhookController extends Controller
             ?? $request->query('hub_mode')
             ?? $request->input('hub.mode')
             ?? $request->input('hub_mode');
+        $mode = is_string($mode) ? trim($mode) : $mode;
             
         $token = $request->query('hub.verify_token')
             ?? $request->query('hub_verify_token')
             ?? $request->input('hub.verify_token')
             ?? $request->input('hub_verify_token');
+        $token = is_string($token) ? trim($token) : $token;
             
         $challenge = $request->query('hub.challenge')
             ?? $request->query('hub_challenge')
             ?? $request->input('hub.challenge')
             ?? $request->input('hub_challenge');
+        $challenge = is_string($challenge) ? trim($challenge) : $challenge;
 
         // Log all incoming parameters for debugging
         Log::channel('whatsapp')->info('Webhook verification attempt', [
@@ -89,7 +101,9 @@ class WebhookController extends Controller
 
         // Verify mode and token - Meta requires exact match
         $modeValid = $mode === 'subscribe';
-        $tokenValid = !empty($token) && hash_equals($connection->webhook_verify_token, $token);
+        $expectedToken = $connection->webhook_verify_token;
+        $expectedToken = is_string($expectedToken) ? trim($expectedToken) : $expectedToken;
+        $tokenValid = !empty($token) && !empty($expectedToken) && hash_equals($expectedToken, $token);
         
         Log::channel('whatsapp')->info('Webhook verification checks', [
             'connection_id' => $connection->id,
@@ -133,8 +147,20 @@ class WebhookController extends Controller
     /**
      * Receive webhook endpoint (POST).
      */
-    public function receive(Request $request, WhatsAppConnection $connection)
+    public function receive(Request $request, $connection)
     {
+        $connection = $this->resolveConnection($connection);
+        if (!$connection) {
+            Log::channel('whatsapp')->warning('Webhook receive failed: connection not found', [
+                'connection_param' => $request->route('connection'),
+                'ip' => $request->ip(),
+                'path' => $request->path(),
+            ]);
+            return response()->json([
+                'success' => false,
+                'error' => 'Connection not found',
+            ], 404);
+        }
         $correlationId = $request->attributes->get('webhook_correlation_id', Str::uuid()->toString());
 
         // Rate limit webhook reception per connection
@@ -199,5 +225,24 @@ class WebhookController extends Controller
                 'error' => 'Processing failed',
                 'correlation_id' => $correlationId], 200);
         }
+    }
+
+    /**
+     * Resolve a connection by slug or ID.
+     */
+    protected function resolveConnection($value): ?WhatsAppConnection
+    {
+        if ($value instanceof WhatsAppConnection) {
+            return $value;
+        }
+
+        $value = is_string($value) ? trim($value) : (string) $value;
+        if ($value === '') {
+            return null;
+        }
+
+        return WhatsAppConnection::where('slug', $value)
+            ->orWhere('id', $value)
+            ->first();
     }
 }

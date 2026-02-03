@@ -77,7 +77,12 @@ class WebhookSecurity
         $request->attributes->set('webhook_correlation_id', $correlationId);
 
         // Log request (truncated payload) - log early to catch all requests
-        $connection = $request->route('connection');
+        $connectionParam = $request->route('connection');
+        $connection = $connectionParam instanceof \App\Modules\WhatsApp\Models\WhatsAppConnection
+            ? $connectionParam
+            : \App\Modules\WhatsApp\Models\WhatsAppConnection::where('slug', (string) $connectionParam)
+                ->orWhere('id', (string) $connectionParam)
+                ->first();
         Log::channel('whatsapp')->info('Webhook request received in WebhookSecurity', [
             'correlation_id' => $correlationId,
             'ip' => $request->ip(),
