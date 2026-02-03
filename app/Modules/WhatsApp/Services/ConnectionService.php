@@ -66,7 +66,9 @@ class ConnectionService
      */
     public function getWebhookUrl(WhatsAppConnection $connection): string
     {
+        // Use slug for webhook URL (more secure and user-friendly)
+        $identifier = $connection->slug ?? (string) $connection->id;
         return route('webhooks.whatsapp.receive', [
-            'connection' => $connection->id]);
+            'connection' => $identifier]);
     }
 }

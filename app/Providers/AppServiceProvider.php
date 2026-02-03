@@ -76,11 +76,16 @@ class AppServiceProvider extends ServiceProvider
         });
 
         // Route model binding for 'connection' parameter - resolve by slug instead of ID
-        // Note: We return the raw value (slug/id) and let controllers handle account scoping
+        // Route model binding for 'connection' parameter - resolve by slug first, fallback to ID
         Route::bind('connection', function ($value) {
-            // Return the raw value - controllers will handle account scoping
-            // This prevents cross-account access issues
-            return $value;
+            // Try to resolve by slug first, fallback to ID for backward compatibility
+            $connection = \App\Modules\WhatsApp\Models\WhatsAppConnection::where('slug', $value)
+                ->orWhere('id', $value)
+                ->first();
+            if (!$connection) {
+                abort(404, 'Connection not found');
+            }
+            return $connection;
         });
 
         // Route model binding for 'campaign' parameter - resolve by slug instead of ID

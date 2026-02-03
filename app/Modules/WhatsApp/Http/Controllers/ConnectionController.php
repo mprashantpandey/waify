@@ -371,8 +371,9 @@ class ConnectionController extends Controller
                 'webhook_subscribed' => $connection->webhook_subscribed,
                 'webhook_last_received_at' => $connection->webhook_last_received_at?->toIso8601String(),
                 'webhook_last_error' => $connection->webhook_last_error],
-            'canViewSecrets' => $account->owner_id === $request->user()->id || 
-                               $account->users()->where('user_id', $request->user()->id)->where('role', 'admin')->exists()]);
+            'canViewSecrets' => $account->isOwnedBy($request->user()) || 
+                               $account->users()->where('user_id', $request->user()->id)->where('role', 'admin')->exists() ||
+                               Gate::allows('update', $connection)]);
     }
 
     /**
