@@ -90,6 +90,33 @@ class Account extends Model
     }
 
     /**
+     * Check if a user is the owner of this account.
+     */
+    public function isOwnedBy(User $user): bool
+    {
+        // Primary check: owner_id
+        if ($this->owner_id && (int) $this->owner_id === (int) $user->id) {
+            return true;
+        }
+
+        // Fallback: Check account_users for legacy accounts (owner might be in pivot table)
+        $accountUser = \App\Models\AccountUser::where('account_id', $this->id)
+            ->where('user_id', $user->id)
+            ->where('role', 'owner')
+            ->first();
+
+        if ($accountUser) {
+            // Fix: Set owner_id if it's missing
+            if (!$this->owner_id) {
+                $this->update(['owner_id' => $user->id]);
+            }
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
      * Check if account is suspended.
      */
     public function isSuspended(): bool

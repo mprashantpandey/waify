@@ -162,7 +162,7 @@ class BillingController extends Controller
         }
 
         // Only account owner can change plan
-        if ($account->owner_id !== $request->user()->id) {
+        if (!$account->isOwnedBy($request->user())) {
             if ($request->header('X-Inertia')) {
                 return back()
                     ->withErrors(['plan' => 'Only the account owner can change the plan.'])
@@ -270,7 +270,7 @@ class BillingController extends Controller
             abort(404, 'Plan not found');
         }
 
-        if ($account->owner_id !== $request->user()->id) {
+        if (!$account->isOwnedBy($request->user())) {
             if ($request->header('X-Inertia')) {
                 return back()
                     ->withErrors(['plan' => 'Only the account owner can purchase a plan.'])
@@ -353,7 +353,7 @@ class BillingController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ($account->owner_id !== $request->user()->id) {
+        if (!$account->isOwnedBy($request->user())) {
             abort(403, 'Only account owner can confirm payment.');
         }
 
@@ -421,7 +421,7 @@ class BillingController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ($account->owner_id !== $request->user()->id) {
+        if (!$account->isOwnedBy($request->user())) {
             abort(403, 'Only account owner can cancel subscription.');
         }
 
@@ -437,7 +437,7 @@ class BillingController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ($account->owner_id !== $request->user()->id) {
+        if (!$account->isOwnedBy($request->user())) {
             abort(403, 'Only account owner can resume subscription.');
         }
 
