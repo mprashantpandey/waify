@@ -163,6 +163,11 @@ class BillingController extends Controller
 
         // Only account owner can change plan
         if ($account->owner_id !== $request->user()->id) {
+            if ($request->header('X-Inertia')) {
+                return back()
+                    ->withErrors(['plan' => 'Only the account owner can change the plan.'])
+                    ->with('error', 'Only the account owner can change the plan.');
+            }
             abort(403, 'Only account owner can change plan.');
         }
 
@@ -266,6 +271,11 @@ class BillingController extends Controller
         }
 
         if ($account->owner_id !== $request->user()->id) {
+            if ($request->header('X-Inertia')) {
+                return back()
+                    ->withErrors(['plan' => 'Only the account owner can purchase a plan.'])
+                    ->with('error', 'Only the account owner can purchase a plan.');
+            }
             abort(403, 'Only account owner can purchase a plan.');
         }
 
