@@ -16,6 +16,11 @@ class EnsureMaintenanceMode
      */
     public function handle(Request $request, Closure $next): Response
     {
+        // Skip maintenance mode check for webhooks (they need to work even during maintenance)
+        if ($request->is('webhooks/*')) {
+            return $next($request);
+        }
+        
         $settingsService = app(PlatformSettingsService::class);
         
         if ($settingsService->isMaintenanceMode()) {

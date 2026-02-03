@@ -27,10 +27,12 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\EnsureMaintenanceMode::class,
         ]);
         
-        // Exclude broadcasting/auth from CSRF verification
+        // Exclude broadcasting/auth and webhooks from CSRF verification
         // Broadcasting uses its own authentication mechanism
+        // Webhooks are verified via signature/token
         $middleware->validateCsrfTokens(except: [
             'broadcasting/auth',
+            'webhooks/*',
         ]);
 
         $middleware->alias([

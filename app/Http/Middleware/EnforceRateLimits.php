@@ -17,16 +17,24 @@ class EnforceRateLimits
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // Skip rate limiting for health checks and static assets
-        if ($request->is('up') || $request->is('health') || $request->is('*.css') || $request->is('*.js') || $request->is('*.jpg') || $request->is('*.png') || $request->is('*.gif') || $request->is('*.ico')) {
+        // Skip rate limiting for health checks, static assets, and webhooks
+        if ($request->is('up') 
+            || $request->is('health') 
+            || $request->is('webhooks/*')
+            || $request->is('*.css') 
+            || $request->is('*.js') 
+            || $request->is('*.jpg') 
+            || $request->is('*.png') 
+            || $request->is('*.gif') 
+            || $request->is('*.ico')) {
             return $next($request);
         }
         
         $settingsService = app(PlatformSettingsService::class);
         $security = $settingsService->getSecurity();
         
-        // Apply IP whitelist if configured
-        if (!empty($security['ip_whitelist'])) {
+        // Apply IP whitelist if configured (skip for webhooks - they have their own security)
+        if (!empty($security['ip_whitelist']) && !$request->is('webhooks/*')) {
             $allowedIps = array_map('trim', explode(',', $security['ip_whitelist']));
             $clientIp = $request->ip();
             
