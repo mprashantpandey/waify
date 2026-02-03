@@ -66,9 +66,28 @@ class ConnectionService
      */
     public function getWebhookUrl(WhatsAppConnection $connection): string
     {
+        // Ensure connection has a slug
+        if (empty($connection->slug)) {
+            $connection->slug = WhatsAppConnection::generateSlug($connection);
+            $connection->save();
+        }
+        
         // Use slug for webhook URL (more secure and user-friendly)
+        // Fallback to ID if slug is still empty (shouldn't happen)
         $identifier = $connection->slug ?? (string) $connection->id;
-        return route('webhooks.whatsapp.receive', [
+        
+        // Generate full URL
+        $url = route('webhooks.whatsapp.receive', [
             'connection' => $identifier]);
+        
+        // Log the generated URL for debugging
+        \Log::channel('whatsapp')->debug('Webhook URL generated', [
+            'connection_id' => $connection->id,
+            'connection_slug' => $connection->slug,
+            'identifier_used' => $identifier,
+            'url' => $url,
+        ]);
+        
+        return $url;
     }
 }

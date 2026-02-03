@@ -235,6 +235,12 @@ Route::prefix('/webhooks/whatsapp')
     ->middleware([\App\Http\Middleware\EnsureWebhooksEnabled::class, \App\Modules\WhatsApp\Http\Middleware\WebhookSecurity::class, \App\Http\Middleware\LogApiRequests::class])
     ->name('webhooks.whatsapp.')
     ->group(function () {
+        // Test endpoint to verify webhook route is accessible
+        Route::get('/test', function () {
+            \Log::channel('whatsapp')->info('Webhook test endpoint hit');
+            return response()->json(['status' => 'ok', 'message' => 'Webhook endpoint is accessible']);
+        })->name('test');
+        
         Route::get('/{connection}', [\App\Modules\WhatsApp\Http\Controllers\WebhookController::class, 'verify'])->name('verify');
         Route::post('/{connection}', [\App\Modules\WhatsApp\Http\Controllers\WebhookController::class, 'receive'])->name('receive');
     });
