@@ -22,26 +22,19 @@ class WebhookController extends Controller
     /**
      * Verify webhook endpoint (GET).
      */
-    public function verify(Request $request, $connection)
+    public function verify(Request $request, WhatsAppConnection $connection)
     {
-        $connection = $this->resolveConnection($connection);
-        if (!$connection) {
-            Log::channel('whatsapp')->warning('Webhook verification failed: connection not found', [
-                'connection_param' => $request->route('connection'),
+        try {
+            // Connection is already resolved by route model binding
+            // Log immediately when method is called
+            Log::channel('whatsapp')->info('WebhookController::verify called', [
+                'connection_id' => $connection->id,
+                'connection_slug' => $connection->slug,
                 'ip' => $request->ip(),
+                'method' => $request->method(),
                 'path' => $request->path(),
+                'full_url' => $request->fullUrl(),
             ]);
-            abort(404, 'Connection not found');
-        }
-        // Log immediately when method is called
-        Log::channel('whatsapp')->info('WebhookController::verify called', [
-            'connection_id' => $connection->id,
-            'connection_slug' => $connection->slug,
-            'ip' => $request->ip(),
-            'method' => $request->method(),
-            'path' => $request->path(),
-            'full_url' => $request->fullUrl(),
-        ]);
 
         // Rate limit webhook verification
         $key = 'webhook-verify-' . $connection->id . '-' . $request->ip();
@@ -147,20 +140,9 @@ class WebhookController extends Controller
     /**
      * Receive webhook endpoint (POST).
      */
-    public function receive(Request $request, $connection)
+    public function receive(Request $request, WhatsAppConnection $connection)
     {
-        $connection = $this->resolveConnection($connection);
-        if (!$connection) {
-            Log::channel('whatsapp')->warning('Webhook receive failed: connection not found', [
-                'connection_param' => $request->route('connection'),
-                'ip' => $request->ip(),
-                'path' => $request->path(),
-            ]);
-            return response()->json([
-                'success' => false,
-                'error' => 'Connection not found',
-            ], 404);
-        }
+        // Connection is already resolved by route model binding
         $correlationId = $request->attributes->get('webhook_correlation_id', Str::uuid()->toString());
 
         // Rate limit webhook reception per connection
