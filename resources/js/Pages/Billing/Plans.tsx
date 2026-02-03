@@ -65,10 +65,11 @@ export default function BillingPlans({
         const isNewPlan = !current_plan_key;
         const plan = plans.find(p => p.key === planKey);
         
+        const trialDays = plan?.trial_days ?? 0;
         const confirmed = await confirm({
             title: isNewPlan ? 'Select Plan' : 'Switch Plan',
             message: isNewPlan 
-                ? `Are you sure you want to select the ${plan?.name} plan?${plan?.trial_days > 0 ? ` You'll start with a ${plan.trial_days}-day free trial.` : ''}`
+                ? `Are you sure you want to select the ${plan?.name ?? 'this'} plan?${trialDays > 0 ? ` You'll start with a ${trialDays}-day free trial.` : ''}`
                 : 'Are you sure you want to switch to this plan?',
             variant: 'info'});
 

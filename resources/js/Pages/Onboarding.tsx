@@ -220,7 +220,7 @@ export default function Onboarding({ plans = [], defaultPlanKey = 'free' }: { pl
                                 <Button type="submit" className="w-full" disabled={processing || !data.name.trim()}>
                                     {processing ? 'Creating Account...' : 'Create Account & Start Trial'}
                                 </Button>
-                                {selectedPlanKey && plans.find((p) => p.key === selectedPlanKey)?.trial_days > 0 && (
+                                {selectedPlanKey && (plans.find((p) => p.key === selectedPlanKey)?.trial_days ?? 0) > 0 && (
                                     <p className="mt-2 text-center text-xs text-gray-500 dark:text-gray-400">
                                         You'll start with a {plans.find((p) => p.key === selectedPlanKey)?.trial_days}-day free trial
                                     </p>
