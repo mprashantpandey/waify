@@ -82,9 +82,24 @@ class AppServiceProvider extends ServiceProvider
             $connection = \App\Modules\WhatsApp\Models\WhatsAppConnection::where('slug', $value)
                 ->orWhere('id', $value)
                 ->first();
+            
             if (!$connection) {
+                // Log the failure for debugging
+                \Log::channel('whatsapp')->error('Connection not found in route binding', [
+                    'value' => $value,
+                    'type' => is_numeric($value) ? 'id' : 'slug',
+                ]);
                 abort(404, 'Connection not found');
             }
+            
+            // Log successful resolution
+            \Log::channel('whatsapp')->info('Connection resolved in route binding', [
+                'value' => $value,
+                'connection_id' => $connection->id,
+                'connection_slug' => $connection->slug,
+                'resolved_by' => $connection->slug === $value ? 'slug' : 'id',
+            ]);
+            
             return $connection;
         });
 

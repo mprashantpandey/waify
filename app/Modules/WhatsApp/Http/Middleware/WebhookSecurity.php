@@ -76,13 +76,18 @@ class WebhookSecurity
         $correlationId = uniqid('wh_', true);
         $request->attributes->set('webhook_correlation_id', $correlationId);
 
-        // Log request (truncated payload)
-        Log::channel('whatsapp')->info('Webhook request received', [
+        // Log request (truncated payload) - log early to catch all requests
+        $connection = $request->route('connection');
+        Log::channel('whatsapp')->info('Webhook request received in WebhookSecurity', [
             'correlation_id' => $correlationId,
             'ip' => $request->ip(),
             'method' => $request->method(),
-            'connection_id' => $request->route('connection')?->id,
+            'path' => $request->path(),
+            'connection_id' => $connection?->id,
+            'connection_slug' => $connection?->slug,
+            'connection_param' => $request->route()->parameter('connection'),
             'has_entry' => $request->has('entry'),
+            'query_params' => $request->query(),
             'user_agent' => substr($request->userAgent() ?? '', 0, 100), // Truncate
         ]);
 

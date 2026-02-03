@@ -21,7 +21,22 @@ class EnsureWebhooksEnabled
         $integrationsEnabled = (bool) \App\Models\PlatformSetting::get('integrations.webhooks_enabled', true);
         $razorpayEnabled = (bool) \App\Models\PlatformSetting::get('payment.razorpay_enabled', false);
 
+        // Log webhook request for debugging
+        \Log::channel('whatsapp')->info('Webhook request received in EnsureWebhooksEnabled', [
+            'path' => $request->path(),
+            'method' => $request->method(),
+            'ip' => $request->ip(),
+            'webhooks_enabled' => $webhooksEnabled,
+            'integrations_enabled' => $integrationsEnabled,
+            'connection_param' => $request->route('connection'),
+        ]);
+
         if (!$webhooksEnabled || !$integrationsEnabled) {
+            \Log::channel('whatsapp')->warning('Webhook blocked: webhooks disabled', [
+                'path' => $request->path(),
+                'webhooks_enabled' => $webhooksEnabled,
+                'integrations_enabled' => $integrationsEnabled,
+            ]);
             return response()->json([
                 'success' => false,
                 'message' => 'Webhooks are currently disabled.',
