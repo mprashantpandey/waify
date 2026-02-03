@@ -23,7 +23,35 @@ class OnboardingController extends Controller
             abort(403, 'Account creation is currently disabled.');
         }
         
-        return Inertia::render('Onboarding');
+        // Get available public plans for selection
+        $plans = Plan::where('is_public', true)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('price_monthly')
+            ->get()
+            ->map(function ($plan) use ($settingsService) {
+                $defaultCurrency = $settingsService->get('payment.default_currency', 'USD');
+                return [
+                    'id' => $plan->id,
+                    'key' => $plan->key,
+                    'name' => $plan->name,
+                    'description' => $plan->description,
+                    'price_monthly' => $plan->price_monthly,
+                    'price_yearly' => $plan->price_yearly,
+                    'currency' => $defaultCurrency,
+                    'trial_days' => $plan->trial_days ?? 0,
+                    'limits' => $plan->limits ?? [],
+                    'modules' => $plan->modules ?? [],
+                ];
+            });
+        
+        // Get default plan key from session or env
+        $defaultPlanKey = session('selected_plan_key') ?? env('DEFAULT_PLAN_KEY', 'free');
+        
+        return Inertia::render('Onboarding', [
+            'plans' => $plans,
+            'defaultPlanKey' => $defaultPlanKey,
+        ]);
     }
 
     /**
@@ -38,7 +66,8 @@ class OnboardingController extends Controller
         }
         
         $validated = $request->validate([
-            'name' => 'required|string|max:255']);
+            'name' => 'required|string|max:255',
+            'plan_key' => 'nullable|string|exists:plans,key']);
 
         $user = Auth::user();
 
@@ -60,26 +89,91 @@ class OnboardingController extends Controller
         }
 
         // Auto-subscribe to selected plan or default plan
-        $selectedPlanKey = session('selected_plan_key') ?? env('DEFAULT_PLAN_KEY', 'free');
+        $selectedPlanKey = $validated['plan_key'] 
+            ?? session('selected_plan_key') 
+            ?? env('DEFAULT_PLAN_KEY', 'free');
+        
+        // Try to find the selected plan (must be active and public)
         $selectedPlan = Plan::where('key', $selectedPlanKey)
             ->where('is_active', true)
             ->where('is_public', true)
             ->first();
         
-        // Fallback to default plan if selected plan not found
+        // Fallback 1: Try default plan key from env (without public check)
         if (!$selectedPlan) {
             $defaultPlanKey = env('DEFAULT_PLAN_KEY', 'free');
-            $selectedPlan = Plan::where('key', $defaultPlanKey)->first();
+            $selectedPlan = Plan::where('key', $defaultPlanKey)
+                ->where('is_active', true)
+                ->first();
         }
         
-        if ($selectedPlan) {
-            $subscriptionService = app(SubscriptionService::class);
+        // Fallback 2: Find first free plan (price_monthly = 0 or null)
+        if (!$selectedPlan) {
+            $selectedPlan = Plan::where('is_active', true)
+                ->where('is_public', true)
+                ->where(function ($query) {
+                    $query->whereNull('price_monthly')
+                          ->orWhere('price_monthly', 0);
+                })
+                ->orderBy('sort_order')
+                ->first();
+        }
+        
+        // Fallback 3: Find cheapest active public plan
+        if (!$selectedPlan) {
+            $selectedPlan = Plan::where('is_active', true)
+                ->where('is_public', true)
+                ->orderBy('price_monthly', 'asc')
+                ->orderBy('sort_order')
+                ->first();
+        }
+        
+        // Fallback 4: Find any active plan
+        if (!$selectedPlan) {
+            $selectedPlan = Plan::where('is_active', true)
+                ->orderBy('sort_order')
+                ->first();
+        }
+        
+        // If we still don't have a plan, create a basic free plan on the fly
+        if (!$selectedPlan) {
+            \Log::warning('No plan found for account creation, creating default free plan', [
+                'account_id' => $account->id,
+                'user_id' => $user->id,
+                'selected_plan_key' => $selectedPlanKey,
+            ]);
             
-            if ($selectedPlan->trial_days > 0) {
-                $subscriptionService->startTrial($account, $selectedPlan, $user);
-            } else {
-                $subscriptionService->changePlan($account, $selectedPlan, $user);
-            }
+            // Create a basic free plan
+            $settingsService = app(\App\Services\PlatformSettingsService::class);
+            $selectedPlan = Plan::create([
+                'key' => 'free',
+                'name' => 'Free Plan',
+                'description' => 'Basic free plan with limited features',
+                'price_monthly' => 0,
+                'currency' => $settingsService->get('payment.default_currency', 'USD'),
+                'is_active' => true,
+                'is_public' => true,
+                'trial_days' => 0,
+                'sort_order' => 0,
+                'limits' => [
+                    'whatsapp_connections' => 1,
+                    'agents' => 1,
+                    'messages_monthly' => 500,
+                    'template_sends_monthly' => 0,
+                    'ai_credits_monthly' => 0,
+                    'retention_days' => 30,
+                ],
+                'modules' => ['whatsapp'],
+            ]);
+        }
+        
+        // Always assign a plan
+        $subscriptionService = app(SubscriptionService::class);
+        
+        if ($selectedPlan->trial_days > 0) {
+            $subscriptionService->startTrial($account, $selectedPlan, $user);
+        } else {
+            $subscriptionService->changePlan($account, $selectedPlan, $user);
         }
         
         // Clear selected plan from session
