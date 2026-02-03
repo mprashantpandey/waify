@@ -23,7 +23,7 @@ return new class extends Migration
             $table->text('note');
             $table->timestamps();
 
-            $table->index(['whatsapp_conversation_id', 'id']);
+            $table->index(['whatsapp_conversation_id', 'id'], 'wa_conv_notes_conv_id_idx');
         });
     }
 
