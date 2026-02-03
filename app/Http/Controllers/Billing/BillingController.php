@@ -380,11 +380,39 @@ class BillingController extends Controller
             ->first();
 
         if (!$paymentOrder) {
+            \Log::error('Payment order not found', [
+                'order_id' => $validated['order_id'],
+                'account_id' => $account->id,
+                'user_id' => $request->user()->id,
+            ]);
             abort(404, 'Payment order not found.');
         }
 
-        if ($paymentOrder->account_id !== $account->id) {
-            abort(403, 'Payment does not belong to this account.');
+        // Check if payment belongs to this account (with type casting for safety)
+        if ((int) $paymentOrder->account_id !== (int) $account->id) {
+            \Log::error('Payment order account mismatch', [
+                'payment_order_id' => $paymentOrder->id,
+                'payment_order_account_id' => $paymentOrder->account_id,
+                'current_account_id' => $account->id,
+                'order_id' => $validated['order_id'],
+                'user_id' => $request->user()->id,
+                'payment_created_by' => $paymentOrder->created_by,
+            ]);
+            
+            // Check if the user owns the account that the payment order belongs to
+            $paymentOrderAccount = Account::find($paymentOrder->account_id);
+            if ($paymentOrderAccount && $paymentOrderAccount->isOwnedBy($request->user())) {
+                // User owns the account that the payment was created for
+                // Update the current account context to match the payment order
+                $account = $paymentOrderAccount;
+                session(['current_account_id' => $account->id]);
+                \Log::info('Account context updated to match payment order', [
+                    'account_id' => $account->id,
+                    'user_id' => $request->user()->id,
+                ]);
+            } else {
+                abort(403, 'Payment does not belong to this account.');
+            }
         }
 
         if ($paymentOrder->status !== 'paid') {
