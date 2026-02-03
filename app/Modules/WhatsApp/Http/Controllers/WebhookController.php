@@ -22,19 +22,11 @@ class WebhookController extends Controller
     /**
      * Verify webhook endpoint (GET).
      */
-    public function verify(Request $request, $connection)
+    public function verify(Request $request, WhatsAppConnection $connection)
     {
-        $connection = $this->resolveConnection($connection);
-        if (!$connection) {
-            Log::channel('whatsapp')->warning('Webhook verification failed: connection not found', [
-                'connection_param' => $request->route('connection'),
-                'ip' => $request->ip(),
-                'path' => $request->path(),
-            ]);
-            abort(404, 'Connection not found');
-        }
-
-        Log::channel('whatsapp')->info('WebhookController::verify called', [
+        try {
+            // Connection is already resolved by route model binding
+            Log::channel('whatsapp')->info('WebhookController::verify called', [
             'connection_id' => $connection->id,
             'connection_slug' => $connection->slug,
             'ip' => $request->ip(),
