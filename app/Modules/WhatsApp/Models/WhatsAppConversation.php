@@ -55,7 +55,8 @@ class WhatsAppConversation extends Model
      */
     public function messages(): HasMany
     {
-        return $this->hasMany(WhatsAppMessage::class)->orderBy('created_at');
+        return $this->hasMany(WhatsAppMessage::class, 'whatsapp_conversation_id')
+            ->orderBy('created_at');
     }
 
     /**
