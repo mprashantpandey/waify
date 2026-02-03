@@ -471,7 +471,7 @@ export default function ConversationsShow({
     useEffect(() => {
         if (!account?.id || !conversation?.id) return;
 
-        const conversationChannel = `private-account.${account.id}.whatsapp.conversation.${conversation.id}`;
+        const conversationChannel = `account.${account.id}.whatsapp.conversation.${conversation.id}`;
 
         const unsubscribeMessageCreated = subscribe(
             conversationChannel,

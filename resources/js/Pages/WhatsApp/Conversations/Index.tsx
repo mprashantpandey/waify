@@ -154,7 +154,7 @@ export default function ConversationsIndex({
     useEffect(() => {
         if (!account?.id) return;
 
-        const channel = `private-account.${account.id}.whatsapp.inbox`;
+        const channel = `account.${account.id}.whatsapp.inbox`;
         
         const unsubscribeConversationUpdated = subscribe(
             channel,
