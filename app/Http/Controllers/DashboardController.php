@@ -73,8 +73,18 @@ class DashboardController extends Controller
             ->count();
 
         // Team Statistics
-        $totalMembers = AccountUser::where('account_id', $account->id)->count() + 1; // +1 for owner
+        // Count AccountUser records (excluding owner) + 1 for owner
+        $accountUsersCount = AccountUser::where('account_id', $account->id)
+            ->when($account->owner_id, function ($query) use ($account) {
+                $query->where('user_id', '!=', $account->owner_id);
+            })
+            ->count();
+        $totalMembers = $accountUsersCount + 1; // +1 for owner
+        
         $admins = AccountUser::where('account_id', $account->id)
+            ->when($account->owner_id, function ($query) use ($account) {
+                $query->where('user_id', '!=', $account->owner_id);
+            })
             ->where('role', 'admin')
             ->count();
 

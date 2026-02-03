@@ -76,8 +76,8 @@ class OnboardingController extends Controller
             'slug' => Account::generateSlug($validated['name']),
             'owner_id' => $user->id]);
 
-        // Add user as owner
-        $account->users()->attach($user->id, ['role' => 'owner']);
+        // Note: Owner is not added to account_users table - they're identified by owner_id
+        // Only non-owner members are added to account_users table
 
         // Enable core modules by default
         $coreModules = \App\Models\Module::where('is_core', true)->get();
