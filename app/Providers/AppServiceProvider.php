@@ -78,6 +78,13 @@ class AppServiceProvider extends ServiceProvider
         // Route model binding for 'connection' parameter - resolve by slug instead of ID
         // Route model binding for 'connection' parameter - resolve by slug first, fallback to ID
         Route::bind('connection', function ($value) {
+            // Log all binding attempts
+            \Log::channel('whatsapp')->info('Route binding attempt', [
+                'value' => $value,
+                'type' => is_numeric($value) ? 'id' : 'slug',
+                'path' => request()->path(),
+            ]);
+            
             // Try to resolve by slug first, fallback to ID for backward compatibility
             $connection = \App\Modules\WhatsApp\Models\WhatsAppConnection::where('slug', $value)
                 ->orWhere('id', $value)
@@ -88,8 +95,20 @@ class AppServiceProvider extends ServiceProvider
                 \Log::channel('whatsapp')->error('Connection not found in route binding', [
                     'value' => $value,
                     'type' => is_numeric($value) ? 'id' : 'slug',
+                    'path' => request()->path(),
+                    'all_connections_count' => \App\Modules\WhatsApp\Models\WhatsAppConnection::count(),
                 ]);
                 abort(404, 'Connection not found');
+            }
+            
+            // Ensure connection has a slug (auto-fix)
+            if (empty($connection->slug)) {
+                $connection->slug = \App\Modules\WhatsApp\Models\WhatsAppConnection::generateSlug($connection);
+                $connection->save();
+                \Log::channel('whatsapp')->info('Auto-generated slug for connection', [
+                    'connection_id' => $connection->id,
+                    'new_slug' => $connection->slug,
+                ]);
             }
             
             // Log successful resolution
