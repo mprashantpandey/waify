@@ -62,9 +62,14 @@ export default function BillingPlans({
     };
 
     const handleSwitchPlan = async (planKey: string) => {
+        const isNewPlan = !current_plan_key;
+        const plan = plans.find(p => p.key === planKey);
+        
         const confirmed = await confirm({
-            title: 'Switch Plan',
-            message: 'Are you sure you want to switch to this plan?',
+            title: isNewPlan ? 'Select Plan' : 'Switch Plan',
+            message: isNewPlan 
+                ? `Are you sure you want to select the ${plan?.name} plan?${plan?.trial_days > 0 ? ` You'll start with a ${plan.trial_days}-day free trial.` : ''}`
+                : 'Are you sure you want to switch to this plan?',
             variant: 'info'});
 
         if (!confirmed) return;
@@ -77,14 +82,15 @@ export default function BillingPlans({
             {
                 onSuccess: () => {
                     addToast({
-                        title: 'Plan changed successfully',
+                        title: isNewPlan ? 'Plan selected successfully' : 'Plan changed successfully',
+                        description: isNewPlan ? 'You can now use all features of the platform.' : undefined,
                         variant: 'success'});
                     router.reload({ only: ['plans', 'current_plan_key'] });
                 },
                 onError: (errors) => {
                     const errorMessage = errors?.plan || errors?.error || 'Failed to change plan. Please try again.';
                     addToast({
-                        title: 'Failed to change plan',
+                        title: isNewPlan ? 'Failed to select plan' : 'Failed to change plan',
                         description: errorMessage,
                         variant: 'error'});
                 },
@@ -320,24 +326,49 @@ export default function BillingPlans({
         return limit.toLocaleString();
     };
 
+    const hasNoPlan = !current_plan_key;
+
     return (
         <AppShell>
             <Head title="Available Plans" />
             <div className="space-y-8">
+                {hasNoPlan && (
+                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-6">
+                        <div className="flex items-start gap-4">
+                            <div className="p-2 bg-blue-500 rounded-lg">
+                                <AlertTriangle className="h-6 w-6 text-white" />
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
+                                    No Plan Selected
+                                </h3>
+                                <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">
+                                    Your account doesn't have an active plan. Please select a plan below to continue using the platform. 
+                                    You can start with our free plan or choose a paid plan with a trial.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 <div>
-                    <Link
-                        href={route('app.billing.index', { })}
-                        className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
-                    >
-                        ← Back to Billing
-                    </Link>
+                    {!hasNoPlan && (
+                        <Link
+                            href={route('app.billing.index', { })}
+                            className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
+                        >
+                            ← Back to Billing
+                        </Link>
+                    )}
                     <div className="flex items-center justify-between">
                         <div>
                             <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
-                                Available Plans
+                                {hasNoPlan ? 'Select Your Plan' : 'Available Plans'}
                             </h1>
                             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                                Choose the plan that fits your needs
+                                {hasNoPlan 
+                                    ? 'Choose a plan to get started with the platform' 
+                                    : 'Choose the plan that fits your needs'}
                             </p>
                         </div>
                         <div className="flex gap-2">

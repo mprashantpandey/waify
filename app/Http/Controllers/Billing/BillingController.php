@@ -166,6 +166,9 @@ class BillingController extends Controller
             abort(403, 'Only account owner can change plan.');
         }
 
+        $subscription = $account->subscription;
+        $isNewSubscription = !$subscription;
+
         // For paid plans, require Razorpay checkout (redirect to create order)
         if (($plan->price_monthly ?? 0) > 0) {
             $razorpayProvider = $this->providerManager->get('razorpay');
@@ -182,14 +185,21 @@ class BillingController extends Controller
             ])->with('error', 'Paid plans require payment checkout. Please use the checkout flow.');
         }
 
-        // For free plans, allow direct switching
+        // For free plans, allow direct switching (or initial subscription)
         try {
-            $this->subscriptionService->changePlan($account, $plan, $request->user(), null);
+            if ($isNewSubscription && $plan->trial_days > 0) {
+                // Start trial for new subscriptions with trial days
+                $this->subscriptionService->startTrial($account, $plan, $request->user());
+            } else {
+                // Change plan (or create new subscription for accounts without one)
+                $this->subscriptionService->changePlan($account, $plan, $request->user(), null);
+            }
             
-            \Log::info('Plan changed successfully', [
+            \Log::info('Plan ' . ($isNewSubscription ? 'assigned' : 'changed') . ' successfully', [
                 'account_id' => $account->id,
                 'plan_id' => $plan->id,
-                'plan_name' => $plan->name]);
+                'plan_name' => $plan->name,
+                'is_new_subscription' => $isNewSubscription]);
         } catch (\Exception $e) {
             \Log::error('Plan change failed', [
                 'account_id' => $account->id,
@@ -199,21 +209,25 @@ class BillingController extends Controller
             
             if ($request->header('X-Inertia')) {
                 return back()->withErrors([
-                    'plan' => 'Failed to change plan: ' . $e->getMessage()
-                ])->with('error', 'Failed to change plan: ' . $e->getMessage());
+                    'plan' => 'Failed to ' . ($isNewSubscription ? 'assign' : 'change') . ' plan: ' . $e->getMessage()
+                ])->with('error', 'Failed to ' . ($isNewSubscription ? 'assign' : 'change') . ' plan: ' . $e->getMessage());
             }
             
-            return redirect()->back()->with('error', 'Failed to change plan: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Failed to ' . ($isNewSubscription ? 'assign' : 'change') . ' plan: ' . $e->getMessage());
         }
 
-        // Redirect back to plans page to show updated plan status
-        // Use Inertia redirect for proper handling
+        // Redirect back to plans page or dashboard
+        $successMessage = $isNewSubscription 
+            ? 'Plan assigned successfully! You can now use all features.' 
+            : 'Plan changed successfully.';
+        
         if ($request->header('X-Inertia')) {
-            return Inertia::location(route('app.billing.plans'));
+            return redirect()->route('app.billing.plans')
+                ->with('success', $successMessage);
         }
         
         return redirect()->route('app.billing.plans')
-            ->with('success', 'Plan changed successfully.');
+            ->with('success', $successMessage);
     }
 
     /**

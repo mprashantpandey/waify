@@ -29,9 +29,22 @@ class EnsureAccountSubscribed
             return $next($request);
         }
 
-        // If no subscription, allow (will be on free plan)
+        // If no subscription, redirect to plan selection (except for billing routes)
         if (!$subscription) {
-            return $next($request);
+            $route = $request->route()?->getName();
+            // Allow access to billing pages, onboarding, and profile
+            if ($route && (
+                str_contains($route, 'billing') || 
+                str_contains($route, 'settings') ||
+                str_contains($route, 'onboarding') ||
+                str_contains($route, 'profile')
+            )) {
+                return $next($request);
+            }
+            
+            // Redirect to plan selection page with message
+            return redirect()->route('app.billing.plans')
+                ->with('message', 'Please select a plan to continue using the platform.');
         }
 
         // Block if past_due or canceled (no grace period for now)
