@@ -44,12 +44,16 @@ class ConversationUpdated implements ShouldBroadcast
 
     /**
      * Get the data to broadcast.
+     * Include contact and connection so the inbox can show new conversations without a full refetch.
      */
     public function broadcastWith(): array
     {
+        $conversation = $this->conversation;
+        $conversation->loadMissing(['contact', 'connection']);
+
         $tags = [];
-        if ($this->conversation->relationLoaded('contact') && $this->conversation->contact) {
-            $tags = $this->conversation->contact->tags?->map(function ($tag) {
+        if ($conversation->contact && $conversation->contact->relationLoaded('tags')) {
+            $tags = $conversation->contact->tags?->map(function ($tag) {
                 return [
                     'id' => $tag->id,
                     'name' => $tag->name,
@@ -60,22 +64,35 @@ class ConversationUpdated implements ShouldBroadcast
 
         $priority = null;
         if (Schema::hasColumn('whatsapp_conversations', 'priority')) {
-            $priority = $this->conversation->priority;
+            $priority = $conversation->priority;
         }
 
         $assigneeId = null;
         if (Schema::hasColumn('whatsapp_conversations', 'assigned_to')) {
-            $assigneeId = $this->conversation->assigned_to;
+            $assigneeId = $conversation->assigned_to;
         }
 
         return [
             'conversation' => [
-                'id' => $this->conversation->id,
-                'status' => $this->conversation->status,
+                'id' => $conversation->id,
+                'status' => $conversation->status,
                 'priority' => $priority,
                 'assignee_id' => $assigneeId,
+                'assigned_to' => $assigneeId,
                 'tags' => $tags,
-                'last_activity_at' => $this->conversation->last_message_at?->toIso8601String(),
-                'last_message_preview' => $this->conversation->last_message_preview]];
+                'last_activity_at' => $conversation->last_message_at?->toIso8601String(),
+                'last_message_at' => $conversation->last_message_at?->toIso8601String(),
+                'last_message_preview' => $conversation->last_message_preview,
+                'contact' => $conversation->contact ? [
+                    'id' => $conversation->contact->id,
+                    'wa_id' => $conversation->contact->wa_id,
+                    'name' => $conversation->contact->name ?? $conversation->contact->wa_id,
+                ] : null,
+                'connection' => $conversation->connection ? [
+                    'id' => $conversation->connection->id,
+                    'name' => $conversation->connection->name,
+                ] : null,
+            ],
+        ];
     }
 }

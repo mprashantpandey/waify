@@ -44,7 +44,16 @@ class InboxStreamController extends Controller
                     'last_message_preview' => $conversation->last_message_preview,
                     'last_message_at' => $conversation->last_message_at?->toIso8601String(),
                     'connection' => [
-                        'name' => $conversation->connection->name]];
+                        'id' => $conversation->connection->id,
+                        'name' => $conversation->connection->name,
+                    ],
+                    'assigned_to' => Schema::hasColumn('whatsapp_conversations', 'assigned_to')
+                        ? $conversation->assigned_to
+                        : null,
+                    'priority' => Schema::hasColumn('whatsapp_conversations', 'priority')
+                        ? $conversation->priority
+                        : null,
+                ];
             });
 
         // Get new message notifications (conversations with new messages)

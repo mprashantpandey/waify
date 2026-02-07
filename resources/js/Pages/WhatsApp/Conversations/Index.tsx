@@ -51,7 +51,6 @@ export default function ConversationsIndex({
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [connectionFilter, setConnectionFilter] = useState<number | 'all'>('all');
-    const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
     const lastPollRef = useRef<Date>(new Date());
     const processedMessageIds = useRef<Set<string>>(new Set());
     const assignmentStateRef = useRef<Map<number, number | null>>(
@@ -83,6 +82,29 @@ export default function ConversationsIndex({
         const date = new Date(value);
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     };
+
+    const api = typeof window !== 'undefined' && (window as any).axios ? (window as any).axios : axios;
+
+    const fetchInboxStreamAndMerge = useCallback(() => {
+        if (!account?.id) return;
+        const since = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+        api.get(route('app.whatsapp.inbox.stream', {}), { params: { since } })
+            .then((response: any) => {
+                const list = response.data?.updated_conversations;
+                if (!list?.length) return;
+                setConversations((prev) => {
+                    const byId = new Map(prev.map((c) => [c.id, c]));
+                    list.forEach((conv: Conversation) => byId.set(conv.id, conv));
+                    return Array.from(byId.values()).sort((a, b) => {
+                        const timeA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+                        const timeB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+                        return timeB - timeA;
+                    });
+                });
+                lastPollRef.current = new Date(response.data?.server_time || new Date());
+            })
+            .catch((err: any) => console.warn('[Inbox] Stream fetch failed:', err?.message));
+    }, [account?.id]);
 
     // Filter conversations
     const filteredConversations = useMemo(() => {
@@ -137,8 +159,8 @@ export default function ConversationsIndex({
         const index = prev.findIndex((c) => c.id === convId);
         if (index >= 0) {
             const updated = { ...prev[index] };
-            updated.last_message_preview = data.message?.text || data.message?.body || 'New message';
-            updated.last_message_at = data.message?.timestamp || new Date().toISOString();
+            updated.last_message_preview = data.message?.text_body ?? data.message?.text ?? data.message?.body ?? 'New message';
+            updated.last_message_at = data.message?.created_at ?? data.message?.timestamp ?? new Date().toISOString();
             const newList = [...prev];
             newList[index] = updated;
             return newList.sort((a, b) => {
@@ -163,10 +185,16 @@ export default function ConversationsIndex({
                 const eventId = `conv-updated-${data.conversation?.id}-${data.conversation?.updated_at || data.conversation?.last_message_at || ''}`;
                 if (!processedMessageIds.current.has(eventId)) {
                     processedMessageIds.current.add(eventId);
-                    const incoming = {
-                        ...data.conversation,
-                        assigned_to: data.conversation?.assignee_id ?? data.conversation?.assigned_to ?? null,
-                        priority: data.conversation?.priority ?? null,
+                    const conv = data.conversation || {};
+                    const incoming: Conversation = {
+                        id: conv.id,
+                        contact: conv.contact ?? { id: 0, wa_id: '', name: '' },
+                        status: conv.status ?? 'open',
+                        last_message_preview: conv.last_message_preview ?? null,
+                        last_message_at: conv.last_message_at ?? conv.last_activity_at ?? null,
+                        connection: conv.connection ?? { id: 0, name: '' },
+                        assigned_to: conv.assignee_id ?? conv.assigned_to ?? null,
+                        priority: conv.priority ?? null,
                     };
                     setConversations((prev) => applyConversationUpdated(prev, incoming));
 
@@ -198,16 +226,20 @@ export default function ConversationsIndex({
                 if (!processedMessageIds.current.has(eventId)) {
                     processedMessageIds.current.add(eventId);
                     setConversations((prev) => {
+                        const hadConversation = prev.some((c) => c.id === data.conversation_id);
                         const updated = applyMessageCreated(prev, data);
-                        if (data.message?.direction === 'inbound') {
-                            addToast({
-                                title: 'New message',
-                                description: `From ${data.contact?.name || data.message?.from}`,
-                                variant: 'info',
-                                duration: 3000});
+                        if (!hadConversation && data.conversation_id) {
+                            fetchInboxStreamAndMerge();
                         }
                         return updated;
                     });
+                    if (data.message?.direction === 'inbound') {
+                        addToast({
+                            title: 'New message',
+                            description: `From ${data.contact?.name || data.message?.from}`,
+                            variant: 'info',
+                            duration: 3000});
+                    }
                     if (processedMessageIds.current.size > 100) {
                         const ids = Array.from(processedMessageIds.current);
                         processedMessageIds.current = new Set(ids.slice(-50));
@@ -220,60 +252,17 @@ export default function ConversationsIndex({
             unsubscribeConversationUpdated();
             unsubscribeMessageCreated();
         };
-    }, [account?.id, subscribe, addToast, currentUserId, notifyAssignmentEnabled, playNotificationSound]);
+    }, [account?.id, subscribe, addToast, currentUserId, notifyAssignmentEnabled, playNotificationSound, fetchInboxStreamAndMerge]);
 
-    // Fallback polling when disconnected
+    // Always-on polling so inbox updates even when realtime fails (every 20s)
     useEffect(() => {
-        if (connected || !account?.id) {
-            if (pollingInterval) {
-                clearInterval(pollingInterval);
-                setPollingInterval(null);
-            }
-            return;
-        }
+        if (!account?.id) return;
 
-        const poll = async () => {
-            try {
-                const response = await axios.get(
-                    route('app.whatsapp.inbox.stream', {}),
-                    {
-                        params: {
-                            since: lastPollRef.current.toISOString()}}
-                );
+        const interval = setInterval(fetchInboxStreamAndMerge, 20000);
+        fetchInboxStreamAndMerge();
 
-                if (response.data.updated_conversations?.length > 0) {
-                    setConversations((prev) => {
-                        let updated = [...prev];
-                        response.data.updated_conversations.forEach((conv: Conversation) => {
-                            const index = updated.findIndex((c) => c.id === conv.id);
-                            if (index >= 0) {
-                                updated[index] = conv;
-                            } else {
-                                updated.unshift(conv);
-                            }
-                        });
-                        return updated.sort((a, b) => {
-                            const timeA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
-                            const timeB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
-                            return timeB - timeA;
-                        });
-                    });
-                }
-
-                lastPollRef.current = new Date(response.data.server_time || new Date());
-            } catch (error) {
-                console.error('[Inbox] Polling error:', error);
-            }
-        };
-
-        const interval = setInterval(poll, 30000);
-        setPollingInterval(interval);
-        poll();
-
-        return () => {
-            clearInterval(interval);
-        };
-    }, [connected, account?.id, account?.slug]);
+        return () => clearInterval(interval);
+    }, [account?.id, fetchInboxStreamAndMerge]);
 
     // Keyboard shortcuts
     useEffect(() => {
