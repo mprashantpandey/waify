@@ -209,7 +209,7 @@ export default function ConversationsIndex({
                             playNotificationSound();
                         }
                     }
-                    assignmentStateRef.current.set(incoming.id, incoming.assigned_to);
+                    assignmentStateRef.current.set(incoming.id, incoming.assigned_to ?? null);
                     if (processedMessageIds.current.size > 100) {
                         const ids = Array.from(processedMessageIds.current);
                         processedMessageIds.current = new Set(ids.slice(-50));

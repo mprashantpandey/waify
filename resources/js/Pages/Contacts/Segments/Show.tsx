@@ -53,8 +53,10 @@ export default function SegmentsShow({
     const handleDelete = () => {
         if (!confirm(`Delete segment "${segment.name}"?`)) return;
         router.delete(route('app.contacts.segments.destroy', { segment: segment.id }), {
-            onSuccess: () => toast.success('Segment deleted'),
-            redirect: route('app.contacts.segments.index'),
+            onSuccess: () => {
+                toast.success('Segment deleted');
+                router.visit(route('app.contacts.segments.index'));
+            },
         });
     };
 
