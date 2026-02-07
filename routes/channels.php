@@ -31,6 +31,7 @@ Broadcast::channel('account.{accountId}.whatsapp.inbox', function ($user, $accou
     $account = \App\Models\Account::find($accountId);
     
     if (!$account) {
+        \Log::debug('WhatsApp inbox channel auth denied: account not found', ['user_id' => $user->id, 'account_id' => $accountId]);
         return false;
     }
     
@@ -39,9 +40,11 @@ Broadcast::channel('account.{accountId}.whatsapp.inbox', function ($user, $accou
     $membership = $account->users()->where('user_id', $user->id)->first();
     
     if (!$isOwner && !$membership) {
+        \Log::debug('WhatsApp inbox channel auth denied: not owner or member', ['user_id' => $user->id, 'account_id' => $accountId]);
         return false;
     }
     
+    \Log::debug('WhatsApp inbox channel auth granted', ['user_id' => $user->id, 'account_id' => $accountId, 'via' => $isOwner ? 'owner' : 'member']);
     // Return minimal user data for presence if needed
     return [
         'id' => $user->id,
@@ -54,6 +57,7 @@ Broadcast::channel('account.{accountId}.whatsapp.conversation.{conversationId}',
     $account = \App\Models\Account::find($accountId);
     
     if (!$account) {
+        \Log::debug('WhatsApp conversation channel auth denied: account not found', ['user_id' => $user->id, 'account_id' => $accountId]);
         return false;
     }
     
@@ -62,6 +66,7 @@ Broadcast::channel('account.{accountId}.whatsapp.conversation.{conversationId}',
     $membership = $account->users()->where('user_id', $user->id)->first();
     
     if (!$isOwner && !$membership) {
+        \Log::debug('WhatsApp conversation channel auth denied: not owner or member', ['user_id' => $user->id, 'account_id' => $accountId]);
         return false;
     }
     
@@ -69,9 +74,11 @@ Broadcast::channel('account.{accountId}.whatsapp.conversation.{conversationId}',
     $conversation = \App\Modules\WhatsApp\Models\WhatsAppConversation::find($conversationId);
     
     if (!$conversation || $conversation->account_id !== (int) $accountId) {
+        \Log::debug('WhatsApp conversation channel auth denied: conversation not found or wrong account', ['user_id' => $user->id, 'account_id' => $accountId, 'conversation_id' => $conversationId]);
         return false;
     }
     
+    \Log::debug('WhatsApp conversation channel auth granted', ['user_id' => $user->id, 'account_id' => $accountId, 'conversation_id' => $conversationId, 'via' => $isOwner ? 'owner' : 'member']);
     // Return minimal user data
     return [
         'id' => $user->id,
