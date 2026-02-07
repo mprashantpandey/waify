@@ -34,10 +34,11 @@ Broadcast::channel('account.{accountId}.whatsapp.inbox', function ($user, $accou
         return false;
     }
     
-    // Check if user is a member of this account
+    // Owner always has access; otherwise check account_users pivot
+    $isOwner = $account->owner_id && (int) $account->owner_id === (int) $user->id;
     $membership = $account->users()->where('user_id', $user->id)->first();
     
-    if (!$membership) {
+    if (!$isOwner && !$membership) {
         return false;
     }
     
@@ -56,10 +57,11 @@ Broadcast::channel('account.{accountId}.whatsapp.conversation.{conversationId}',
         return false;
     }
     
-    // Check if user is a member of this account
+    // Owner always has access; otherwise check account_users pivot
+    $isOwner = $account->owner_id && (int) $account->owner_id === (int) $user->id;
     $membership = $account->users()->where('user_id', $user->id)->first();
     
-    if (!$membership) {
+    if (!$isOwner && !$membership) {
         return false;
     }
     
