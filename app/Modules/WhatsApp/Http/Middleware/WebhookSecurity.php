@@ -21,6 +21,7 @@ class WebhookSecurity
         $signatureHeader = $request->header('X-Hub-Signature-256');
         if (!empty($appSecret) && $request->isMethod('post')) {
             if (!$signatureHeader) {
+                Log::channel('whatsapp')->warning('Webhook POST rejected: missing X-Hub-Signature-256 (app_secret is set)');
                 abort(401, 'Missing signature');
             }
 
@@ -28,6 +29,7 @@ class WebhookSecurity
             $expected = 'sha256=' . hash_hmac('sha256', $rawBody, $appSecret);
 
             if (!hash_equals($expected, $signatureHeader)) {
+                Log::channel('whatsapp')->warning('Webhook POST rejected: invalid signature (check META_APP_SECRET matches Meta App Secret)');
                 abort(401, 'Invalid signature');
             }
         }

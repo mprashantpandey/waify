@@ -152,23 +152,19 @@ class WebhookController extends Controller
 
     /**
      * Receive webhook endpoint (POST).
+     * Connection is resolved by route model binding (slug or id).
      */
-    public function receive(Request $request, $connection)
+    public function receive(Request $request, WhatsAppConnection $connection)
     {
-        $connection = $this->resolveConnection($connection);
-        if (!$connection) {
-            Log::channel('whatsapp')->warning('Webhook receive failed: connection not found', [
-                'connection_param' => $request->route('connection'),
-                'ip' => $request->ip(),
-                'path' => $request->path(),
-            ]);
-            return response()->json([
-                'success' => false,
-                'error' => 'Connection not found',
-            ], 404);
-        }
-
         $correlationId = $request->attributes->get('webhook_correlation_id', Str::uuid()->toString());
+
+        Log::channel('whatsapp')->info('WebhookController::receive POST', [
+            'correlation_id' => $correlationId,
+            'connection_id' => $connection->id,
+            'connection_slug' => $connection->slug,
+            'payload_keys' => array_keys($request->all()),
+            'entry_count' => is_array($request->input('entry')) ? count($request->input('entry')) : 0,
+        ]);
 
         // Rate limit webhook reception per connection
         $key = 'webhook-receive-' . $connection->id;
@@ -200,6 +196,19 @@ class WebhookController extends Controller
                 'error' => 'Invalid payload',
                 'correlation_id' => $correlationId], 400);
         }
+
+        // Log message presence for debugging (Meta sends entry[].changes[].value.messages)
+        $entries = $payload['entry'] ?? [];
+        $firstChange = $entries[0]['changes'][0] ?? null;
+        $firstValue = $firstChange['value'] ?? [];
+        $messageCount = isset($firstValue['messages']) ? count($firstValue['messages']) : 0;
+        Log::channel('whatsapp')->info('Webhook payload messages check', [
+            'correlation_id' => $correlationId,
+            'connection_id' => $connection->id,
+            'first_change_field' => $firstChange['field'] ?? null,
+            'value_keys' => array_keys($firstValue),
+            'messages_count' => $messageCount,
+        ]);
 
         // Log payload size (for monitoring)
         $payloadSize = strlen(json_encode($payload));

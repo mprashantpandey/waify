@@ -59,12 +59,35 @@ class WebhookProcessor
             $messagesProcessed = 0;
             $statusesProcessed = 0;
 
-            foreach ($entries as $entry) {
+            foreach ($entries as $entryIndex => $entry) {
                 $changes = $entry['changes'] ?? [];
-                foreach ($changes as $change) {
+                foreach ($changes as $changeIndex => $change) {
                     $value = $change['value'] ?? [];
                     $messages = $value['messages'] ?? [];
                     $statuses = $value['statuses'] ?? [];
+                    $field = $change['field'] ?? null;
+
+                    // If payload has phone_number_id, it must match this connection (when one URL is used for multiple numbers)
+                    $payloadPhoneNumberId = $value['metadata']['phone_number_id'] ?? null;
+                    if ($payloadPhoneNumberId !== null && $connection->phone_number_id !== null && $payloadPhoneNumberId !== $connection->phone_number_id) {
+                        Log::channel('whatsapp')->info('Webhook change skipped: phone_number_id does not match connection', [
+                            'correlation_id' => $correlationId,
+                            'connection_id' => $connection->id,
+                            'payload_phone_number_id' => $payloadPhoneNumberId,
+                            'connection_phone_number_id' => $connection->phone_number_id,
+                        ]);
+                        continue;
+                    }
+
+                    Log::channel('whatsapp')->info('Webhook processing change', [
+                        'correlation_id' => $correlationId,
+                        'connection_id' => $connection->id,
+                        'entry_index' => $entryIndex,
+                        'change_index' => $changeIndex,
+                        'field' => $field,
+                        'messages_count' => count($messages),
+                        'statuses_count' => count($statuses),
+                    ]);
 
                     foreach ($messages as $messageData) {
                         $this->processMessage($messageData, $value, $connection, $correlationId);
@@ -144,24 +167,27 @@ class WebhookProcessor
                 return;
             }
 
+            $contactName = isset($value['contacts'][0]['profile']['name'])
+                ? $value['contacts'][0]['profile']['name']
+                : null;
+
             // Get or create contact with lock to prevent conflicts with ContactService
-            $contact = DB::transaction(function () use ($connection, $fromWaId, $value) {
+            $contact = DB::transaction(function () use ($connection, $fromWaId, $contactName) {
                 return WhatsAppContact::lockForUpdate()
                     ->firstOrCreate(
                         [
                             'account_id' => $connection->account_id,
                             'wa_id' => $fromWaId],
                         [
-                            'name' => $value['contacts'][0]['profile']['name'] ?? null,
+                            'name' => $contactName,
                             'source' => 'webhook']
                     );
             });
 
             // Update contact name if provided (with lock)
-            if (isset($value['contacts'][0]['profile']['name'])) {
+            if ($contactName !== null) {
                 $contact->lockForUpdate();
-                $contact->update([
-                    'name' => $value['contacts'][0]['profile']['name']]);
+                $contact->update(['name' => $contactName]);
             }
 
             // Get or create conversation
@@ -198,6 +224,16 @@ class WebhookProcessor
                 'payload' => $messageData,
                 'status' => 'delivered', // Inbound messages are considered delivered
                 'received_at' => now()]);
+
+            Log::channel('whatsapp')->info('Inbound message created', [
+                'correlation_id' => $correlationId,
+                'connection_id' => $connection->id,
+                'message_id' => $message->id,
+                'conversation_id' => $conversation->id,
+                'meta_message_id' => $metaMessageId,
+                'from' => $fromWaId,
+                'type' => $messageType,
+            ]);
 
             // Update conversation
             $conversation->update([
