@@ -346,7 +346,7 @@ class ContactController extends Controller
             $this->contactService->mergeContacts($contact, $validated['duplicate_ids']);
 
             return redirect()->route('app.contacts.show', [
-                'contact' => $contact->id])->with('success', 'Contacts merged successfully.');
+                'contact' => $contact->slug])->with('success', 'Contacts merged successfully.');
         } catch (\Exception $e) {
             return back()->withErrors(['error' => 'Failed to merge contacts: ' . $e->getMessage()]);
         }

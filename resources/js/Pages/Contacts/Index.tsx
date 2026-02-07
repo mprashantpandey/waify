@@ -3,7 +3,7 @@ import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
 import Button from '@/Components/UI/Button';
-import { Plus, Search, Download, Upload, Users, Filter } from 'lucide-react';
+import { Plus, Search, Download, Upload, Users, Filter, Tag, FolderOpen } from 'lucide-react';
 import { Head } from '@inertiajs/react';
 import { useState, FormEventHandler } from 'react';
 import TextInput from '@/Components/TextInput';
@@ -91,7 +91,19 @@ export default function ContactsIndex({
                             Manage your contacts and customer relationships
                         </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
+                        <Link href={route('app.contacts.tags.index')}>
+                            <Button variant="secondary">
+                                <Tag className="h-4 w-4 mr-2" />
+                                Tags
+                            </Button>
+                        </Link>
+                        <Link href={route('app.contacts.segments.index')}>
+                            <Button variant="secondary">
+                                <FolderOpen className="h-4 w-4 mr-2" />
+                                Segments
+                            </Button>
+                        </Link>
                         <Link href={route('app.contacts.export', {})}>
                             <Button variant="secondary">
                                 <Download className="h-4 w-4 mr-2" />
