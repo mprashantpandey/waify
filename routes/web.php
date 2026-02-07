@@ -233,7 +233,12 @@ Route::middleware(['auth', 'account.resolve'])->prefix('/app')->name('app.')->gr
 // Webhook routes (public, no auth, but with security middleware)
 // Note: These routes are excluded from CSRF, rate limiting, and maintenance mode
 Route::prefix('/webhooks/whatsapp')
-    ->middleware([\App\Http\Middleware\EnsureWebhooksEnabled::class, \App\Modules\WhatsApp\Http\Middleware\WebhookSecurity::class, \App\Http\Middleware\LogApiRequests::class])
+    ->middleware([
+        \App\Http\Middleware\LogMetaWhatsAppWebhook::class,
+        \App\Http\Middleware\EnsureWebhooksEnabled::class,
+        \App\Modules\WhatsApp\Http\Middleware\WebhookSecurity::class,
+        \App\Http\Middleware\LogApiRequests::class,
+    ])
     ->name('webhooks.whatsapp.')
     ->group(function () {
         // Test endpoint to verify webhook route is accessible (no route binding)

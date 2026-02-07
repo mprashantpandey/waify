@@ -26,6 +26,11 @@ class WebhookController extends Controller
     {
         try {
             // Connection is already resolved by route model binding
+            Log::info('[Meta-WhatsApp-Webhook] GET verify called', [
+                'connection_id' => $connection->id,
+                'connection_slug' => $connection->slug,
+                'path' => $request->path(),
+            ]);
             Log::channel('whatsapp')->info('WebhookController::verify called', [
             'connection_id' => $connection->id,
             'connection_slug' => $connection->slug,
@@ -108,6 +113,7 @@ class WebhookController extends Controller
                 // Mark as subscribed
                 $connection->update(['webhook_subscribed' => true]);
 
+                Log::info('[Meta-WhatsApp-Webhook] GET verify success', ['connection_id' => $connection->id]);
                 Log::channel('whatsapp')->info('Webhook verified successfully - returning challenge', [
                     'connection_id' => $connection->id,
                     'connection_slug' => $connection->slug,
@@ -158,12 +164,19 @@ class WebhookController extends Controller
     {
         $correlationId = $request->attributes->get('webhook_correlation_id', Str::uuid()->toString());
 
+        $entryCount = is_array($request->input('entry')) ? count($request->input('entry')) : 0;
+        Log::info('[Meta-WhatsApp-Webhook] POST receive hit', [
+            'connection_id' => $connection->id,
+            'connection_slug' => $connection->slug,
+            'entry_count' => $entryCount,
+            'payload_keys' => array_keys($request->all()),
+        ]);
         Log::channel('whatsapp')->info('WebhookController::receive POST', [
             'correlation_id' => $correlationId,
             'connection_id' => $connection->id,
             'connection_slug' => $connection->slug,
             'payload_keys' => array_keys($request->all()),
-            'entry_count' => is_array($request->input('entry')) ? count($request->input('entry')) : 0,
+            'entry_count' => $entryCount,
         ]);
 
         // Rate limit webhook reception per connection
@@ -187,6 +200,10 @@ class WebhookController extends Controller
         // Validate payload structure (basic check)
         $payload = $request->all();
         if (empty($payload) || !isset($payload['entry'])) {
+            Log::warning('[Meta-WhatsApp-Webhook] POST rejected: invalid payload (empty or no entry)', [
+                'connection_id' => $connection->id,
+                'payload_keys' => array_keys($payload),
+            ]);
             Log::channel('whatsapp')->warning('Invalid webhook payload structure', [
                 'correlation_id' => $correlationId,
                 'connection_id' => $connection->id]);
@@ -202,6 +219,11 @@ class WebhookController extends Controller
         $firstChange = $entries[0]['changes'][0] ?? null;
         $firstValue = $firstChange['value'] ?? [];
         $messageCount = isset($firstValue['messages']) ? count($firstValue['messages']) : 0;
+        Log::info('[Meta-WhatsApp-Webhook] POST payload', [
+            'connection_id' => $connection->id,
+            'messages_count' => $messageCount,
+            'field' => $firstChange['field'] ?? null,
+        ]);
         Log::channel('whatsapp')->info('Webhook payload messages check', [
             'correlation_id' => $correlationId,
             'connection_id' => $connection->id,
@@ -223,10 +245,15 @@ class WebhookController extends Controller
             // Process webhook with correlation ID
             $this->webhookProcessor->process($payload, $connection, $correlationId);
 
+            Log::info('[Meta-WhatsApp-Webhook] POST processed OK', ['connection_id' => $connection->id]);
             return response()->json([
                 'success' => true,
                 'correlation_id' => $correlationId], 200);
         } catch (\Exception $e) {
+            Log::warning('[Meta-WhatsApp-Webhook] POST processing failed', [
+                'connection_id' => $connection->id,
+                'error' => $e->getMessage(),
+            ]);
             Log::channel('whatsapp')->error('Webhook processing error', [
                 'correlation_id' => $correlationId,
                 'connection_id' => $connection->id,

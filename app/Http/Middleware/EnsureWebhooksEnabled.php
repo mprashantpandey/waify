@@ -39,6 +39,10 @@ class EnsureWebhooksEnabled
 
         // Only block if explicitly disabled (both must be true to allow)
         if (!$webhooksEnabled || ($integrationsWebhooksEnabled !== null && !$integrationsEnabled)) {
+            \Log::warning('[Meta-WhatsApp-Webhook] Request blocked: webhooks disabled', [
+                'path' => $request->path(),
+                'method' => $request->method(),
+            ]);
             \Log::channel('whatsapp')->warning('Webhook blocked: webhooks disabled', [
                 'path' => $request->path(),
                 'webhooks_enabled' => $webhooksEnabled,
