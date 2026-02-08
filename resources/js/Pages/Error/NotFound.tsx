@@ -34,7 +34,7 @@ export default function NotFound() {
                         Go back
                     </Button>
                     <Link href={typeof route !== 'undefined' ? route('app.dashboard') : '/app/dashboard'}>
-                        <Button variant={isConversationNotFound ? 'secondary' : 'default'}>
+                        <Button variant={isConversationNotFound ? 'secondary' : 'primary'}>
                             <Home className="h-4 w-4 mr-2" />
                             Dashboard
                         </Button>
