@@ -49,15 +49,20 @@ class TemplateManagementService
             $responseData = $response->json();
 
             if (!$response->successful()) {
-                $errorMessage = $responseData['error']['message'] ?? 'Unknown error from WhatsApp API';
-                $errorCode = $responseData['error']['code'] ?? $response->status();
-                $errorSubcode = $responseData['error']['error_subcode'] ?? null;
+                $err = $responseData['error'] ?? [];
+                $errorMessage = $err['message'] ?? 'Unknown error from WhatsApp API';
+                $errorCode = $err['code'] ?? $response->status();
+                $userMsg = $err['error_user_msg'] ?? $err['error_user_title'] ?? null;
+                if ($userMsg && $userMsg !== $errorMessage) {
+                    $errorMessage = $errorMessage . ' (' . $userMsg . ')';
+                }
 
                 Log::channel('whatsapp')->error('Template creation API error', [
                     'connection_id' => $connection->id,
                     'waba_id' => $wabaId,
-                    'error' => $responseData['error'] ?? [],
-                    'payload' => $payload]);
+                    'error' => $err,
+                    'payload' => $payload,
+                ]);
 
                 throw new WhatsAppApiException(
                     "Failed to create template: {$errorMessage}",
@@ -216,6 +221,7 @@ class TemplateManagementService
 
     /**
      * Build template payload according to Meta's latest API format.
+     * See: https://developers.facebook.com/docs/whatsapp/business-management-api/message-templates/components
      */
     protected function buildTemplatePayload(array $data): array
     {
@@ -223,19 +229,23 @@ class TemplateManagementService
             'name' => $data['name'],
             'language' => $data['language'],
             'category' => strtoupper($data['category']),
-            'components' => []];
+            'components' => [],
+        ];
 
         // Header component
         if (!empty($data['header_type']) && $data['header_type'] !== 'NONE') {
             $header = [
                 'type' => 'HEADER',
-                'format' => strtoupper($data['header_type'])];
+                'format' => strtoupper($data['header_type']),
+            ];
 
             if ($data['header_type'] === 'TEXT' && !empty($data['header_text'])) {
                 $header['text'] = $data['header_text'];
             } elseif (in_array($data['header_type'], ['IMAGE', 'VIDEO', 'DOCUMENT']) && !empty($data['header_media_url'])) {
+                // Meta accepts a URL for sample media; for production, Resumable Upload handle is preferred
                 $header['example'] = [
-                    'header_handle' => [$data['header_media_url']]];
+                    'header_handle' => [$data['header_media_url']],
+                ];
             }
 
             $payload['components'][] = $header;
@@ -245,36 +255,32 @@ class TemplateManagementService
         if (!empty($data['body_text'])) {
             $body = [
                 'type' => 'BODY',
-                'text' => $data['body_text']];
+                'text' => $data['body_text'],
+            ];
 
-            // Add example if variables exist
-            if (!empty($data['body_examples']) && is_array($data['body_examples'])) {
+            // Only add example when body contains variables ({{1}}, {{2}}, etc.); otherwise Meta returns "Invalid parameter"
+            $hasBodyVariables = (bool) preg_match('/\{\{\d+\}\}/', $data['body_text']);
+            if ($hasBodyVariables && !empty($data['body_examples']) && is_array($data['body_examples'])) {
                 $body['example'] = [
-                    'body_text' => [$data['body_examples']]];
+                    'body_text' => [array_values($data['body_examples'])],
+                ];
             }
 
             $payload['components'][] = $body;
         }
 
-        // Footer component
-        if (!empty($data['footer_text'])) {
-            $payload['components'][] = [
-                'type' => 'FOOTER',
-                'text' => $data['footer_text']];
-        }
-
-        // Buttons
+        // Buttons (Meta expects BUTTONS before FOOTER)
         if (!empty($data['buttons']) && is_array($data['buttons'])) {
             $buttonComponents = [];
             foreach ($data['buttons'] as $button) {
                 $buttonType = strtoupper($button['type'] ?? '');
                 $buttonData = [
                     'type' => $buttonType,
-                    'text' => $button['text'] ?? ''];
+                    'text' => $button['text'] ?? '',
+                ];
 
                 if ($buttonType === 'URL' && !empty($button['url'])) {
                     $buttonData['url'] = $button['url'];
-                    // Add example if dynamic URL
                     if (!empty($button['url_example'])) {
                         $buttonData['example'] = [$button['url_example']];
                     }
@@ -288,8 +294,17 @@ class TemplateManagementService
             if (!empty($buttonComponents)) {
                 $payload['components'][] = [
                     'type' => 'BUTTONS',
-                    'buttons' => $buttonComponents];
+                    'buttons' => $buttonComponents,
+                ];
             }
+        }
+
+        // Footer component
+        if (!empty($data['footer_text'])) {
+            $payload['components'][] = [
+                'type' => 'FOOTER',
+                'text' => $data['footer_text'],
+            ];
         }
 
         return $payload;

@@ -211,7 +211,7 @@ class TemplateController extends Controller
         $validated = $request->validate([
             'whatsapp_connection_id' => 'required|exists:whatsapp_connections,id',
             'name' => 'required|string|max:512|regex:/^[a-zA-Z0-9_]+$/',
-            'language' => 'required|string|size:5',
+            'language' => 'required|string|min:2|max:10|regex:/^[a-z]{2}(_[A-Z]{2})?$/',
             'category' => 'required|in:MARKETING,UTILITY,AUTHENTICATION',
             'header_type' => 'nullable|in:NONE,TEXT,IMAGE,VIDEO,DOCUMENT',
             'header_text' => 'nullable|string|max:60|required_if:header_type,TEXT',
@@ -349,7 +349,7 @@ class TemplateController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:512|regex:/^[a-zA-Z0-9_]+$/',
-            'language' => 'required|string|size:5',
+            'language' => 'required|string|min:2|max:10|regex:/^[a-z]{2}(_[A-Z]{2})?$/',
             'category' => 'required|in:MARKETING,UTILITY,AUTHENTICATION',
             'header_type' => 'nullable|in:NONE,TEXT,IMAGE,VIDEO,DOCUMENT',
             'header_text' => 'nullable|string|max:60|required_if:header_type,TEXT',
