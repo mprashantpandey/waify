@@ -1,4 +1,4 @@
-import { Link, usePage, router, Head } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import AppShell from '@/Layouts/AppShell';
 import { Badge } from '@/Components/UI/Badge';
@@ -8,8 +8,7 @@ import { ConversationSkeleton } from '@/Components/UI/Skeleton';
 import { useToast } from '@/hooks/useToast';
 import axios from 'axios';
 import TextInput from '@/Components/TextInput';
-import { cn } from '@/lib/utils';
-import ConversationsShow from './Show';
+import { Head } from '@inertiajs/react';
 
 interface Conversation {
     id: number;
@@ -33,8 +32,7 @@ interface Conversation {
 export default function ConversationsIndex({
     account,
     conversations: initialConversations,
-    connections,
-    active_conversation = null}: {
+    connections}: {
     account: any;
     conversations: {
         data: Conversation[];
@@ -42,16 +40,6 @@ export default function ConversationsIndex({
         meta: any;
     };
     connections?: Array<{ id: number; name: string }>;
-    active_conversation?: {
-        conversation: any;
-        messages: any[];
-        templates?: any[];
-        lists?: any[];
-        notes?: any[];
-        audit_events?: any[];
-        agents?: any[];
-        inbox_settings?: any;
-    } | null;
 }) {
     const { subscribe, connected } = useRealtime();
     const { addToast } = useToast();
@@ -61,9 +49,6 @@ export default function ConversationsIndex({
     const soundEnabled = auth?.user?.notify_sound_enabled ?? true;
     const [conversations, setConversations] = useState<Conversation[]>(
         Array.isArray(initialConversations?.data) ? initialConversations.data : []
-    );
-    const [selectedConversationId, setSelectedConversationId] = useState<number | null>(
-        active_conversation?.conversation?.id ?? null
     );
     const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -316,10 +301,6 @@ export default function ConversationsIndex({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
-    useEffect(() => {
-        setSelectedConversationId(active_conversation?.conversation?.id ?? null);
-    }, [active_conversation?.conversation?.id]);
-
     return (
         <AppShell>
             <Head title="Inbox" />
@@ -432,26 +413,7 @@ export default function ConversationsIndex({
                                                     ? route('app.whatsapp.conversations.show', { conversation: id })
                                                     : '#';
                                             })()}
-                                            onClick={(e) => {
-                                                const id = parseInt(String(conversation.id), 10);
-                                                if (!Number.isInteger(id) || id < 1) {
-                                                    return;
-                                                }
-                                                if (window.innerWidth < 1024) {
-                                                    return;
-                                                }
-                                                e.preventDefault();
-                                                setSelectedConversationId(id);
-                                                router.get(
-                                                    route('app.whatsapp.conversations.index'),
-                                                    { conversation: id },
-                                                    { preserveScroll: true, preserveState: true, only: ['active_conversation'] }
-                                                );
-                                            }}
-                                            className={cn(
-                                                'group block px-4 py-3 hover:bg-[#f0f2f5] dark:hover:bg-gray-800 transition-colors',
-                                                selectedConversationId === Number(conversation.id) ? 'bg-[#f0f2f5] dark:bg-gray-800' : ''
-                                            )}
+                                            className="group block px-4 py-3 hover:bg-[#f0f2f5] dark:hover:bg-gray-800 transition-colors"
                                         >
                                             <div className="flex items-start gap-3">
                                                 <div className="h-11 w-11 rounded-full bg-[#25D366] text-white flex items-center justify-center font-semibold text-lg">
@@ -490,35 +452,16 @@ export default function ConversationsIndex({
                         </div>
                     </section>
 
-                    <section className="hidden lg:flex flex-col bg-[#efeae2] dark:bg-gray-950">
-                        {active_conversation?.conversation ? (
-                            <div className="h-full p-4">
-                                <ConversationsShow
-                                    embedded
-                                    account={account}
-                                    conversation={active_conversation.conversation}
-                                    messages={active_conversation.messages || []}
-                                    templates={active_conversation.templates || []}
-                                    lists={active_conversation.lists || []}
-                                    notes={active_conversation.notes || []}
-                                    audit_events={active_conversation.audit_events || []}
-                                    agents={active_conversation.agents || []}
-                                    inbox_settings={active_conversation.inbox_settings || {}}
-                                />
+                    <section className="hidden lg:flex flex-col items-center justify-center bg-[#efeae2] dark:bg-gray-950">
+                        <div className="text-center max-w-md px-8">
+                            <div className="mx-auto mb-5 h-16 w-16 rounded-2xl bg-white/70 dark:bg-gray-900 flex items-center justify-center shadow-sm">
+                                <MessageSquare className="h-8 w-8 text-[#075E54]" />
                             </div>
-                        ) : (
-                            <div className="flex flex-1 items-center justify-center">
-                                <div className="text-center max-w-md px-8">
-                                    <div className="mx-auto mb-5 h-16 w-16 rounded-2xl bg-white/70 dark:bg-gray-900 flex items-center justify-center shadow-sm">
-                                        <MessageSquare className="h-8 w-8 text-[#075E54]" />
-                                    </div>
-                                    <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">WhatsApp Inbox</h2>
-                                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                                        Select a chat to start messaging. Your conversations update live as messages arrive.
-                                    </p>
-                                </div>
-                            </div>
-                        )}
+                            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">WhatsApp Inbox</h2>
+                            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                                Select a chat to start messaging. Your conversations update live as messages arrive.
+                            </p>
+                        </div>
                     </section>
                 </div>
             </div>
