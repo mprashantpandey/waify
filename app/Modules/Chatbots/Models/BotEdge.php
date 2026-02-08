@@ -3,32 +3,28 @@
 namespace App\Modules\Chatbots\Models;
 
 use App\Models\Account;
-use App\Modules\Chatbots\Models\BotEdge;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class BotNode extends Model
+class BotEdge extends Model
 {
     use HasFactory;
 
     protected $fillable = [
         'account_id',
         'bot_flow_id',
-        'type',
-        'config',
+        'from_node_id',
+        'to_node_id',
+        'label',
         'sort_order',
-        'pos_x',
-        'pos_y'];
+    ];
 
     protected function casts(): array
     {
         return [
-            'config' => 'array',
             'sort_order' => 'integer',
-            'pos_x' => 'integer',
-            'pos_y' => 'integer'];
+        ];
     }
 
     public function account(): BelongsTo
@@ -41,18 +37,13 @@ class BotNode extends Model
         return $this->belongsTo(BotFlow::class, 'bot_flow_id');
     }
 
-    public function actionJobs(): HasMany
+    public function fromNode(): BelongsTo
     {
-        return $this->hasMany(BotActionJob::class, 'node_id');
+        return $this->belongsTo(BotNode::class, 'from_node_id');
     }
 
-    public function outgoingEdges(): HasMany
+    public function toNode(): BelongsTo
     {
-        return $this->hasMany(BotEdge::class, 'from_node_id')->orderBy('sort_order');
-    }
-
-    public function incomingEdges(): HasMany
-    {
-        return $this->hasMany(BotEdge::class, 'to_node_id');
+        return $this->belongsTo(BotNode::class, 'to_node_id');
     }
 }

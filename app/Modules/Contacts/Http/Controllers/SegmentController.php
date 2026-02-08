@@ -84,7 +84,7 @@ class SegmentController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ((int) $segment->account_id !== (int) $account->id) {
+        if (!account_ids_match($segment->account_id, $account->id)) {
             abort(404);
         }
 
@@ -125,7 +125,7 @@ class SegmentController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ((int) $segment->account_id !== (int) $account->id) {
+        if (!account_ids_match($segment->account_id, $account->id)) {
             abort(404);
         }
 
@@ -155,7 +155,7 @@ class SegmentController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ((int) $segment->account_id !== (int) $account->id) {
+        if (!account_ids_match($segment->account_id, $account->id)) {
             abort(404);
         }
 
@@ -183,7 +183,7 @@ class SegmentController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ((int) $segment->account_id !== (int) $account->id) {
+        if (!account_ids_match($segment->account_id, $account->id)) {
             abort(404);
         }
 
@@ -196,7 +196,7 @@ class SegmentController extends Controller
     {
         $account = request()->attributes->get('account') ?? current_account();
 
-        if ((int) $segment->account_id !== (int) $account->id) {
+        if (!account_ids_match($segment->account_id, $account->id)) {
             abort(404);
         }
 

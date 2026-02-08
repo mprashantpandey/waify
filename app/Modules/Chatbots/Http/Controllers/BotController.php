@@ -107,11 +107,11 @@ class BotController extends Controller
 
         Gate::authorize('viewAny', [ChatbotPolicy::class, $account]);
 
-        if ((int) $bot->account_id !== (int) $account->id) {
+        if (!account_ids_match($bot->account_id, $account->id)) {
             abort(404);
         }
 
-        $bot->load(['flows.nodes', 'creator', 'updater']);
+        $bot->load(['flows.nodes', 'flows.edges', 'creator', 'updater']);
 
         $connections = \App\Modules\WhatsApp\Models\WhatsAppConnection::where('account_id', $account->id)
             ->where('is_active', true)
@@ -171,9 +171,22 @@ class BotController extends Controller
                                 'id' => $node->id,
                                 'type' => $node->type,
                                 'config' => $node->config,
-                                'sort_order' => $node->sort_order];
-                        })];
-                })],
+                                'sort_order' => $node->sort_order,
+                                'pos_x' => $node->pos_x,
+                                'pos_y' => $node->pos_y];
+                        }),
+                        'edges' => $flow->edges->map(function ($edge) {
+                            return [
+                                'id' => $edge->id,
+                                'from_node_id' => $edge->from_node_id,
+                                'to_node_id' => $edge->to_node_id,
+                                'label' => $edge->label,
+                                'sort_order' => $edge->sort_order,
+                            ];
+                        }),
+                    ];
+                }),
+            ],
             'connections' => $connections,
             'templates' => $templates,
             'tags' => $tags,
@@ -190,7 +203,7 @@ class BotController extends Controller
 
         Gate::authorize('manage', [ChatbotPolicy::class, $account]);
 
-        if ((int) $bot->account_id !== (int) $account->id) {
+        if (!account_ids_match($bot->account_id, $account->id)) {
             abort(404);
         }
 
@@ -225,7 +238,7 @@ class BotController extends Controller
 
         Gate::authorize('manage', [ChatbotPolicy::class, $account]);
 
-        if ((int) $bot->account_id !== (int) $account->id) {
+        if (!account_ids_match($bot->account_id, $account->id)) {
             abort(404);
         }
 

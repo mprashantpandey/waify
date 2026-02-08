@@ -198,7 +198,7 @@ class AppServiceProvider extends ServiceProvider
                     'contact_account_id' => $contact->account_id,
                 ]);
                 // If contact belongs to a different accessible account, switch context
-                if ($account && (int) $contact->account_id !== (int) $account->id) {
+                if ($account && !account_ids_match($contact->account_id, $account->id)) {
                     $resolvedAccount = \App\Models\Account::find($contact->account_id);
                     if ($resolvedAccount && $user && $user->canAccessAccount($resolvedAccount)) {
                         request()->attributes->set('account', $resolvedAccount);

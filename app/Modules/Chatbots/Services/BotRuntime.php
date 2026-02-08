@@ -97,15 +97,88 @@ class BotRuntime
         $context->metadata['execution_id'] = $execution->id;
 
         try {
-            // Get nodes in order
-            $nodes = $flow->nodes()->orderBy('sort_order')->get();
             $logs = [];
             $actionCount = 0;
             $maxActions = 10;
-            $conditionPassed = true; // Track if we're in a passing condition block
+            // Graph execution (start -> traverse edges)
+            $nodes = $flow->nodes()->get()->keyBy('id');
+            $edgesByFrom = $flow->edges()
+                ->orderBy('sort_order')
+                ->get()
+                ->groupBy('from_node_id');
 
-            foreach ($nodes as $node) {
-                // Check action limit
+            if ($edgesByFrom->isEmpty()) {
+                // Fallback to linear for existing flows without edges
+                $ordered = $nodes->sortBy('sort_order')->values();
+                foreach ($ordered as $node) {
+                    if ($actionCount >= $maxActions) {
+                        $logs[] = [
+                            'node_id' => $node->id,
+                            'type' => $node->type,
+                            'result' => 'skipped',
+                            'reason' => 'Max actions limit reached',
+                        ];
+                        break;
+                    }
+
+                    if ($node->type === 'condition') {
+                        $passed = $this->conditionEvaluator->evaluate($node, $context);
+                        $logs[] = [
+                            'node_id' => $node->id,
+                            'type' => 'condition',
+                            'result' => $passed ? 'passed' : 'failed',
+                        ];
+                        if (!$passed) {
+                            continue;
+                        }
+                    }
+
+                    if ($node->type === 'action' || $node->type === 'delay' || $node->type === 'webhook') {
+                        $result = $this->actionExecutor->execute($node, $context);
+                        $logs[] = [
+                            'node_id' => $node->id,
+                            'type' => $node->type,
+                            'result' => $result['success'] ? 'success' : 'failed',
+                            'data' => $result,
+                        ];
+
+                        if ($result['success']) {
+                            $actionCount++;
+                        } else {
+                            Log::channel('chatbots')->warning('Action failed', [
+                                'node_id' => $node->id,
+                                'error' => $result['error'] ?? 'Unknown error',
+                            ]);
+                        }
+                    }
+                }
+            } else {
+            $startNode = $nodes->first(fn (BotNode $node) => ($node->config['is_start'] ?? false) === true)
+                ?? $nodes->sortBy('sort_order')->first();
+
+            if (!$startNode) {
+                $execution->update([
+                    'status' => 'skipped',
+                    'finished_at' => now(),
+                    'logs' => [['result' => 'skipped', 'reason' => 'No nodes found']],
+                ]);
+                return;
+            }
+
+            $queue = [$startNode->id];
+            $visited = [];
+
+            while (!empty($queue)) {
+                $nodeId = array_shift($queue);
+                if (!$nodeId || isset($visited[$nodeId])) {
+                    continue;
+                }
+                $visited[$nodeId] = true;
+                $node = $nodes->get($nodeId);
+                if (!$node) {
+                    continue;
+                }
+
                 if ($actionCount >= $maxActions) {
                     $logs[] = [
                         'node_id' => $node->id,
@@ -115,30 +188,23 @@ class BotRuntime
                     break;
                 }
 
-                // Evaluate conditions
                 if ($node->type === 'condition') {
                     $passed = $this->conditionEvaluator->evaluate($node, $context);
-                    $conditionPassed = $passed;
                     $logs[] = [
                         'node_id' => $node->id,
                         'type' => 'condition',
                         'result' => $passed ? 'passed' : 'failed'];
 
-                    // Continue to next node (don't execute actions if condition failed)
+                    $edges = $edgesByFrom->get($node->id, collect());
+                    $labelToFollow = $passed ? 'true' : 'false';
+                    $next = $edges->first(fn ($edge) => $edge->label === $labelToFollow)
+                        ?? $edges->first();
+                    if ($next) {
+                        $queue[] = $next->to_node_id;
+                    }
                     continue;
                 }
 
-                // Skip actions if condition failed
-                if (!$conditionPassed) {
-                    $logs[] = [
-                        'node_id' => $node->id,
-                        'type' => $node->type,
-                        'result' => 'skipped',
-                        'reason' => 'Condition not met'];
-                    continue;
-                }
-
-                // Execute actions
                 if ($node->type === 'action' || $node->type === 'delay' || $node->type === 'webhook') {
                     $result = $this->actionExecutor->execute($node, $context);
                     $logs[] = [
@@ -150,12 +216,19 @@ class BotRuntime
                     if ($result['success']) {
                         $actionCount++;
                     } else {
-                        // Log error but continue
                         Log::channel('chatbots')->warning('Action failed', [
                             'node_id' => $node->id,
                             'error' => $result['error'] ?? 'Unknown error']);
                     }
                 }
+
+                $edges = $edgesByFrom->get($node->id, collect());
+                foreach ($edges as $edge) {
+                    if ($edge->to_node_id && !isset($visited[$edge->to_node_id])) {
+                        $queue[] = $edge->to_node_id;
+                    }
+                }
+            }
             }
 
             // Update execution
@@ -177,4 +250,3 @@ class BotRuntime
         }
     }
 }
-

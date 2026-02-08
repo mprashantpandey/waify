@@ -169,7 +169,7 @@ class ContactController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ((int) $contact->account_id !== (int) $account->id) {
+        if (!account_ids_match($contact->account_id, $account->id)) {
             abort(404);
         }
 
@@ -284,7 +284,7 @@ class ContactController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ((int) $contact->account_id !== (int) $account->id) {
+        if (!account_ids_match($contact->account_id, $account->id)) {
             abort(404);
         }
 
@@ -330,7 +330,7 @@ class ContactController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ((int) $contact->account_id !== (int) $account->id) {
+        if (!account_ids_match($contact->account_id, $account->id)) {
             abort(404);
         }
 
@@ -395,7 +395,7 @@ class ContactController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ((int) $contact->account_id !== (int) $account->id) {
+        if (!account_ids_match($contact->account_id, $account->id)) {
             abort(404);
         }
 

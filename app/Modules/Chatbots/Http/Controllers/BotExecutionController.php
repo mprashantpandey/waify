@@ -63,7 +63,7 @@ class BotExecutionController extends Controller
 
         Gate::authorize('viewAny', [ChatbotPolicy::class, $account]);
 
-        if ((int) $execution->account_id !== (int) $account->id) {
+        if (!account_ids_match($execution->account_id, $account->id)) {
             abort(404);
         }
 

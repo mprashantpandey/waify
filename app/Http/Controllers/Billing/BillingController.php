@@ -389,7 +389,7 @@ class BillingController extends Controller
         }
 
         // Check if payment belongs to this account (with type casting for safety)
-        if ((int) $paymentOrder->account_id !== (int) $account->id) {
+        if (!account_ids_match($paymentOrder->account_id, $account->id)) {
             \Log::error('Payment order account mismatch', [
                 'payment_order_id' => $paymentOrder->id,
                 'payment_order_account_id' => $paymentOrder->account_id,

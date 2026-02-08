@@ -5,6 +5,7 @@ namespace App\Modules\Chatbots\Services;
 use App\Core\Billing\EntitlementService;
 use App\Core\Billing\UsageService;
 use App\Modules\Chatbots\Models\BotNode;
+use App\Modules\Chatbots\Models\BotEdge;
 use App\Modules\WhatsApp\Events\Inbox\ConversationUpdated;
 use App\Modules\WhatsApp\Events\Inbox\MessageCreated;
 use App\Modules\WhatsApp\Events\Inbox\MessageUpdated;
@@ -134,7 +135,7 @@ class ActionExecutor
             }
 
             $template = \App\Modules\WhatsApp\Models\WhatsAppTemplate::find($templateId);
-            if (!$template || (int) $template->account_id !== (int) $context->account->id) {
+            if (!$template || !account_ids_match($template->account_id, $context->account->id)) {
                 return ['success' => false, 'error' => 'Template not found'];
             }
 
@@ -295,13 +296,20 @@ class ActionExecutor
             return ['success' => false, 'error' => 'Execution ID required for delay'];
         }
 
-        // Get next node (node after delay)
-        $nextNode = \App\Modules\Chatbots\Models\BotNode::where('bot_flow_id', $node->bot_flow_id)
-            ->where('sort_order', '>', $node->sort_order)
+        // Resolve next node (edge-based first, then linear fallback)
+        $nextNodeId = BotEdge::where('bot_flow_id', $node->bot_flow_id)
+            ->where('from_node_id', $node->id)
             ->orderBy('sort_order')
-            ->first();
+            ->value('to_node_id');
 
-        if (!$nextNode) {
+        if (!$nextNodeId) {
+            $nextNodeId = \App\Modules\Chatbots\Models\BotNode::where('bot_flow_id', $node->bot_flow_id)
+                ->where('sort_order', '>', $node->sort_order)
+                ->orderBy('sort_order')
+                ->value('id');
+        }
+
+        if (!$nextNodeId) {
             return ['success' => false, 'error' => 'No action node found after delay'];
         }
 
@@ -309,7 +317,7 @@ class ActionExecutor
         $actionJob = \App\Modules\Chatbots\Models\BotActionJob::create([
             'account_id' => $context->account->id,
             'bot_execution_id' => $executionId,
-            'node_id' => $nextNode->id, // Store the next node to execute
+            'node_id' => $nextNodeId, // Store the next node to execute
             'run_at' => $runAt,
             'status' => 'queued']);
 

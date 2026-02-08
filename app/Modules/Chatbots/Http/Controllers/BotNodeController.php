@@ -22,7 +22,7 @@ class BotNodeController extends Controller
 
         Gate::authorize('manage', [ChatbotPolicy::class, $account]);
 
-        if ((int) $flow->account_id !== (int) $account->id) {
+        if (!account_ids_match($flow->account_id, $account->id)) {
             abort(404);
         }
 
@@ -36,6 +36,8 @@ class BotNodeController extends Controller
             'type' => $validated['type'],
             'config' => $validated['config'] ?? [],
             'sort_order' => $validated['sort_order'] ?? $nextSortOrder,
+            'pos_x' => $validated['pos_x'] ?? null,
+            'pos_y' => $validated['pos_y'] ?? null,
         ]);
 
         return redirect()->back()->with('success', 'Node added successfully.');
@@ -50,7 +52,7 @@ class BotNodeController extends Controller
 
         Gate::authorize('manage', [ChatbotPolicy::class, $account]);
 
-        if ((int) $node->account_id !== (int) $account->id) {
+        if (!account_ids_match($node->account_id, $account->id)) {
             abort(404);
         }
 
@@ -65,6 +67,12 @@ class BotNodeController extends Controller
         }
         if (array_key_exists('sort_order', $validated)) {
             $updates['sort_order'] = $validated['sort_order'];
+        }
+        if (array_key_exists('pos_x', $validated)) {
+            $updates['pos_x'] = $validated['pos_x'];
+        }
+        if (array_key_exists('pos_y', $validated)) {
+            $updates['pos_y'] = $validated['pos_y'];
         }
 
         if ($updates) {
@@ -83,7 +91,7 @@ class BotNodeController extends Controller
 
         Gate::authorize('manage', [ChatbotPolicy::class, $account]);
 
-        if ((int) $node->account_id !== (int) $account->id) {
+        if (!account_ids_match($node->account_id, $account->id)) {
             abort(404);
         }
 
@@ -113,9 +121,15 @@ class BotNodeController extends Controller
                 'min:0',
                 'max:100000',
             ],
+            'pos_x' => ['sometimes', 'integer'],
+            'pos_y' => ['sometimes', 'integer'],
         ]);
 
         $validator->after(function ($validator) use ($request, $type) {
+            if (!$request->has('config')) {
+                return;
+            }
+
             $config = $request->input('config', []);
 
             if ($type === 'action') {

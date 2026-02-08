@@ -86,7 +86,7 @@ class InboxStreamController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         // Ensure conversation belongs to account
-        if ((int) $conversation->account_id !== (int) $account->id) {
+        if (!account_ids_match($conversation->account_id, $account->id)) {
             abort(404);
         }
 

@@ -308,7 +308,7 @@ class TeamController extends Controller
             abort(403, 'You do not have permission to manage team members.');
         }
 
-        if ((int) $invitation->account_id !== (int) $account->id) {
+        if (!account_ids_match($invitation->account_id, $account->id)) {
             abort(403, 'Invite does not belong to this account.');
         }
 
@@ -336,7 +336,7 @@ class TeamController extends Controller
             abort(403, 'You do not have permission to manage team members.');
         }
 
-        if ((int) $invitation->account_id !== (int) $account->id) {
+        if (!account_ids_match($invitation->account_id, $account->id)) {
             abort(403, 'Invite does not belong to this account.');
         }
 

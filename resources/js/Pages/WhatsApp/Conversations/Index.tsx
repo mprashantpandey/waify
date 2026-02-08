@@ -7,6 +7,7 @@ import { useRealtime } from '@/Providers/RealtimeProvider';
 import { ConversationSkeleton } from '@/Components/UI/Skeleton';
 import { EmptyState } from '@/Components/UI/EmptyState';
 import { useToast } from '@/hooks/useToast';
+import { isSameAccountId } from '@/lib/utils';
 import axios from 'axios';
 import TextInput from '@/Components/TextInput';
 import Button from '@/Components/UI/Button';
@@ -104,7 +105,7 @@ export default function ConversationsIndex({
                 setConversations((prev) => {
                     const byId = new Map(prev.map((c) => [c.id, c]));
                     list.forEach((conv: Conversation) => {
-                        if (currentAccountId != null && conv.account_id != null && conv.account_id !== currentAccountId) return;
+                        if (currentAccountId != null && conv.account_id != null && !isSameAccountId(conv.account_id, currentAccountId)) return;
                         byId.set(conv.id, conv);
                     });
                     return Array.from(byId.values()).sort((a, b) => {
@@ -140,7 +141,7 @@ export default function ConversationsIndex({
     const filteredConversations = useMemo(() => {
         return conversations.filter((conv) => {
             // Only show conversations for current account (avoid 404 when clicking)
-            if (conv.account_id != null && account?.id != null && Number(conv.account_id) !== Number(account.id)) {
+            if (conv.account_id != null && account?.id != null && !isSameAccountId(conv.account_id, account.id)) {
                 return false;
             }
             // Client-side search only when we have server results (backend already filtered by search; client refines by status/connection)
@@ -457,7 +458,7 @@ export default function ConversationsIndex({
                                             key={conversation.id}
                                             href={(() => {
                                                 const id = parseInt(String(conversation.id), 10);
-                                                const sameAccount = conversation.account_id == null || Number(conversation.account_id) === Number(account?.id);
+                                                const sameAccount = conversation.account_id == null || isSameAccountId(conversation.account_id, account?.id);
                                                 return (Number.isInteger(id) && id >= 1 && sameAccount)
                                                     ? route('app.whatsapp.conversations.show', { conversation: id })
                                                     : '#';

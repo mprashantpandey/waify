@@ -3,6 +3,7 @@
 namespace App\Modules\Chatbots\Models;
 
 use App\Models\Account;
+use App\Modules\Chatbots\Models\BotEdge;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -41,6 +42,11 @@ class BotFlow extends Model
     public function nodes(): HasMany
     {
         return $this->hasMany(BotNode::class)->orderBy('sort_order');
+    }
+
+    public function edges(): HasMany
+    {
+        return $this->hasMany(BotEdge::class)->orderBy('sort_order');
     }
 
     public function executions(): HasMany

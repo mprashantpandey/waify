@@ -20,7 +20,7 @@ class BotFlowController extends Controller
 
         Gate::authorize('manage', [ChatbotPolicy::class, $account]);
 
-        if ((int) $bot->account_id !== (int) $account->id) {
+        if (!account_ids_match($bot->account_id, $account->id)) {
             abort(404);
         }
 
@@ -31,6 +31,7 @@ class BotFlowController extends Controller
             'enabled' => 'boolean',
             'priority' => 'integer|min:0|max:1000',
             'nodes' => 'nullable|array',
+            'edges' => 'nullable|array',
         ]);
 
         $flow = BotFlow::create([
@@ -54,6 +55,26 @@ class BotFlowController extends Controller
                     'type' => $node['type'] ?? 'action',
                     'config' => $node['config'] ?? [],
                     'sort_order' => $node['sort_order'] ?? $sortOrder,
+                    'pos_x' => $node['pos_x'] ?? null,
+                    'pos_y' => $node['pos_y'] ?? null,
+                ]);
+                $sortOrder++;
+            }
+        }
+
+        $edges = $validated['edges'] ?? [];
+        if (!empty($edges)) {
+            $sortOrder = 1;
+            foreach ($edges as $edge) {
+                if (!is_array($edge)) {
+                    continue;
+                }
+                $flow->edges()->create([
+                    'account_id' => $account->id,
+                    'from_node_id' => $edge['from_node_id'] ?? null,
+                    'to_node_id' => $edge['to_node_id'] ?? null,
+                    'label' => $edge['label'] ?? null,
+                    'sort_order' => $edge['sort_order'] ?? $sortOrder,
                 ]);
                 $sortOrder++;
             }
@@ -71,7 +92,7 @@ class BotFlowController extends Controller
 
         Gate::authorize('manage', [ChatbotPolicy::class, $account]);
 
-        if ((int) $flow->account_id !== (int) $account->id) {
+        if (!account_ids_match($flow->account_id, $account->id)) {
             abort(404);
         }
 
@@ -81,28 +102,75 @@ class BotFlowController extends Controller
             'enabled' => 'sometimes|boolean',
             'priority' => 'sometimes|integer|min:0|max:1000',
             'nodes' => 'sometimes|array',
+            'edges' => 'sometimes|array',
         ]);
 
         $updates = $validated;
-        unset($updates['nodes']);
+        unset($updates['nodes'], $updates['edges']);
 
         if (!empty($updates)) {
             $flow->update($updates);
         }
 
         if (array_key_exists('nodes', $validated)) {
-            $flow->nodes()->delete();
             $nodes = $validated['nodes'] ?? [];
-            $sortOrder = 1;
             foreach ($nodes as $node) {
-                if (!is_array($node)) {
+                if (!is_array($node) || empty($node['id'])) {
                     continue;
                 }
-                $flow->nodes()->create([
+
+                $existing = $flow->nodes()->whereKey($node['id'])->first();
+                if (!$existing) {
+                    continue;
+                }
+
+                $nodeUpdates = [];
+                if (array_key_exists('type', $node)) {
+                    $nodeUpdates['type'] = $node['type'];
+                }
+                if (array_key_exists('config', $node)) {
+                    $nodeUpdates['config'] = $node['config'];
+                }
+                if (array_key_exists('sort_order', $node)) {
+                    $nodeUpdates['sort_order'] = $node['sort_order'];
+                }
+                if (array_key_exists('pos_x', $node)) {
+                    $nodeUpdates['pos_x'] = $node['pos_x'];
+                }
+                if (array_key_exists('pos_y', $node)) {
+                    $nodeUpdates['pos_y'] = $node['pos_y'];
+                }
+
+                if ($nodeUpdates) {
+                    $existing->update($nodeUpdates);
+                }
+            }
+        }
+
+        if (array_key_exists('edges', $validated)) {
+            $flow->edges()->delete();
+            $nodeIds = $flow->nodes()->pluck('id')->map(fn ($id) => (int) $id)->all();
+            $nodeIdSet = array_flip($nodeIds);
+            $edges = $validated['edges'] ?? [];
+            $sortOrder = 1;
+            foreach ($edges as $edge) {
+                if (!is_array($edge)) {
+                    continue;
+                }
+                $fromId = isset($edge['from_node_id']) ? (int) $edge['from_node_id'] : null;
+                $toId = isset($edge['to_node_id']) ? (int) $edge['to_node_id'] : null;
+                if (!$fromId || !$toId) {
+                    continue;
+                }
+                if (!isset($nodeIdSet[$fromId]) || !isset($nodeIdSet[$toId])) {
+                    continue;
+                }
+                $flow->edges()->create([
                     'account_id' => $account->id,
-                    'type' => $node['type'] ?? 'action',
-                    'config' => $node['config'] ?? [],
-                    'sort_order' => $node['sort_order'] ?? $sortOrder,
+                    'from_node_id' => $fromId,
+                    'to_node_id' => $toId,
+                    'label' => $edge['label'] ?? null,
+                    'sort_order' => $edge['sort_order'] ?? $sortOrder,
                 ]);
                 $sortOrder++;
             }
@@ -120,7 +188,7 @@ class BotFlowController extends Controller
 
         Gate::authorize('manage', [ChatbotPolicy::class, $account]);
 
-        if ((int) $flow->account_id !== (int) $account->id) {
+        if (!account_ids_match($flow->account_id, $account->id)) {
             abort(404);
         }
 

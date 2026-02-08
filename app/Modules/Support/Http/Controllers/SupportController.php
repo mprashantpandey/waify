@@ -121,14 +121,14 @@ class SupportController extends Controller
                 'account_id' => $account?->id]);
         }
 
-        if ($thread && $account && (int) $thread->account_id !== (int) $account->id) {
+        if ($thread && $account && !account_ids_match($thread->account_id, $account->id)) {
             $user = $request->user();
             $target = Account::find($thread->account_id);
             if ($target && $user && $user->canAccessAccount($target)) {
                 session(['current_account_id' => $target->id]);
                 $account = $target;
             }
-            if ((int) $account->id !== (int) $thread->account_id) {
+            if (!account_ids_match($account->id, $thread->account_id)) {
                 abort(403);
             }
         }

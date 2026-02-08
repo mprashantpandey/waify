@@ -36,7 +36,7 @@ class TemplateSendController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         // Ensure template belongs to account
-        if ((int) $template->account_id !== (int) $account->id) {
+        if (!account_ids_match($template->account_id, $account->id)) {
             abort(404);
         }
 
@@ -88,7 +88,7 @@ class TemplateSendController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         // Ensure template belongs to account
-        if ((int) $template->account_id !== (int) $account->id) {
+        if (!account_ids_match($template->account_id, $account->id)) {
             abort(404);
         }
 

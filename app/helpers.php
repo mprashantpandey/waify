@@ -81,3 +81,21 @@ if (!function_exists('is_platform_admin')) {
         return is_super_admin();
     }
 }
+
+if (!function_exists('account_ids_match')) {
+    /**
+     * Compare account ids safely (string vs int).
+     */
+    function account_ids_match($left, $right): bool
+    {
+        if ($left === null || $right === null) {
+            return false;
+        }
+
+        if (is_numeric($left) && is_numeric($right)) {
+            return (int) $left === (int) $right;
+        }
+
+        return (string) $left === (string) $right;
+    }
+}

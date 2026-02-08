@@ -1,5 +1,5 @@
 import { useForm, Link, router } from '@inertiajs/react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
@@ -11,12 +11,23 @@ import { Bot, ArrowLeft, Plus, Save, Zap, Trash2, Pencil, Settings, Workflow, Li
 import { Head } from '@inertiajs/react';
 import { useToast } from '@/hooks/useNotifications';
 import Checkbox from '@/Components/Checkbox';
+import FlowBuilder from '@/Pages/Chatbots/FlowBuilder';
 
 interface Node {
     id: number;
     type: string;
     config: any;
     sort_order: number;
+    pos_x?: number | null;
+    pos_y?: number | null;
+}
+
+interface Edge {
+    id: number;
+    from_node_id: number;
+    to_node_id: number;
+    label?: string | null;
+    sort_order?: number | null;
 }
 
 interface Flow {
@@ -26,6 +37,7 @@ interface Flow {
     enabled: boolean;
     priority: number;
     nodes: Node[];
+    edges: Edge[];
 }
 
 interface BotType {
@@ -82,6 +94,7 @@ const defaultFlowForm = {
 const defaultNodeForm = {
     type: 'action',
     sortOrder: '' as '' | number,
+    isStart: false,
     conditionType: 'text_contains',
     conditionValue: '',
     conditionCaseSensitive: false,
@@ -140,6 +153,54 @@ export default function ChatbotsShow({
     const [nodeFormFlowId, setNodeFormFlowId] = useState<number | null>(null);
     const [editingNodeId, setEditingNodeId] = useState<number | null>(null);
     const [nodeForm, setNodeForm] = useState({ ...defaultNodeForm });
+
+    const [edgeFormOpen, setEdgeFormOpen] = useState(false);
+    const [edgeFlowId, setEdgeFlowId] = useState<number | null>(null);
+    const [edgeForm, setEdgeForm] = useState({
+        id: null as null | number,
+        fromNodeId: '' as '' | number,
+        toNodeId: '' as '' | number,
+        label: 'next',
+        sortOrder: '' as '' | number,
+    });
+
+    const flowById = useMemo(() => {
+        return new Map(bot.flows.map((flow) => [flow.id, flow]));
+    }, [bot.flows]);
+
+    const saveGraph = (flowId: number, payload: { nodes: Node[]; edges: Edge[] }) => {
+        const flow = flowById.get(flowId);
+        if (!flow) {
+            return;
+        }
+
+        const nextEdges = payload.edges.map((edge, index) => ({
+            from_node_id: edge.from_node_id,
+            to_node_id: edge.to_node_id,
+            label: edge.label ?? 'next',
+            sort_order: edge.sort_order ?? index + 1,
+        }));
+
+        router.patch(
+            route('app.chatbots.flows.update', { flow: flowId }),
+            {
+                nodes: payload.nodes.map((node, index) => ({
+                    id: node.id,
+                    type: node.type,
+                    config: node.config,
+                    sort_order: node.sort_order ?? index + 1,
+                    pos_x: node.pos_x ?? null,
+                    pos_y: node.pos_y ?? null,
+                })),
+                edges: nextEdges,
+            },
+            {
+                preserveScroll: true,
+                onSuccess: () => toast.success('Graph saved'),
+                onError: () => toast.error('Failed to save graph'),
+            }
+        );
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -301,6 +362,7 @@ export default function ChatbotsShow({
             ...defaultNodeForm,
             type: node.type || 'action',
             sortOrder: node.sort_order,
+            isStart: config.is_start ?? false,
             conditionType: config.type || 'text_contains',
             conditionValue: config.value || '',
             conditionCaseSensitive: !!config.case_sensitive,
@@ -374,21 +436,31 @@ export default function ChatbotsShow({
                 }
             }
 
+            if (nodeForm.isStart) {
+                base.is_start = true;
+            }
+
             return base;
         }
 
         if (nodeForm.type === 'delay') {
-            return {
-                seconds: Number(nodeForm.delaySeconds) || 1,
-            };
+            const config: any = { seconds: Number(nodeForm.delaySeconds) || 1 };
+            if (nodeForm.isStart) {
+                config.is_start = true;
+            }
+            return config;
         }
 
         if (nodeForm.type === 'webhook') {
-            return {
+            const config: any = {
                 url: nodeForm.webhookUrl,
                 method: nodeForm.webhookMethod,
                 timeout: Number(nodeForm.webhookTimeout) || 10,
             };
+            if (nodeForm.isStart) {
+                config.is_start = true;
+            }
+            return config;
         }
 
         const actionConfig: any = {
@@ -430,6 +502,10 @@ export default function ChatbotsShow({
 
         if (nodeForm.actionType === 'set_priority') {
             actionConfig.priority = nodeForm.actionPriority;
+        }
+
+        if (nodeForm.isStart) {
+            actionConfig.is_start = true;
         }
 
         return actionConfig;
@@ -486,20 +562,69 @@ export default function ChatbotsShow({
         });
     };
 
-    const nodeSummary = (node: Node) => {
-        if (node.type === 'condition') {
-            return `Condition • ${node.config?.type || 'condition'}`;
+    const openEdgeForm = (flowId: number, edge?: Edge) => {
+        const flow = flowById.get(flowId);
+        const nodes = flow?.nodes || [];
+        setEdgeFlowId(flowId);
+        setEdgeFormOpen(true);
+        setEdgeForm({
+            id: edge?.id ?? null,
+            fromNodeId: edge?.from_node_id ?? nodes[0]?.id ?? '',
+            toNodeId: edge?.to_node_id ?? nodes[1]?.id ?? '',
+            label: edge?.label ?? 'next',
+            sortOrder: edge?.sort_order ?? '',
+        });
+    };
+
+    const closeEdgeForm = () => {
+        setEdgeFormOpen(false);
+        setEdgeFlowId(null);
+        setEdgeForm({ id: null, fromNodeId: '', toNodeId: '', label: 'next', sortOrder: '' });
+    };
+
+    const saveEdge = () => {
+        if (!edgeFlowId) {
+            return;
         }
-        if (node.type === 'delay') {
-            return `Delay • ${node.config?.seconds || 0}s`;
+        const flow = flowById.get(edgeFlowId);
+        if (!flow) {
+            return;
         }
-        if (node.type === 'webhook') {
-            return `Webhook • ${node.config?.url || ''}`;
+        const updatedEdges = [...(flow.edges || [])];
+        const existingIndex = updatedEdges.findIndex((edge) => edge.id === edgeForm.id);
+        const edgePayload = {
+            id: edgeForm.id ?? Date.now(),
+            from_node_id: edgeForm.fromNodeId,
+            to_node_id: edgeForm.toNodeId,
+            label: edgeForm.label || 'next',
+            sort_order: edgeForm.sortOrder === '' ? undefined : edgeForm.sortOrder,
+        } as Edge;
+
+        if (existingIndex >= 0) {
+            updatedEdges[existingIndex] = edgePayload;
+        } else {
+            updatedEdges.push(edgePayload);
         }
-        if (node.type === 'action') {
-            return `Action • ${node.config?.action_type || 'action'}`;
-        }
-        return node.type;
+
+        router.patch(
+            route('app.chatbots.flows.update', { flow: edgeFlowId }),
+            {
+                edges: updatedEdges.map((edge, index) => ({
+                    from_node_id: edge.from_node_id,
+                    to_node_id: edge.to_node_id,
+                    label: edge.label,
+                    sort_order: edge.sort_order ?? index + 1,
+                })),
+            },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    toast.success('Edge saved');
+                    closeEdgeForm();
+                },
+                onError: () => toast.error('Failed to save edge'),
+            }
+        );
     };
 
     return (
@@ -845,7 +970,7 @@ export default function ChatbotsShow({
                                 </p>
                             </div>
                         ) : (
-                            <div className="space-y-4">
+                            <div className="space-y-6">
                                 {bot.flows.map((flow) => (
                                     <div
                                         key={flow.id}
@@ -883,6 +1008,15 @@ export default function ChatbotsShow({
                                                     Add Node
                                                 </Button>
                                                 <Button
+                                                    variant="secondary"
+                                                    size="sm"
+                                                    className="rounded-xl"
+                                                    onClick={() => openEdgeForm(flow.id)}
+                                                >
+                                                    <LinkIcon className="h-4 w-4 mr-1" />
+                                                    Add Edge
+                                                </Button>
+                                                <Button
                                                     variant="danger"
                                                     size="sm"
                                                     className="rounded-xl"
@@ -895,46 +1029,14 @@ export default function ChatbotsShow({
                                         </div>
 
                                         <div className="mt-4 space-y-2">
-                                            {flow.nodes.length === 0 ? (
-                                                <p className="text-xs text-gray-500">No nodes yet.</p>
-                                            ) : (
-                                                flow.nodes
-                                                    .slice()
-                                                    .sort((a, b) => a.sort_order - b.sort_order)
-                                                    .map((node) => (
-                                                        <div
-                                                            key={node.id}
-                                                            className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-700 p-3"
-                                                        >
-                                                            <div>
-                                                                <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                                                    {nodeSummary(node)}
-                                                                </div>
-                                                                <div className="text-xs text-gray-500">Order: {node.sort_order}</div>
-                                                            </div>
-                                                            <div className="flex items-center gap-2">
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="sm"
-                                                                    className="rounded-lg"
-                                                                    onClick={() => openEditNode(flow.id, node)}
-                                                                >
-                                                                    <Pencil className="h-4 w-4 mr-1" />
-                                                                    Edit
-                                                                </Button>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="sm"
-                                                                    className="rounded-lg"
-                                                                    onClick={() => deleteNode(node.id)}
-                                                                >
-                                                                    <Trash2 className="h-4 w-4 mr-1" />
-                                                                    Delete
-                                                                </Button>
-                                                            </div>
-                                                        </div>
-                                                    ))
-                                            )}
+                                            <FlowBuilder
+                                                flow={flow}
+                                                onEditNode={(node) => openEditNode(flow.id, node)}
+                                                onAddNode={() => openNodeForm(flow.id)}
+                                                onDeleteNode={(nodeId) => deleteNode(nodeId)}
+                                                onSelectEdge={(edge) => openEdgeForm(flow.id, edge)}
+                                                onSaveGraph={(payload) => saveGraph(flow.id, payload)}
+                                            />
                                         </div>
                                     </div>
                                 ))}
@@ -987,6 +1089,14 @@ export default function ChatbotsShow({
                                         />
                                     </div>
                                 </div>
+
+                                <label className="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-300">
+                                    <Checkbox
+                                        checked={nodeForm.isStart}
+                                        onChange={(e) => setNodeForm({ ...nodeForm, isStart: e.target.checked })}
+                                    />
+                                    Mark as start node
+                                </label>
 
                                 {nodeForm.type === 'condition' && (
                                     <div className="space-y-4 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
@@ -1298,6 +1408,87 @@ export default function ChatbotsShow({
                                     </Button>
                                 </div>
                             </form>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {edgeFormOpen && edgeFlowId && (
+                    <Card className="border-0 shadow-lg">
+                        <CardHeader className="bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl">
+                                    <LinkIcon className="h-5 w-5 text-white" />
+                                </div>
+                                <div>
+                                    <CardTitle className="text-xl font-bold">{edgeForm.id ? 'Edit Edge' : 'Add Edge'}</CardTitle>
+                                    <CardDescription>Connect nodes to define branching</CardDescription>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="p-6 space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <InputLabel value="From Node" className="text-sm font-semibold mb-2" />
+                                    <select
+                                        value={edgeForm.fromNodeId}
+                                        onChange={(e) => setEdgeForm({ ...edgeForm, fromNodeId: Number(e.target.value) })}
+                                        className="mt-1 w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 px-4 py-2.5"
+                                    >
+                                        {(flowById.get(edgeFlowId)?.nodes || []).map((node) => (
+                                            <option key={node.id} value={node.id}>
+                                                Node #{node.id} ({node.type})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <InputLabel value="To Node" className="text-sm font-semibold mb-2" />
+                                    <select
+                                        value={edgeForm.toNodeId}
+                                        onChange={(e) => setEdgeForm({ ...edgeForm, toNodeId: Number(e.target.value) })}
+                                        className="mt-1 w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 px-4 py-2.5"
+                                    >
+                                        {(flowById.get(edgeFlowId)?.nodes || []).map((node) => (
+                                            <option key={node.id} value={node.id}>
+                                                Node #{node.id} ({node.type})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <InputLabel value="Label" className="text-sm font-semibold mb-2" />
+                                    <TextInput
+                                        value={edgeForm.label}
+                                        onChange={(e) => setEdgeForm({ ...edgeForm, label: e.target.value })}
+                                        className="mt-1 rounded-xl"
+                                        placeholder="true / false / next"
+                                    />
+                                </div>
+                                <div>
+                                    <InputLabel value="Sort Order" className="text-sm font-semibold mb-2" />
+                                    <TextInput
+                                        type="number"
+                                        value={edgeForm.sortOrder}
+                                        onChange={(e) =>
+                                            setEdgeForm({
+                                                ...edgeForm,
+                                                sortOrder: e.target.value === '' ? '' : Number(e.target.value),
+                                            })
+                                        }
+                                        className="mt-1 rounded-xl"
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <Button className="rounded-xl" onClick={saveEdge}>
+                                    Save Edge
+                                </Button>
+                                <Button variant="secondary" className="rounded-xl" onClick={closeEdgeForm}>
+                                    Cancel
+                                </Button>
+                            </div>
                         </CardContent>
                     </Card>
                 )}
