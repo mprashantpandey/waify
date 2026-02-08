@@ -140,7 +140,7 @@ class ListController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ($list->account_id !== $account->id) {
+        if ((int) $list->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -172,7 +172,7 @@ class ListController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ($list->account_id !== $account->id) {
+        if ((int) $list->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -207,7 +207,7 @@ class ListController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ($list->account_id !== $account->id) {
+        if ((int) $list->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -264,7 +264,7 @@ class ListController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ($list->account_id !== $account->id) {
+        if ((int) $list->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -281,7 +281,7 @@ class ListController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ($list->account_id !== $account->id) {
+        if ((int) $list->account_id !== (int) $account->id) {
             abort(404);
         }
 

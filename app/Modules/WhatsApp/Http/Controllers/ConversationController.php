@@ -101,7 +101,7 @@ class ConversationController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         // Ensure conversation belongs to account
-        if ($conversation->account_id !== $account->id) {
+        if ((int) $conversation->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -281,7 +281,7 @@ class ConversationController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         // Ensure conversation belongs to account
-        if ($conversation->account_id !== $account->id) {
+        if ((int) $conversation->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -321,7 +321,7 @@ class ConversationController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ($conversation->account_id !== $account->id) {
+        if ((int) $conversation->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -375,7 +375,7 @@ class ConversationController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ($conversation->account_id !== $account->id) {
+        if ((int) $conversation->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -463,7 +463,7 @@ class ConversationController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         // Ensure conversation belongs to account
-        if ($conversation->account_id !== $account->id) {
+        if ((int) $conversation->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -539,7 +539,7 @@ class ConversationController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ($conversation->account_id !== $account->id) {
+        if ((int) $conversation->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -645,7 +645,7 @@ class ConversationController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ($conversation->account_id !== $account->id) {
+        if ((int) $conversation->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -731,7 +731,7 @@ class ConversationController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ($conversation->account_id !== $account->id) {
+        if ((int) $conversation->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -807,7 +807,7 @@ class ConversationController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ($conversation->account_id !== $account->id) {
+        if ((int) $conversation->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -893,7 +893,7 @@ class ConversationController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ($conversation->account_id !== $account->id) {
+        if ((int) $conversation->account_id !== (int) $account->id) {
             abort(404);
         }
 

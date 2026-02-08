@@ -101,7 +101,7 @@ class TemplateController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         // Ensure template belongs to account
-        if ($template->account_id !== $account->id) {
+        if ((int) $template->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -140,7 +140,7 @@ class TemplateController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         // Ensure template belongs to account
-        if ($template->account_id !== $account->id) {
+        if ((int) $template->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -157,7 +157,7 @@ class TemplateController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         // Ensure template belongs to account
-        if ($template->account_id !== $account->id) {
+        if ((int) $template->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -174,7 +174,7 @@ class TemplateController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         // Ensure template belongs to account
-        if ($template->account_id !== $account->id) {
+        if ((int) $template->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -280,7 +280,7 @@ class TemplateController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         // Ensure template belongs to account
-        if ($template->account_id !== $account->id) {
+        if ((int) $template->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -341,7 +341,7 @@ class TemplateController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         // Ensure template belongs to account
-        if ($template->account_id !== $account->id) {
+        if ((int) $template->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -422,7 +422,7 @@ class TemplateController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         // Ensure template belongs to account
-        if ($template->account_id !== $account->id) {
+        if ((int) $template->account_id !== (int) $account->id) {
             abort(404);
         }
 
