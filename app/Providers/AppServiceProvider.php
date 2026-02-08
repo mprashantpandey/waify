@@ -132,14 +132,21 @@ class AppServiceProvider extends ServiceProvider
             return $campaign;
         });
 
-        // Route model binding for 'contact' parameter - resolve by slug instead of ID
+        // Route model binding for 'contact' - resolve by slug or id, scoped to current account (avoid 404/wrong account)
         Route::bind('contact', function ($value) {
-            // Try to resolve by slug first, fallback to ID for backward compatibility
-            $contact = \App\Modules\WhatsApp\Models\WhatsAppContact::where('slug', $value)->orWhere('id', $value)->first();
-            if (!$contact) {
-                abort(404, 'Contact not found');
+            $account = request()->attributes->get('account') ?? current_account();
+            if (!$account) {
+                abort(404, 'Account not found');
             }
-            return $contact;
+            $accountId = (int) $account->id;
+            $query = \App\Modules\WhatsApp\Models\WhatsAppContact::where('account_id', $accountId)
+                ->where(function ($q) use ($value) {
+                    $q->where('slug', $value);
+                    if (is_numeric($value) && (int) $value > 0) {
+                        $q->orWhere('id', (int) $value);
+                    }
+                });
+            return $query->firstOrFail();
         });
 
         // Route model binding for 'conversation' - scope to current account so inbox links never 404 for wrong account
