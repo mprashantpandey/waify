@@ -104,6 +104,7 @@ export default function ConversationsShow({
     notes: initialNotes = [],
     audit_events: initialAuditEvents = [],
     agents = [],
+    embedded = false,
     inbox_settings: inboxSettings = {
         auto_assign_enabled: false,
         auto_assign_strategy: 'round_robin',
@@ -116,6 +117,7 @@ export default function ConversationsShow({
     notes: NoteItem[];
     audit_events: AuditEventItem[];
     agents: AgentItem[];
+    embedded?: boolean;
     inbox_settings: {
         auto_assign_enabled: boolean;
         auto_assign_strategy: string;
@@ -131,12 +133,18 @@ export default function ConversationsShow({
     const resolvedLists: ListItem[] = Array.isArray(lists) ? lists : (Array.isArray(pageProps?.lists) ? pageProps.lists : []);
 
     if (!resolvedConversation) {
+        const fallback = (
+            <div className="p-6 text-sm text-gray-600 dark:text-gray-300">
+                Unable to load conversation data. Please refresh the page.
+            </div>
+        );
+        if (embedded) {
+            return fallback;
+        }
         return (
             <AppShell>
                 <Head title="Conversation" />
-                <div className="p-6 text-sm text-gray-600 dark:text-gray-300">
-                    Unable to load conversation data. Please refresh the page.
-                </div>
+                {fallback}
             </AppShell>
         );
     }
@@ -930,21 +938,40 @@ export default function ConversationsShow({
         ) : null;
     };
 
-    return (
-        <AppShell>
-            <Head title={`${conversation.contact.name || conversation.contact.wa_id} - Inbox`} />
-            <div className="flex flex-col h-[calc(100vh-8rem)] lg:h-[calc(100vh-6rem)] rounded-3xl overflow-hidden border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-xl">
-                {/* Header */}
-                <div className="flex items-center justify-between px-4 py-3 bg-[#075E54] text-white">
-                    <div className="flex items-center gap-3 min-w-0">
-                        <Link
-                            href={route('app.whatsapp.conversations.index', { })}
-                            className="inline-flex items-center text-sm font-medium text-white/90 hover:text-white transition-colors"
-                            aria-label="Back to conversations"
-                        >
-                            <ArrowLeft className="h-4 w-4 mr-1" />
-                            <span className="hidden sm:inline">Back</span>
-                        </Link>
+    const content = (
+        <div className={cn(
+            'flex flex-col rounded-3xl overflow-hidden border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-xl',
+            embedded ? 'h-full' : 'h-[calc(100vh-8rem)] lg:h-[calc(100vh-6rem)]'
+        )}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 bg-[#075E54] text-white">
+                <div className="flex items-center gap-3 min-w-0">
+                        {embedded ? (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    router.get(route('app.whatsapp.conversations.index', {}), {}, {
+                                        preserveState: true,
+                                        preserveScroll: true,
+                                        only: ['active_conversation'],
+                                    });
+                                }}
+                                className="inline-flex items-center text-sm font-medium text-white/90 hover:text-white transition-colors"
+                                aria-label="Back to conversations"
+                            >
+                                <ArrowLeft className="h-4 w-4 mr-1" />
+                                <span className="hidden sm:inline">Back</span>
+                            </button>
+                        ) : (
+                            <Link
+                                href={route('app.whatsapp.conversations.index', { })}
+                                className="inline-flex items-center text-sm font-medium text-white/90 hover:text-white transition-colors"
+                                aria-label="Back to conversations"
+                            >
+                                <ArrowLeft className="h-4 w-4 mr-1" />
+                                <span className="hidden sm:inline">Back</span>
+                            </Link>
+                        )}
                         <div className="h-10 w-10 rounded-full bg-[#25D366] flex items-center justify-center text-white font-bold text-lg shadow-lg flex-shrink-0">
                             {conversation.contact.name?.charAt(0).toUpperCase() || conversation.contact.wa_id.charAt(0)}
                         </div>
@@ -1842,6 +1869,17 @@ export default function ConversationsShow({
                     )}
                 </div>
             </div>
+        </div>
+    );
+
+    if (embedded) {
+        return content;
+    }
+
+    return (
+        <AppShell>
+            <Head title={`${conversation.contact.name || conversation.contact.wa_id} - Inbox`} />
+            {content}
         </AppShell>
     );
 }
