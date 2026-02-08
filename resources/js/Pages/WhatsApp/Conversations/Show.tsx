@@ -118,6 +118,7 @@ export default function ConversationsShow({
         auto_assign_strategy: string;
     };
 }) {
+    const toArray = <T,>(value: T[] | null | undefined): T[] => (Array.isArray(value) ? value : []);
     const normalizedMessages = Array.isArray(initialMessages) ? initialMessages : [];
     const normalizedNotes = Array.isArray(initialNotes) ? initialNotes : [];
     const normalizedAuditEvents = Array.isArray(initialAuditEvents) ? initialAuditEvents : [];
@@ -628,10 +629,15 @@ export default function ConversationsShow({
                             after_audit_id: lastAuditIdRef.current}}
                 );
 
-                if (response.data.new_messages?.length > 0) {
+                const newMessagesFromServer = toArray<Message>(response.data?.new_messages);
+                const updatedMessagesFromServer = toArray<Message>(response.data?.updated_messages);
+                const newNotesFromServer = toArray<NoteItem>(response.data?.new_notes);
+                const newAuditEventsFromServer = toArray<AuditEventItem>(response.data?.new_audit_events);
+
+                if (newMessagesFromServer.length > 0) {
                     setMessages((prev) => {
                         const existingIds = new Set(prev.map((m) => m.id));
-                        const newMessages = response.data.new_messages.filter(
+                        const newMessages = newMessagesFromServer.filter(
                             (m: Message) => !existingIds.has(m.id)
                         );
                         return [...prev, ...newMessages].sort(
@@ -639,15 +645,15 @@ export default function ConversationsShow({
                         );
                     });
                     lastMessageIdRef.current = Math.max(
-                        ...response.data.new_messages.map((m: Message) => m.id),
+                        ...newMessagesFromServer.map((m: Message) => m.id),
                         lastMessageIdRef.current
                     );
                 }
 
-                if (response.data.updated_messages?.length > 0) {
+                if (updatedMessagesFromServer.length > 0) {
                     setMessages((prev) =>
                         prev.map((msg) => {
-                            const updated = response.data.updated_messages.find(
+                            const updated = updatedMessagesFromServer.find(
                                 (um: Message) => um.id === msg.id
                             );
                             return updated ? { ...msg, ...updated } : msg;
@@ -655,18 +661,18 @@ export default function ConversationsShow({
                     );
                 }
 
-                if (response.data.new_notes?.length > 0) {
-                    setNotes((prev) => [...response.data.new_notes.reverse(), ...prev]);
+                if (newNotesFromServer.length > 0) {
+                    setNotes((prev) => [...newNotesFromServer.slice().reverse(), ...prev]);
                     lastNoteIdRef.current = Math.max(
-                        ...response.data.new_notes.map((n: NoteItem) => n.id),
+                        ...newNotesFromServer.map((n: NoteItem) => n.id),
                         lastNoteIdRef.current
                     );
                 }
 
-                if (response.data.new_audit_events?.length > 0) {
-                    setAuditEvents((prev) => [...response.data.new_audit_events.reverse(), ...prev]);
+                if (newAuditEventsFromServer.length > 0) {
+                    setAuditEvents((prev) => [...newAuditEventsFromServer.slice().reverse(), ...prev]);
                     lastAuditIdRef.current = Math.max(
-                        ...response.data.new_audit_events.map((e: AuditEventItem) => e.id),
+                        ...newAuditEventsFromServer.map((e: AuditEventItem) => e.id),
                         lastAuditIdRef.current
                     );
                 }
@@ -1129,7 +1135,7 @@ export default function ConversationsShow({
                                     className="mt-1 block w-full rounded-xl border-gray-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800"
                                 >
                                     <option value="">Unassigned</option>
-                                    {agents.map((agent) => (
+                                    {normalizedAgents.map((agent) => (
                                         <option key={agent.id} value={agent.id}>
                                             {agent.name} ({agent.role})
                                         </option>
