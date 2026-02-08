@@ -265,7 +265,7 @@ class TeamController extends Controller
             }
 
             // Cannot remove yourself
-            if ($user->id === $request->user()->id) {
+            if ((int) $user->id === (int) $request->user()->id) {
                 return back()->with('error', 'Cannot remove yourself from the account.');
             }
 
