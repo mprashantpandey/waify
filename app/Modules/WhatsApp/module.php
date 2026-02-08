@@ -19,6 +19,11 @@ return [
             'icon' => 'FileText',
             'group' => 'messaging'],
         [
+            'label' => 'Lists',
+            'href' => 'app.whatsapp.lists.index',
+            'icon' => 'List',
+            'group' => 'messaging'],
+        [
             'label' => 'Connections',
             'href' => 'app.whatsapp.connections.index',
             'icon' => 'Settings',

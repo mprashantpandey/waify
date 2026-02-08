@@ -1611,7 +1611,14 @@ export default function ConversationsShow({
                                 <div className="grid gap-3">
                                     {normalizedLists.length === 0 && (
                                         <div className="text-sm text-gray-500 dark:text-gray-400">
-                                            No lists available. Create lists in the Lists section.
+                                            No lists available.{' '}
+                                            <Link
+                                                href={route('app.whatsapp.lists.index')}
+                                                className="font-medium text-emerald-600 hover:text-emerald-500 dark:text-emerald-400 dark:hover:text-emerald-300"
+                                            >
+                                                Create lists in the Lists section
+                                            </Link>
+                                            .
                                         </div>
                                     )}
                                     {normalizedLists.map((list) => (

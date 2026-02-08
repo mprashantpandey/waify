@@ -42,11 +42,13 @@ export default function ContactsShow({
     account,
     contact,
     activities,
-    tags}: {
+    tags,
+    segments: availableSegments = []}: {
     account: any;
     contact: Contact;
     activities: Activity[];
     tags: Array<{ id: number; name: string; color: string }>;
+    segments?: Array<{ id: number; name: string }>;
 }) {
     const { toast } = useToast();
     const [showNoteForm, setShowNoteForm] = useState(false);
@@ -61,11 +63,12 @@ export default function ContactsShow({
         company: contact.company || '',
         notes: contact.notes || '',
         status: contact.status,
-        tags: contact.tags.map((t) => t.id)});
+        tags: contact.tags.map((t) => t.id),
+        segments: contact.segments.map((s) => s.id)});
 
     const handleUpdate = (e: React.FormEvent) => {
         e.preventDefault();
-        put(route('app.contacts.update', { contact: contact.slug }), {
+        put(route('app.contacts.update', { contact: contact.slug || contact.id }), {
             onSuccess: () => {
                 toast.success('Contact updated');
             },
@@ -213,6 +216,95 @@ export default function ContactsShow({
                                         rows={4}
                                     />
                                 </div>
+
+                                <div>
+                                        <InputLabel value="Tags" />
+                                        {tags.length > 0 ? (
+                                            <>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 mb-2">
+                                                    Add or remove tags for this contact
+                                                </p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {tags.map((tag) => (
+                                                <button
+                                                    key={tag.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const current = contactData.tags as number[];
+                                                        setContactData('tags', current.includes(tag.id)
+                                                            ? current.filter((id) => id !== tag.id)
+                                                            : [...current, tag.id]);
+                                                    }}
+                                                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                                                        (contactData.tags as number[]).includes(tag.id)
+                                                            ? 'border-blue-500 bg-blue-600 text-white'
+                                                            : 'border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                                    }`}
+                                                    style={
+                                                        !(contactData.tags as number[]).includes(tag.id)
+                                                            ? { borderColor: tag.color + '80', backgroundColor: tag.color + '20', color: tag.color }
+                                                            : undefined
+                                                    }
+                                                >
+                                                    {tag.name}
+                                                </button>
+                                            ))}
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                No tags yet.{' '}
+                                                <Link
+                                                    href={route('app.contacts.tags.index')}
+                                                    className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400"
+                                                >
+                                                    Create tags in the Tags section
+                                                </Link>
+                                            </p>
+                                        )}
+                                    </div>
+
+                                <div>
+                                        <InputLabel value="Segments" />
+                                        {availableSegments.length > 0 ? (
+                                            <>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 mb-2">
+                                                    Add or remove segments for this contact
+                                                </p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {availableSegments.map((seg) => (
+                                                <button
+                                                    key={seg.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const current = contactData.segments as number[];
+                                                        setContactData('segments', current.includes(seg.id)
+                                                            ? current.filter((id) => id !== seg.id)
+                                                            : [...current, seg.id]);
+                                                    }}
+                                                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                                                        (contactData.segments as number[]).includes(seg.id)
+                                                            ? 'border-emerald-500 bg-emerald-600 text-white'
+                                                            : 'border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                                    }`}
+                                                >
+                                                    {seg.name}
+                                                </button>
+                                            ))}
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                No segments yet.{' '}
+                                                <Link
+                                                    href={route('app.contacts.segments.index')}
+                                                    className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400"
+                                                >
+                                                    Create segments in the Segments section
+                                                </Link>
+                                            </p>
+                                        )}
+                                    </div>
 
                                 <Button type="submit" disabled={processing}>
                                     Save Changes

@@ -235,6 +235,10 @@ class ContactController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'color']);
 
+        $segments = ContactSegment::where('account_id', $account->id)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
         return Inertia::render('Contacts/Show', [
             'account' => $account,
             'contact' => [
@@ -264,7 +268,8 @@ class ContactController extends Controller
                 }),
                 'created_at' => $contact->created_at->toIso8601String()],
             'activities' => $activities,
-            'tags' => $tags]);
+            'tags' => $tags,
+            'segments' => $segments]);
     }
 
     /**
@@ -286,13 +291,20 @@ class ContactController extends Controller
             'notes' => 'nullable|string',
             'status' => 'nullable|in:active,inactive,blocked,opt_out',
             'tags' => 'nullable|array',
-            'tags.*' => 'exists:contact_tags,id']);
+            'tags.*' => 'exists:contact_tags,id',
+            'segments' => 'nullable|array',
+            'segments.*' => 'exists:contact_segments,id']);
 
-        $contact->update($validated);
+        $contact->update(\Illuminate\Support\Arr::except($validated, ['tags', 'segments']));
 
         // Sync tags
-        if (isset($validated['tags'])) {
-            $contact->tags()->sync($validated['tags']);
+        if (array_key_exists('tags', $validated)) {
+            $contact->tags()->sync($validated['tags'] ?? []);
+        }
+
+        // Sync segments
+        if (array_key_exists('segments', $validated)) {
+            $contact->segments()->sync($validated['segments'] ?? []);
         }
 
         ContactActivity::create([
