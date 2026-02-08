@@ -146,15 +146,29 @@ class AppServiceProvider extends ServiceProvider
         Route::bind('conversation', function ($value) {
             $account = request()->attributes->get('account') ?? current_account();
             if (!$account) {
+                \Log::channel('whatsapp')->warning('Conversation binding: no account resolved', ['path' => request()->path(), 'value' => $value]);
                 abort(404, 'Account not found');
             }
             $id = is_numeric($value) ? (int) $value : null;
             if ($id === null || $id < 1) {
+                \Log::channel('whatsapp')->warning('Conversation binding: invalid id', ['path' => request()->path(), 'value' => $value]);
                 abort(404, 'Conversation not found');
             }
-            return \App\Modules\WhatsApp\Models\WhatsAppConversation::where('id', $id)
-                ->where('account_id', $account->id)
-                ->firstOrFail();
+            $accountId = (int) $account->id;
+            $conversation = \App\Modules\WhatsApp\Models\WhatsAppConversation::where('id', $id)
+                ->where('account_id', $accountId)
+                ->first();
+            if (!$conversation) {
+                $existsOtherAccount = \App\Modules\WhatsApp\Models\WhatsAppConversation::where('id', $id)->exists();
+                \Log::channel('whatsapp')->info('Conversation binding: not found for account', [
+                    'conversation_id' => $id,
+                    'account_id' => $accountId,
+                    'path' => request()->path(),
+                    'exists_other_account' => $existsOtherAccount,
+                ]);
+                abort(404, 'Conversation not found');
+            }
+            return $conversation;
         });
     }
 }
