@@ -151,7 +151,7 @@ class AppServiceProvider extends ServiceProvider
                 abort(404, 'Account not found');
             }
 
-            \Log::channel('whatsapp')->info('Contact binding attempt', [
+            \Log::info('Contact binding attempt', [
                 'value' => $value,
                 'account_ids' => $accountIds,
                 'current_account_id' => $account?->id,
@@ -192,7 +192,7 @@ class AppServiceProvider extends ServiceProvider
             }
 
             if ($contact) {
-                \Log::channel('whatsapp')->info('Contact binding resolved', [
+                \Log::info('Contact binding resolved', [
                     'value' => $value,
                     'contact_id' => $contact->id,
                     'contact_account_id' => $contact->account_id,
@@ -203,7 +203,7 @@ class AppServiceProvider extends ServiceProvider
                     if ($resolvedAccount && $user && $user->canAccessAccount($resolvedAccount)) {
                         request()->attributes->set('account', $resolvedAccount);
                         session(['current_account_id' => $resolvedAccount->id]);
-                        \Log::channel('whatsapp')->info('Contact binding switched account context', [
+                        \Log::info('Contact binding switched account context', [
                             'from' => $account->id,
                             'to' => $resolvedAccount->id,
                         ]);
@@ -211,7 +211,31 @@ class AppServiceProvider extends ServiceProvider
                 }
                 return $contact;
             }
-            \Log::channel('whatsapp')->warning('Contact binding failed', [
+
+            // Fallback: try without account scoping, then enforce access
+            $contactAny = $contactModel::where(function ($q) use ($candidates, $value) {
+                $q->whereIn('slug', $candidates)
+                    ->orWhereIn('wa_id', $candidates);
+                if (is_numeric($value) && (int) $value > 0 && (int) $value < 2147483647) {
+                    $q->orWhere('id', (int) $value);
+                }
+            })->first();
+
+            if ($contactAny) {
+                $contactAccount = \App\Models\Account::find($contactAny->account_id);
+                if ($contactAccount && $user && $user->canAccessAccount($contactAccount)) {
+                    request()->attributes->set('account', $contactAccount);
+                    session(['current_account_id' => $contactAccount->id]);
+                    \Log::info('Contact binding resolved via fallback', [
+                        'value' => $value,
+                        'contact_id' => $contactAny->id,
+                        'contact_account_id' => $contactAny->account_id,
+                    ]);
+                    return $contactAny;
+                }
+            }
+
+            \Log::warning('Contact binding failed', [
                 'value' => $value,
                 'account_ids' => $accountIds,
                 'candidates' => $candidates,
