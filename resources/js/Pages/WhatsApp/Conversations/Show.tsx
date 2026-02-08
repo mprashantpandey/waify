@@ -98,13 +98,16 @@ interface AgentItem {
 export default function ConversationsShow({
     account,
     conversation: initialConversation,
-    messages: initialMessages,
-    templates,
+    messages: initialMessages = [],
+    templates = [],
     lists = [],
-    notes: initialNotes,
-    audit_events: initialAuditEvents,
-    agents,
-    inbox_settings: inboxSettings}: {
+    notes: initialNotes = [],
+    audit_events: initialAuditEvents = [],
+    agents = [],
+    inbox_settings: inboxSettings = {
+        auto_assign_enabled: false,
+        auto_assign_strategy: 'round_robin',
+    }}: {
     account: any;
     conversation: Conversation;
     messages: Message[];
@@ -118,13 +121,32 @@ export default function ConversationsShow({
         auto_assign_strategy: string;
     };
 }) {
+    const pageProps = usePage().props as any;
+    const resolvedConversation: Conversation | null = initialConversation ?? pageProps?.conversation ?? null;
+    const resolvedMessages: Message[] = Array.isArray(initialMessages) ? initialMessages : (Array.isArray(pageProps?.messages) ? pageProps.messages : []);
+    const resolvedNotes: NoteItem[] = Array.isArray(initialNotes) ? initialNotes : (Array.isArray(pageProps?.notes) ? pageProps.notes : []);
+    const resolvedAuditEvents: AuditEventItem[] = Array.isArray(initialAuditEvents) ? initialAuditEvents : (Array.isArray(pageProps?.audit_events) ? pageProps.audit_events : []);
+    const resolvedAgents: AgentItem[] = Array.isArray(agents) ? agents : (Array.isArray(pageProps?.agents) ? pageProps.agents : []);
+    const resolvedTemplates: TemplateItem[] = Array.isArray(templates) ? templates : (Array.isArray(pageProps?.templates) ? pageProps.templates : []);
+    const resolvedLists: ListItem[] = Array.isArray(lists) ? lists : (Array.isArray(pageProps?.lists) ? pageProps.lists : []);
+
+    if (!resolvedConversation) {
+        return (
+            <AppShell>
+                <Head title="Conversation" />
+                <div className="p-6 text-sm text-gray-600 dark:text-gray-300">
+                    Unable to load conversation data. Please refresh the page.
+                </div>
+            </AppShell>
+        );
+    }
     const toArray = <T,>(value: T[] | null | undefined): T[] => (Array.isArray(value) ? value : []);
-    const normalizedMessages = Array.isArray(initialMessages) ? initialMessages : [];
-    const normalizedNotes = Array.isArray(initialNotes) ? initialNotes : [];
-    const normalizedAuditEvents = Array.isArray(initialAuditEvents) ? initialAuditEvents : [];
-    const normalizedAgents = Array.isArray(agents) ? agents : [];
-    const normalizedTemplates = Array.isArray(templates) ? templates : [];
-    const normalizedLists = Array.isArray(lists) ? lists : [];
+    const normalizedMessages = resolvedMessages;
+    const normalizedNotes = resolvedNotes;
+    const normalizedAuditEvents = resolvedAuditEvents;
+    const normalizedAgents = resolvedAgents;
+    const normalizedTemplates = resolvedTemplates;
+    const normalizedLists = resolvedLists;
     const { subscribe, connected } = useRealtime();
     const { addToast } = useToast();
     const { auth } = usePage().props as any;
@@ -133,7 +155,7 @@ export default function ConversationsShow({
     const notifyMentionEnabled = auth?.user?.notify_mention_enabled ?? true;
     const soundEnabled = auth?.user?.notify_sound_enabled ?? true;
     const [messages, setMessages] = useState<Message[]>(normalizedMessages);
-    const [conversation, setConversation] = useState<Conversation>(initialConversation);
+    const [conversation, setConversation] = useState<Conversation>(resolvedConversation);
     const [loading, setLoading] = useState(false);
     const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
     const [showEmojiBar, setShowEmojiBar] = useState(false);
