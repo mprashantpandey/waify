@@ -107,7 +107,7 @@ class BotController extends Controller
 
         Gate::authorize('viewAny', [ChatbotPolicy::class, $account]);
 
-        if ($bot->account_id !== $account->id) {
+        if ((int) $bot->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -154,7 +154,7 @@ class BotController extends Controller
 
         Gate::authorize('manage', [ChatbotPolicy::class, $account]);
 
-        if ($bot->account_id !== $account->id) {
+        if ((int) $bot->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -189,7 +189,7 @@ class BotController extends Controller
 
         Gate::authorize('manage', [ChatbotPolicy::class, $account]);
 
-        if ($bot->account_id !== $account->id) {
+        if ((int) $bot->account_id !== (int) $account->id) {
             abort(404);
         }
 

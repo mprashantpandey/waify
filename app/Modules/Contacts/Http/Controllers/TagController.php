@@ -57,7 +57,7 @@ class TagController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ($tag->account_id !== $account->id) {
+        if ((int) $tag->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -80,7 +80,7 @@ class TagController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ($tag->account_id !== $account->id) {
+        if ((int) $tag->account_id !== (int) $account->id) {
             abort(404);
         }
 

@@ -134,7 +134,7 @@ class ActionExecutor
             }
 
             $template = \App\Modules\WhatsApp\Models\WhatsAppTemplate::find($templateId);
-            if (!$template || $template->account_id !== $context->account->id) {
+            if (!$template || (int) $template->account_id !== (int) $context->account->id) {
                 return ['success' => false, 'error' => 'Template not found'];
             }
 

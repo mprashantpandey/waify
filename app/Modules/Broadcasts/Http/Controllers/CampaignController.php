@@ -206,7 +206,7 @@ class CampaignController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ($campaign->account_id !== $account->id) {
+        if ((int) $campaign->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -269,7 +269,7 @@ class CampaignController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ($campaign->account_id !== $account->id) {
+        if ((int) $campaign->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -299,7 +299,7 @@ class CampaignController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ($campaign->account_id !== $account->id) {
+        if ((int) $campaign->account_id !== (int) $account->id) {
             abort(404);
         }
 
@@ -320,7 +320,7 @@ class CampaignController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if ($campaign->account_id !== $account->id) {
+        if ((int) $campaign->account_id !== (int) $account->id) {
             abort(404);
         }
 
