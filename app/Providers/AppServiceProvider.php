@@ -132,14 +132,24 @@ class AppServiceProvider extends ServiceProvider
             return $campaign;
         });
 
-        // Route model binding for 'contact' - resolve by slug, wa_id, or id, scoped to current account
+        // Route model binding for 'contact' - resolve by slug, wa_id, or id, scoped to accessible accounts
         Route::bind('contact', function ($value) {
             $account = request()->attributes->get('account') ?? current_account();
-            if (!$account) {
+            $contactModel = \App\Modules\WhatsApp\Models\WhatsAppContact::class;
+            $user = request()->user();
+
+            $accountIds = [];
+            if ($account) {
+                $accountIds[] = (int) $account->id;
+            }
+            if ($user) {
+                $ownedIds = $user->ownedAccounts()->pluck('accounts.id')->toArray();
+                $memberIds = $user->accounts()->pluck('accounts.id')->toArray();
+                $accountIds = array_values(array_unique(array_merge($accountIds, $ownedIds, $memberIds)));
+            }
+            if (empty($accountIds)) {
                 abort(404, 'Account not found');
             }
-            $accountId = (int) $account->id;
-            $contactModel = \App\Modules\WhatsApp\Models\WhatsAppContact::class;
 
             // Build candidate values for slug/wa_id (wa_id can be stored with/without country code)
             $candidates = array_unique(array_filter([$value]));
@@ -155,7 +165,7 @@ class AppServiceProvider extends ServiceProvider
                 }
             }
 
-            $contact = $contactModel::where('account_id', $accountId)
+            $contact = $contactModel::whereIn('account_id', $accountIds)
                 ->where(function ($q) use ($candidates, $value) {
                     $q->whereIn('slug', $candidates)
                         ->orWhereIn('wa_id', $candidates);
@@ -167,7 +177,7 @@ class AppServiceProvider extends ServiceProvider
             // Fallback: match by last 10 digits of phone (handles 91 vs 919 and any digit-only wa_id format)
             if (!$contact && is_string($value) && preg_match('/^\d{10,13}$/', $value)) {
                 $last10 = substr($value, -10);
-                $contact = $contactModel::where('account_id', $accountId)
+                $contact = $contactModel::whereIn('account_id', $accountIds)
                     ->where(function ($q) use ($last10) {
                         $q->whereRaw('RIGHT(wa_id, 10) = ?', [$last10])
                             ->orWhereRaw('RIGHT(slug, 10) = ?', [$last10]);
@@ -175,6 +185,14 @@ class AppServiceProvider extends ServiceProvider
             }
 
             if ($contact) {
+                // If contact belongs to a different accessible account, switch context
+                if ($account && (int) $contact->account_id !== (int) $account->id) {
+                    $resolvedAccount = \App\Models\Account::find($contact->account_id);
+                    if ($resolvedAccount && $user && $user->canAccessAccount($resolvedAccount)) {
+                        request()->attributes->set('account', $resolvedAccount);
+                        session(['current_account_id' => $resolvedAccount->id]);
+                    }
+                }
                 return $contact;
             }
             abort(404, 'Contact not found');
