@@ -36,6 +36,21 @@ class TemplateManagementService
             $wabaId
         );
 
+        // If header is media (IMAGE/VIDEO/DOCUMENT), upload to Meta and use handle so Meta accepts the template
+        if (!empty($templateData['header_type']) && in_array($templateData['header_type'], ['IMAGE', 'VIDEO', 'DOCUMENT']) && !empty($templateData['header_media_url'])) {
+            try {
+                $handle = $this->uploadHeaderMediaToMeta($connection, $templateData['header_media_url'], $templateData['header_type']);
+                if ($handle) {
+                    $templateData['header_media_handle'] = $handle;
+                }
+            } catch (\Throwable $e) {
+                Log::channel('whatsapp')->warning('Template header media upload to Meta failed, using URL', [
+                    'connection_id' => $connection->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
         // Build payload according to Meta's latest API format
         $payload = $this->buildTemplatePayload($templateData);
 
@@ -241,11 +256,14 @@ class TemplateManagementService
 
             if ($data['header_type'] === 'TEXT' && !empty($data['header_text'])) {
                 $header['text'] = $data['header_text'];
-            } elseif (in_array($data['header_type'], ['IMAGE', 'VIDEO', 'DOCUMENT']) && !empty($data['header_media_url'])) {
-                // Meta accepts a URL for sample media; for production, Resumable Upload handle is preferred
-                $header['example'] = [
-                    'header_handle' => [$data['header_media_url']],
-                ];
+            } elseif (in_array($data['header_type'], ['IMAGE', 'VIDEO', 'DOCUMENT'])) {
+                // Use Meta upload handle when available (recommended); otherwise public URL (Meta may reject if unreachable)
+                $mediaRef = $data['header_media_handle'] ?? $data['header_media_url'] ?? null;
+                if (!empty($mediaRef)) {
+                    $header['example'] = [
+                        'header_handle' => [$mediaRef],
+                    ];
+                }
             }
 
             $payload['components'][] = $header;
@@ -281,7 +299,8 @@ class TemplateManagementService
 
                 if ($buttonType === 'URL' && !empty($button['url'])) {
                     $buttonData['url'] = $button['url'];
-                    if (!empty($button['url_example'])) {
+                    // Only add example for dynamic URL (Meta requires URL to contain {{1}} when using example)
+                    if (!empty($button['url_example']) && preg_match('/\{\{\d+\}\}/', $button['url'])) {
                         $buttonData['example'] = [$button['url_example']];
                     }
                 } elseif ($buttonType === 'PHONE_NUMBER' && !empty($button['phone_number'])) {
@@ -362,6 +381,90 @@ class TemplateManagementService
             'components' => $components,
             'last_synced_at' => now(),
             'last_meta_error' => null]);
+    }
+
+    /**
+     * Upload header media to Meta via Resumable Upload API and return the file handle.
+     * Meta template creation often rejects app-hosted URLs; using a handle avoids "Invalid parameter".
+     */
+    protected function uploadHeaderMediaToMeta(WhatsAppConnection $connection, string $mediaUrl, string $headerType): ?string
+    {
+        $appId = config('whatsapp.meta.app_id');
+        if (!$appId) {
+            return null;
+        }
+
+        $response = Http::timeout(30)->get($mediaUrl);
+        if (!$response->successful()) {
+            throw new \RuntimeException("Could not fetch media: HTTP {$response->status()}");
+        }
+
+        $content = $response->body();
+        $fileLength = strlen($content);
+        if ($fileLength === 0) {
+            throw new \RuntimeException('Media file is empty');
+        }
+
+        $mimeMap = [
+            'IMAGE' => $response->header('Content-Type') ?: 'image/png',
+            'VIDEO' => 'video/mp4',
+            'DOCUMENT' => $response->header('Content-Type') ?: 'application/pdf',
+        ];
+        $fileType = $mimeMap[$headerType] ?? 'image/png';
+        // Meta only accepts: image/jpeg, image/jpg, image/png, video/mp4, application/pdf
+        $allowed = ['image/jpeg', 'image/jpg', 'image/png', 'video/mp4', 'application/pdf'];
+        if (!in_array(strtolower(explode(';', $fileType)[0]), $allowed)) {
+            $fileType = $headerType === 'VIDEO' ? 'video/mp4' : 'image/png';
+        }
+
+        $fileName = 'template_header_' . substr(md5($mediaUrl), 0, 8);
+        if (str_starts_with($fileType, 'image/')) {
+            $fileName .= '.png';
+        } elseif (str_starts_with($fileType, 'video/')) {
+            $fileName .= '.mp4';
+        } else {
+            $fileName .= '.pdf';
+        }
+
+        $version = $connection->api_version ?: config('whatsapp.meta.api_version', 'v21.0');
+        $createUrl = sprintf('%s/%s/%s/uploads', $this->baseUrl, $version, $appId);
+
+        $sessionResponse = Http::withToken($connection->access_token)
+            ->post($createUrl, [
+                'file_name' => $fileName,
+                'file_length' => $fileLength,
+                'file_type' => $fileType,
+            ]);
+
+        $sessionData = $sessionResponse->json();
+        $sessionId = $sessionData['id'] ?? null;
+        if (!$sessionId || !str_starts_with((string) $sessionId, 'upload:')) {
+            Log::channel('whatsapp')->warning('Meta upload session failed', [
+                'response' => $sessionData,
+                'status' => $sessionResponse->status(),
+            ]);
+            return null;
+        }
+
+        $uploadUrl = sprintf('%s/%s/%s', $this->baseUrl, $version, $sessionId);
+        $uploadResponse = Http::withHeaders([
+            'Authorization' => 'OAuth ' . $connection->access_token,
+            'file_offset' => '0',
+        ])->withBody($content, 'application/octet-stream')
+            ->timeout(60)
+            ->post($uploadUrl);
+
+        $uploadData = $uploadResponse->json();
+        $handle = $uploadData['h'] ?? null;
+        if (!$handle) {
+            Log::channel('whatsapp')->warning('Meta file upload failed', [
+                'response' => $uploadData,
+                'status' => $uploadResponse->status(),
+            ]);
+            return null;
+        }
+
+        return $handle;
     }
 
     /**

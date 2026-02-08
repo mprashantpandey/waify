@@ -63,7 +63,10 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             // Return Inertia 404 page for Inertia requests so the client doesn't crash (e.g. "Cannot read properties of null (reading 'component')")
-            if ($request->header('X-Inertia') && ($e instanceof \Symfony\Component\HttpKernel\Exception\NotFoundHttpException || ($e instanceof \Illuminate\Http\Exceptions\HttpException && $e->getStatusCode() === 404))) {
+            $is404 = $e instanceof \Symfony\Component\HttpKernel\Exception\NotFoundHttpException
+                || ($e instanceof \Illuminate\Http\Exceptions\HttpException && $e->getStatusCode() === 404)
+                || $e instanceof \Illuminate\Database\Eloquent\ModelNotFoundException;
+            if ($request->header('X-Inertia') && $is404) {
                 return \Inertia\Inertia::render('Error/NotFound')->toResponse($request)->setStatusCode(404);
             }
             

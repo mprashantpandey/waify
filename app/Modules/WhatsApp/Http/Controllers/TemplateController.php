@@ -260,17 +260,15 @@ class TemplateController extends Controller
                 'trace' => $e->getTraceAsString()]);
 
             $errorMessage = $e->getMessage();
-            
-            // For Inertia requests, return with errors
+            $displayMessage = str_starts_with($errorMessage, 'Failed to create template:')
+                ? $errorMessage
+                : 'Failed to create template: ' . $errorMessage;
+
             if ($request->header('X-Inertia')) {
-                return back()->withErrors([
-                    'create' => 'Failed to create template: ' . $errorMessage
-                ])->withInput();
+                return back()->withErrors(['create' => $displayMessage])->withInput();
             }
 
-            return back()->withErrors([
-                'create' => 'Failed to create template: ' . $errorMessage
-            ])->withInput();
+            return back()->withErrors(['create' => $displayMessage])->withInput();
         }
     }
 
