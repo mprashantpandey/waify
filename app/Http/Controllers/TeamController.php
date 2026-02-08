@@ -20,7 +20,7 @@ class TeamController extends Controller
      */
     private function canViewTeam(User $user, Account $account): bool
     {
-        if ($account->owner_id === $user->id) {
+        if ((int) $account->owner_id === (int) $user->id) {
             return true;
         }
 
@@ -36,7 +36,7 @@ class TeamController extends Controller
      */
     private function canManageTeam(User $user, Account $account): bool
     {
-        if ($account->owner_id === $user->id) {
+        if ((int) $account->owner_id === (int) $user->id) {
             return true;
         }
 
@@ -156,7 +156,7 @@ class TeamController extends Controller
         }
 
         // Check if user is the owner
-        if ($existingUser && $account->owner_id === $existingUser->id) {
+        if ($existingUser && (int) $account->owner_id === (int) $existingUser->id) {
             return back()->with('error', 'User is already the owner of this account.');
         }
 
@@ -213,7 +213,7 @@ class TeamController extends Controller
         }
 
         // Cannot change owner role
-        if ($account->owner_id === $user->id) {
+        if ((int) $account->owner_id === (int) $user->id) {
             return back()->with('error', 'Cannot change owner role.');
         }
         if ($user->isSuperAdmin()) {
@@ -257,7 +257,7 @@ class TeamController extends Controller
             }
 
             // Cannot remove owner
-            if ($account->owner_id === $user->id) {
+            if ((int) $account->owner_id === (int) $user->id) {
                 return back()->with('error', 'Cannot remove account owner.');
             }
             if ($user->isSuperAdmin()) {
