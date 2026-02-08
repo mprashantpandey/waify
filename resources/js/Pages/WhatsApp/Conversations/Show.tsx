@@ -1869,7 +1869,6 @@ export default function ConversationsShow({
                     )}
                 </div>
             </div>
-        </div>
     );
 
     if (embedded) {
