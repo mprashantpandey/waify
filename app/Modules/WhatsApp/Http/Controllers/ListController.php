@@ -7,6 +7,7 @@ use App\Modules\WhatsApp\Models\WhatsAppList;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -41,9 +42,14 @@ class ListController extends Controller
                 ];
             });
 
-        $connections = WhatsAppConnection::where('account_id', $account->id)
-            ->where('status', 'connected')
-            ->get()
+        $connectionsQuery = WhatsAppConnection::where('account_id', $account->id);
+        if (Schema::hasColumn('whatsapp_connections', 'status')) {
+            $connectionsQuery->where('status', 'connected');
+        } elseif (Schema::hasColumn('whatsapp_connections', 'is_active')) {
+            $connectionsQuery->where('is_active', true);
+        }
+
+        $connections = $connectionsQuery->get()
             ->map(fn($conn) => [
                 'id' => $conn->id,
                 'name' => $conn->name,
@@ -63,9 +69,14 @@ class ListController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        $connections = WhatsAppConnection::where('account_id', $account->id)
-            ->where('status', 'connected')
-            ->get()
+        $connectionsQuery = WhatsAppConnection::where('account_id', $account->id);
+        if (Schema::hasColumn('whatsapp_connections', 'status')) {
+            $connectionsQuery->where('status', 'connected');
+        } elseif (Schema::hasColumn('whatsapp_connections', 'is_active')) {
+            $connectionsQuery->where('is_active', true);
+        }
+
+        $connections = $connectionsQuery->get()
             ->map(fn($conn) => [
                 'id' => $conn->id,
                 'name' => $conn->name,
