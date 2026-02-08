@@ -11,6 +11,8 @@ class WhatsAppList extends Model
 {
     use HasFactory;
 
+    protected $table = 'whatsapp_lists';
+
     protected $fillable = [
         'account_id',
         'whatsapp_connection_id',
@@ -172,4 +174,3 @@ class WhatsAppList extends Model
         return $interactive;
     }
 }
-
