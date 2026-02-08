@@ -240,6 +240,12 @@ class WebhookProcessor
                 'last_message_at' => now(),
                 'last_message_preview' => $textBody ? substr($textBody, 0, 100) : "[{$messageType}]"]);
 
+            // Update contact stats for inbound message
+            $contact->increment('message_count');
+            $contact->forceFill([
+                'last_seen_at' => now(),
+            ])->save();
+
             // Auto-assign if enabled and conversation is unassigned
             $this->autoAssignConversation($conversation, $connection);
 

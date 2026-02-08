@@ -8,7 +8,9 @@ use App\Modules\Contacts\Models\ContactSegment;
 use App\Modules\Contacts\Models\ContactTag;
 use App\Modules\Contacts\Services\ContactService;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
+use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -170,6 +172,48 @@ class ContactController extends Controller
             $query->orderBy('last_message_at', 'desc')->limit(10);
         }]);
 
+        $messageStats = WhatsAppMessage::whereHas('conversation', function ($query) use ($contact) {
+            $query->where('whatsapp_contact_id', $contact->id);
+        })->selectRaw('count(*) as total, max(received_at) as last_seen, max(sent_at) as last_contacted, max(created_at) as last_message')
+            ->first();
+
+        $computedMessageCount = $contact->message_count ?? 0;
+        $computedLastSeenAt = $contact->last_seen_at;
+        $computedLastContactedAt = $contact->last_contacted_at;
+        $updates = [];
+
+        if ($messageStats && (int) $messageStats->total > 0) {
+            if ($computedMessageCount === 0) {
+                $computedMessageCount = (int) $messageStats->total;
+                $updates['message_count'] = $computedMessageCount;
+            }
+
+            if (!$computedLastSeenAt && $messageStats->last_seen) {
+                $computedLastSeenAt = $messageStats->last_seen;
+                $updates['last_seen_at'] = $computedLastSeenAt;
+            }
+
+            if (!$computedLastContactedAt && $messageStats->last_contacted) {
+                $computedLastContactedAt = $messageStats->last_contacted;
+                $updates['last_contacted_at'] = $computedLastContactedAt;
+            }
+
+            if (!$computedLastSeenAt && $messageStats->last_message) {
+                $computedLastSeenAt = $messageStats->last_message;
+            }
+        }
+
+        if (!empty($updates)) {
+            $contact->forceFill($updates)->save();
+        }
+
+        if ($computedLastSeenAt && !$computedLastSeenAt instanceof Carbon) {
+            $computedLastSeenAt = Carbon::parse($computedLastSeenAt);
+        }
+        if ($computedLastContactedAt && !$computedLastContactedAt instanceof Carbon) {
+            $computedLastContactedAt = Carbon::parse($computedLastContactedAt);
+        }
+
         $activities = ContactActivity::where('contact_id', $contact->id)
             ->with('user')
             ->orderBy('created_at', 'desc')
@@ -204,9 +248,9 @@ class ContactController extends Controller
                 'notes' => $contact->notes,
                 'status' => $contact->status ?? 'active',
                 'source' => $contact->source,
-                'message_count' => $contact->message_count ?? 0,
-                'last_seen_at' => $contact->last_seen_at?->toIso8601String(),
-                'last_contacted_at' => $contact->last_contacted_at?->toIso8601String(),
+                'message_count' => $computedMessageCount,
+                'last_seen_at' => $computedLastSeenAt?->toIso8601String(),
+                'last_contacted_at' => $computedLastContactedAt?->toIso8601String(),
                 'tags' => $contact->tags->map(function ($tag) {
                     return [
                         'id' => $tag->id,

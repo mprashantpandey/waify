@@ -517,6 +517,8 @@ class ConversationController extends Controller
                 'last_message_at' => now(),
                 'last_message_preview' => substr($validated['message'], 0, 100)]);
 
+            $this->touchContactAfterOutbound($conversation);
+
             // Broadcast message update and conversation update
             event(new MessageUpdated($message));
             event(new ConversationUpdated($conversation));
@@ -613,6 +615,8 @@ class ConversationController extends Controller
             $conversation->update([
                 'last_message_at' => now(),
                 'last_message_preview' => substr($message->text_body ?? '', 0, 100)]);
+
+            $this->touchContactAfterOutbound($conversation);
 
             event(new MessageUpdated($message));
             event(new ConversationUpdated($conversation));
@@ -712,6 +716,8 @@ class ConversationController extends Controller
                 'last_message_at' => now(),
                 'last_message_preview' => $caption ? substr($caption, 0, 100) : strtoupper($type) . ' attachment']);
 
+            $this->touchContactAfterOutbound($conversation);
+
             event(new MessageUpdated($message));
             event(new ConversationUpdated($conversation));
 
@@ -784,6 +790,8 @@ class ConversationController extends Controller
             $conversation->update([
                 'last_message_at' => now(),
                 'last_message_preview' => 'Location shared']);
+
+            $this->touchContactAfterOutbound($conversation);
 
             event(new MessageUpdated($message));
             event(new ConversationUpdated($conversation));
@@ -871,6 +879,8 @@ class ConversationController extends Controller
                 'last_message_at' => now(),
                 'last_message_preview' => $list->name]);
 
+            $this->touchContactAfterOutbound($conversation);
+
             event(new MessageUpdated($message));
             event(new ConversationUpdated($conversation));
 
@@ -950,6 +960,8 @@ class ConversationController extends Controller
                 'last_message_at' => now(),
                 'last_message_preview' => substr($validated['body_text'], 0, 100)]);
 
+            $this->touchContactAfterOutbound($conversation);
+
             event(new MessageUpdated($message));
             event(new ConversationUpdated($conversation));
 
@@ -963,5 +975,22 @@ class ConversationController extends Controller
             return redirect()->back()->withErrors([
                 'buttons' => 'Failed to send interactive buttons: ' . $e->getMessage()]);
         }
+    }
+
+    protected function touchContactAfterOutbound(WhatsAppConversation $conversation): void
+    {
+        if (!$conversation->relationLoaded('contact')) {
+            $conversation->load('contact');
+        }
+
+        $contact = $conversation->contact;
+        if (!$contact) {
+            return;
+        }
+
+        $contact->increment('message_count');
+        $contact->forceFill([
+            'last_contacted_at' => now(),
+        ])->save();
     }
 }
