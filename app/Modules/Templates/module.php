@@ -7,10 +7,7 @@ return [
     'enabled_by_default' => false,
     'is_core' => false,
     'icon' => 'FileText',
-    'nav' => [
-        [
-            'label' => 'Templates',
-            'href' => 'app.whatsapp.templates.index',
-            'icon' => 'FileText',
-            'group' => 'messaging']]];
+    // No nav: WhatsApp module already shows "Templates" (app.whatsapp.templates.index). Avoid duplicate sidebar entry.
+    'nav' => [],
+];
 
