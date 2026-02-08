@@ -142,5 +142,19 @@ class AppServiceProvider extends ServiceProvider
             return $contact;
         });
 
+        // Route model binding for 'conversation' - scope to current account so inbox links never 404 for wrong account
+        Route::bind('conversation', function ($value) {
+            $account = request()->attributes->get('account') ?? current_account();
+            if (!$account) {
+                abort(404, 'Account not found');
+            }
+            $id = is_numeric($value) ? (int) $value : null;
+            if ($id === null || $id < 1) {
+                abort(404, 'Conversation not found');
+            }
+            return \App\Modules\WhatsApp\Models\WhatsAppConversation::where('id', $id)
+                ->where('account_id', $account->id)
+                ->firstOrFail();
+        });
     }
 }
