@@ -195,6 +195,23 @@ export default function ConversationsShow({
     const { data, setData, post, processing, errors, reset } = useForm({
         message: ''});
 
+    useEffect(() => {
+        if (!resolvedConversation) return;
+        setConversation(resolvedConversation);
+        setMessages(normalizedMessages);
+        setNotes(normalizedNotes);
+        setAuditEvents(normalizedAuditEvents);
+        lastMessageIdRef.current = Math.max(...normalizedMessages.map((m) => m.id), 0);
+        processedMessageIds.current = new Set(normalizedMessages.map((m) => m.id));
+        lastNoteIdRef.current = Math.max(...normalizedNotes.map((n) => n.id), 0);
+        lastAuditIdRef.current = Math.max(...normalizedAuditEvents.map((e) => e.id), 0);
+    }, [
+        resolvedConversation?.id,
+        normalizedMessages.length,
+        normalizedNotes.length,
+        normalizedAuditEvents.length,
+    ]);
+
     const emojiList = ['😀', '😁', '😂', '🤣', '😍', '😘', '😊', '🥰', '😎', '🤝', '👍', '🙏', '🎉', '🔥', '✨', '💡', '😢', '😮', '😡', '🤔', '😅', '🙌', '✅', '❌'];
     const quickReplies = [
         { id: 'greeting', label: 'Greeting', text: 'Hi! How can I help you today?' },
