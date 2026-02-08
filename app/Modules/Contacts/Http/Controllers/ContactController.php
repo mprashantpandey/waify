@@ -66,7 +66,7 @@ class ContactController extends Controller
             ->through(function ($contact) {
                 return [
                     'id' => $contact->id,
-                    'slug' => $contact->slug,
+                    'slug' => $contact->slug ?? $contact->wa_id ?? (string) $contact->id,
                     'wa_id' => $contact->wa_id,
                     'name' => $contact->name,
                     'email' => $contact->email,

@@ -174,7 +174,7 @@ export default function ContactsIndex({
                                             <div className="flex items-center gap-3 mb-2">
                                                 <Link
                                                     href={route('app.contacts.show', {
-                                                        contact: contact.slug})}
+                                                        contact: contact.slug || contact.id})}
                                                     className="text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400"
                                                 >
                                                     {contact.name || contact.wa_id}
@@ -211,7 +211,7 @@ export default function ContactsIndex({
                                         </div>
                                         <Link
                                             href={route('app.contacts.show', {
-                                                contact: contact.slug})}
+                                                contact: contact.slug || contact.id})}
                                         >
                                             <Button variant="secondary" size="sm">
                                                 View
