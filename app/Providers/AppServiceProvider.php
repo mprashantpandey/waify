@@ -132,7 +132,7 @@ class AppServiceProvider extends ServiceProvider
             return $campaign;
         });
 
-        // Route model binding for 'contact' - resolve by slug or id, scoped to current account (avoid 404/wrong account)
+        // Route model binding for 'contact' - resolve by slug, wa_id, or id, scoped to current account
         Route::bind('contact', function ($value) {
             $account = request()->attributes->get('account') ?? current_account();
             if (!$account) {
@@ -142,6 +142,7 @@ class AppServiceProvider extends ServiceProvider
             $query = \App\Modules\WhatsApp\Models\WhatsAppContact::where('account_id', $accountId)
                 ->where(function ($q) use ($value) {
                     $q->where('slug', $value);
+                    $q->orWhere('wa_id', $value);
                     if (is_numeric($value) && (int) $value > 0) {
                         $q->orWhere('id', (int) $value);
                     }
