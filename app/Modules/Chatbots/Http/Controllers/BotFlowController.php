@@ -29,7 +29,9 @@ class BotFlowController extends Controller
             'trigger' => 'required|array',
             'trigger.type' => 'required|string|in:inbound_message,keyword,button_reply',
             'enabled' => 'boolean',
-            'priority' => 'integer|min:0|max:1000']);
+            'priority' => 'integer|min:0|max:1000',
+            'nodes' => 'nullable|array',
+        ]);
 
         $flow = BotFlow::create([
             'account_id' => $account->id,
@@ -38,6 +40,24 @@ class BotFlowController extends Controller
             'trigger' => $validated['trigger'],
             'enabled' => $validated['enabled'] ?? true,
             'priority' => $validated['priority'] ?? 100]);
+
+        $nodes = $validated['nodes'] ?? [];
+        if (!empty($nodes)) {
+            $sortOrder = 1;
+            foreach ($nodes as $node) {
+                if (!is_array($node)) {
+                    continue;
+                }
+
+                $flow->nodes()->create([
+                    'account_id' => $account->id,
+                    'type' => $node['type'] ?? 'action',
+                    'config' => $node['config'] ?? [],
+                    'sort_order' => $node['sort_order'] ?? $sortOrder,
+                ]);
+                $sortOrder++;
+            }
+        }
 
         return redirect()->back()->with('success', 'Flow created successfully.');
     }
@@ -59,9 +79,34 @@ class BotFlowController extends Controller
             'name' => 'sometimes|required|string|max:255',
             'trigger' => 'sometimes|required|array',
             'enabled' => 'sometimes|boolean',
-            'priority' => 'sometimes|integer|min:0|max:1000']);
+            'priority' => 'sometimes|integer|min:0|max:1000',
+            'nodes' => 'sometimes|array',
+        ]);
 
-        $flow->update($validated);
+        $updates = $validated;
+        unset($updates['nodes']);
+
+        if (!empty($updates)) {
+            $flow->update($updates);
+        }
+
+        if (array_key_exists('nodes', $validated)) {
+            $flow->nodes()->delete();
+            $nodes = $validated['nodes'] ?? [];
+            $sortOrder = 1;
+            foreach ($nodes as $node) {
+                if (!is_array($node)) {
+                    continue;
+                }
+                $flow->nodes()->create([
+                    'account_id' => $account->id,
+                    'type' => $node['type'] ?? 'action',
+                    'config' => $node['config'] ?? [],
+                    'sort_order' => $node['sort_order'] ?? $sortOrder,
+                ]);
+                $sortOrder++;
+            }
+        }
 
         return redirect()->back()->with('success', 'Flow updated successfully.');
     }

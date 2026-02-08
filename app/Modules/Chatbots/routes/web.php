@@ -3,6 +3,7 @@
 use App\Modules\Chatbots\Http\Controllers\BotController;
 use App\Modules\Chatbots\Http\Controllers\BotExecutionController;
 use App\Modules\Chatbots\Http\Controllers\BotFlowController;
+use App\Modules\Chatbots\Http\Controllers\BotNodeController;
 use Illuminate\Support\Facades\Route;
 
 // App routes (requires auth + account + module entitlement)
@@ -22,6 +23,11 @@ Route::middleware(['auth', 'account.resolve', 'module.entitled:automation.chatbo
         Route::post('/chatbots/{bot}/flows', [BotFlowController::class, 'store'])->name('flows.store');
         Route::patch('/chatbots/flows/{flow}', [BotFlowController::class, 'update'])->name('flows.update');
         Route::delete('/chatbots/flows/{flow}', [BotFlowController::class, 'destroy'])->name('flows.destroy');
+
+        // Nodes
+        Route::post('/chatbots/flows/{flow}/nodes', [BotNodeController::class, 'store'])->name('nodes.store');
+        Route::patch('/chatbots/nodes/{node}', [BotNodeController::class, 'update'])->name('nodes.update');
+        Route::delete('/chatbots/nodes/{node}', [BotNodeController::class, 'destroy'])->name('nodes.destroy');
 
         // Executions
         Route::get('/chatbots/executions', [BotExecutionController::class, 'index'])->name('executions.index');

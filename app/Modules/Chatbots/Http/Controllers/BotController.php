@@ -117,6 +117,38 @@ class BotController extends Controller
             ->where('is_active', true)
             ->get(['id', 'name']);
 
+        $templates = \App\Modules\WhatsApp\Models\WhatsAppTemplate::where('account_id', $account->id)
+            ->where('is_archived', false)
+            ->orderBy('name')
+            ->get(['id', 'name', 'language', 'status']);
+
+        $tags = \App\Modules\Contacts\Models\ContactTag::where('account_id', $account->id)
+            ->orderBy('name')
+            ->get(['id', 'name', 'color']);
+
+        $agents = collect();
+        if ($account->owner) {
+            $agents->push([
+                'id' => $account->owner->id,
+                'name' => $account->owner->name,
+                'email' => $account->owner->email,
+                'role' => 'owner',
+            ]);
+        }
+
+        $accountMembers = $account->users()
+            ->get(['users.id', 'users.name', 'users.email', 'account_users.role'])
+            ->map(function ($user) {
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->pivot?->role ?? 'member',
+                ];
+            });
+
+        $agents = $agents->merge($accountMembers)->unique('id')->values();
+
         return Inertia::render('Chatbots/Show', [
             'account' => $account,
             'bot' => [
@@ -142,7 +174,11 @@ class BotController extends Controller
                                 'sort_order' => $node->sort_order];
                         })];
                 })],
-            'connections' => $connections]);
+            'connections' => $connections,
+            'templates' => $templates,
+            'tags' => $tags,
+            'agents' => $agents,
+        ]);
     }
 
     /**

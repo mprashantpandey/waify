@@ -258,7 +258,7 @@ class WebhookProcessor
             event(new ConversationUpdated($conversation));
 
             // Process bots for inbound messages (queued to prevent webhook timeout)
-            if ($message->direction === 'inbound') {
+            if ($message->direction === 'inbound' && module_enabled($account, 'automation.chatbots')) {
                 \App\Modules\Chatbots\Jobs\ProcessInboundMessageForBots::dispatch($message, $conversation)
                     ->onQueue('chatbots'); // Use dedicated queue
             }

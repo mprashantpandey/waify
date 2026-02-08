@@ -53,12 +53,20 @@ export default function ChatbotsIndex({
                             Build automation bots for WhatsApp conversations
                         </p>
                     </div>
-                    <Link href={route('app.chatbots.create', {})}>
-                        <Button className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 shadow-lg shadow-purple-500/50">
-                            <Plus className="h-4 w-4 mr-2" />
-                            Create Bot
-                        </Button>
-                    </Link>
+                    <div className="flex items-center gap-2">
+                        <Link href={route('app.chatbots.executions.index', {})}>
+                            <Button variant="secondary" className="rounded-xl">
+                                <Activity className="h-4 w-4 mr-2" />
+                                Execution Logs
+                            </Button>
+                        </Link>
+                        <Link href={route('app.chatbots.create', {})}>
+                            <Button className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 shadow-lg shadow-purple-500/50">
+                                <Plus className="h-4 w-4 mr-2" />
+                                Create Bot
+                            </Button>
+                        </Link>
+                    </div>
                 </div>
 
                 {bots.length === 0 ? (
