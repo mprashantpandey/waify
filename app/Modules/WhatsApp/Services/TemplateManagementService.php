@@ -36,18 +36,28 @@ class TemplateManagementService
             $wabaId
         );
 
-        // If header is media (IMAGE/VIDEO/DOCUMENT), upload to Meta and use handle so Meta accepts the template
-        if (!empty($templateData['header_type']) && in_array($templateData['header_type'], ['IMAGE', 'VIDEO', 'DOCUMENT']) && !empty($templateData['header_media_url'])) {
-            try {
-                $handle = $this->uploadHeaderMediaToMeta($connection, $templateData['header_media_url'], $templateData['header_type']);
-                if ($handle) {
-                    $templateData['header_media_handle'] = $handle;
+        // If header is media (IMAGE/VIDEO/DOCUMENT), we must provide an example. Prefer Meta upload handle over URL.
+        if (!empty($templateData['header_type']) && in_array($templateData['header_type'], ['IMAGE', 'VIDEO', 'DOCUMENT'])) {
+            $mediaUrl = trim((string) ($templateData['header_media_url'] ?? ''));
+            if ($mediaUrl !== '') {
+                try {
+                    $handle = $this->uploadHeaderMediaToMeta($connection, $mediaUrl, $templateData['header_type']);
+                    if ($handle) {
+                        $templateData['header_media_handle'] = $handle;
+                    }
+                } catch (\Throwable $e) {
+                    Log::channel('whatsapp')->warning('Template header media upload to Meta failed, using URL', [
+                        'connection_id' => $connection->id,
+                        'error' => $e->getMessage(),
+                    ]);
                 }
-            } catch (\Throwable $e) {
-                Log::channel('whatsapp')->warning('Template header media upload to Meta failed, using URL', [
-                    'connection_id' => $connection->id,
-                    'error' => $e->getMessage(),
-                ]);
+            }
+            // Meta requires a valid example for IMAGE/VIDEO/DOCUMENT headers
+            $hasExample = !empty($templateData['header_media_handle']) || !empty(trim((string) ($templateData['header_media_url'] ?? '')));
+            if (!$hasExample) {
+                throw new \InvalidArgumentException(
+                    'Templates with ' . $templateData['header_type'] . ' header require a sample. Please upload a header image (or provide a public image URL) and try again.'
+                );
             }
         }
 
@@ -70,6 +80,10 @@ class TemplateManagementService
                 $userMsg = $err['error_user_msg'] ?? $err['error_user_title'] ?? null;
                 if ($userMsg && $userMsg !== $errorMessage) {
                     $errorMessage = $errorMessage . ' (' . $userMsg . ')';
+                }
+                // When Meta says IMAGE header needs example/valid example: URL may be unreachable by Meta; suggest upload
+                if (stripos($errorMessage, 'IMAGE header') !== false && (stripos($errorMessage, 'example') !== false || stripos($errorMessage, 'sample') !== false)) {
+                    $errorMessage .= ' Make sure the header image URL is publicly accessible (no login required), or set META_APP_ID in .env so we can upload the image to Meta.';
                 }
 
                 Log::channel('whatsapp')->error('Template creation API error', [
@@ -257,13 +271,17 @@ class TemplateManagementService
             if ($data['header_type'] === 'TEXT' && !empty($data['header_text'])) {
                 $header['text'] = $data['header_text'];
             } elseif (in_array($data['header_type'], ['IMAGE', 'VIDEO', 'DOCUMENT'])) {
-                // Use Meta upload handle when available (recommended); otherwise public URL (Meta may reject if unreachable)
+                // Meta requires example for media headers. Use handle from Resumable Upload when available, else public URL.
                 $mediaRef = $data['header_media_handle'] ?? $data['header_media_url'] ?? null;
-                if (!empty($mediaRef)) {
-                    $header['example'] = [
-                        'header_handle' => [$mediaRef],
-                    ];
+                $mediaRef = is_string($mediaRef) ? trim($mediaRef) : $mediaRef;
+                if (empty($mediaRef)) {
+                    throw new \InvalidArgumentException(
+                        'Templates with ' . $data['header_type'] . ' header need a sample image. Please upload a file or provide a public image URL.'
+                    );
                 }
+                $header['example'] = [
+                    'header_handle' => [$mediaRef],
+                ];
             }
 
             $payload['components'][] = $header;
@@ -429,12 +447,13 @@ class TemplateManagementService
         $version = $connection->api_version ?: config('whatsapp.meta.api_version', 'v21.0');
         $createUrl = sprintf('%s/%s/%s/uploads', $this->baseUrl, $version, $appId);
 
+        // Meta Resumable Upload: create session (API accepts query or form params)
         $sessionResponse = Http::withToken($connection->access_token)
-            ->post($createUrl, [
+            ->post($createUrl . '?' . http_build_query([
                 'file_name' => $fileName,
                 'file_length' => $fileLength,
                 'file_type' => $fileType,
-            ]);
+            ]));
 
         $sessionData = $sessionResponse->json();
         $sessionId = $sessionData['id'] ?? null;
