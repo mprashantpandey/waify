@@ -75,6 +75,7 @@ class ConversationUpdated implements ShouldBroadcast
         return [
             'conversation' => [
                 'id' => $conversation->id,
+                'account_id' => $conversation->account_id,
                 'status' => $conversation->status,
                 'priority' => $priority,
                 'assignee_id' => $assigneeId,

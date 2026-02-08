@@ -12,6 +12,7 @@ import { Head } from '@inertiajs/react';
 
 interface Conversation {
     id: number;
+    account_id?: number;
     contact: {
         id: number;
         wa_id: string;
@@ -92,9 +93,13 @@ export default function ConversationsIndex({
             .then((response: any) => {
                 const list = response.data?.updated_conversations;
                 if (!list?.length) return;
+                const currentAccountId = account?.id;
                 setConversations((prev) => {
                     const byId = new Map(prev.map((c) => [c.id, c]));
-                    list.forEach((conv: Conversation) => byId.set(conv.id, conv));
+                    list.forEach((conv: Conversation) => {
+                        if (currentAccountId != null && conv.account_id != null && conv.account_id !== currentAccountId) return;
+                        byId.set(conv.id, conv);
+                    });
                     return Array.from(byId.values()).sort((a, b) => {
                         const timeA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
                         const timeB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
@@ -109,6 +114,10 @@ export default function ConversationsIndex({
     // Filter conversations
     const filteredConversations = useMemo(() => {
         return conversations.filter((conv) => {
+            // Only show conversations for current account (avoid 404 when clicking)
+            if (conv.account_id != null && account?.id != null && conv.account_id !== account.id) {
+                return false;
+            }
             // Search filter
             if (searchQuery) {
                 const query = searchQuery.toLowerCase();
@@ -132,7 +141,7 @@ export default function ConversationsIndex({
 
             return true;
         });
-    }, [conversations, searchQuery, statusFilter, connectionFilter]);
+    }, [conversations, account?.id, searchQuery, statusFilter, connectionFilter]);
 
     // Helper functions for realtime updates
     const applyConversationUpdated = (prev: Conversation[], updated: Conversation) => {
@@ -188,8 +197,11 @@ export default function ConversationsIndex({
                     const conv = data.conversation || {};
                     const convId = Number(conv.id);
                     if (!Number.isInteger(convId) || convId < 1) return;
+                    const convAccountId = conv.account_id != null ? Number(conv.account_id) : undefined;
+                    if (account?.id != null && convAccountId != null && convAccountId !== account.id) return;
                     const incoming: Conversation = {
                         id: convId,
+                        account_id: convAccountId,
                         contact: conv.contact ?? { id: 0, wa_id: '', name: '' },
                         status: conv.status ?? 'open',
                         last_message_preview: conv.last_message_preview ?? null,
@@ -386,7 +398,8 @@ export default function ConversationsIndex({
                                             key={conversation.id}
                                             href={(() => {
                                                 const id = parseInt(String(conversation.id), 10);
-                                                return (Number.isInteger(id) && id >= 1)
+                                                const sameAccount = conversation.account_id == null || conversation.account_id === account?.id;
+                                                return (Number.isInteger(id) && id >= 1 && sameAccount)
                                                     ? route('app.whatsapp.conversations.show', { conversation: id })
                                                     : '#';
                                             })()}

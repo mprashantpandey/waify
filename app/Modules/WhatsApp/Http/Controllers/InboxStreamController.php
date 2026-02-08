@@ -36,6 +36,7 @@ class InboxStreamController extends Controller
             ->map(function ($conversation) {
                 return [
                     'id' => $conversation->id,
+                    'account_id' => $conversation->account_id,
                     'contact' => [
                         'id' => $conversation->contact->id,
                         'wa_id' => $conversation->contact->wa_id,
