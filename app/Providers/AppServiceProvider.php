@@ -151,6 +151,13 @@ class AppServiceProvider extends ServiceProvider
                 abort(404, 'Account not found');
             }
 
+            \Log::channel('whatsapp')->info('Contact binding attempt', [
+                'value' => $value,
+                'account_ids' => $accountIds,
+                'current_account_id' => $account?->id,
+                'user_id' => $user?->id,
+            ]);
+
             // Build candidate values for slug/wa_id (wa_id can be stored with/without country code)
             $candidates = array_unique(array_filter([$value]));
             if (is_string($value) && preg_match('/^\d+$/', $value)) {
@@ -185,16 +192,30 @@ class AppServiceProvider extends ServiceProvider
             }
 
             if ($contact) {
+                \Log::channel('whatsapp')->info('Contact binding resolved', [
+                    'value' => $value,
+                    'contact_id' => $contact->id,
+                    'contact_account_id' => $contact->account_id,
+                ]);
                 // If contact belongs to a different accessible account, switch context
                 if ($account && (int) $contact->account_id !== (int) $account->id) {
                     $resolvedAccount = \App\Models\Account::find($contact->account_id);
                     if ($resolvedAccount && $user && $user->canAccessAccount($resolvedAccount)) {
                         request()->attributes->set('account', $resolvedAccount);
                         session(['current_account_id' => $resolvedAccount->id]);
+                        \Log::channel('whatsapp')->info('Contact binding switched account context', [
+                            'from' => $account->id,
+                            'to' => $resolvedAccount->id,
+                        ]);
                     }
                 }
                 return $contact;
             }
+            \Log::channel('whatsapp')->warning('Contact binding failed', [
+                'value' => $value,
+                'account_ids' => $accountIds,
+                'candidates' => $candidates,
+            ]);
             abort(404, 'Contact not found');
         });
 
