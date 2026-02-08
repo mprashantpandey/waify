@@ -70,6 +70,13 @@ return Application::configure(basePath: dirname(__DIR__))
             if ($request->header('X-Inertia') && $is404) {
                 return \Inertia\Inertia::render('Error/NotFound')->toResponse($request)->setStatusCode(404);
             }
+
+            // Return Inertia 403 page for Inertia requests
+            $is403 = ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpException && $e->getStatusCode() === 403)
+                || (method_exists($e, 'getStatusCode') && $e->getStatusCode() === 403);
+            if ($request->header('X-Inertia') && $is403) {
+                return \Inertia\Inertia::render('Error/Forbidden')->toResponse($request)->setStatusCode(403);
+            }
             
             // Don't leak stack traces in production
             if (app()->environment('production')) {

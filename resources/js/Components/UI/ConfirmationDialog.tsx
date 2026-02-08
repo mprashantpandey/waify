@@ -89,8 +89,9 @@ export default function ConfirmationDialog({
                                             onClick={onClose}
                                             className="flex-shrink-0 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
                                             disabled={loading}
+                                            aria-label="Close"
                                         >
-                                            <X className="h-5 w-5" />
+                                            <X className="h-5 w-5" aria-hidden />
                                         </button>
                                     </div>
 

@@ -1,13 +1,15 @@
-import { Link, usePage } from '@inertiajs/react';
+import { Link, usePage, router } from '@inertiajs/react';
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import AppShell from '@/Layouts/AppShell';
 import { Badge } from '@/Components/UI/Badge';
-import { MessageSquare, Search, X, Phone, Wifi, WifiOff } from 'lucide-react';
+import { MessageSquare, Search, X, Phone, Wifi, WifiOff, Plus } from 'lucide-react';
 import { useRealtime } from '@/Providers/RealtimeProvider';
 import { ConversationSkeleton } from '@/Components/UI/Skeleton';
+import { EmptyState } from '@/Components/UI/EmptyState';
 import { useToast } from '@/hooks/useToast';
 import axios from 'axios';
 import TextInput from '@/Components/TextInput';
+import Button from '@/Components/UI/Button';
 import { Head } from '@inertiajs/react';
 
 interface Conversation {
@@ -32,7 +34,9 @@ interface Conversation {
 export default function ConversationsIndex({
     account,
     conversations: initialConversations,
-    connections}: {
+    connections,
+    filters: initialFilters = { search: '' },
+}: {
     account: any;
     conversations: {
         data: Conversation[];
@@ -40,6 +44,7 @@ export default function ConversationsIndex({
         meta: any;
     };
     connections?: Array<{ id: number; name: string }>;
+    filters?: { search?: string };
 }) {
     const { subscribe, connected } = useRealtime();
     const { addToast } = useToast();
@@ -51,7 +56,7 @@ export default function ConversationsIndex({
         Array.isArray(initialConversations?.data) ? initialConversations.data : []
     );
     const [loading, setLoading] = useState(false);
-    const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState(initialFilters?.search ?? '');
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [connectionFilter, setConnectionFilter] = useState<number | 'all'>('all');
     const lastPollRef = useRef<Date>(new Date());
@@ -120,14 +125,25 @@ export default function ConversationsIndex({
         }
     }, [initialConversations]);
 
-    // Filter conversations
+    // Backend search: debounce and reload with search param
+    const lastSearchRef = useRef(initialFilters?.search ?? '');
+    useEffect(() => {
+        const t = setTimeout(() => {
+            if (searchQuery === lastSearchRef.current) return;
+            lastSearchRef.current = searchQuery;
+            router.get(route('app.whatsapp.conversations.index', {}), { search: searchQuery || undefined }, { preserveState: true });
+        }, 400);
+        return () => clearTimeout(t);
+    }, [searchQuery]);
+
+    // Filter conversations (client-side for status/connection; search is server-side when we use backend)
     const filteredConversations = useMemo(() => {
         return conversations.filter((conv) => {
             // Only show conversations for current account (avoid 404 when clicking)
             if (conv.account_id != null && account?.id != null && Number(conv.account_id) !== Number(account.id)) {
                 return false;
             }
-            // Search filter
+            // Client-side search only when we have server results (backend already filtered by search; client refines by status/connection)
             if (searchQuery) {
                 const query = searchQuery.toLowerCase();
                 const matchesName = conv.contact.name?.toLowerCase().includes(query);
@@ -308,12 +324,22 @@ export default function ConversationsIndex({
                 <div className="grid h-full lg:grid-cols-[360px_1fr] rounded-3xl overflow-hidden border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-xl">
                     <section className="flex flex-col border-r border-gray-200 dark:border-gray-800">
                         <div className="px-5 py-4 bg-[#075E54] text-white">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-xs uppercase tracking-wider text-white/70">WhatsApp</p>
-                                    <h1 className="text-xl font-semibold">Chats</h1>
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="flex min-w-0 flex-1 items-center gap-3">
+                                    <div>
+                                        <p className="text-xs uppercase tracking-wider text-white/70">WhatsApp</p>
+                                        <h1 className="text-xl font-semibold">Chats</h1>
+                                    </div>
+                                    <Link
+                                        href={route('app.whatsapp.conversations.new')}
+                                        className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/30"
+                                        aria-label="Start new conversation"
+                                    >
+                                        <Plus className="h-3.5 w-3.5" aria-hidden />
+                                        New chat
+                                    </Link>
                                 </div>
-                                <div className="flex items-center gap-2 text-xs">
+                                <div className="flex shrink-0 items-center gap-2 text-xs">
                                     {connected ? (
                                         <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-1">
                                             <Wifi className="h-3 w-3" />
@@ -391,15 +417,38 @@ export default function ConversationsIndex({
                                     ))}
                                 </div>
                             ) : filteredConversations.length === 0 ? (
-                                <div className="p-10 text-center">
-                                    <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                                        <MessageSquare className="h-6 w-6 text-gray-400" />
-                                    </div>
-                                    <p className="text-sm text-gray-500">
-                                        {searchQuery || statusFilter !== 'all' || connectionFilter !== 'all'
-                                            ? 'No chats match your filters.'
-                                            : 'No chats yet.'}
-                                    </p>
+                                <div className="p-6">
+                                    <EmptyState
+                                        icon={MessageSquare}
+                                        title={searchQuery || statusFilter !== 'all' || connectionFilter !== 'all'
+                                            ? 'No chats match your filters'
+                                            : 'No chats yet'}
+                                        description={searchQuery || statusFilter !== 'all' || connectionFilter !== 'all'
+                                            ? 'Try clearing filters or start a new conversation.'
+                                            : 'Start a conversation from New chat or when a contact messages you.'}
+                                        action={
+                                            searchQuery || statusFilter !== 'all' || connectionFilter !== 'all' ? (
+                                                <Button
+                                                    type="button"
+                                                    variant="secondary"
+                                                    onClick={() => {
+                                                        setSearchQuery('');
+                                                        setStatusFilter('all');
+                                                        setConnectionFilter('all');
+                                                    }}
+                                                >
+                                                    Clear filters
+                                                </Button>
+                                            ) : (
+                                                <Link href={route('app.whatsapp.conversations.new')}>
+                                                    <Button className="bg-[#25D366] hover:bg-[#20BD5A] text-white">
+                                                        <Plus className="h-4 w-4 mr-2" aria-hidden />
+                                                        New chat
+                                                    </Button>
+                                                </Link>
+                                            )
+                                        }
+                                    />
                                 </div>
                             ) : (
                                 <div className="divide-y divide-gray-200 dark:divide-gray-800">

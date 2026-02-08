@@ -163,8 +163,9 @@ export default function MisconfiguredSettingsAlert({
                         <button
                             onClick={onDismiss}
                             className="p-1.5 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors text-gray-500 dark:text-gray-400"
+                            aria-label="Dismiss"
                         >
-                            <X className="h-5 w-5" />
+                            <X className="h-5 w-5" aria-hidden />
                         </button>
                     )}
                 </div>

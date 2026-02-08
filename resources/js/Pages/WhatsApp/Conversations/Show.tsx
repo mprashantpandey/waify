@@ -758,10 +758,20 @@ export default function ConversationsShow({
                         duration: 2000});
                 },
                 onError: (errors) => {
+                    const msg = Array.isArray(errors?.message) ? errors.message[0] : errors?.message;
+                    const detail = Array.isArray(errors?.message_detail) ? errors.message_detail[0] : errors?.message_detail;
+                    const is24h = msg === 'outside_24h' || (typeof msg === 'string' && (msg.includes('template') || msg.includes('24 hour') || msg.includes('recovery')));
                     addToast({
-                        title: 'Failed to send message',
-                        description: errors.message || 'Please try again',
-                        variant: 'error'});
+                        title: is24h ? 'Use a template to start the conversation' : 'Failed to send message',
+                        description: detail || msg || (is24h ? 'Send a template message using the template button above.' : 'Please try again'),
+                        variant: 'error',
+                        duration: 8000});
+                    if (is24h) {
+                        setTimeout(() => {
+                            const templateSection = document.querySelector('[data-template-section]');
+                            templateSection?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        }, 300);
+                    }
                 }}
         );
     }, [processing, data.message, attachments.length, sendAttachments, post, account.slug, conversation.id, reset, addToast]);
@@ -1020,8 +1030,9 @@ export default function ConversationsShow({
                                 <button
                                     onClick={() => setMobileDrawerOpen(false)}
                                     className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+                                    aria-label="Close conversation info"
                                 >
-                                    <X className="h-5 w-5" />
+                                    <X className="h-5 w-5" aria-hidden />
                                 </button>
                             </div>
                             <div className="space-y-6">
@@ -1053,11 +1064,11 @@ export default function ConversationsShow({
                     </>
                 )}
 
-                <div className="flex flex-1 overflow-hidden">
+                <div className="flex flex-1 min-h-0 overflow-hidden">
                 {/* Messages */}
                 <div
                     ref={messagesContainerRef}
-                    className="flex-1 overflow-y-auto px-4 py-6 space-y-4 bg-[#efeae2] dark:bg-gray-950 focus:outline-none"
+                    className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-6 space-y-4 bg-[#efeae2] dark:bg-gray-950 focus:outline-none"
                     style={{
                         backgroundImage:
                             'radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px)',
@@ -1296,8 +1307,8 @@ export default function ConversationsShow({
                 </aside>
                 </div>
 
-                {/* Composer */}
-                <div className="border-t border-gray-200 dark:border-gray-800 bg-[#f0f2f5] dark:bg-gray-900 p-3">
+                {/* Composer - sticky on mobile so it stays visible when keyboard or panels open */}
+                <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-800 bg-[#f0f2f5] dark:bg-gray-900 p-3 sticky bottom-0">
                     <div className="space-y-3">
                         <div className="relative">
                             <div className="flex flex-wrap items-center gap-2">
@@ -1335,8 +1346,10 @@ export default function ConversationsShow({
                             </button>
                             <button
                                 type="button"
+                                data-template-section
                                 onClick={() => setShowTemplates((prev) => !prev)}
                                 className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                aria-label="Send template message"
                             >
                                 <FileText className="h-3.5 w-3.5" />
                                 Templates
@@ -1479,7 +1492,7 @@ export default function ConversationsShow({
                         )}
 
                         {showTemplates && (
-                            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800" data-template-section>
                                 <div className="grid gap-3">
                                     {availableTemplates.length === 0 && (
                                         <div className="text-sm text-gray-500 dark:text-gray-400">
@@ -1824,8 +1837,8 @@ export default function ConversationsShow({
                                         className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs text-gray-600 shadow-sm dark:bg-gray-800 dark:text-gray-300"
                                     >
                                         <span className="truncate max-w-[160px]">{file.name}</span>
-                                        <button type="button" onClick={() => removeAttachment(index)} className="text-gray-400 hover:text-gray-600">
-                                            <X className="h-3.5 w-3.5" />
+                                        <button type="button" onClick={() => removeAttachment(index)} className="text-gray-400 hover:text-gray-600" aria-label={`Remove ${file.name}`}>
+                                            <X className="h-3.5 w-3.5" aria-hidden />
                                         </button>
                                     </div>
                                 ))}

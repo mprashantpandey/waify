@@ -48,8 +48,9 @@ export function Topbar({ user, onMenuClick }: TopbarProps) {
                         <button
                             onClick={onMenuClick}
                             className="lg:hidden p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors"
+                            aria-label="Open menu"
                         >
-                            <Menu className="h-5 w-5" />
+                            <Menu className="h-5 w-5" aria-hidden />
                         </button>
                     )}
                     {account && accounts?.length > 1 && (

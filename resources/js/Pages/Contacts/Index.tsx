@@ -3,7 +3,7 @@ import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
 import Button from '@/Components/UI/Button';
-import { Plus, Search, Download, Upload, Users, Filter, Tag, FolderOpen } from 'lucide-react';
+import { Plus, Search, Download, Upload, Users, Filter, Tag, FolderOpen, Loader2 } from 'lucide-react';
 import { Head } from '@inertiajs/react';
 import { useState, FormEventHandler } from 'react';
 import TextInput from '@/Components/TextInput';
@@ -60,6 +60,7 @@ export default function ContactsIndex({
 }) {
     const [search, setSearch] = useState(filters.search || '');
     const [showFilters, setShowFilters] = useState(false);
+    const [navigatingContactId, setNavigatingContactId] = useState<number | null>(null);
 
     const handleSearch: FormEventHandler = (e) => {
         e.preventDefault();
@@ -226,13 +227,21 @@ export default function ContactsIndex({
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                        <Link
-                                            href={route('app.whatsapp.conversations.by-contact', { contact: contact.slug || contact.id })}
+                                        <Button
+                                            size="sm"
+                                            className="bg-[#25D366] hover:bg-[#1DAA57] text-white"
+                                            disabled={navigatingContactId === contact.id}
+                                            onClick={() => {
+                                                setNavigatingContactId(contact.id);
+                                                router.visit(route('app.whatsapp.conversations.by-contact', { contact: contact.slug || contact.id }), {
+                                                    onFinish: () => setNavigatingContactId(null),
+                                                });
+                                            }}
+                                            aria-label={`Message ${contact.name || contact.wa_id}`}
                                         >
-                                            <Button size="sm" className="bg-[#25D366] hover:bg-[#1DAA57] text-white">
-                                                Message
-                                            </Button>
-                                        </Link>
+                                            {navigatingContactId === contact.id && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" aria-hidden />}
+                                            Message
+                                        </Button>
                                         <Link
                                             href={route('app.contacts.show', {
                                                 contact: contact.slug || contact.id})}

@@ -69,8 +69,9 @@ export default function ProfileIncompleteModal() {
                     <button
                         onClick={handleDismiss}
                         className="p-1.5 rounded-lg hover:bg-white/20 transition-colors text-white"
+                        aria-label="Dismiss"
                     >
-                        <X className="h-5 w-5" />
+                        <X className="h-5 w-5" aria-hidden />
                     </button>
                 </div>
 

@@ -36,6 +36,7 @@ Route::middleware(['module.entitled:whatsapp.cloud'])->group(function () {
     // Conversations (static path before {conversation} so "by-contact" is not matched as conversation id)
     Route::get('/conversations', [ConversationController::class, 'index'])->name('whatsapp.conversations.index');
     Route::get('/conversations/by-contact/{contact}', [ConversationController::class, 'showByContact'])->name('whatsapp.conversations.by-contact');
+    Route::get('/conversations/new', [ConversationController::class, 'newConversation'])->name('whatsapp.conversations.new');
     Route::get('/conversations/{conversation}', [ConversationController::class, 'show'])->name('whatsapp.conversations.show');
     Route::get('/conversations/{conversation}/messages', [ConversationController::class, 'loadMoreMessages'])->name('whatsapp.conversations.messages');
     Route::post('/conversations/{conversation}/send', [ConversationController::class, 'sendMessage'])->name('whatsapp.conversations.send');

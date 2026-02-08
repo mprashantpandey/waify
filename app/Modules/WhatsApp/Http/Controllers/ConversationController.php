@@ -54,11 +54,21 @@ class ConversationController extends Controller
             $conversationSelect[] = 'priority';
         }
 
-        $conversations = WhatsAppConversation::where('account_id', $account->id)
+        $query = WhatsAppConversation::where('account_id', $account->id)
             ->select($conversationSelect)
             ->with([
                 'contact:id,account_id,wa_id,name',
-                'connection:id,account_id,name'])
+                'connection:id,account_id,name']);
+
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->whereHas('contact', function ($q) use ($search) {
+                $q->where('name', 'like', '%' . $search . '%')
+                    ->orWhere('wa_id', 'like', '%' . $search . '%');
+            });
+        }
+
+        $conversations = $query
             ->orderBy('last_message_at', 'desc')
             ->orderBy('id', 'desc') // Secondary sort for consistent ordering
             ->paginate(20)
@@ -92,11 +102,14 @@ class ConversationController extends Controller
         return Inertia::render('WhatsApp/Conversations/Index', [
             'account' => $account,
             'conversations' => $conversations,
-            'connections' => $connections]);
+            'connections' => $connections,
+            'filters' => ['search' => $request->input('search', '')],
+        ]);
     }
 
     /**
      * Open or start a conversation with a contact (from Contacts). Gets or creates the conversation and redirects to it.
+     * Optional query: connection_id to use a specific connection when account has multiple.
      */
     public function showByContact(Request $request, WhatsAppContact $contact)
     {
@@ -106,10 +119,22 @@ class ConversationController extends Controller
             abort(404);
         }
 
-        $connection = WhatsAppConnection::where('account_id', $account->id)
-            ->where('is_active', true)
-            ->orderBy('id')
-            ->first();
+        $connectionId = $request->query('connection_id');
+        $connection = null;
+
+        if ($connectionId) {
+            $connection = WhatsAppConnection::where('account_id', $account->id)
+                ->where('id', (int) $connectionId)
+                ->where('is_active', true)
+                ->first();
+        }
+
+        if (!$connection) {
+            $connection = WhatsAppConnection::where('account_id', $account->id)
+                ->where('is_active', true)
+                ->orderBy('id')
+                ->first();
+        }
 
         if (!$connection) {
             return redirect()->back()->withErrors([
@@ -127,6 +152,36 @@ class ConversationController extends Controller
         );
 
         return redirect()->route('app.whatsapp.conversations.show', ['conversation' => $conversation->id]);
+    }
+
+    /**
+     * New conversation: show contact (and optional connection) picker, then redirect to conversation.
+     */
+    public function newConversation(Request $request): Response
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        $contacts = WhatsAppContact::where('account_id', $account->id)
+            ->orderBy('name')
+            ->orderBy('wa_id')
+            ->get(['id', 'slug', 'wa_id', 'name'])
+            ->map(fn ($c) => [
+                'id' => $c->id,
+                'slug' => $c->slug ?? $c->wa_id ?? (string) $c->id,
+                'wa_id' => $c->wa_id,
+                'name' => $c->name ?? $c->wa_id,
+            ]);
+
+        $connections = WhatsAppConnection::where('account_id', $account->id)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return Inertia::render('WhatsApp/Conversations/New', [
+            'account' => $account,
+            'contacts' => $contacts,
+            'connections' => $connections,
+        ]);
     }
 
     /**
@@ -567,6 +622,21 @@ class ConversationController extends Controller
 
             // Broadcast failed status
             event(new MessageUpdated($message));
+
+            $msg = $e->getMessage();
+            $is24hWindow = $e->getCode() === 131047
+                || stripos($msg, '131047') !== false
+                || stripos($msg, 'recovery') !== false
+                || stripos($msg, 'template') !== false
+                || stripos($msg, 'session') !== false
+                || stripos($msg, '24 hour') !== false
+                || stripos($msg, 'message outside') !== false;
+
+            if ($is24hWindow) {
+                return redirect()->back()->withErrors([
+                    'message' => 'outside_24h',
+                    'message_detail' => 'You can only send a template message to reopen this conversation. Use the template button above.']);
+            }
 
             return redirect()->back()->withErrors([
                 'message' => 'Failed to send message: ' . $e->getMessage()]);
