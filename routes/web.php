@@ -121,7 +121,6 @@ Route::middleware(['auth', 'account.resolve', 'account.active', 'account.subscri
     // Module placeholder pages
     Route::get('/whatsapp', [ModuleController::class, 'show'])->name('whatsapp')->defaults('module', 'whatsapp');
     // Templates route removed - using app.whatsapp.templates.index instead
-    Route::get('/chatbots', [ModuleController::class, 'show'])->name('chatbots')->defaults('module', 'chatbots');
     Route::get('/ai', [ModuleController::class, 'show'])->name('ai')->defaults('module', 'ai');
     
     // Load module routes (WhatsApp, Chatbots, etc.)
