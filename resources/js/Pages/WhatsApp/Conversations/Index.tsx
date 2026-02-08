@@ -408,7 +408,7 @@ export default function ConversationsIndex({
                                             key={conversation.id}
                                             href={(() => {
                                                 const id = parseInt(String(conversation.id), 10);
-                                                const sameAccount = conversation.account_id == null || conversation.account_id === account?.id;
+                                                const sameAccount = conversation.account_id == null || Number(conversation.account_id) === Number(account?.id);
                                                 return (Number.isInteger(id) && id >= 1 && sameAccount)
                                                     ? route('app.whatsapp.conversations.show', { conversation: id })
                                                     : '#';
