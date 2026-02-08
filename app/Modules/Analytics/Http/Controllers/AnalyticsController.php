@@ -71,8 +71,8 @@ class AnalyticsController extends Controller
                 'whatsapp_templates.id as template_id',
                 'whatsapp_templates.name as template_name',
                 DB::raw('COUNT(whatsapp_template_sends.id) as total_sends'),
-                DB::raw('SUM(CASE WHEN whatsapp_messages.status = "delivered" OR whatsapp_messages.delivered_at IS NOT NULL THEN 1 ELSE 0 END) as delivered'),
-                DB::raw('SUM(CASE WHEN whatsapp_messages.status = "read" OR whatsapp_messages.read_at IS NOT NULL THEN 1 ELSE 0 END) as read'),
+                DB::raw('SUM(CASE WHEN whatsapp_messages.status = "delivered" OR whatsapp_messages.delivered_at IS NOT NULL THEN 1 ELSE 0 END) as delivered_count'),
+                DB::raw('SUM(CASE WHEN whatsapp_messages.status = "read" OR whatsapp_messages.read_at IS NOT NULL THEN 1 ELSE 0 END) as read_count'),
                 DB::raw('SUM(CASE WHEN whatsapp_template_sends.status = "failed" OR whatsapp_messages.status = "failed" THEN 1 ELSE 0 END) as failed')
             )
             ->whereBetween('whatsapp_template_sends.created_at', [$startDate, $endDate])
@@ -85,11 +85,11 @@ class AnalyticsController extends Controller
                     'template_id' => $send->template_id,
                     'template_name' => $send->template_name ?? 'Unknown',
                     'total_sends' => (int) $send->total_sends,
-                    'delivered' => (int) $send->delivered,
-                    'read' => (int) $send->read,
+                    'delivered' => (int) $send->delivered_count,
+                    'read' => (int) $send->read_count,
                     'failed' => (int) $send->failed,
-                    'delivery_rate' => $send->total_sends > 0 ? round(($send->delivered / $send->total_sends) * 100, 2) : 0,
-                    'read_rate' => $send->total_sends > 0 ? round(($send->read / $send->total_sends) * 100, 2) : 0];
+                    'delivery_rate' => $send->total_sends > 0 ? round(($send->delivered_count / $send->total_sends) * 100, 2) : 0,
+                    'read_rate' => $send->total_sends > 0 ? round(($send->read_count / $send->total_sends) * 100, 2) : 0];
             });
 
         // Conversation Stats
