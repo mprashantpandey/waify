@@ -225,6 +225,14 @@ export default function ContactsIndex({
                                                 )}
                                             </div>
                                         </div>
+                                        <div className="flex items-center gap-2">
+                                        <Link
+                                            href={route('app.whatsapp.conversations.by-contact', { contact: contact.slug || contact.id })}
+                                        >
+                                            <Button size="sm" className="bg-[#25D366] hover:bg-[#1DAA57] text-white">
+                                                Message
+                                            </Button>
+                                        </Link>
                                         <Link
                                             href={route('app.contacts.show', {
                                                 contact: contact.slug || contact.id})}
@@ -233,6 +241,7 @@ export default function ContactsIndex({
                                                 View
                                             </Button>
                                         </Link>
+                                    </div>
                                     </div>
                                 </CardContent>
                             </Card>

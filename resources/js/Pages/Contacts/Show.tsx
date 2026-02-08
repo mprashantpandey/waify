@@ -85,7 +85,7 @@ export default function ContactsShow({
 
     const handleAddNote = (e: React.FormEvent) => {
         e.preventDefault();
-        postNote(route('app.contacts.add-note', { contact: contact.slug }), {
+        postNote(route('app.contacts.add-note', { contact: contact.slug || contact.id }), {
             onSuccess: () => {
                 toast.success('Note added');
                 setShowNoteForm(false);
@@ -150,6 +150,14 @@ export default function ContactsShow({
                                 )}
                             </div>
                         </div>
+                        <Link
+                            href={route('app.whatsapp.conversations.by-contact', { contact: contact.slug || contact.id })}
+                        >
+                            <Button className="bg-[#25D366] hover:bg-[#1DAA57] text-white">
+                                <MessageSquare className="h-4 w-4 mr-2" />
+                                Start conversation
+                            </Button>
+                        </Link>
                     </div>
                 </div>
 

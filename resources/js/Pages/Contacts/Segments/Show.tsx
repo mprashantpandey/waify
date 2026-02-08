@@ -124,7 +124,7 @@ export default function SegmentsShow({
                                     <li key={contact.id} className="py-4 flex items-center justify-between">
                                         <div>
                                             <Link
-                                                href={route('app.contacts.show', { contact: contact.slug })}
+                                                href={route('app.contacts.show', { contact: contact.slug || contact.id })}
                                                 className="font-medium text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400"
                                             >
                                                 {contact.name || contact.wa_id}
@@ -134,9 +134,9 @@ export default function SegmentsShow({
                                                 {contact.email && <span>Email: {contact.email}</span>}
                                                 {contact.company && <span>{contact.company}</span>}
                                             </div>
-                                            {contact.tags.length > 0 && (
+                                            {(contact.tags || []).length > 0 && (
                                                 <div className="flex flex-wrap gap-1 mt-2">
-                                                    {contact.tags.map((t) => (
+                                                    {(contact.tags || []).map((t) => (
                                                         <Badge key={t.id} variant="default" style={{ backgroundColor: t.color + '20', color: t.color }}>
                                                             {t.name}
                                                         </Badge>
@@ -144,7 +144,7 @@ export default function SegmentsShow({
                                                 </div>
                                             )}
                                         </div>
-                                        <Link href={route('app.contacts.show', { contact: contact.slug })}>
+                                        <Link href={route('app.contacts.show', { contact: contact.slug || contact.id })}>
                                             <Button variant="secondary" size="sm">View</Button>
                                         </Link>
                                     </li>
