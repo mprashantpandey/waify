@@ -73,7 +73,7 @@ Broadcast::channel('account.{accountId}.whatsapp.conversation.{conversationId}',
     // Verify conversation belongs to this account
     $conversation = \App\Modules\WhatsApp\Models\WhatsAppConversation::find($conversationId);
     
-    if (!$conversation || $conversation->account_id !== (int) $accountId) {
+    if (!$conversation || (int) $conversation->account_id !== (int) $accountId) {
         \Log::debug('WhatsApp conversation channel auth denied: conversation not found or wrong account', ['user_id' => $user->id, 'account_id' => $accountId, 'conversation_id' => $conversationId]);
         return false;
     }
@@ -135,7 +135,7 @@ Broadcast::channel('account.{accountId}.support.thread.{threadId}', function ($u
     }
 
     // Check user membership (owner or member)
-    $isOwner = $account->owner_id === $user->id;
+    $isOwner = (int) $account->owner_id === (int) $user->id;
     $membership = $account->users()->where('user_id', $user->id)->first();
     
     if (!$membership && !$isOwner) {
@@ -172,7 +172,7 @@ Broadcast::channel('account.{accountId}.support.thread.{threadId}', function ($u
         return false;
     }
 
-    if ($thread->account_id !== (int) $accountId) {
+    if ((int) $thread->account_id !== (int) $accountId) {
         \Log::warning('Support channel auth denied: thread account mismatch', [
             'user_id' => $user->id,
             'account_id' => $accountId,
