@@ -139,15 +139,35 @@ class AppServiceProvider extends ServiceProvider
                 abort(404, 'Account not found');
             }
             $accountId = (int) $account->id;
-            $query = \App\Modules\WhatsApp\Models\WhatsAppContact::where('account_id', $accountId)
-                ->where(function ($q) use ($value) {
-                    $q->where('slug', $value);
-                    $q->orWhere('wa_id', $value);
-                    if (is_numeric($value) && (int) $value > 0) {
+            $contactModel = \App\Modules\WhatsApp\Models\WhatsAppContact::class;
+
+            // Build candidate values for slug/wa_id (wa_id can be stored with/without country code)
+            $candidates = array_unique(array_filter([$value]));
+            if (is_string($value) && preg_match('/^\d+$/', $value)) {
+                $len = strlen($value);
+                if ($len === 10 && !str_starts_with($value, '91')) {
+                    $candidates[] = '91' . $value;       // 8449183686 -> 918449183686
+                    $candidates[] = '91' . '9' . $value;  // 8449183686 -> 91918449183686 (E.164 style)
+                } elseif ($len === 12 && str_starts_with($value, '91')) {
+                    $candidates[] = '9' . $value;         // 918449183686 -> 91918449183686
+                } elseif ($len === 13 && str_starts_with($value, '919')) {
+                    $candidates[] = substr($value, 1);    // 91918449183686 -> 918449183686
+                }
+            }
+
+            $query = $contactModel::where('account_id', $accountId)
+                ->where(function ($q) use ($candidates, $value) {
+                    $q->whereIn('slug', $candidates)
+                        ->orWhereIn('wa_id', $candidates);
+                    if (is_numeric($value) && (int) $value > 0 && (int) $value < 2147483647) {
                         $q->orWhere('id', (int) $value);
                     }
                 });
-            return $query->firstOrFail();
+            $contact = $query->first();
+            if ($contact) {
+                return $contact;
+            }
+            abort(404, 'Contact not found');
         });
 
         // Route model binding for 'conversation' - scope to current account so inbox links never 404 for wrong account

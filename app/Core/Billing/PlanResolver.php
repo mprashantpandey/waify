@@ -63,8 +63,15 @@ class PlanResolver
             // Filter plan modules to only include platform-enabled ones
             $modules = array_intersect($modules, $platformEnabledModules);
             
-            // Get effective modules from plan (intersect with account-enabled)
-            $effectiveModules = array_intersect($modules, $accountModules);
+            // Plan modules: available if no AccountModule row (enabled by default) or AccountModule.enabled
+            foreach ($modules as $moduleKey) {
+                $accountModule = \App\Models\AccountModule::where('account_id', $account->id)
+                    ->where('module_key', $moduleKey)
+                    ->first();
+                if (!$accountModule || $accountModule->enabled) {
+                    $effectiveModules[] = $moduleKey;
+                }
+            }
         }
         
         // Also include core modules that are enabled at platform level
