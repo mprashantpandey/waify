@@ -89,10 +89,22 @@ class ConversationController extends Controller
             ->where('is_active', true)
             ->get(['id', 'name']);
 
+        $activeConversation = null;
+        if ($request->filled('conversation')) {
+            $conversationId = (int) $request->query('conversation');
+            if ($conversationId > 0) {
+                $conversation = WhatsAppConversation::where('account_id', $account->id)->find($conversationId);
+                if ($conversation) {
+                    $activeConversation = $this->buildConversationPayload($conversation, $account);
+                }
+            }
+        }
+
         return Inertia::render('WhatsApp/Conversations/Index', [
             'account' => $account,
             'conversations' => $conversations,
-            'connections' => $connections]);
+            'connections' => $connections,
+            'active_conversation' => $activeConversation]);
     }
 
     /**
@@ -136,20 +148,25 @@ class ConversationController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        // Ensure conversation belongs to account
+        return Inertia::render('WhatsApp/Conversations/Show', array_merge([
+            'account' => $account,
+        ], $this->buildConversationPayload($conversation, $account)));
+    }
+
+    protected function buildConversationPayload(WhatsAppConversation $conversation, $account): array
+    {
         if ((int) $conversation->account_id !== (int) $account->id) {
             abort(404);
         }
 
         $conversation->load(['contact', 'connection']);
 
-        // Load last 50 messages for initial render (optimized query)
         $messages = WhatsAppMessage::where('whatsapp_conversation_id', $conversation->id)
             ->select(['id', 'direction', 'type', 'text_body', 'payload', 'status', 'created_at', 'sent_at', 'delivered_at', 'read_at'])
             ->orderBy('created_at', 'desc')
             ->limit(50)
             ->get()
-            ->reverse() // Reverse to show oldest first
+            ->reverse()
             ->map(function ($message) {
                 return [
                     'id' => $message->id,
@@ -161,7 +178,8 @@ class ConversationController extends Controller
                     'created_at' => $message->created_at->toIso8601String(),
                     'sent_at' => $message->sent_at?->toIso8601String(),
                     'delivered_at' => $message->delivered_at?->toIso8601String(),
-                    'read_at' => $message->read_at?->toIso8601String()];
+                    'read_at' => $message->read_at?->toIso8601String(),
+                ];
             });
 
         $totalMessages = WhatsAppMessage::where('whatsapp_conversation_id', $conversation->id)->count();
@@ -178,7 +196,8 @@ class ConversationController extends Controller
                 'body_text',
                 'header_text',
                 'footer_text',
-                'buttons'])
+                'buttons',
+            ])
             ->map(function ($template) {
                 $requiredVariables = $this->templateComposer->extractRequiredVariables($template);
                 return [
@@ -193,7 +212,8 @@ class ConversationController extends Controller
                     'header_count' => $requiredVariables['header_count'],
                     'body_count' => $requiredVariables['body_count'],
                     'button_count' => $requiredVariables['button_count'],
-                    'has_buttons' => $template->has_buttons];
+                    'has_buttons' => $template->has_buttons,
+                ];
             });
 
         $lists = \App\Modules\WhatsApp\Models\WhatsAppList::where('account_id', $account->id)
@@ -279,17 +299,18 @@ class ConversationController extends Controller
             ? $conversation->priority
             : null;
 
-        return Inertia::render('WhatsApp/Conversations/Show', [
-            'account' => $account,
+        return [
             'conversation' => [
                 'id' => $conversation->id,
                 'contact' => [
                     'id' => $conversation->contact->id,
                     'wa_id' => $conversation->contact->wa_id,
-                    'name' => $conversation->contact->name ?? $conversation->contact->wa_id],
+                    'name' => $conversation->contact->name ?? $conversation->contact->wa_id,
+                ],
                 'connection' => [
                     'id' => $conversation->connection->id,
-                    'name' => $conversation->connection->name],
+                    'name' => $conversation->connection->name,
+                ],
                 'status' => $conversation->status,
                 'assigned_to' => $assignedTo,
                 'priority' => $priority,
@@ -306,7 +327,7 @@ class ConversationController extends Controller
                 'auto_assign_enabled' => (bool) $account->auto_assign_enabled,
                 'auto_assign_strategy' => $account->auto_assign_strategy ?? 'round_robin',
             ],
-        ]);
+        ];
     }
 
     /**
