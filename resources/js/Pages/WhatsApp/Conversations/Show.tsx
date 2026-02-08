@@ -118,6 +118,12 @@ export default function ConversationsShow({
         auto_assign_strategy: string;
     };
 }) {
+    const normalizedMessages = Array.isArray(initialMessages) ? initialMessages : [];
+    const normalizedNotes = Array.isArray(initialNotes) ? initialNotes : [];
+    const normalizedAuditEvents = Array.isArray(initialAuditEvents) ? initialAuditEvents : [];
+    const normalizedAgents = Array.isArray(agents) ? agents : [];
+    const normalizedTemplates = Array.isArray(templates) ? templates : [];
+    const normalizedLists = Array.isArray(lists) ? lists : [];
     const { subscribe, connected } = useRealtime();
     const { addToast } = useToast();
     const { auth } = usePage().props as any;
@@ -125,7 +131,7 @@ export default function ConversationsShow({
     const notifyAssignmentEnabled = auth?.user?.notify_assignment_enabled ?? true;
     const notifyMentionEnabled = auth?.user?.notify_mention_enabled ?? true;
     const soundEnabled = auth?.user?.notify_sound_enabled ?? true;
-    const [messages, setMessages] = useState<Message[]>(initialMessages);
+    const [messages, setMessages] = useState<Message[]>(normalizedMessages);
     const [conversation, setConversation] = useState<Conversation>(initialConversation);
     const [loading, setLoading] = useState(false);
     const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
@@ -148,8 +154,8 @@ export default function ConversationsShow({
     const [templateVariables, setTemplateVariables] = useState<string[]>([]);
     const [emojiSearch, setEmojiSearch] = useState('');
     const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
-    const [notes, setNotes] = useState<NoteItem[]>(initialNotes || []);
-    const [auditEvents, setAuditEvents] = useState<AuditEventItem[]>(initialAuditEvents || []);
+    const [notes, setNotes] = useState<NoteItem[]>(normalizedNotes);
+    const [auditEvents, setAuditEvents] = useState<AuditEventItem[]>(normalizedAuditEvents);
     const [noteDraft, setNoteDraft] = useState('');
     const [metaUpdating, setMetaUpdating] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -157,10 +163,10 @@ export default function ConversationsShow({
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
     const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
-    const lastMessageIdRef = useRef<number>(Math.max(...initialMessages.map((m) => m.id), 0));
-    const processedMessageIds = useRef<Set<number>>(new Set(initialMessages.map((m) => m.id)));
-    const lastNoteIdRef = useRef<number>(Math.max(...(initialNotes || []).map((n) => n.id), 0));
-    const lastAuditIdRef = useRef<number>(Math.max(...(initialAuditEvents || []).map((e) => e.id), 0));
+    const lastMessageIdRef = useRef<number>(Math.max(...normalizedMessages.map((m) => m.id), 0));
+    const processedMessageIds = useRef<Set<number>>(new Set(normalizedMessages.map((m) => m.id)));
+    const lastNoteIdRef = useRef<number>(Math.max(...normalizedNotes.map((n) => n.id), 0));
+    const lastAuditIdRef = useRef<number>(Math.max(...normalizedAuditEvents.map((e) => e.id), 0));
     const assignedToRef = useRef<number | null>(initialConversation.assigned_to ?? null);
 
     const { data, setData, post, processing, errors, reset } = useForm({
@@ -173,8 +179,8 @@ export default function ConversationsShow({
         { id: 'thanks', label: 'Thanks', text: 'Thanks for reaching out! We’re on it.' },
         { id: 'handover', label: 'Handover', text: 'I’m looping in a specialist to assist you.' },
     ];
-    const availableTemplates = templates || [];
-    const agentMap = new Map(agents.map((agent) => [agent.id, agent]));
+    const availableTemplates = normalizedTemplates;
+    const agentMap = new Map(normalizedAgents.map((agent) => [agent.id, agent]));
     const mentionTokens = useMemo(() => {
         if (!auth?.user) return [];
         const name = auth.user.name || '';
@@ -1575,12 +1581,12 @@ export default function ConversationsShow({
                         {showLists && (
                             <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                                 <div className="grid gap-3">
-                                    {lists.length === 0 && (
+                                    {normalizedLists.length === 0 && (
                                         <div className="text-sm text-gray-500 dark:text-gray-400">
                                             No lists available. Create lists in the Lists section.
                                         </div>
                                     )}
-                                    {lists.map((list) => (
+                                    {normalizedLists.map((list) => (
                                         <button
                                             key={list.id}
                                             type="button"
