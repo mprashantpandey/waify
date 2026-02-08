@@ -146,24 +146,34 @@ class AppServiceProvider extends ServiceProvider
             if (is_string($value) && preg_match('/^\d+$/', $value)) {
                 $len = strlen($value);
                 if ($len === 10 && !str_starts_with($value, '91')) {
-                    $candidates[] = '91' . $value;       // 8449183686 -> 918449183686
-                    $candidates[] = '91' . '9' . $value;  // 8449183686 -> 91918449183686 (E.164 style)
+                    $candidates[] = '91' . $value;
+                    $candidates[] = '91' . '9' . $value;
                 } elseif ($len === 12 && str_starts_with($value, '91')) {
-                    $candidates[] = '9' . $value;         // 918449183686 -> 91918449183686
+                    $candidates[] = '9' . $value;
                 } elseif ($len === 13 && str_starts_with($value, '919')) {
-                    $candidates[] = substr($value, 1);    // 91918449183686 -> 918449183686
+                    $candidates[] = substr($value, 1);
                 }
             }
 
-            $query = $contactModel::where('account_id', $accountId)
+            $contact = $contactModel::where('account_id', $accountId)
                 ->where(function ($q) use ($candidates, $value) {
                     $q->whereIn('slug', $candidates)
                         ->orWhereIn('wa_id', $candidates);
                     if (is_numeric($value) && (int) $value > 0 && (int) $value < 2147483647) {
                         $q->orWhere('id', (int) $value);
                     }
-                });
-            $contact = $query->first();
+                })->first();
+
+            // Fallback: match by last 10 digits of phone (handles 91 vs 919 and any digit-only wa_id format)
+            if (!$contact && is_string($value) && preg_match('/^\d{10,13}$/', $value)) {
+                $last10 = substr($value, -10);
+                $contact = $contactModel::where('account_id', $accountId)
+                    ->where(function ($q) use ($last10) {
+                        $q->whereRaw('RIGHT(wa_id, 10) = ?', [$last10])
+                            ->orWhereRaw('RIGHT(slug, 10) = ?', [$last10]);
+                    })->first();
+            }
+
             if ($contact) {
                 return $contact;
             }
