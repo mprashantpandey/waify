@@ -21,6 +21,7 @@ interface Contact {
     message_count: number;
     last_seen_at: string | null;
     tags: Array<{ id: number; name: string; color: string }>;
+    segments?: Array<{ id: number; name: string }>;
     created_at: string;
 }
 
@@ -195,9 +196,10 @@ export default function ContactsIndex({
                                                     <span>Company: {contact.company}</span>
                                                 )}
                                             </div>
-                                            {contact.tags.length > 0 && (
-                                                <div className="flex flex-wrap gap-2 mt-2">
-                                                    {contact.tags.map((tag) => (
+                                            <div className="flex flex-wrap items-center gap-2 mt-2">
+                                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Tags:</span>
+                                                {(contact.tags ?? []).length > 0 ? (
+                                                    (contact.tags ?? []).map((tag) => (
                                                         <Badge
                                                             key={tag.id}
                                                             variant="default"
@@ -205,9 +207,23 @@ export default function ContactsIndex({
                                                         >
                                                             {tag.name}
                                                         </Badge>
-                                                    ))}
-                                                </div>
-                                            )}
+                                                    ))
+                                                ) : (
+                                                    <span className="text-xs text-gray-400 dark:text-gray-500">None</span>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Segments:</span>
+                                                {(contact.segments ?? []).length > 0 ? (
+                                                    (contact.segments ?? []).map((seg) => (
+                                                        <Badge key={seg.id} variant="secondary">
+                                                            {seg.name}
+                                                        </Badge>
+                                                    ))
+                                                ) : (
+                                                    <span className="text-xs text-gray-400 dark:text-gray-500">None</span>
+                                                )}
+                                            </div>
                                         </div>
                                         <Link
                                             href={route('app.contacts.show', {

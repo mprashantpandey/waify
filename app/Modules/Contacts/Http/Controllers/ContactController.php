@@ -84,6 +84,11 @@ class ContactController extends Controller
                             'name' => $tag->name,
                             'color' => $tag->color];
                     }),
+                    'segments' => $contact->segments->map(function ($segment) {
+                        return [
+                            'id' => $segment->id,
+                            'name' => $segment->name];
+                    }),
                     'created_at' => $contact->created_at->toIso8601String()];
             });
 

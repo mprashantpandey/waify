@@ -40,16 +40,22 @@ interface Activity {
 
 export default function ContactsShow({
     account,
-    contact,
-    activities,
-    tags,
+    contact: contactProp,
+    activities = [],
+    tags: tagsProp = [],
     segments: availableSegments = []}: {
     account: any;
     contact: Contact;
-    activities: Activity[];
-    tags: Array<{ id: number; name: string; color: string }>;
+    activities?: Activity[];
+    tags?: Array<{ id: number; name: string; color: string }>;
     segments?: Array<{ id: number; name: string }>;
 }) {
+    const contact = {
+        ...contactProp,
+        tags: contactProp?.tags ?? [],
+        segments: contactProp?.segments ?? [],
+    };
+    const tags = Array.isArray(tagsProp) ? tagsProp : [];
     const { toast } = useToast();
     const [showNoteForm, setShowNoteForm] = useState(false);
 
@@ -63,8 +69,8 @@ export default function ContactsShow({
         company: contact.company || '',
         notes: contact.notes || '',
         status: contact.status,
-        tags: contact.tags.map((t) => t.id),
-        segments: contact.segments.map((s) => s.id)});
+        tags: (contact.tags || []).map((t) => t.id),
+        segments: (contact.segments || []).map((s) => s.id)});
 
     const handleUpdate = (e: React.FormEvent) => {
         e.preventDefault();
@@ -123,9 +129,9 @@ export default function ContactsShow({
                             <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
                                 {contact.name || contact.wa_id}
                             </h1>
-                            <div className="flex items-center gap-2 mt-2">
+                            <div className="flex flex-wrap items-center gap-2 mt-2">
                                 {getStatusBadge(contact.status)}
-                                {contact.tags.map((tag) => (
+                                {(contact.tags || []).map((tag) => (
                                     <Badge
                                         key={tag.id}
                                         variant="default"
@@ -134,6 +140,14 @@ export default function ContactsShow({
                                         {tag.name}
                                     </Badge>
                                 ))}
+                                {(contact.segments || []).length > 0 && (
+                                    <>
+                                        <span className="text-xs text-gray-500 dark:text-gray-400">Segments:</span>
+                                        {(contact.segments || []).map((seg) => (
+                                            <Badge key={seg.id} variant="secondary">{seg.name}</Badge>
+                                        ))}
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>
