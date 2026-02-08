@@ -24,7 +24,7 @@ class WhatsAppConnectionPolicy
     {
         // User must be a member of the account
         return $whatsAppConnection->account->users->contains($user) ||
-               $whatsAppConnection->account->owner_id === $user->id;
+               (int) $whatsAppConnection->account->owner_id === (int) $user->id;
     }
 
     /**
@@ -43,7 +43,7 @@ class WhatsAppConnectionPolicy
             return in_array($membership->pivot->role, ['owner', 'admin']);
         }
 
-        return $account->owner_id === $user->id;
+        return (int) $account->owner_id === (int) $user->id;
     }
 
     /**
@@ -59,7 +59,7 @@ class WhatsAppConnectionPolicy
             return in_array($membership->pivot->role, ['owner', 'admin']);
         }
 
-        return $account->owner_id === $user->id;
+        return (int) $account->owner_id === (int) $user->id;
     }
 
     /**

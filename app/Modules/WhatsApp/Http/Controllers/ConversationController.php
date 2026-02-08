@@ -10,6 +10,8 @@ use App\Modules\WhatsApp\Events\Inbox\InternalNoteAdded;
 use App\Modules\WhatsApp\Events\Inbox\AuditEventAdded;
 use App\Modules\WhatsApp\Events\Inbox\MessageCreated;
 use App\Modules\WhatsApp\Events\Inbox\MessageUpdated;
+use App\Modules\WhatsApp\Models\WhatsAppConnection;
+use App\Modules\WhatsApp\Models\WhatsAppContact;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use App\Modules\WhatsApp\Models\WhatsAppConversationNote;
 use App\Modules\WhatsApp\Models\WhatsAppConversationAuditEvent;
@@ -91,6 +93,40 @@ class ConversationController extends Controller
             'account' => $account,
             'conversations' => $conversations,
             'connections' => $connections]);
+    }
+
+    /**
+     * Open or start a conversation with a contact (from Contacts). Gets or creates the conversation and redirects to it.
+     */
+    public function showByContact(Request $request, WhatsAppContact $contact)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if ((int) $contact->account_id !== (int) $account->id) {
+            abort(404);
+        }
+
+        $connection = WhatsAppConnection::where('account_id', $account->id)
+            ->where('is_active', true)
+            ->orderBy('id')
+            ->first();
+
+        if (!$connection) {
+            return redirect()->back()->withErrors([
+                'connection' => 'No active WhatsApp connection. Please add and connect a WhatsApp connection first.',
+            ]);
+        }
+
+        $conversation = WhatsAppConversation::firstOrCreate(
+            [
+                'account_id' => $account->id,
+                'whatsapp_connection_id' => $connection->id,
+                'whatsapp_contact_id' => $contact->id,
+            ],
+            ['status' => 'open']
+        );
+
+        return redirect()->route('app.whatsapp.conversations.show', ['conversation' => $conversation->id]);
     }
 
     /**
@@ -400,7 +436,7 @@ class ConversationController extends Controller
         if (array_key_exists('assigned_to', $validated) && Schema::hasColumn('whatsapp_conversations', 'assigned_to')) {
             $assigneeId = $validated['assigned_to'];
             if ($assigneeId) {
-                $isInAccount = $account->owner_id === $assigneeId
+                $isInAccount = (int) $account->owner_id === (int) $assigneeId
                     || $account->users()->where('users.id', $assigneeId)->exists();
 
                 if (!$isInAccount) {

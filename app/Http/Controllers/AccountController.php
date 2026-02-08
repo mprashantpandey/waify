@@ -18,7 +18,7 @@ class AccountController extends Controller
         $user = Auth::user();
 
         // Verify user has access
-        if (!$account->users->contains($user) && $account->owner_id !== $user->id) {
+        if (!$account->users->contains($user) && (int) $account->owner_id !== (int) $user->id) {
             abort(403, 'You do not have access to this account');
         }
 

@@ -14,7 +14,7 @@ class ChatbotPolicy
     public function viewAny(User $user, Account $account): bool
     {
         // Owner and admin can view
-        return $account->owner_id === $user->id ||
+        return (int) $account->owner_id === (int) $user->id ||
                $account->users()->where('user_id', $user->id)->where('role', 'admin')->exists();
     }
 
@@ -24,7 +24,7 @@ class ChatbotPolicy
     public function manage(User $user, Account $account): bool
     {
         // Only owner and admin can manage
-        return $account->owner_id === $user->id ||
+        return (int) $account->owner_id === (int) $user->id ||
                $account->users()->where('user_id', $user->id)->where('role', 'admin')->exists();
     }
 

@@ -97,7 +97,7 @@ class User extends Authenticatable
         }
 
         // Check if user is owner
-        if ($account->owner_id === $this->id) {
+        if ((int) $account->owner_id === (int) $this->id) {
             return true;
         }
 

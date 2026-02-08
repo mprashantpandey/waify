@@ -15,7 +15,7 @@ class FloaterWidgetPolicy
     public function view(User $user, FloaterWidget $widget): bool
     {
         return $widget->account->users->contains($user) ||
-            $widget->account->owner_id === $user->id;
+            (int) $widget->account->owner_id === (int) $user->id;
     }
 
     public function create(User $user): bool
@@ -30,7 +30,7 @@ class FloaterWidgetPolicy
             return in_array($membership->pivot->role, ['owner', 'admin'], true);
         }
 
-        return $account->owner_id === $user->id;
+        return (int) $account->owner_id === (int) $user->id;
     }
 
     public function update(User $user, FloaterWidget $widget): bool
@@ -42,7 +42,7 @@ class FloaterWidgetPolicy
             return in_array($membership->pivot->role, ['owner', 'admin'], true);
         }
 
-        return $account->owner_id === $user->id;
+        return (int) $account->owner_id === (int) $user->id;
     }
 
     public function delete(User $user, FloaterWidget $widget): bool
