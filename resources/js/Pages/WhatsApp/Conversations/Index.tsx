@@ -47,7 +47,9 @@ export default function ConversationsIndex({
     const currentUserId = auth?.user?.id;
     const notifyAssignmentEnabled = auth?.user?.notify_assignment_enabled ?? true;
     const soundEnabled = auth?.user?.notify_sound_enabled ?? true;
-    const [conversations, setConversations] = useState<Conversation[]>(initialConversations.data);
+    const [conversations, setConversations] = useState<Conversation[]>(
+        Array.isArray(initialConversations?.data) ? initialConversations.data : []
+    );
     const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -110,6 +112,13 @@ export default function ConversationsIndex({
             })
             .catch((err: any) => console.warn('[Inbox] Stream fetch failed:', err?.message));
     }, [account?.id]);
+
+    // Keep state in sync with server payload (in case of hydration/props mismatch)
+    useEffect(() => {
+        if (Array.isArray(initialConversations?.data)) {
+            setConversations(initialConversations.data);
+        }
+    }, [initialConversations]);
 
     // Filter conversations
     const filteredConversations = useMemo(() => {
