@@ -67,6 +67,12 @@ class ModuleSeeder extends Seeder
                 'description' => 'Support requests and live chat',
                 'is_core' => true,
             ],
+            [
+                'key' => 'contacts',
+                'name' => 'Contacts & CRM',
+                'description' => 'Manage contacts, tags, segments, and customer relationships',
+                'is_core' => false,
+            ],
         ];
 
         foreach ($modules as $module) {

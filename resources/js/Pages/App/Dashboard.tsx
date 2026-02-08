@@ -281,9 +281,10 @@ export default function Dashboard({
                             ) : (
                                 <div className="space-y-2">
                                     {recent_conversations.map((conversation) => {
-                                        const conversationRoute = hasRoute('app.whatsapp.conversations.index')
+                                        const convId = Number(conversation.id);
+                                        const conversationRoute = hasRoute('app.whatsapp.conversations.index') && Number.isInteger(convId) && convId >= 1
                                             ? route('app.whatsapp.conversations.show', {
-                                                conversation: conversation.id 
+                                                conversation: convId,
                                             })
                                             : '#';
                                         

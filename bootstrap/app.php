@@ -61,6 +61,11 @@ return Application::configure(basePath: dirname(__DIR__))
                 // For non-Inertia requests, let Laravel handle it (will return JSON or redirect)
                 return null;
             }
+
+            // Return Inertia 404 page for Inertia requests so the client doesn't crash (e.g. "Cannot read properties of null (reading 'component')")
+            if ($request->header('X-Inertia') && ($e instanceof \Symfony\Component\HttpKernel\Exception\NotFoundHttpException || ($e instanceof \Illuminate\Http\Exceptions\HttpException && $e->getStatusCode() === 404))) {
+                return \Inertia\Inertia::render('Error/NotFound')->toResponse($request)->setStatusCode(404);
+            }
             
             // Don't leak stack traces in production
             if (app()->environment('production')) {

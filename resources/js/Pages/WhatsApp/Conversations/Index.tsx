@@ -186,8 +186,10 @@ export default function ConversationsIndex({
                 if (!processedMessageIds.current.has(eventId)) {
                     processedMessageIds.current.add(eventId);
                     const conv = data.conversation || {};
+                    const convId = Number(conv.id);
+                    if (!Number.isInteger(convId) || convId < 1) return;
                     const incoming: Conversation = {
-                        id: conv.id,
+                        id: convId,
                         contact: conv.contact ?? { id: 0, wa_id: '', name: '' },
                         status: conv.status ?? 'open',
                         last_message_preview: conv.last_message_preview ?? null,
@@ -382,8 +384,12 @@ export default function ConversationsIndex({
                                     {filteredConversations.map((conversation) => (
                                         <Link
                                             key={conversation.id}
-                                            href={route('app.whatsapp.conversations.show', {
-                                                conversation: conversation.id})}
+                                            href={(() => {
+                                                const id = parseInt(String(conversation.id), 10);
+                                                return (Number.isInteger(id) && id >= 1)
+                                                    ? route('app.whatsapp.conversations.show', { conversation: id })
+                                                    : '#';
+                                            })()}
                                             className="group block px-4 py-3 hover:bg-[#f0f2f5] dark:hover:bg-gray-800 transition-colors"
                                         >
                                             <div className="flex items-start gap-3">

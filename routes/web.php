@@ -163,12 +163,11 @@ Route::middleware('auth')->prefix('/app')->name('app.')->group(function () {
     Route::post('/accounts/{account}/switch', [AccountController::class, 'switch'])->name('accounts.switch');
 });
 
-// Profile routes
+// Profile routes (password.update is defined in auth.php)
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-    Route::patch('/password', [\App\Http\Controllers\Auth\PasswordController::class, 'update'])->name('password.update');
 });
 
 // Broadcasting auth - custom route to ensure channels are loaded
