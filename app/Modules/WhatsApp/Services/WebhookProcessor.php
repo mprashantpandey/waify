@@ -258,7 +258,18 @@ class WebhookProcessor
             event(new ConversationUpdated($conversation));
 
             // Process bots for inbound messages (queued to prevent webhook timeout)
-            if ($message->direction === 'inbound' && module_enabled($account, 'automation.chatbots')) {
+            $chatbotsEnabled = $message->direction === 'inbound' && module_enabled($account, 'automation.chatbots');
+            Log::channel('chatbots')->debug('Inbound message bot dispatch check', [
+                'correlation_id' => $correlationId,
+                'account_id' => $account->id,
+                'connection_id' => $connection->id,
+                'conversation_id' => $conversation->id,
+                'message_id' => $message->id,
+                'meta_message_id' => $metaMessageId,
+                'enabled' => $chatbotsEnabled,
+            ]);
+
+            if ($chatbotsEnabled) {
                 // Dispatch on default queue by default so it works on hosts that only
                 // run a single queue worker. If you want isolation, configure your
                 // worker to listen to multiple queues and reintroduce onQueue().
