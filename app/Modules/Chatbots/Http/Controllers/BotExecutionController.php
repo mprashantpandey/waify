@@ -3,8 +3,8 @@
 namespace App\Modules\Chatbots\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Chatbots\Models\Bot;
 use App\Modules\Chatbots\Models\BotExecution;
-use App\Modules\Chatbots\Policies\ChatbotPolicy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
@@ -19,7 +19,7 @@ class BotExecutionController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        Gate::authorize('viewAny', [ChatbotPolicy::class, $account]);
+        Gate::authorize('viewAny', [Bot::class, $account]);
 
         $executions = BotExecution::where('account_id', $account->id)
             ->with(['bot', 'flow', 'conversation.contact'])
@@ -61,7 +61,7 @@ class BotExecutionController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        Gate::authorize('viewAny', [ChatbotPolicy::class, $account]);
+        Gate::authorize('viewAny', [Bot::class, $account]);
 
         if (!account_ids_match($execution->account_id, $account->id)) {
             abort(404);

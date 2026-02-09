@@ -5,7 +5,6 @@ namespace App\Modules\Chatbots\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Chatbots\Models\Bot;
 use App\Modules\Chatbots\Models\BotFlow;
-use App\Modules\Chatbots\Policies\ChatbotPolicy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
@@ -18,7 +17,7 @@ class BotFlowController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        Gate::authorize('manage', [ChatbotPolicy::class, $account]);
+        Gate::authorize('manage', [Bot::class, $account]);
 
         if (!account_ids_match($bot->account_id, $account->id)) {
             abort(404);
@@ -90,7 +89,7 @@ class BotFlowController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        Gate::authorize('manage', [ChatbotPolicy::class, $account]);
+        Gate::authorize('manage', [Bot::class, $account]);
 
         if (!account_ids_match($flow->account_id, $account->id)) {
             abort(404);
@@ -186,7 +185,7 @@ class BotFlowController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        Gate::authorize('manage', [ChatbotPolicy::class, $account]);
+        Gate::authorize('manage', [Bot::class, $account]);
 
         if (!account_ids_match($flow->account_id, $account->id)) {
             abort(404);
