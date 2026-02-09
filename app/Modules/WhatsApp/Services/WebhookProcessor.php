@@ -258,6 +258,18 @@ class WebhookProcessor
             event(new ConversationUpdated($conversation));
 
             // Process bots for inbound messages (queued to prevent webhook timeout)
+            $account = $conversation->account ?? $connection->account ?? Account::find($connection->account_id);
+            if (!$account) {
+                Log::channel('whatsapp')->warning('Skipping bot dispatch: account not resolved', [
+                    'correlation_id' => $correlationId,
+                    'connection_id' => $connection->id,
+                    'connection_account_id' => $connection->account_id,
+                    'conversation_id' => $conversation->id,
+                    'message_id' => $message->id,
+                ]);
+                return;
+            }
+
             $chatbotsEnabled = $message->direction === 'inbound' && module_enabled($account, 'automation.chatbots');
             Log::channel('chatbots')->debug('Inbound message bot dispatch check', [
                 'correlation_id' => $correlationId,
