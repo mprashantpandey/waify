@@ -259,8 +259,10 @@ class WebhookProcessor
 
             // Process bots for inbound messages (queued to prevent webhook timeout)
             if ($message->direction === 'inbound' && module_enabled($account, 'automation.chatbots')) {
-                \App\Modules\Chatbots\Jobs\ProcessInboundMessageForBots::dispatch($message, $conversation)
-                    ->onQueue('chatbots'); // Use dedicated queue
+                // Dispatch on default queue by default so it works on hosts that only
+                // run a single queue worker. If you want isolation, configure your
+                // worker to listen to multiple queues and reintroduce onQueue().
+                \App\Modules\Chatbots\Jobs\ProcessInboundMessageForBots::dispatch($message, $conversation);
             }
         } finally {
             $messageLock->release();

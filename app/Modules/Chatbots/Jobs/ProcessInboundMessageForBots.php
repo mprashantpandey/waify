@@ -22,8 +22,8 @@ class ProcessInboundMessageForBots implements ShouldQueue
         public WhatsAppMessage $inboundMessage,
         public WhatsAppConversation $conversation
     ) {
-        // Use dedicated queue for chatbot processing
-        $this->onQueue('chatbots');
+        // Queue is selected by the dispatch site. Default queue should work
+        // on hosts where only the default worker is running.
     }
 
     /**
@@ -31,6 +31,19 @@ class ProcessInboundMessageForBots implements ShouldQueue
      */
     public function handle(BotRuntime $botRuntime): void
     {
+        \Illuminate\Support\Facades\Log::channel('chatbots')->debug('ProcessInboundMessageForBots started', [
+            'account_id' => $this->conversation->account_id,
+            'conversation_id' => $this->conversation->id,
+            'message_id' => $this->inboundMessage->id,
+            'meta_message_id' => $this->inboundMessage->meta_message_id,
+        ]);
+
         $botRuntime->processInboundMessage($this->inboundMessage, $this->conversation);
+
+        \Illuminate\Support\Facades\Log::channel('chatbots')->debug('ProcessInboundMessageForBots finished', [
+            'account_id' => $this->conversation->account_id,
+            'conversation_id' => $this->conversation->id,
+            'message_id' => $this->inboundMessage->id,
+        ]);
     }
 }
