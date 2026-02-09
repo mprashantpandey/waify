@@ -14,7 +14,7 @@ class AccountPolicy
     public function viewTeam(User $user, Account $account): bool
     {
         // Owner and admins can view team
-        if ($account->owner_id === $user->id) {
+        if (account_ids_match($account->owner_id, $user->id)) {
             return true;
         }
 
@@ -31,7 +31,7 @@ class AccountPolicy
     public function manageTeam(User $user, Account $account): bool
     {
         // Only owner and admins can manage team
-        if ($account->owner_id === $user->id) {
+        if (account_ids_match($account->owner_id, $user->id)) {
             return true;
         }
 
@@ -48,7 +48,7 @@ class AccountPolicy
     public function updateSettings(User $user, Account $account): bool
     {
         // Only owner and admins can update settings
-        if ($account->owner_id === $user->id) {
+        if (account_ids_match($account->owner_id, $user->id)) {
             return true;
         }
 
@@ -59,4 +59,3 @@ class AccountPolicy
         return $accountUser && $accountUser->role === 'admin';
     }
 }
-
