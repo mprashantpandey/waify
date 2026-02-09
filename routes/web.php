@@ -127,6 +127,9 @@ Route::middleware(['auth', 'account.resolve', 'account.active', 'account.subscri
     if (file_exists(__DIR__.'/../app/Modules/WhatsApp/routes/web.php')) {
         require __DIR__.'/../app/Modules/WhatsApp/routes/web.php';
     }
+    if (file_exists(__DIR__.'/../app/Modules/Chatbots/routes/web.php')) {
+        require __DIR__.'/../app/Modules/Chatbots/routes/web.php';
+    }
     if (file_exists(__DIR__.'/../app/Modules/Support/routes/web.php')) {
         require __DIR__.'/../app/Modules/Support/routes/web.php';
     }
