@@ -187,9 +187,14 @@ class ListController extends Controller
             abort(404);
         }
 
-        $connections = WhatsAppConnection::where('account_id', $account->id)
-            ->where('status', 'connected')
-            ->get()
+        $connectionsQuery = WhatsAppConnection::where('account_id', $account->id);
+        if (Schema::hasColumn('whatsapp_connections', 'status')) {
+            $connectionsQuery->where('status', 'connected');
+        } elseif (Schema::hasColumn('whatsapp_connections', 'is_active')) {
+            $connectionsQuery->where('is_active', true);
+        }
+
+        $connections = $connectionsQuery->get()
             ->map(fn($conn) => [
                 'id' => $conn->id,
                 'name' => $conn->name,
