@@ -427,6 +427,8 @@ class PlatformSettingsService
         $provider = $this->get('ai.provider', 'openai');
         $openaiApiKey = $this->get('ai.openai_api_key');
         $openaiModel = $this->get('ai.openai_model', 'gpt-4o-mini');
+        $anthropicApiKey = $this->get('ai.anthropic_api_key');
+        $anthropicModel = $this->get('ai.anthropic_model', 'claude-3-5-haiku-20241022');
         $geminiApiKey = $this->get('ai.gemini_api_key');
         $geminiModel = $this->get('ai.gemini_model', 'gemini-1.5-flash');
         $temperature = $this->get('ai.temperature', 0.2);
@@ -435,17 +437,22 @@ class PlatformSettingsService
         if ($aiEnabled) {
             config(['ai.enabled' => true]);
             config(['ai.provider' => $provider]);
-            
+
             if ($provider === 'openai' && $openaiApiKey) {
                 config(['ai.openai.api_key' => $openaiApiKey]);
                 config(['ai.openai.model' => $openaiModel]);
             }
-            
+
+            if ($provider === 'anthropic' && $anthropicApiKey) {
+                config(['ai.anthropic.api_key' => $anthropicApiKey]);
+                config(['ai.anthropic.model' => $anthropicModel]);
+            }
+
             if ($provider === 'gemini' && $geminiApiKey) {
                 config(['ai.gemini.api_key' => $geminiApiKey]);
                 config(['ai.gemini.model' => $geminiModel]);
             }
-            
+
             config(['ai.temperature' => $temperature]);
             config(['ai.max_tokens' => $maxTokens]);
         } else {

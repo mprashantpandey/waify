@@ -83,6 +83,13 @@ class ModuleSeeder extends Seeder
                 'is_core' => false,
                 'is_enabled' => true,
             ],
+            [
+                'key' => 'broadcasts',
+                'name' => 'Broadcasts & Campaigns',
+                'description' => 'Create and manage WhatsApp broadcast campaigns',
+                'is_core' => false,
+                'is_enabled' => true,
+            ],
         ];
 
         foreach ($modules as $module) {

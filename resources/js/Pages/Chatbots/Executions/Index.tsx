@@ -21,14 +21,18 @@ interface Execution {
 
 export default function ChatbotsExecutionsIndex({
     account,
-    executions}: {
+    executions: executionsProp,
+}: {
     account: any;
-    executions: {
+    executions?: {
         data: Execution[];
         links: any;
-        meta: any;
+        meta: { current_page: number; last_page: number; [key: string]: any };
     };
 }) {
+    const executions = executionsProp ?? { data: [], links: {}, meta: { current_page: 1, last_page: 1 } };
+    const meta = executions.meta ?? { current_page: 1, last_page: 1 };
+    const list = Array.isArray(executions.data) ? executions.data : [];
     const getStatusBadge = (status: string) => {
         const statusMap: Record<string, { variant: 'success' | 'danger' | 'default' | 'warning'; icon: any; label: string }> = {
             success: { variant: 'success', icon: CheckCircle, label: 'Success' },
@@ -107,7 +111,7 @@ export default function ChatbotsExecutionsIndex({
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-gray-900">
-                                    {executions.data.length === 0 ? (
+                                    {list.length === 0 ? (
                                         <tr>
                                             <td colSpan={6} className="px-6 py-12 text-center">
                                                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
@@ -118,7 +122,7 @@ export default function ChatbotsExecutionsIndex({
                                             </td>
                                         </tr>
                                     ) : (
-                                        executions.data.map((execution) => (
+                                        list.map((execution) => (
                                             <tr key={execution.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                                                 <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">
                                                     {new Date(execution.started_at).toLocaleString()}
@@ -169,11 +173,11 @@ export default function ChatbotsExecutionsIndex({
                                 </tbody>
                             </table>
                         </div>
-                        {executions.meta.last_page > 1 && (
+                        {meta.last_page > 1 && (
                             <div className="flex justify-between items-center p-4 border-t border-gray-200 dark:border-gray-700">
                                 <Button
-                                    onClick={() => window.location.href = executions.links.prev}
-                                    disabled={!executions.links.prev}
+                                    onClick={() => window.location.href = executions.links?.prev}
+                                    disabled={!executions.links?.prev}
                                     variant="secondary"
                                     size="sm"
                                     className="rounded-xl"
@@ -181,11 +185,11 @@ export default function ChatbotsExecutionsIndex({
                                     Previous
                                 </Button>
                                 <span className="text-sm text-gray-700 dark:text-gray-300">
-                                    Page {executions.meta.current_page} of {executions.meta.last_page}
+                                    Page {meta.current_page} of {meta.last_page}
                                 </span>
                                 <Button
-                                    onClick={() => window.location.href = executions.links.next}
-                                    disabled={!executions.links.next}
+                                    onClick={() => window.location.href = executions.links?.next}
+                                    disabled={!executions.links?.next}
                                     variant="secondary"
                                     size="sm"
                                     className="rounded-xl"

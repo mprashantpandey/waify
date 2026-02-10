@@ -283,11 +283,16 @@ class PlatformSettingsValidationService
         $issues = [];
         
         $provider = PlatformSetting::get('ai.provider', 'openai');
-        
+
         if ($provider === 'openai') {
             $apiKey = PlatformSetting::get('ai.openai_api_key');
             if (empty($apiKey)) {
                 $issues[] = 'OpenAI API Key is required';
+            }
+        } elseif ($provider === 'anthropic') {
+            $apiKey = PlatformSetting::get('ai.anthropic_api_key');
+            if (empty($apiKey)) {
+                $issues[] = 'Anthropic API Key is required';
             }
         } elseif ($provider === 'gemini') {
             $apiKey = PlatformSetting::get('ai.gemini_api_key');

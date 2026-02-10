@@ -41,8 +41,9 @@ export default function AiTab({ data, setData, errors }: AiTabProps) {
                             onChange={(e) => setData('ai', { ...ai, provider: e.target.value })}
                             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
                         >
-                            <option value="openai">OpenAI</option>
-                            <option value="gemini">Gemini</option>
+                            <option value="openai">OpenAI (GPT-4o, etc.)</option>
+                            <option value="anthropic">Anthropic (Claude)</option>
+                            <option value="gemini">Google Gemini</option>
                         </select>
                         {errors?.['ai.provider'] && (
                             <p className="text-sm text-red-600 mt-1">{errors['ai.provider']}</p>
@@ -92,6 +93,37 @@ export default function AiTab({ data, setData, errors }: AiTabProps) {
                         />
                         {errors?.['ai.openai_model'] && (
                             <p className="text-sm text-red-600 mt-1">{errors['ai.openai_model']}</p>
+                        )}
+                    </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <Label htmlFor="ai.anthropic_api_key">Anthropic API Key</Label>
+                        <TextInput
+                            id="ai.anthropic_api_key"
+                            type="password"
+                            value={ai.anthropic_api_key || ''}
+                            onChange={(e) => setData('ai', { ...ai, anthropic_api_key: e.target.value })}
+                            className="mt-1 block w-full"
+                            placeholder="sk-ant-..."
+                        />
+                        {errors?.['ai.anthropic_api_key'] && (
+                            <p className="text-sm text-red-600 mt-1">{errors['ai.anthropic_api_key']}</p>
+                        )}
+                    </div>
+                    <div>
+                        <Label htmlFor="ai.anthropic_model">Anthropic Model</Label>
+                        <TextInput
+                            id="ai.anthropic_model"
+                            type="text"
+                            value={ai.anthropic_model || 'claude-3-5-haiku-20241022'}
+                            onChange={(e) => setData('ai', { ...ai, anthropic_model: e.target.value })}
+                            className="mt-1 block w-full"
+                            placeholder="claude-3-5-haiku-20241022"
+                        />
+                        {errors?.['ai.anthropic_model'] && (
+                            <p className="text-sm text-red-600 mt-1">{errors['ai.anthropic_model']}</p>
                         )}
                     </div>
                 </div>

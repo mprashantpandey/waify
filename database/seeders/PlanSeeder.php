@@ -54,7 +54,7 @@ class PlanSeeder extends Seeder
                     'ai_credits_monthly' => 0,
                     'retention_days' => 90,
                 ],
-                'modules' => ['whatsapp', 'templates', 'inbox', 'contacts'],
+                'modules' => ['whatsapp', 'templates', 'inbox', 'contacts', 'broadcasts'],
                 'metadata' => [],
             ],
             [
@@ -76,7 +76,7 @@ class PlanSeeder extends Seeder
                     'ai_credits_monthly' => 1000,
                     'retention_days' => 365,
                 ],
-                'modules' => ['whatsapp', 'templates', 'inbox', 'chatbots', 'analytics', 'floaters', 'contacts'],
+                'modules' => ['whatsapp', 'templates', 'inbox', 'chatbots', 'analytics', 'floaters', 'contacts', 'broadcasts'],
                 'metadata' => [],
             ],
             [
@@ -98,7 +98,7 @@ class PlanSeeder extends Seeder
                     'ai_credits_monthly' => -1,
                     'retention_days' => -1,
                 ],
-                'modules' => ['whatsapp', 'templates', 'inbox', 'chatbots', 'ai', 'analytics', 'floaters', 'billing', 'contacts'],
+                'modules' => ['whatsapp', 'templates', 'inbox', 'chatbots', 'ai', 'analytics', 'floaters', 'billing', 'contacts', 'broadcasts'],
                 'metadata' => ['custom' => true],
             ],
         ];
