@@ -148,8 +148,34 @@ class BotRuntime
                 ->get()
                 ->groupBy('from_node_id');
 
+            Log::channel('chatbots')->debug('Flow graph snapshot', [
+                'execution_id' => $execution->id,
+                'bot_id' => $flow->bot_id,
+                'flow_id' => $flow->id,
+                'nodes_count' => $nodes->count(),
+                'edges_count' => $edgesByFrom->flatten(1)->count(),
+                'has_edges' => !$edgesByFrom->isEmpty(),
+            ]);
+
+            if ($nodes->isEmpty()) {
+                $execution->update([
+                    'status' => 'skipped',
+                    'finished_at' => now(),
+                    'logs' => [['result' => 'skipped', 'reason' => 'No nodes found']],
+                ]);
+                Log::channel('chatbots')->warning('Flow has no nodes; skipping', [
+                    'execution_id' => $execution->id,
+                    'flow_id' => $flow->id,
+                ]);
+                return;
+            }
+
             if ($edgesByFrom->isEmpty()) {
                 // Fallback to linear for existing flows without edges
+                Log::channel('chatbots')->debug('Executing flow in linear mode (no edges)', [
+                    'execution_id' => $execution->id,
+                    'flow_id' => $flow->id,
+                ]);
                 $ordered = $nodes->sortBy('sort_order')->values();
                 foreach ($ordered as $node) {
                     if ($actionCount >= $maxActions) {
@@ -185,6 +211,14 @@ class BotRuntime
 
                         if ($result['success']) {
                             $actionCount++;
+                            Log::channel('chatbots')->info('Action executed', [
+                                'execution_id' => $execution->id,
+                                'flow_id' => $flow->id,
+                                'node_id' => $node->id,
+                                'node_type' => $node->type,
+                                'action_type' => $node->type === 'action' ? ($node->config['action_type'] ?? null) : null,
+                                'success' => true,
+                            ]);
                         } else {
                             Log::channel('chatbots')->warning('Action failed', [
                                 'node_id' => $node->id,
@@ -205,6 +239,12 @@ class BotRuntime
                 ]);
                 return;
             }
+
+            Log::channel('chatbots')->debug('Executing flow in graph mode', [
+                'execution_id' => $execution->id,
+                'flow_id' => $flow->id,
+                'start_node_id' => $startNode->id,
+            ]);
 
             $queue = [$startNode->id];
             $visited = [];
@@ -256,6 +296,14 @@ class BotRuntime
 
                     if ($result['success']) {
                         $actionCount++;
+                        Log::channel('chatbots')->info('Action executed', [
+                            'execution_id' => $execution->id,
+                            'flow_id' => $flow->id,
+                            'node_id' => $node->id,
+                            'node_type' => $node->type,
+                            'action_type' => $node->type === 'action' ? ($node->config['action_type'] ?? null) : null,
+                            'success' => true,
+                        ]);
                     } else {
                         Log::channel('chatbots')->warning('Action failed', [
                             'node_id' => $node->id,
@@ -278,6 +326,15 @@ class BotRuntime
                 'finished_at' => now(),
                 'logs' => array_slice($logs, 0, 100), // Cap logs size
             ]);
+
+            if ($actionCount === 0) {
+                Log::channel('chatbots')->warning('Execution completed but no actions were executed', [
+                    'execution_id' => $execution->id,
+                    'flow_id' => $flow->id,
+                    'nodes_count' => $nodes->count(),
+                    'has_edges' => !$edgesByFrom->isEmpty(),
+                ]);
+            }
         } catch (\Exception $e) {
             Log::channel('chatbots')->error('Bot execution failed', [
                 'execution_id' => $execution->id,
