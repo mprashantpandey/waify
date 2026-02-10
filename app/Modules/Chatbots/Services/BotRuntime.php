@@ -35,8 +35,26 @@ class BotRuntime
             ->filter(fn (Bot $bot) => $bot->appliesToConnection($connection->id));
 
         if ($bots->isEmpty()) {
+            Log::channel('chatbots')->debug('No eligible bots for inbound message', [
+                'account_id' => $account->id,
+                'conversation_id' => $conversation->id,
+                'connection_id' => $connection->id,
+                'message_id' => $inboundMessage->id,
+            ]);
             return;
         }
+
+        Log::channel('chatbots')->debug('Eligible bots for inbound message', [
+            'account_id' => $account->id,
+            'conversation_id' => $conversation->id,
+            'connection_id' => $connection->id,
+            'message_id' => $inboundMessage->id,
+            'bots' => $bots->map(fn (Bot $b) => [
+                'id' => $b->id,
+                'name' => $b->name,
+                'applies_to' => $b->applies_to,
+            ])->values()->all(),
+        ]);
 
         // Create context
         $context = new BotContext(
@@ -79,8 +97,31 @@ class BotRuntime
 
         // Check trigger
         if (!$this->triggerEvaluator->matches($flow, $context)) {
+            Log::channel('chatbots')->debug('Flow trigger did not match', [
+                'account_id' => $context->account->id,
+                'flow_id' => $flow->id,
+                'flow_name' => $flow->name,
+                'trigger' => $flow->trigger,
+                'message_id' => $context->inboundMessage->id,
+                'meta_message_id' => $context->inboundMessage->meta_message_id,
+                'message_type' => $context->inboundMessage->type,
+                'message_text' => $context->getMessageText(),
+                'connection_id' => $context->getConnectionId(),
+                'conversation_id' => $context->conversation->id,
+            ]);
             return;
         }
+
+        Log::channel('chatbots')->info('Flow trigger matched, starting execution', [
+            'account_id' => $context->account->id,
+            'bot_id' => $flow->bot_id,
+            'flow_id' => $flow->id,
+            'flow_name' => $flow->name,
+            'trigger' => $flow->trigger,
+            'conversation_id' => $context->conversation->id,
+            'message_id' => $context->inboundMessage->id,
+            'meta_message_id' => $context->inboundMessage->meta_message_id,
+        ]);
 
         // Create execution record
         $execution = BotExecution::create([
