@@ -14,6 +14,9 @@ Route::middleware(['module.entitled:automation.chatbots'])->group(function () {
     Route::get('/chatbots', [BotController::class, 'index'])->name('chatbots.index');
     Route::get('/chatbots/create', [BotController::class, 'create'])->name('chatbots.create');
     Route::post('/chatbots', [BotController::class, 'store'])->name('chatbots.store');
+    // Executions (must be before /chatbots/{bot} so "executions" is not matched as a bot)
+    Route::get('/chatbots/executions', [BotExecutionController::class, 'index'])->name('chatbots.executions.index');
+    Route::get('/chatbots/executions/{execution}', [BotExecutionController::class, 'show'])->name('chatbots.executions.show');
     Route::get('/chatbots/{bot}', [BotController::class, 'show'])->name('chatbots.show');
     Route::patch('/chatbots/{bot}', [BotController::class, 'update'])->name('chatbots.update');
     Route::delete('/chatbots/{bot}', [BotController::class, 'destroy'])->name('chatbots.destroy');
@@ -32,8 +35,4 @@ Route::middleware(['module.entitled:automation.chatbots'])->group(function () {
     Route::post('/chatbots/flows/{flow}/edges', [BotEdgeController::class, 'store'])->name('chatbots.edges.store');
     Route::patch('/chatbots/edges/{edge}', [BotEdgeController::class, 'update'])->name('chatbots.edges.update');
     Route::delete('/chatbots/edges/{edge}', [BotEdgeController::class, 'destroy'])->name('chatbots.edges.destroy');
-
-    // Executions
-    Route::get('/chatbots/executions', [BotExecutionController::class, 'index'])->name('chatbots.executions.index');
-    Route::get('/chatbots/executions/{execution}', [BotExecutionController::class, 'show'])->name('chatbots.executions.show');
 });
