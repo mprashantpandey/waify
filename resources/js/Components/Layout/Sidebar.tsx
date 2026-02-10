@@ -14,6 +14,7 @@ import {
     Settings,
     Users,
     Activity,
+    Megaphone,
     LucideIcon,
     Menu,
     X
@@ -35,7 +36,8 @@ const iconMap: Record<string, LucideIcon> = {
     LifeBuoy,
     Settings,
     Users,
-    Activity};
+    Activity,
+    Megaphone};
 
 interface NavItem {
     label: string;
