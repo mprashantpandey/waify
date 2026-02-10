@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Route;
 // Routes are already under '/app' and have the 'app.' name prefix applied by the parent group.
 Route::middleware(['module.entitled:automation.chatbots'])->group(function () {
     // Bots
+    // Keep a stable alias for older navigation/Ziggy caches that referenced app.chatbots
+    Route::get('/chatbots', [BotController::class, 'index'])->name('chatbots');
     Route::get('/chatbots', [BotController::class, 'index'])->name('chatbots.index');
     Route::get('/chatbots/create', [BotController::class, 'create'])->name('chatbots.create');
     Route::post('/chatbots', [BotController::class, 'store'])->name('chatbots.store');

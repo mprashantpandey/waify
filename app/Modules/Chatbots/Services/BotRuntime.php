@@ -19,6 +19,37 @@ class BotRuntime
     ) {}
 
     /**
+     * Some older flows or buggy saves may persist non-standard node types.
+     * Normalize the execution category so the runtime can still traverse and execute.
+     */
+    protected function normalizeNodeType(BotNode $node): string
+    {
+        $type = (string) ($node->type ?? '');
+        if (in_array($type, ['condition', 'action', 'delay', 'webhook'], true)) {
+            return $type;
+        }
+
+        $config = is_array($node->config) ? $node->config : [];
+
+        // If the config shape clearly matches a known node category, treat it as such.
+        if (array_key_exists('action_type', $config)) {
+            return 'action';
+        }
+        if (array_key_exists('seconds', $config)) {
+            return 'delay';
+        }
+        if (array_key_exists('url', $config)) {
+            return 'webhook';
+        }
+        if (array_key_exists('type', $config)) {
+            return 'condition';
+        }
+
+        // Pure pass-through/unknown nodes still allow graph traversal.
+        return 'passthrough';
+    }
+
+    /**
      * Process inbound message for bots.
      */
     public function processInboundMessage(
@@ -148,6 +179,18 @@ class BotRuntime
                 ->get()
                 ->groupBy('from_node_id');
 
+            $nodeTypeSummary = $nodes
+                ->values()
+                ->map(fn (BotNode $n) => [
+                    'id' => $n->id,
+                    'type' => $n->type,
+                    'normalized' => $this->normalizeNodeType($n),
+                    'has_config' => is_array($n->config) && !empty($n->config),
+                    'config_keys' => is_array($n->config) ? array_slice(array_keys($n->config), 0, 12) : [],
+                ])
+                ->take(25)
+                ->all();
+
             Log::channel('chatbots')->debug('Flow graph snapshot', [
                 'execution_id' => $execution->id,
                 'bot_id' => $flow->bot_id,
@@ -155,6 +198,7 @@ class BotRuntime
                 'nodes_count' => $nodes->count(),
                 'edges_count' => $edgesByFrom->flatten(1)->count(),
                 'has_edges' => !$edgesByFrom->isEmpty(),
+                'nodes' => $nodeTypeSummary,
             ]);
 
             if ($nodes->isEmpty()) {
@@ -188,7 +232,9 @@ class BotRuntime
                         break;
                     }
 
-                    if ($node->type === 'condition') {
+                    $normalized = $this->normalizeNodeType($node);
+
+                    if ($normalized === 'condition') {
                         $passed = $this->conditionEvaluator->evaluate($node, $context);
                         $logs[] = [
                             'node_id' => $node->id,
@@ -200,11 +246,15 @@ class BotRuntime
                         }
                     }
 
-                    if ($node->type === 'action' || $node->type === 'delay' || $node->type === 'webhook') {
+                    if ($normalized === 'action' || $normalized === 'delay' || $normalized === 'webhook') {
+                        // For legacy nodes, ensure executor sees the expected node category.
+                        if ($node->type !== $normalized && $normalized !== 'passthrough') {
+                            $node->type = $normalized;
+                        }
                         $result = $this->actionExecutor->execute($node, $context);
                         $logs[] = [
                             'node_id' => $node->id,
-                            'type' => $node->type,
+                            'type' => $normalized,
                             'result' => $result['success'] ? 'success' : 'failed',
                             'data' => $result,
                         ];
@@ -215,8 +265,8 @@ class BotRuntime
                                 'execution_id' => $execution->id,
                                 'flow_id' => $flow->id,
                                 'node_id' => $node->id,
-                                'node_type' => $node->type,
-                                'action_type' => $node->type === 'action' ? ($node->config['action_type'] ?? null) : null,
+                                'node_type' => $normalized,
+                                'action_type' => $normalized === 'action' ? ($node->config['action_type'] ?? null) : null,
                                 'success' => true,
                             ]);
                         } else {
@@ -260,16 +310,18 @@ class BotRuntime
                     continue;
                 }
 
+                $normalized = $this->normalizeNodeType($node);
+
                 if ($actionCount >= $maxActions) {
                     $logs[] = [
                         'node_id' => $node->id,
-                        'type' => $node->type,
+                        'type' => $normalized,
                         'result' => 'skipped',
                         'reason' => 'Max actions limit reached'];
                     break;
                 }
 
-                if ($node->type === 'condition') {
+                if ($normalized === 'condition') {
                     $passed = $this->conditionEvaluator->evaluate($node, $context);
                     $logs[] = [
                         'node_id' => $node->id,
@@ -286,11 +338,14 @@ class BotRuntime
                     continue;
                 }
 
-                if ($node->type === 'action' || $node->type === 'delay' || $node->type === 'webhook') {
+                if ($normalized === 'action' || $normalized === 'delay' || $normalized === 'webhook') {
+                    if ($node->type !== $normalized && $normalized !== 'passthrough') {
+                        $node->type = $normalized;
+                    }
                     $result = $this->actionExecutor->execute($node, $context);
                     $logs[] = [
                         'node_id' => $node->id,
-                        'type' => $node->type,
+                        'type' => $normalized,
                         'result' => $result['success'] ? 'success' : 'failed',
                         'data' => $result];
 
@@ -300,8 +355,8 @@ class BotRuntime
                             'execution_id' => $execution->id,
                             'flow_id' => $flow->id,
                             'node_id' => $node->id,
-                            'node_type' => $node->type,
-                            'action_type' => $node->type === 'action' ? ($node->config['action_type'] ?? null) : null,
+                            'node_type' => $normalized,
+                            'action_type' => $normalized === 'action' ? ($node->config['action_type'] ?? null) : null,
                             'success' => true,
                         ]);
                     } else {
@@ -309,6 +364,15 @@ class BotRuntime
                             'node_id' => $node->id,
                             'error' => $result['error'] ?? 'Unknown error']);
                     }
+                } else {
+                    // Unknown/pass-through node type. Still traverse the graph.
+                    $logs[] = [
+                        'node_id' => $node->id,
+                        'type' => $normalized,
+                        'result' => 'skipped',
+                        'reason' => 'Non-executable node type',
+                        'raw_type' => $node->type,
+                    ];
                 }
 
                 $edges = $edgesByFrom->get($node->id, collect());

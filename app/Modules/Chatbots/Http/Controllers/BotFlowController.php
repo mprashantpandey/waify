@@ -7,9 +7,136 @@ use App\Modules\Chatbots\Models\Bot;
 use App\Modules\Chatbots\Models\BotFlow;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Validator;
 
 class BotFlowController extends Controller
 {
+    protected function validateFlowPayload(Request $request, bool $isUpdate = false): array
+    {
+        $rules = [
+            'name' => $isUpdate ? 'sometimes|required|string|max:255' : 'required|string|max:255',
+            'trigger' => $isUpdate ? 'sometimes|required|array' : 'required|array',
+            'trigger.type' => $isUpdate ? 'sometimes|required|string|in:inbound_message,keyword,button_reply' : 'required|string|in:inbound_message,keyword,button_reply',
+            'enabled' => $isUpdate ? 'sometimes|boolean' : 'boolean',
+            'priority' => $isUpdate ? 'sometimes|integer|min:0|max:1000' : 'integer|min:0|max:1000',
+            'nodes' => $isUpdate ? 'sometimes|array' : 'nullable|array',
+            'edges' => $isUpdate ? 'sometimes|array' : 'nullable|array',
+        ];
+
+        $validator = Validator::make($request->all(), $rules);
+
+        $validator->after(function ($validator) use ($request) {
+            if ($request->has('nodes')) {
+                $nodes = $request->input('nodes', []);
+                if (!is_array($nodes)) {
+                    $validator->errors()->add('nodes', 'Nodes must be an array.');
+                    return;
+                }
+
+                $allowedNodeTypes = ['condition', 'action', 'delay', 'webhook'];
+                $allowedActionTypes = ['send_text', 'send_template', 'assign_agent', 'add_tag', 'set_status', 'set_priority'];
+                $allowedConditionTypes = ['text_contains', 'text_equals', 'text_starts_with', 'regex_match', 'time_window', 'connection_is', 'conversation_status', 'tags_contains'];
+
+                foreach ($nodes as $i => $node) {
+                    if (!is_array($node)) {
+                        $validator->errors()->add("nodes.$i", 'Invalid node payload.');
+                        continue;
+                    }
+
+                    if (array_key_exists('id', $node) && $node['id'] !== null && $node['id'] !== '' && !is_numeric($node['id'])) {
+                        $validator->errors()->add("nodes.$i.id", 'Node id must be numeric.');
+                    }
+
+                    if (array_key_exists('type', $node)) {
+                        $type = $node['type'];
+                        if (!is_string($type) || !in_array($type, $allowedNodeTypes, true)) {
+                            $validator->errors()->add("nodes.$i.type", 'Invalid node type.');
+                            continue;
+                        }
+
+                        if (array_key_exists('config', $node) && !is_array($node['config'])) {
+                            $validator->errors()->add("nodes.$i.config", 'Node config must be an object.');
+                            continue;
+                        }
+
+                        $config = is_array($node['config'] ?? null) ? $node['config'] : [];
+
+                        if ($type === 'action') {
+                            $actionType = $config['action_type'] ?? null;
+                            if (!$actionType || !in_array($actionType, $allowedActionTypes, true)) {
+                                $validator->errors()->add("nodes.$i.config.action_type", 'Invalid action type.');
+                            }
+                            if ($actionType === 'send_text') {
+                                if (!array_key_exists('message', $config) || !is_string($config['message'])) {
+                                    $validator->errors()->add("nodes.$i.config.message", 'Message is required for send_text.');
+                                }
+                            }
+                        }
+
+                        if ($type === 'condition') {
+                            $conditionType = $config['type'] ?? null;
+                            if (!$conditionType || !in_array($conditionType, $allowedConditionTypes, true)) {
+                                $validator->errors()->add("nodes.$i.config.type", 'Invalid condition type.');
+                            }
+                        }
+
+                        if ($type === 'delay') {
+                            $seconds = $config['seconds'] ?? null;
+                            if (!is_numeric($seconds) || (int) $seconds < 1) {
+                                $validator->errors()->add("nodes.$i.config.seconds", 'Delay seconds must be at least 1.');
+                            }
+                        }
+
+                        if ($type === 'webhook') {
+                            $url = $config['url'] ?? null;
+                            if (!$url || !filter_var($url, FILTER_VALIDATE_URL)) {
+                                $validator->errors()->add("nodes.$i.config.url", 'Valid webhook URL required.');
+                            }
+                        }
+                    }
+
+                    if (array_key_exists('sort_order', $node) && $node['sort_order'] !== null && $node['sort_order'] !== '' && (!is_numeric($node['sort_order']) || (int) $node['sort_order'] < 0)) {
+                        $validator->errors()->add("nodes.$i.sort_order", 'sort_order must be a positive integer.');
+                    }
+                    if (array_key_exists('pos_x', $node) && $node['pos_x'] !== null && $node['pos_x'] !== '' && !is_numeric($node['pos_x'])) {
+                        $validator->errors()->add("nodes.$i.pos_x", 'pos_x must be numeric.');
+                    }
+                    if (array_key_exists('pos_y', $node) && $node['pos_y'] !== null && $node['pos_y'] !== '' && !is_numeric($node['pos_y'])) {
+                        $validator->errors()->add("nodes.$i.pos_y", 'pos_y must be numeric.');
+                    }
+                }
+            }
+
+            if ($request->has('edges')) {
+                $edges = $request->input('edges', []);
+                if (!is_array($edges)) {
+                    $validator->errors()->add('edges', 'Edges must be an array.');
+                    return;
+                }
+                foreach ($edges as $i => $edge) {
+                    if (!is_array($edge)) {
+                        $validator->errors()->add("edges.$i", 'Invalid edge payload.');
+                        continue;
+                    }
+
+                    foreach (['from_node_id', 'to_node_id'] as $k) {
+                        if (array_key_exists($k, $edge) && $edge[$k] !== null && $edge[$k] !== '' && !is_numeric($edge[$k])) {
+                            $validator->errors()->add("edges.$i.$k", "$k must be numeric.");
+                        }
+                    }
+
+                    if (array_key_exists('label', $edge) && $edge['label'] !== null && $edge['label'] !== '') {
+                        if (!is_string($edge['label']) || strlen($edge['label']) > 50) {
+                            $validator->errors()->add("edges.$i.label", 'Edge label must be a string up to 50 chars.');
+                        }
+                    }
+                }
+            }
+        });
+
+        return $validator->validate();
+    }
+
     /**
      * Store a newly created flow.
      */
@@ -23,15 +150,7 @@ class BotFlowController extends Controller
             abort(404);
         }
 
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'trigger' => 'required|array',
-            'trigger.type' => 'required|string|in:inbound_message,keyword,button_reply',
-            'enabled' => 'boolean',
-            'priority' => 'integer|min:0|max:1000',
-            'nodes' => 'nullable|array',
-            'edges' => 'nullable|array',
-        ]);
+        $validated = $this->validateFlowPayload($request, false);
 
         $flow = BotFlow::create([
             'account_id' => $account->id,
@@ -95,14 +214,7 @@ class BotFlowController extends Controller
             abort(404);
         }
 
-        $validated = $request->validate([
-            'name' => 'sometimes|required|string|max:255',
-            'trigger' => 'sometimes|required|array',
-            'enabled' => 'sometimes|boolean',
-            'priority' => 'sometimes|integer|min:0|max:1000',
-            'nodes' => 'sometimes|array',
-            'edges' => 'sometimes|array',
-        ]);
+        $validated = $this->validateFlowPayload($request, true);
 
         $updates = $validated;
         unset($updates['nodes'], $updates['edges']);
