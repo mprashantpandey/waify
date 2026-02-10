@@ -221,24 +221,33 @@ export default function BroadcastsCreate({
                             {campaignType === 'template' && (
                                 <div>
                                     <InputLabel htmlFor="template" value="Template *" />
-                                    <select
-                                        id="template"
-                                        value={selectedTemplate}
-                                        onChange={(e) => {
-                                            setSelectedTemplate(e.target.value ? Number(e.target.value) : '');
-                                            setData('whatsapp_template_id', e.target.value);
-                                        }}
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700"
-                                        required
-                                        disabled={!selectedConnection}
-                                    >
-                                        <option value="">Select a template</option>
-                                        {availableTemplates.map((template) => (
-                                            <option key={template.id} value={template.id}>
-                                                {template.name} ({template.language})
-                                            </option>
-                                        ))}
-                                    </select>
+                                    {!selectedConnection ? (
+                                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                            Select a WhatsApp connection above to see templates.
+                                        </p>
+                                    ) : availableTemplates.length === 0 ? (
+                                        <p className="mt-1 text-sm text-amber-600 dark:text-amber-400">
+                                            No approved templates for this connection. Create and approve templates in Meta Business Suite or sync templates in WhatsApp settings.
+                                        </p>
+                                    ) : (
+                                        <select
+                                            id="template"
+                                            value={selectedTemplate}
+                                            onChange={(e) => {
+                                                setSelectedTemplate(e.target.value ? Number(e.target.value) : '');
+                                                setData('whatsapp_template_id', e.target.value || null);
+                                            }}
+                                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700"
+                                            required
+                                        >
+                                            <option value="">Select a template</option>
+                                            {availableTemplates.map((template) => (
+                                                <option key={template.id} value={template.id}>
+                                                    {template.name} ({template.language})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    )}
                                     <InputError message={errors.whatsapp_template_id} className="mt-2" />
                                 </div>
                             )}

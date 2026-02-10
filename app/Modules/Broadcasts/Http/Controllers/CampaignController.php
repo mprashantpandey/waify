@@ -13,6 +13,7 @@ use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -131,26 +132,49 @@ class CampaignController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
+        // Normalize optional fields so empty strings don't fail url/exists rules
+        $request->merge([
+            'whatsapp_template_id' => $request->input('type') === 'template' ? ($request->input('whatsapp_template_id') ?: null) : null,
+            'media_url' => $request->input('type') === 'media' ? ($request->input('media_url') ?: null) : null,
+        ]);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'type' => 'required|in:template,text,media',
             'whatsapp_connection_id' => 'required|exists:whatsapp_connections,id',
-            'whatsapp_template_id' => 'required_if:type,template|exists:whatsapp_templates,id',
+            'whatsapp_template_id' => [
+                'required_if:type,template',
+                'nullable',
+                Rule::exists('whatsapp_templates', 'id')->where('account_id', $account->id),
+            ],
             'template_params' => 'nullable|array',
-            'message_text' => 'required_if:type,text|string',
-            'media_url' => 'required_if:type,media|url',
-            'media_type' => 'required_if:type,media|in:image,video,document,audio',
+            'message_text' => 'required_if:type,text|nullable|string',
+            'media_url' => ['nullable', 'required_if:type,media', 'url'],
+            'media_type' => 'required_if:type,media|nullable|in:image,video,document,audio',
             'recipient_type' => 'required|in:contacts,custom,segment',
             'recipient_filters' => 'nullable|array',
-            'recipient_filters.segment_ids' => 'required_if:recipient_type,segment|array|min:1',
+            'recipient_filters.segment_ids' => 'required_if:recipient_type,segment|nullable|array|min:1',
             'recipient_filters.segment_ids.*' => 'integer|exists:contact_segments,id',
-            'custom_recipients' => 'required_if:recipient_type,custom|array',
-            'custom_recipients.*.phone' => 'required_with:custom_recipients|string',
+            'custom_recipients' => 'required_if:recipient_type,custom|nullable|array',
+            'custom_recipients.*.phone' => 'nullable|string',
             'custom_recipients.*.name' => 'nullable|string',
             'scheduled_at' => 'nullable|date|after:now',
             'send_delay_seconds' => 'nullable|integer|min:0|max:3600',
             'respect_opt_out' => 'boolean']);
+
+        // When using custom recipients, require at least one with a phone number
+        if ($validated['recipient_type'] === 'custom') {
+            $withPhone = array_values(array_filter($validated['custom_recipients'] ?? [], function ($r) {
+                return !empty(trim((string) ($r['phone'] ?? '')));
+            }));
+            if (count($withPhone) === 0) {
+                return back()->withErrors(['custom_recipients' => 'Add at least one recipient with a phone number.'])->withInput();
+            }
+            $validated['custom_recipients'] = $withPhone;
+        } else {
+            $validated['custom_recipients'] = null;
+        }
 
         try {
             DB::beginTransaction();
