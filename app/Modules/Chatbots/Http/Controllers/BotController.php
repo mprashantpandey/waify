@@ -4,6 +4,7 @@ namespace App\Modules\Chatbots\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Chatbots\Models\Bot;
+use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
@@ -82,7 +83,28 @@ class BotController extends Controller
             'status' => 'required|string|in:draft,active,paused',
             'applies_to' => 'required|array',
             'applies_to.all_connections' => 'boolean',
-            'applies_to.connection_ids' => 'array']);
+            'applies_to.connection_ids' => 'array',
+            'applies_to.connection_ids.*' => 'integer',
+        ]);
+
+        $appliesTo = $validated['applies_to'] ?? [];
+        $allConnections = (bool) ($appliesTo['all_connections'] ?? false);
+        $connectionIds = $appliesTo['connection_ids'] ?? [];
+        if (!$allConnections && empty($connectionIds)) {
+            return redirect()->back()
+                ->withErrors(['applies_to.connection_ids' => 'Select at least one connection or enable "All connections".'])
+                ->withInput();
+        }
+        if (!empty($connectionIds)) {
+            $count = WhatsAppConnection::where('account_id', $account->id)
+                ->whereIn('id', $connectionIds)
+                ->count();
+            if ($count !== count($connectionIds)) {
+                return redirect()->back()
+                    ->withErrors(['applies_to.connection_ids' => 'One or more selected connections are invalid.'])
+                    ->withInput();
+            }
+        }
 
         $bot = Bot::create([
             'account_id' => $account->id,
@@ -212,7 +234,28 @@ class BotController extends Controller
             'status' => 'required|string|in:draft,active,paused',
             'applies_to' => 'required|array',
             'applies_to.all_connections' => 'boolean',
-            'applies_to.connection_ids' => 'array']);
+            'applies_to.connection_ids' => 'array',
+            'applies_to.connection_ids.*' => 'integer',
+        ]);
+
+        $appliesTo = $validated['applies_to'] ?? [];
+        $allConnections = (bool) ($appliesTo['all_connections'] ?? false);
+        $connectionIds = $appliesTo['connection_ids'] ?? [];
+        if (!$allConnections && empty($connectionIds)) {
+            return redirect()->back()
+                ->withErrors(['applies_to.connection_ids' => 'Select at least one connection or enable "All connections".'])
+                ->withInput();
+        }
+        if (!empty($connectionIds)) {
+            $count = WhatsAppConnection::where('account_id', $account->id)
+                ->whereIn('id', $connectionIds)
+                ->count();
+            if ($count !== count($connectionIds)) {
+                return redirect()->back()
+                    ->withErrors(['applies_to.connection_ids' => 'One or more selected connections are invalid.'])
+                    ->withInput();
+            }
+        }
 
         $wasDraft = $bot->status === 'draft';
         $isPublishing = $wasDraft && $validated['status'] === 'active';

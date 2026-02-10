@@ -25,9 +25,9 @@ export default function ChatbotsCreate({
     const { data, setData, post, processing, errors } = useForm({
         name: '',
         description: '',
-        status: 'draft',
+        status: 'active',
         applies_to: {
-            all_connections: false,
+            all_connections: true,
             connection_ids: [] as number[]}});
 
     const handleSubmit = (e: React.FormEvent) => {
