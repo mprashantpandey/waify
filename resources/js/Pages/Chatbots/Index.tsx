@@ -1,10 +1,11 @@
-import { Link } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
 import Button from '@/Components/UI/Button';
 import { Bot, Plus, Play, Pause, Edit, Trash2, AlertCircle, Zap, Activity, Sparkles } from 'lucide-react';
 import { Head } from '@inertiajs/react';
+import { useToast } from '@/hooks/useNotifications';
 
 interface Bot {
     id: number;
@@ -30,6 +31,8 @@ export default function ChatbotsIndex({
     account: any;
     bots: Bot[];
 }) {
+    const { toast } = useToast();
+
     const getStatusBadge = (status: string) => {
         const statusMap: Record<string, { variant: 'success' | 'warning' | 'default'; label: string }> = {
             active: { variant: 'success', label: 'Active' },
@@ -38,6 +41,17 @@ export default function ChatbotsIndex({
 
         const config = statusMap[status] || { variant: 'default' as const, label: status };
         return <Badge variant={config.variant} className="px-3 py-1">{config.label}</Badge>;
+    };
+
+    const deleteBot = (botId: number, botName: string) => {
+        if (!confirm(`Delete bot "${botName}"? This will also delete flows and execution logs.`)) {
+            return;
+        }
+        router.delete(route('app.chatbots.destroy', { bot: botId }), {
+            preserveScroll: true,
+            onSuccess: () => toast.success('Bot deleted'),
+            onError: () => toast.error('Failed to delete bot'),
+        });
     };
 
     return (
@@ -160,6 +174,14 @@ export default function ChatbotsIndex({
                                                 Edit
                                             </Button>
                                         </Link>
+                                        <Button
+                                            type="button"
+                                            variant="danger"
+                                            className="rounded-xl"
+                                            onClick={() => deleteBot(bot.id, bot.name)}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
                                     </div>
                                 </CardContent>
                             </Card>

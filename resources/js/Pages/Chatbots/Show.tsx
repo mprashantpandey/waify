@@ -214,6 +214,16 @@ export default function ChatbotsShow({
         });
     };
 
+    const deleteBot = () => {
+        if (!confirm(`Delete bot "${bot.name}"? This will also delete flows and execution logs.`)) {
+            return;
+        }
+        router.delete(route('app.chatbots.destroy', { bot: bot.id }), {
+            onSuccess: () => toast.success('Bot deleted'),
+            onError: () => toast.error('Failed to delete bot'),
+        });
+    };
+
     const getStatusBadge = (status: string) => {
         const statusMap: Record<string, { variant: 'success' | 'warning' | 'default'; label: string }> = {
             active: { variant: 'success', label: 'Active' },
@@ -649,7 +659,18 @@ export default function ChatbotsShow({
                                 {bot.description || 'No description'}
                             </p>
                         </div>
-                        {getStatusBadge(bot.status)}
+                        <div className="flex items-center gap-3">
+                            {getStatusBadge(bot.status)}
+                            <Button
+                                type="button"
+                                variant="danger"
+                                className="rounded-xl"
+                                onClick={deleteBot}
+                            >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete Bot
+                            </Button>
+                        </div>
                     </div>
                 </div>
 

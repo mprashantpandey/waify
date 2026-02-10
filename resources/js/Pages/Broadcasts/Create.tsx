@@ -235,7 +235,7 @@ export default function BroadcastsCreate({
                                             value={selectedTemplate}
                                             onChange={(e) => {
                                                 setSelectedTemplate(e.target.value ? Number(e.target.value) : '');
-                                                setData('whatsapp_template_id', e.target.value || null);
+                                                setData('whatsapp_template_id', e.target.value || '');
                                             }}
                                             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700"
                                             required

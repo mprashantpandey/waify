@@ -11,9 +11,10 @@ use Illuminate\Support\Facades\Route;
 // Routes are already under '/app' and have the 'app.' name prefix applied by the parent group.
 Route::middleware(['module.entitled:automation.chatbots'])->group(function () {
     // Bots
-    // Keep a stable alias for older navigation/Ziggy caches that referenced app.chatbots
-    Route::get('/chatbots', [BotController::class, 'index'])->name('chatbots');
     Route::get('/chatbots', [BotController::class, 'index'])->name('chatbots.index');
+    // Legacy route-name compatibility: older frontends may call route('app.chatbots').
+    // Use a redirect to avoid registering two identical GET /chatbots routes.
+    Route::get('/chatbots/legacy', fn () => redirect()->route('app.chatbots.index'))->name('chatbots');
     Route::get('/chatbots/create', [BotController::class, 'create'])->name('chatbots.create');
     Route::post('/chatbots', [BotController::class, 'store'])->name('chatbots.store');
     // Executions (must be before /chatbots/{bot} so "executions" is not matched as a bot)
