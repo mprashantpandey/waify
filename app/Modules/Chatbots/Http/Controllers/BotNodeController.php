@@ -134,9 +134,27 @@ class BotNodeController extends Controller
 
             if ($type === 'action') {
                 $actionType = $config['action_type'] ?? null;
-                $allowed = ['send_text', 'send_template', 'assign_agent', 'add_tag', 'set_status', 'set_priority'];
+                $allowed = ['send_text', 'send_template', 'send_buttons', 'send_list', 'assign_agent', 'add_tag', 'set_status', 'set_priority'];
                 if (!$actionType || !in_array($actionType, $allowed, true)) {
                     $validator->errors()->add('config.action_type', 'Invalid action type.');
+                }
+
+                if ($actionType === 'send_buttons') {
+                    $buttons = $config['buttons'] ?? [];
+                    if (!is_array($buttons) || count($buttons) < 1 || count($buttons) > 3) {
+                        $validator->errors()->add('config.buttons', 'Buttons must be an array with 1 to 3 items.');
+                    }
+                    $bodyText = isset($config['body_text']) ? trim((string) $config['body_text']) : '';
+                    if ($bodyText === '') {
+                        $validator->errors()->add('config.body_text', 'Body text is required for send_buttons.');
+                    }
+                }
+
+                if ($actionType === 'send_list') {
+                    $listId = $config['list_id'] ?? null;
+                    if (!is_numeric($listId) || (int) $listId <= 0) {
+                        $validator->errors()->add('config.list_id', 'list_id is required for send_list.');
+                    }
                 }
             }
 

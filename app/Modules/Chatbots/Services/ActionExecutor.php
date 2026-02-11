@@ -8,6 +8,7 @@ use App\Modules\Chatbots\Models\BotNode;
 use App\Modules\Chatbots\Models\BotEdge;
 use App\Modules\WhatsApp\Events\Inbox\ConversationUpdated;
 use App\Modules\WhatsApp\Events\Inbox\MessageCreated;
+use App\Modules\WhatsApp\Models\WhatsAppList;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use App\Modules\WhatsApp\Services\TemplateComposer;
 use App\Modules\WhatsApp\Services\WhatsAppClient;
@@ -48,6 +49,8 @@ class ActionExecutor
         return match ($actionType) {
             'send_text' => $this->sendTextMessage($config, $context),
             'send_template' => $this->sendTemplateMessage($config, $context),
+            'send_buttons' => $this->sendButtonsMessage($config, $context),
+            'send_list' => $this->sendListMessage($config, $context),
             'assign_agent' => $this->assignAgent($config, $context),
             'add_tag' => $this->addTag($config, $context),
             'set_status' => $this->setStatus($config, $context),
@@ -197,6 +200,185 @@ class ActionExecutor
             Log::channel('chatbots')->error('Failed to send template message', [
                 'error' => $e->getMessage(),
                 'context' => $context->account->id]);
+
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    protected function sendButtonsMessage(array $config, BotContext $context): array
+    {
+        try {
+            $this->entitlementService->assertWithinLimit($context->account, 'messages_monthly', 1);
+
+            $bodyText = trim((string) ($config['body_text'] ?? $config['message'] ?? ''));
+            $buttons = $config['buttons'] ?? [];
+            $headerText = isset($config['header_text']) ? trim((string) $config['header_text']) : null;
+            $footerText = isset($config['footer_text']) ? trim((string) $config['footer_text']) : null;
+
+            if ($bodyText === '') {
+                return ['success' => false, 'error' => 'Body text is required for send_buttons'];
+            }
+
+            if (!is_array($buttons) || count($buttons) < 1 || count($buttons) > 3) {
+                return ['success' => false, 'error' => 'Buttons must be an array with 1 to 3 items'];
+            }
+
+            $normalizedButtons = [];
+            foreach ($buttons as $index => $button) {
+                if (!is_array($button)) {
+                    return ['success' => false, 'error' => "Invalid button at index {$index}"];
+                }
+
+                $text = trim((string) ($button['text'] ?? ''));
+                if ($text === '') {
+                    return ['success' => false, 'error' => "Button text is required at index {$index}"];
+                }
+
+                $normalizedButtons[] = [
+                    'id' => (string) ($button['id'] ?? ('btn_' . ($index + 1))),
+                    'text' => $text,
+                ];
+            }
+
+            $contact = $context->conversation->contact;
+            $toWaId = $contact?->wa_id;
+            if (!$toWaId) {
+                return ['success' => false, 'error' => 'Conversation contact wa_id not found'];
+            }
+
+            $response = $this->whatsappClient->sendInteractiveButtons(
+                $context->connection,
+                $toWaId,
+                $bodyText,
+                $normalizedButtons,
+                $headerText ?: null,
+                $footerText ?: null
+            );
+
+            $message = WhatsAppMessage::create([
+                'account_id' => $context->account->id,
+                'whatsapp_conversation_id' => $context->conversation->id,
+                'direction' => 'outbound',
+                'type' => 'interactive',
+                'text_body' => $bodyText,
+                'status' => 'sent',
+                'sent_at' => now(),
+                'meta_message_id' => $response['messages'][0]['id'] ?? null,
+                'payload' => [
+                    'interactive_type' => 'button',
+                    'buttons' => $normalizedButtons,
+                    'header_text' => $headerText,
+                    'footer_text' => $footerText,
+                    'response' => $response,
+                ],
+            ]);
+
+            $this->usageService->incrementMessages($context->account, 1);
+
+            $context->conversation->update([
+                'last_message_at' => now(),
+                'last_message_preview' => substr($bodyText, 0, 100),
+            ]);
+
+            event(new MessageCreated($message));
+            event(new ConversationUpdated($context->conversation));
+
+            return [
+                'success' => true,
+                'message_id' => $message->id,
+                'meta_message_id' => $message->meta_message_id,
+            ];
+        } catch (\Exception $e) {
+            Log::channel('chatbots')->error('Failed to send interactive buttons', [
+                'error' => $e->getMessage(),
+                'account_id' => $context->account->id,
+                'conversation_id' => $context->conversation->id,
+            ]);
+
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    protected function sendListMessage(array $config, BotContext $context): array
+    {
+        try {
+            $this->entitlementService->assertWithinLimit($context->account, 'messages_monthly', 1);
+
+            $listId = $config['list_id'] ?? null;
+            if (!is_numeric($listId) || (int) $listId <= 0) {
+                return ['success' => false, 'error' => 'Valid list_id is required for send_list'];
+            }
+
+            $list = WhatsAppList::where('account_id', $context->account->id)
+                ->where('whatsapp_connection_id', $context->connection->id)
+                ->where('is_active', true)
+                ->find((int) $listId);
+
+            if (!$list) {
+                return ['success' => false, 'error' => 'List not found or inactive for this connection'];
+            }
+
+            $listFormat = $list->toMetaFormat();
+            $sections = $listFormat['action']['sections'] ?? [];
+            if (!is_array($sections) || empty($sections)) {
+                return ['success' => false, 'error' => 'List has no sections to send'];
+            }
+
+            $contact = $context->conversation->contact;
+            $toWaId = $contact?->wa_id;
+            if (!$toWaId) {
+                return ['success' => false, 'error' => 'Conversation contact wa_id not found'];
+            }
+
+            $response = $this->whatsappClient->sendListMessage(
+                $context->connection,
+                $toWaId,
+                (string) ($list->button_text ?: 'Choose'),
+                $sections,
+                $listFormat['header']['text'] ?? null,
+                $listFormat['body']['text'] ?? ($list->description ?: $list->name),
+                $listFormat['footer']['text'] ?? null
+            );
+
+            $message = WhatsAppMessage::create([
+                'account_id' => $context->account->id,
+                'whatsapp_conversation_id' => $context->conversation->id,
+                'direction' => 'outbound',
+                'type' => 'interactive',
+                'text_body' => $list->description ?: $list->name,
+                'status' => 'sent',
+                'sent_at' => now(),
+                'meta_message_id' => $response['messages'][0]['id'] ?? null,
+                'payload' => [
+                    'interactive_type' => 'list',
+                    'list_id' => $list->id,
+                    'list_name' => $list->name,
+                    'interactive' => $listFormat,
+                    'response' => $response,
+                ],
+            ]);
+
+            $this->usageService->incrementMessages($context->account, 1);
+
+            $context->conversation->update([
+                'last_message_at' => now(),
+                'last_message_preview' => substr((string) $list->name, 0, 100),
+            ]);
+
+            event(new MessageCreated($message));
+            event(new ConversationUpdated($context->conversation));
+
+            return [
+                'success' => true,
+                'message_id' => $message->id,
+                'meta_message_id' => $message->meta_message_id,
+            ];
+        } catch (\Exception $e) {
+            Log::channel('chatbots')->error('Failed to send interactive list', [
+                'error' => $e->getMessage(),
+                'account_id' => $context->account->id,
+                'conversation_id' => $context->conversation->id,
+            ]);
 
             return ['success' => false, 'error' => $e->getMessage()];
         }

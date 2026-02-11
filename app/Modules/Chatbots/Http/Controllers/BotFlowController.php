@@ -88,7 +88,7 @@ class BotFlowController extends Controller
                 }
 
                 $allowedNodeTypes = ['condition', 'action', 'delay', 'webhook'];
-                $allowedActionTypes = ['send_text', 'send_template', 'assign_agent', 'add_tag', 'set_status', 'set_priority'];
+                $allowedActionTypes = ['send_text', 'send_template', 'send_buttons', 'send_list', 'assign_agent', 'add_tag', 'set_status', 'set_priority'];
                 $allowedConditionTypes = ['text_contains', 'text_equals', 'text_starts_with', 'regex_match', 'time_window', 'connection_is', 'conversation_status', 'tags_contains'];
 
                 foreach ($nodes as $i => $node) {
@@ -129,6 +129,22 @@ class BotFlowController extends Controller
                                 $templateId = $config['template_id'] ?? null;
                                 if (!is_numeric($templateId) || (int) $templateId <= 0) {
                                     $validator->errors()->add("nodes.$i.config.template_id", 'Template ID is required for send_template.');
+                                }
+                            }
+                            if ($actionType === 'send_buttons') {
+                                $buttons = $config['buttons'] ?? [];
+                                if (!is_array($buttons) || count($buttons) < 1 || count($buttons) > 3) {
+                                    $validator->errors()->add("nodes.$i.config.buttons", 'Buttons must be an array with 1 to 3 items.');
+                                }
+                                $bodyText = isset($config['body_text']) ? trim((string) $config['body_text']) : '';
+                                if ($bodyText === '') {
+                                    $validator->errors()->add("nodes.$i.config.body_text", 'Body text is required for send_buttons.');
+                                }
+                            }
+                            if ($actionType === 'send_list') {
+                                $listId = $config['list_id'] ?? null;
+                                if (!is_numeric($listId) || (int) $listId <= 0) {
+                                    $validator->errors()->add("nodes.$i.config.list_id", 'list_id is required for send_list.');
                                 }
                             }
                             if ($actionType === 'assign_agent') {
