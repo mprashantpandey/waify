@@ -84,7 +84,14 @@ class TagController extends Controller
             abort(404);
         }
 
-        $tag->delete();
+        try {
+            // Be explicit to avoid FK surprises across environments.
+            $tag->contacts()->detach();
+            $tag->delete();
+        } catch (\Throwable $e) {
+            report($e);
+            return back()->with('error', 'Unable to delete this tag right now. Please try again.');
+        }
 
         return redirect()->route('app.contacts.tags.index')->with('success', 'Tag deleted successfully.');
     }

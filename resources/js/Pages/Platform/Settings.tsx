@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import PlatformShell from '@/Layouts/PlatformShell';
 import Button from '@/Components/UI/Button';
 import { Tabs, TabsList, TabsTrigger, TabsContent, useTabs } from '@/Components/UI/Tabs';
-import { Save, Radio, Mail, HardDrive, Globe, Shield, CreditCard, Webhook, BarChart3, Scale, Zap, ToggleLeft, Palette, Bot, LifeBuoy, AlertCircle, CheckCircle, XCircle, MessageSquare, Clock3 } from 'lucide-react';
+import { Save, Radio, Mail, HardDrive, Globe, Shield, CreditCard, Webhook, BarChart3, Scale, Zap, ToggleLeft, Palette, Bot, LifeBuoy, XCircle, Clock3, Activity } from 'lucide-react';
 import MisconfiguredSettingsAlert from '@/Components/Platform/MisconfiguredSettingsAlert';
 import { useToast } from '@/hooks/useToast';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -22,6 +22,7 @@ import BrandingTab from './Settings/Tabs/BrandingTab';
 import AiTab from './Settings/Tabs/AiTab';
 import SupportTab from './Settings/Tabs/SupportTab';
 import CronTab from './Settings/Tabs/CronTab';
+import DeliveryTab from './Settings/Tabs/DeliveryTab';
 
 export default function PlatformSettings({
     pusher,
@@ -40,6 +41,7 @@ export default function PlatformSettings({
     whatsapp,
     support,
     cron,
+    delivery,
     misconfigured_settings}: any) {
     const { auth, flash } = usePage().props as any;
     
@@ -154,6 +156,7 @@ export default function PlatformSettings({
         { id: 'compliance', label: 'Compliance', icon: Scale },
         { id: 'performance', label: 'Performance', icon: Zap },
         { id: 'cron', label: 'Cron', icon: Clock3 },
+        { id: 'delivery', label: 'Delivery', icon: Activity },
         { id: 'features', label: 'Features', icon: ToggleLeft },
         { id: 'ai', label: 'AI', icon: Bot },
         { id: 'pusher', label: 'Pusher', icon: Radio },
@@ -256,6 +259,10 @@ export default function PlatformSettings({
 
                         <TabsContent value="cron">
                             <CronTab cron={cron} />
+                        </TabsContent>
+
+                        <TabsContent value="delivery">
+                            <DeliveryTab delivery={delivery} />
                         </TabsContent>
 
                         <TabsContent value="pusher">

@@ -187,7 +187,14 @@ class SegmentController extends Controller
             abort(404);
         }
 
-        $segment->delete();
+        try {
+            // Be explicit to avoid FK surprises across environments.
+            $segment->contacts()->detach();
+            $segment->delete();
+        } catch (\Throwable $e) {
+            report($e);
+            return back()->with('error', 'Unable to delete this segment right now. Please try again.');
+        }
 
         return redirect()->route('app.contacts.segments.index')->with('success', 'Segment deleted successfully.');
     }

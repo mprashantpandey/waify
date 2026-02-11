@@ -13,9 +13,174 @@ use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
 
 class CronDiagnosticsService
 {
+    public function deliverySummary(): array
+    {
+        $now = now();
+
+        $jobsExists = Schema::hasTable('jobs');
+        $failedJobsExists = Schema::hasTable('failed_jobs');
+        $botExecutionsExists = Schema::hasTable('bot_executions');
+        $campaignMessagesExists = Schema::hasTable('campaign_messages');
+
+        $pendingByQueue = $jobsExists
+            ? DB::table('jobs')
+                ->select('queue', DB::raw('count(*) as count'))
+                ->groupBy('queue')
+                ->pluck('count', 'queue')
+                ->map(fn ($v) => (int) $v)
+                ->toArray()
+            : [];
+        $pendingTotal = array_sum($pendingByQueue);
+        $oldestPending = $jobsExists ? DB::table('jobs')->min('available_at') : null;
+
+        $failedLastHour = $failedJobsExists
+            ? DB::table('failed_jobs')->where('failed_at', '>=', $now->copy()->subHour())->count()
+            : 0;
+        $failedLast24h = $failedJobsExists
+            ? DB::table('failed_jobs')->where('failed_at', '>=', $now->copy()->subDay())->count()
+            : 0;
+        $recentFailures = $failedJobsExists
+            ? DB::table('failed_jobs')
+                ->select(['id', 'queue', 'exception', 'failed_at'])
+                ->orderByDesc('id')
+                ->limit(10)
+                ->get()
+                ->map(function ($row) {
+                    $exception = (string) ($row->exception ?? '');
+                    $firstLine = trim(strtok($exception, "\n") ?: 'Unknown error');
+
+                    return [
+                        'id' => (string) $row->id,
+                        'queue' => (string) ($row->queue ?: 'default'),
+                        'error' => mb_substr($firstLine, 0, 220),
+                        'failed_at' => $this->isoOrNull($row->failed_at),
+                    ];
+                })
+                ->values()
+                ->all()
+            : [];
+
+        $mailDriver = (string) config('mail.default', 'log');
+        $mailFailures24h = $failedJobsExists
+            ? DB::table('failed_jobs')
+                ->where('failed_at', '>=', $now->copy()->subDay())
+                ->where(function ($q) {
+                    $q->where('payload', 'like', '%Illuminate\\\\Notifications%')
+                        ->orWhere('payload', 'like', '%Mailable%')
+                        ->orWhere('payload', 'like', '%Mail%');
+                })
+                ->count()
+            : 0;
+
+        $chatbotExec24h = [
+            'success' => 0,
+            'failed' => 0,
+            'skipped' => 0,
+            'running' => 0,
+            'total' => 0,
+        ];
+        if ($botExecutionsExists) {
+            $rows = DB::table('bot_executions')
+                ->select('status', DB::raw('count(*) as count'))
+                ->where('created_at', '>=', $now->copy()->subDay())
+                ->groupBy('status')
+                ->get();
+            foreach ($rows as $row) {
+                $status = (string) $row->status;
+                $count = (int) $row->count;
+                if (array_key_exists($status, $chatbotExec24h)) {
+                    $chatbotExec24h[$status] = $count;
+                }
+                $chatbotExec24h['total'] += $count;
+            }
+        }
+
+        $campaignStats24h = [
+            'sent' => 0,
+            'delivered' => 0,
+            'read' => 0,
+            'failed' => 0,
+            'total' => 0,
+        ];
+        if ($campaignMessagesExists) {
+            $campaignStats24h['sent'] = (int) DB::table('campaign_messages')
+                ->whereNotNull('sent_at')
+                ->where('sent_at', '>=', $now->copy()->subDay())
+                ->count();
+            $campaignStats24h['delivered'] = (int) DB::table('campaign_messages')
+                ->whereNotNull('delivered_at')
+                ->where('delivered_at', '>=', $now->copy()->subDay())
+                ->count();
+            $campaignStats24h['read'] = (int) DB::table('campaign_messages')
+                ->whereNotNull('read_at')
+                ->where('read_at', '>=', $now->copy()->subDay())
+                ->count();
+            $campaignStats24h['failed'] = (int) DB::table('campaign_messages')
+                ->whereNotNull('failed_at')
+                ->where('failed_at', '>=', $now->copy()->subDay())
+                ->count();
+            $campaignStats24h['total'] = (int) DB::table('campaign_messages')
+                ->where('created_at', '>=', $now->copy()->subDay())
+                ->count();
+        }
+
+        $activeConnections = (int) WhatsAppConnection::where('is_active', true)->count();
+        $lastWebhookAt = WhatsAppConnection::max('webhook_last_received_at');
+        $webhookHealthy = (int) WhatsAppConnection::where('is_active', true)
+            ->whereNotNull('webhook_last_received_at')
+            ->where('webhook_last_received_at', '>=', $now->copy()->subHour())
+            ->count();
+        $webhookStale = (int) WhatsAppConnection::where('is_active', true)
+            ->where(function ($query) use ($now) {
+                $query->whereNull('webhook_last_received_at')
+                    ->orWhere('webhook_last_received_at', '<', $now->copy()->subHour());
+            })
+            ->count();
+        $webhookErrors = (int) WhatsAppConnection::where('is_active', true)
+            ->whereNotNull('webhook_last_error')
+            ->count();
+
+        $healthScore = 100;
+        $healthScore -= min(40, $failedLast24h * 5);
+        $healthScore -= min(25, $mailFailures24h * 5);
+        $healthScore -= min(20, $chatbotExec24h['failed'] * 2);
+        $healthScore -= min(20, $campaignStats24h['failed'] * 2);
+        $healthScore -= min(20, $webhookErrors * 5);
+        $healthScore = max(0, (int) $healthScore);
+
+        return [
+            'generated_at' => $now->toIso8601String(),
+            'health_score' => $healthScore,
+            'queue' => [
+                'pending_total' => $pendingTotal,
+                'pending_by_queue' => $pendingByQueue,
+                'failed_last_hour' => (int) $failedLastHour,
+                'failed_last_24h' => (int) $failedLast24h,
+                'oldest_pending_at' => $oldestPending ? now()->setTimestamp((int) $oldestPending)->toIso8601String() : null,
+            ],
+            'mail' => [
+                'driver' => $mailDriver,
+                'mail_related_failures_last_24h' => (int) $mailFailures24h,
+            ],
+            'triggers' => [
+                'chatbots_24h' => $chatbotExec24h,
+                'campaigns_24h' => $campaignStats24h,
+            ],
+            'webhooks' => [
+                'active_connections' => $activeConnections,
+                'healthy_connections' => $webhookHealthy,
+                'stale_connections' => $webhookStale,
+                'connections_with_errors' => $webhookErrors,
+                'last_webhook_at' => $this->isoOrNull($lastWebhookAt),
+            ],
+            'recent_failures' => $recentFailures,
+        ];
+    }
+
     public function platformSummary(): array
     {
         $now = now();

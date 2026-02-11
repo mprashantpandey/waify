@@ -4,12 +4,17 @@ namespace App\Notifications;
 
 use App\Modules\Support\Models\SupportThread;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Notification;
 use Illuminate\Notifications\Messages\MailMessage;
 
-class SupportTicketCreated extends Notification
+class SupportTicketCreated extends Notification implements ShouldQueue
 {
     use Queueable;
+
+    public int $tries = 3;
+
+    public array $backoff = [30, 120, 300];
 
     public function __construct(protected SupportThread $thread)
     {
@@ -18,6 +23,11 @@ class SupportTicketCreated extends Notification
     public function via(object $notifiable): array
     {
         return ['mail'];
+    }
+
+    public function fingerprint(): string
+    {
+        return "support_ticket_created:thread:{$this->thread->id}";
     }
 
     public function toMail(object $notifiable): MailMessage

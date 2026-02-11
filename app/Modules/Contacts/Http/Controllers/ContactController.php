@@ -324,6 +324,35 @@ class ContactController extends Controller
     }
 
     /**
+     * Remove the specified contact.
+     */
+    public function destroy(Request $request, WhatsAppContact $contact)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if (!account_ids_match($contact->account_id, $account->id)) {
+            abort(404);
+        }
+
+        $contactLabel = $contact->name ?: $contact->wa_id;
+
+        \DB::transaction(function () use ($account, $request, $contact, $contactLabel): void {
+            ContactActivity::create([
+                'account_id' => $account->id,
+                'contact_id' => $contact->id,
+                'user_id' => $request->user()->id,
+                'type' => 'contact_deleted',
+                'title' => 'Contact deleted',
+                'description' => "Contact {$contactLabel} was deleted",
+            ]);
+
+            $contact->delete();
+        });
+
+        return redirect()->route('app.contacts.index')->with('success', 'Contact deleted successfully.');
+    }
+
+    /**
      * Add note to contact.
      */
     public function addNote(Request $request, WhatsAppContact $contact)

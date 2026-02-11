@@ -3,7 +3,7 @@ import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
 import Button from '@/Components/UI/Button';
-import { ArrowLeft, Edit, MessageSquare, Mail, Phone, Building, Tag, Clock, User, Loader2 } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Clock, User, Loader2, Trash2 } from 'lucide-react';
 import { Head } from '@inertiajs/react';
 import { useToast } from '@/hooks/useToast';
 import { useState } from 'react';
@@ -59,6 +59,7 @@ export default function ContactsShow({
     const { toast } = useToast();
     const [showNoteForm, setShowNoteForm] = useState(false);
     const [navigatingToConversation, setNavigatingToConversation] = useState(false);
+    const [deletingContact, setDeletingContact] = useState(false);
 
     const { data: noteData, setData: setNoteData, post: postNote, processing: noteProcessing } = useForm({
         note: ''});
@@ -95,6 +96,26 @@ export default function ContactsShow({
             onError: () => {
                 toast.error('Failed to add note');
             }});
+    };
+
+    const handleDeleteContact = () => {
+        if (!confirm(`Delete contact "${contact.name || contact.wa_id}"? This action cannot be undone.`)) {
+            return;
+        }
+
+        setDeletingContact(true);
+        router.delete(route('app.contacts.destroy', { contact: contact.slug || contact.id }), {
+            onSuccess: () => {
+                toast.success('Contact deleted');
+            },
+            onError: () => {
+                toast.error('Failed to delete contact');
+                setDeletingContact(false);
+            },
+            onFinish: () => {
+                setDeletingContact(false);
+            },
+        });
     };
 
     const getStatusBadge = (status: string) => {
@@ -151,24 +172,39 @@ export default function ContactsShow({
                                 )}
                             </div>
                         </div>
-                        <Button
-                            className="bg-[#25D366] hover:bg-[#1DAA57] text-white"
-                            disabled={navigatingToConversation}
-                            onClick={() => {
-                                setNavigatingToConversation(true);
-                                router.visit(route('app.whatsapp.conversations.by-contact', { contact: contact.slug || contact.id }), {
-                                    onFinish: () => setNavigatingToConversation(false),
-                                });
-                            }}
-                            aria-label="Start conversation in Inbox"
-                        >
-                            {navigatingToConversation ? (
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden />
-                            ) : (
-                                <MessageSquare className="h-4 w-4 mr-2" aria-hidden />
-                            )}
-                            Start conversation
-                        </Button>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                className="bg-[#25D366] hover:bg-[#1DAA57] text-white"
+                                disabled={navigatingToConversation}
+                                onClick={() => {
+                                    setNavigatingToConversation(true);
+                                    router.visit(route('app.whatsapp.conversations.by-contact', { contact: contact.slug || contact.id }), {
+                                        onFinish: () => setNavigatingToConversation(false),
+                                    });
+                                }}
+                                aria-label="Start conversation in Inbox"
+                            >
+                                {navigatingToConversation ? (
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden />
+                                ) : (
+                                    <MessageSquare className="h-4 w-4 mr-2" aria-hidden />
+                                )}
+                                Start conversation
+                            </Button>
+                            <Button
+                                variant="danger"
+                                disabled={deletingContact}
+                                onClick={handleDeleteContact}
+                                aria-label="Delete contact"
+                            >
+                                {deletingContact ? (
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden />
+                                ) : (
+                                    <Trash2 className="h-4 w-4 mr-2" aria-hidden />
+                                )}
+                                Delete
+                            </Button>
+                        </div>
                     </div>
                 </div>
 

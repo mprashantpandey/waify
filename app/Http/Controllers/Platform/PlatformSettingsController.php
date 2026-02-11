@@ -224,6 +224,7 @@ class PlatformSettingsController extends Controller
             'whatsapp' => $whatsappSettings,
             'support' => $supportSettings,
             'cron' => $this->cronDiagnosticsService->platformSummary(),
+            'delivery' => $this->cronDiagnosticsService->deliverySummary(),
             'misconfigured_settings' => array_values($misconfiguredSettings)]);
     }
 

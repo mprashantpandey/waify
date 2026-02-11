@@ -13,19 +13,29 @@ export function GlobalFlashHandler() {
     const { addToast } = useToast();
 
     useEffect(() => {
+        const emitted = new Set<string>();
+        const emit = (title: string, description: string, variant: 'success' | 'error' | 'warning' | 'info') => {
+            const key = `${variant}|${title}|${description}`;
+            if (emitted.has(key)) {
+                return;
+            }
+            emitted.add(key);
+            addToast({ title, description, variant });
+        };
+
         // Flash messages (redirect()->with('success', ...) etc.)
         if (flash) {
             if (flash.success) {
-                addToast({ title: 'Success', description: flash.success, variant: 'success' });
+                emit('Success', flash.success, 'success');
             }
             if (flash.error) {
-                addToast({ title: 'Error', description: flash.error, variant: 'error' });
+                emit('Error', flash.error, 'error');
             }
             if (flash.warning) {
-                addToast({ title: 'Warning', description: flash.warning, variant: 'warning' });
+                emit('Warning', flash.warning, 'warning');
             }
             if (flash.info) {
-                addToast({ title: 'Info', description: flash.info, variant: 'info' });
+                emit('Info', flash.info, 'info');
             }
             if (flash.status) {
                 const statusMessages: Record<string, { title: string; variant: 'success' | 'error' | 'warning' | 'info' }> = {
@@ -34,7 +44,7 @@ export function GlobalFlashHandler() {
                     'profile-updated': { title: 'Profile Updated', variant: 'success' },
                 };
                 const config = statusMessages[flash.status] || { title: 'Status', variant: 'info' as const };
-                addToast({ title: config.title, description: flash.status, variant: config.variant });
+                emit(config.title, flash.status, config.variant);
             }
         }
 
@@ -44,7 +54,7 @@ export function GlobalFlashHandler() {
                 .map(([key, value]) => (typeof value === 'string' ? value : Array.isArray(value) ? value[0] : String(value)))
                 .filter(Boolean);
             const description = messages.length === 1 ? messages[0] : messages.slice(0, 3).join(' • ');
-            addToast({ title: 'Error', description, variant: 'error' });
+            emit('Error', description, 'error');
         }
     }, [flash, errors, addToast]);
 
@@ -58,4 +68,3 @@ interface FlashProps {
     info?: string;
     status?: string;
 }
-

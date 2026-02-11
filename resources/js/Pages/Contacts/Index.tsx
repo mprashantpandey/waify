@@ -3,7 +3,7 @@ import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
 import Button from '@/Components/UI/Button';
-import { Plus, Search, Download, Upload, Users, Filter, Tag, FolderOpen, Loader2 } from 'lucide-react';
+import { Plus, Search, Download, Users, Filter, Tag, FolderOpen, Loader2, Trash2 } from 'lucide-react';
 import { Head } from '@inertiajs/react';
 import { useState, FormEventHandler } from 'react';
 import TextInput from '@/Components/TextInput';
@@ -61,6 +61,7 @@ export default function ContactsIndex({
     const [search, setSearch] = useState(filters.search || '');
     const [showFilters, setShowFilters] = useState(false);
     const [navigatingContactId, setNavigatingContactId] = useState<number | null>(null);
+    const [deletingContactId, setDeletingContactId] = useState<number | null>(null);
 
     const handleSearch: FormEventHandler = (e) => {
         e.preventDefault();
@@ -78,6 +79,18 @@ export default function ContactsIndex({
 
         const config = statusMap[status] || { variant: 'default' as const, label: status };
         return <Badge variant={config.variant}>{config.label}</Badge>;
+    };
+
+    const handleDeleteContact = (contact: Contact) => {
+        if (!confirm(`Delete contact "${contact.name || contact.wa_id}"? This action cannot be undone.`)) {
+            return;
+        }
+
+        setDeletingContactId(contact.id);
+        router.delete(route('app.contacts.destroy', { contact: contact.slug || contact.id }), {
+            preserveScroll: true,
+            onFinish: () => setDeletingContactId(null),
+        });
     };
 
     return (
@@ -250,6 +263,16 @@ export default function ContactsIndex({
                                                 View
                                             </Button>
                                         </Link>
+                                        <Button
+                                            variant="secondary"
+                                            size="sm"
+                                            disabled={deletingContactId === contact.id}
+                                            onClick={() => handleDeleteContact(contact)}
+                                        >
+                                            {deletingContactId === contact.id
+                                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                : <Trash2 className="h-3.5 w-3.5 text-red-600" />}
+                                        </Button>
                                     </div>
                                     </div>
                                 </CardContent>

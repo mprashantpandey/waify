@@ -13,6 +13,7 @@ use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -339,39 +340,51 @@ class BotController extends Controller
             abort(404);
         }
 
-        DB::transaction(function () use ($bot, $account) {
-            // If we are deleting the default bot, promote another bot (if any) so UI/runtime stays sane.
-            if ($bot->is_default) {
-                $replacement = Bot::where('account_id', $account->id)
-                    ->where('id', '!=', $bot->id)
-                    ->orderBy('id')
-                    ->first();
+        try {
+            DB::transaction(function () use ($bot, $account) {
+                // If we are deleting the default bot, promote another bot (if any) so UI/runtime stays sane.
+                if ($bot->is_default) {
+                    $replacement = Bot::where('account_id', $account->id)
+                        ->where('id', '!=', $bot->id)
+                        ->orderBy('id')
+                        ->first();
 
-                if ($replacement) {
-                    $replacement->update(['is_default' => true]);
+                    if ($replacement) {
+                        $replacement->update(['is_default' => true]);
+                    }
                 }
-            }
 
-            // Explicitly delete related records even though FK cascades should handle it.
-            // This prevents "cannot delete" issues when constraints are missing/misconfigured in prod.
-            $executionIds = BotExecution::where('bot_id', $bot->id)->pluck('id');
-            if ($executionIds->isNotEmpty()) {
-                BotActionJob::whereIn('bot_execution_id', $executionIds)->delete();
-            }
+                // Explicitly delete related records even though FK cascades should handle it.
+                // This prevents "cannot delete" issues when constraints are missing/misconfigured in prod.
+                $executionIds = BotExecution::where('bot_id', $bot->id)->pluck('id');
+                if ($executionIds->isNotEmpty()) {
+                    BotActionJob::whereIn('bot_execution_id', $executionIds)->delete();
+                }
 
-            BotExecution::where('bot_id', $bot->id)->delete();
+                BotExecution::where('bot_id', $bot->id)->delete();
 
-            // Delete flows (and their nodes/edges via FK cascades, but delete edges first to avoid ordering issues).
-            $flowIds = BotFlow::where('bot_id', $bot->id)->pluck('id');
-            if ($flowIds->isNotEmpty()) {
-                // Edges depend on nodes; safest is to delete edges explicitly.
-                BotEdge::whereIn('bot_flow_id', $flowIds)->delete();
-                BotNode::whereIn('bot_flow_id', $flowIds)->delete();
-            }
-            BotFlow::where('bot_id', $bot->id)->delete();
+                // Delete flows (and their nodes/edges via FK cascades, but delete edges first to avoid ordering issues).
+                $flowIds = BotFlow::where('bot_id', $bot->id)->pluck('id');
+                if ($flowIds->isNotEmpty()) {
+                    // Edges depend on nodes; safest is to delete edges explicitly.
+                    BotEdge::whereIn('bot_flow_id', $flowIds)->delete();
+                    BotNode::whereIn('bot_flow_id', $flowIds)->delete();
+                }
+                BotFlow::where('bot_id', $bot->id)->delete();
 
-            $bot->delete();
-        });
+                $bot->delete();
+            });
+        } catch (\Throwable $e) {
+            Log::error('Failed to delete bot', [
+                'bot_id' => $bot->id,
+                'account_id' => $account->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withErrors([
+                'error' => 'Unable to delete bot right now. Please try again.',
+            ]);
+        }
 
         return redirect()->route('app.chatbots.index')
             ->with('success', 'Bot deleted successfully.');

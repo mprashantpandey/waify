@@ -109,7 +109,11 @@ class CampaignController extends Controller
         // Get available templates
         $templates = WhatsAppTemplate::where('account_id', $account->id)
             ->whereRaw('LOWER(TRIM(status)) = ?', ['approved'])
-            ->where('is_archived', false)
+            ->where(function ($query) {
+                // Keep compatibility with legacy rows where is_archived may be NULL.
+                $query->where('is_archived', false)
+                    ->orWhereNull('is_archived');
+            })
             ->with('connection')
             ->get()
             ->map(function ($template) {
@@ -164,7 +168,10 @@ class CampaignController extends Controller
                 Rule::exists('whatsapp_templates', 'id')->where(function (Builder $query) use ($account) {
                     $query->where('account_id', $account->id)
                         ->whereRaw('LOWER(TRIM(status)) = ?', ['approved'])
-                        ->where('is_archived', false);
+                        ->where(function ($inner) {
+                            $inner->where('is_archived', false)
+                                ->orWhereNull('is_archived');
+                        });
                 }),
             ],
             'template_params' => 'nullable|array',
@@ -200,7 +207,10 @@ class CampaignController extends Controller
             $templateBelongsToConnection = WhatsAppTemplate::where('id', $validated['whatsapp_template_id'])
                 ->where('account_id', $account->id)
                 ->whereRaw('LOWER(TRIM(status)) = ?', ['approved'])
-                ->where('is_archived', false)
+                ->where(function ($query) {
+                    $query->where('is_archived', false)
+                        ->orWhereNull('is_archived');
+                })
                 ->where(function ($query) use ($validated) {
                     $query->where('whatsapp_connection_id', $validated['whatsapp_connection_id'])
                         // Some legacy synced templates may miss connection_id.

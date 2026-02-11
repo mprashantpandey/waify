@@ -186,12 +186,14 @@ class Campaign extends Model
      */
     public function getDeliveryRateAttribute(): float
     {
-        $sentCount = (int) $this->sent_count;
-        if ($sentCount <= 0) {
+        $sentCount = max(0, (int) $this->sent_count);
+        $deliveredCount = max(0, (int) $this->delivered_count);
+
+        if ($sentCount === 0) {
             return 0;
         }
 
-        return round(((int) $this->delivered_count / $sentCount) * 100, 2);
+        return round(($deliveredCount / max(1, $sentCount)) * 100, 2);
     }
 
     /**
@@ -199,11 +201,13 @@ class Campaign extends Model
      */
     public function getReadRateAttribute(): float
     {
-        $deliveredCount = (int) $this->delivered_count;
-        if ($deliveredCount <= 0) {
+        $deliveredCount = max(0, (int) $this->delivered_count);
+        $readCount = max(0, (int) $this->read_count);
+
+        if ($deliveredCount === 0) {
             return 0;
         }
 
-        return round(((int) $this->read_count / $deliveredCount) * 100, 2);
+        return round(($readCount / max(1, $deliveredCount)) * 100, 2);
     }
 }

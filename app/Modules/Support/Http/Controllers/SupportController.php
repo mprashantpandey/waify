@@ -11,8 +11,8 @@ use App\Notifications\SupportTicketCreated;
 use App\Models\PlatformSetting;
 use App\Models\Account;
 use App\Models\User;
+use App\Services\NotificationDispatchService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Notification;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -669,7 +669,8 @@ class SupportController extends Controller
         if ($admins->isEmpty()) {
             return;
         }
-        Notification::send($admins, $notification);
+
+        app(NotificationDispatchService::class)->send($admins, $notification, 45);
     }
 
     protected function storeAttachments(SupportMessage $message, array $files): void

@@ -7,10 +7,10 @@ use App\Modules\Support\Events\SupportMessageCreated;
 use App\Modules\Support\Models\SupportMessage;
 use App\Modules\Support\Models\SupportThread;
 use App\Services\AI\SupportAssistantService;
+use App\Services\NotificationDispatchService;
 use App\Notifications\SupportAgentReplied;
 use App\Models\PlatformSetting;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Notification;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -594,7 +594,8 @@ class SupportController extends Controller
         if (!$recipient) {
             return;
         }
-        Notification::send($recipient, new SupportAgentReplied($thread));
+
+        app(NotificationDispatchService::class)->send($recipient, new SupportAgentReplied($thread), 45);
     }
 
     protected function auditLogs(int $threadId): array

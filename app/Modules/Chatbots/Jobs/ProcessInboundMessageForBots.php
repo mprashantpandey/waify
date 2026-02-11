@@ -6,14 +6,23 @@ use App\Modules\Chatbots\Services\BotRuntime;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 
-class ProcessInboundMessageForBots implements ShouldQueue
+class ProcessInboundMessageForBots implements ShouldQueue, ShouldBeUnique
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    public int $tries = 5;
+
+    public int $timeout = 120;
+
+    public array $backoff = [5, 15, 60, 180];
+
+    public int $uniqueFor = 300;
 
     /**
      * Create a new job instance.
@@ -44,6 +53,22 @@ class ProcessInboundMessageForBots implements ShouldQueue
             'account_id' => $this->conversation->account_id,
             'conversation_id' => $this->conversation->id,
             'message_id' => $this->inboundMessage->id,
+        ]);
+    }
+
+    public function uniqueId(): string
+    {
+        return 'chatbot-inbound-message:' . $this->inboundMessage->id;
+    }
+
+    public function failed(\Throwable $e): void
+    {
+        \Illuminate\Support\Facades\Log::channel('chatbots')->error('ProcessInboundMessageForBots failed', [
+            'account_id' => $this->conversation->account_id,
+            'conversation_id' => $this->conversation->id,
+            'message_id' => $this->inboundMessage->id,
+            'meta_message_id' => $this->inboundMessage->meta_message_id,
+            'error' => $e->getMessage(),
         ]);
     }
 }

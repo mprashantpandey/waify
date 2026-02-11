@@ -216,7 +216,7 @@ class TeamController extends Controller
         ]);
 
         try {
-            Mail::to($inviteEmail)->send(new AccountInvitationMail($invitation));
+            Mail::to($inviteEmail)->queue(new AccountInvitationMail($invitation));
         } catch (\Throwable $e) {
             Log::warning('Failed to send account invitation email', [
                 'email' => $inviteEmail,
@@ -397,7 +397,7 @@ class TeamController extends Controller
         ]);
 
         try {
-            Mail::to($invitation->email)->send(new AccountInvitationMail($invitation));
+            Mail::to($invitation->email)->queue(new AccountInvitationMail($invitation));
         } catch (\Throwable $e) {
             Log::warning('Failed to resend account invitation email', [
                 'email' => $invitation->email,

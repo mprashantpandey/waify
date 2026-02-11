@@ -33,7 +33,7 @@ Route::middleware(['module.entitled:contacts'])->group(function () {
     // Dynamic contact routes last
     Route::get('/contacts/{contact}', [ContactController::class, 'show'])->name('contacts.show');
     Route::put('/contacts/{contact}', [ContactController::class, 'update'])->name('contacts.update');
+    Route::delete('/contacts/{contact}', [ContactController::class, 'destroy'])->name('contacts.destroy');
     Route::post('/contacts/{contact}/note', [ContactController::class, 'addNote'])->name('contacts.add-note');
     Route::post('/contacts/{contact}/merge', [ContactController::class, 'merge'])->name('contacts.merge');
 });
-
