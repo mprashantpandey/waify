@@ -143,6 +143,9 @@ const mergeMessages = (existing: Message[], incoming: Message[]) => {
     );
 };
 
+const maxId = (items: Array<{ id: number }>) =>
+    items.length > 0 ? Math.max(...items.map((item) => item.id)) : 0;
+
 export default function ConversationsShow({
     account,
     conversation: initialConversation,
@@ -253,7 +256,7 @@ export default function ConversationsShow({
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
     const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
-    const lastMessageIdRef = useRef<number>(Math.max(...normalizedMessages.map((m) => m.id), 0));
+    const lastMessageIdRef = useRef<number>(maxId(normalizedMessages));
     const processedMessageIds = useRef<Set<number>>(new Set(normalizedMessages.map((m) => m.id)));
     const lastMessageUpdatedAtRef = useRef<string>(
         normalizedMessages.reduce((latest, current) => {
@@ -262,8 +265,8 @@ export default function ConversationsShow({
             return new Date(candidate).getTime() > new Date(latest).getTime() ? candidate : latest;
         }, '')
     );
-    const lastNoteIdRef = useRef<number>(Math.max(...normalizedNotes.map((n) => n.id), 0));
-    const lastAuditIdRef = useRef<number>(Math.max(...normalizedAuditEvents.map((e) => e.id), 0));
+    const lastNoteIdRef = useRef<number>(maxId(normalizedNotes));
+    const lastAuditIdRef = useRef<number>(maxId(normalizedAuditEvents));
     const assignedToRef = useRef<number | null>(resolvedConversation.assigned_to ?? null);
     const hydratedConversationIdRef = useRef<number | null>(null);
 
@@ -282,15 +285,15 @@ export default function ConversationsShow({
             setAuditEvents(normalizedAuditEvents);
             hydratedConversationIdRef.current = resolvedConversation.id;
             assignedToRef.current = resolvedConversation.assigned_to ?? null;
-            lastMessageIdRef.current = Math.max(...normalizedMessages.map((m) => m.id), 0);
+            lastMessageIdRef.current = maxId(normalizedMessages);
             processedMessageIds.current = new Set(normalizedMessages.map((m) => m.id));
             lastMessageUpdatedAtRef.current = normalizedMessages.reduce((latest, current) => {
                 const candidate = current.updated_at ?? current.created_at;
                 if (!latest) return candidate;
                 return new Date(candidate).getTime() > new Date(latest).getTime() ? candidate : latest;
             }, '');
-            lastNoteIdRef.current = Math.max(...normalizedNotes.map((n) => n.id), 0);
-            lastAuditIdRef.current = Math.max(...normalizedAuditEvents.map((e) => e.id), 0);
+            lastNoteIdRef.current = maxId(normalizedNotes);
+            lastAuditIdRef.current = maxId(normalizedAuditEvents);
             return;
         }
 
@@ -782,10 +785,10 @@ export default function ConversationsShow({
                         conversation: conversation.id}),
                     {
                         params: {
-                            after_message_id: lastMessageIdRef.current,
+                            after_message_id: Math.max(0, lastMessageIdRef.current || 0),
                             after_updated_at: lastMessageUpdatedAtRef.current || undefined,
-                            after_note_id: lastNoteIdRef.current,
-                            after_audit_id: lastAuditIdRef.current}}
+                            after_note_id: Math.max(0, lastNoteIdRef.current || 0),
+                            after_audit_id: Math.max(0, lastAuditIdRef.current || 0)}}
                 );
 
                 const newMessagesFromServer = toArray<any>(response.data?.new_messages)
@@ -797,10 +800,7 @@ export default function ConversationsShow({
 
                 if (newMessagesFromServer.length > 0) {
                     setMessages((prev) => mergeMessages(prev, newMessagesFromServer));
-                    lastMessageIdRef.current = Math.max(
-                        ...newMessagesFromServer.map((m: Message) => m.id),
-                        lastMessageIdRef.current
-                    );
+                    lastMessageIdRef.current = Math.max(maxId(newMessagesFromServer), lastMessageIdRef.current);
                     for (const message of newMessagesFromServer) {
                         processedMessageIds.current.add(message.id);
                         const updatedAt = message.updated_at ?? message.created_at;
@@ -843,18 +843,12 @@ export default function ConversationsShow({
 
                 if (newNotesFromServer.length > 0) {
                     setNotes((prev) => [...newNotesFromServer.slice().reverse(), ...prev]);
-                    lastNoteIdRef.current = Math.max(
-                        ...newNotesFromServer.map((n: NoteItem) => n.id),
-                        lastNoteIdRef.current
-                    );
+                    lastNoteIdRef.current = Math.max(maxId(newNotesFromServer), lastNoteIdRef.current);
                 }
 
                 if (newAuditEventsFromServer.length > 0) {
                     setAuditEvents((prev) => [...newAuditEventsFromServer.slice().reverse(), ...prev]);
-                    lastAuditIdRef.current = Math.max(
-                        ...newAuditEventsFromServer.map((e: AuditEventItem) => e.id),
-                        lastAuditIdRef.current
-                    );
+                    lastAuditIdRef.current = Math.max(maxId(newAuditEventsFromServer), lastAuditIdRef.current);
                 }
 
                 if (response.data.conversation) {

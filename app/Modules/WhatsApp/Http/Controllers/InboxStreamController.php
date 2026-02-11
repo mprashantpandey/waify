@@ -55,7 +55,8 @@ class InboxStreamController extends Controller
                         ? $conversation->priority
                         : null,
                 ];
-            });
+            })
+            ->values();
 
         // Get new message notifications (conversations with new messages)
         $newMessageNotifications = WhatsAppConversation::where('account_id', $account->id)
@@ -70,7 +71,8 @@ class InboxStreamController extends Controller
                     'conversation_id' => $conversation->id,
                     'last_message_preview' => $conversation->last_message_preview,
                     'last_activity_at' => $conversation->last_message_at?->toIso8601String()];
-            });
+            })
+            ->values();
 
         return response()->json([
             'server_time' => now()->toIso8601String(),
@@ -114,7 +116,8 @@ class InboxStreamController extends Controller
                     'sent_at' => $message->sent_at?->toIso8601String(),
                     'delivered_at' => $message->delivered_at?->toIso8601String(),
                     'read_at' => $message->read_at?->toIso8601String()];
-            });
+            })
+            ->values();
 
         // Get updated messages (status changes) regardless of message id growth.
         $updatedMessages = WhatsAppMessage::where('whatsapp_conversation_id', $conversation->id)
@@ -136,7 +139,8 @@ class InboxStreamController extends Controller
                     'sent_at' => $message->sent_at?->toIso8601String(),
                     'delivered_at' => $message->delivered_at?->toIso8601String(),
                     'read_at' => $message->read_at?->toIso8601String()];
-            });
+            })
+            ->values();
 
         $newNotes = WhatsAppConversationNote::where('whatsapp_conversation_id', $conversation->id)
             ->where('id', '>', $afterNoteId)
@@ -155,7 +159,8 @@ class InboxStreamController extends Controller
                         'email' => $note->creator->email,
                     ] : null,
                 ];
-            });
+            })
+            ->values();
 
         $newAuditEvents = WhatsAppConversationAuditEvent::where('whatsapp_conversation_id', $conversation->id)
             ->where('id', '>', $afterAuditId)
@@ -176,7 +181,8 @@ class InboxStreamController extends Controller
                         'email' => $event->actor->email,
                     ] : null,
                 ];
-            });
+            })
+            ->values();
 
         // Conversation meta if changed
         $conversationChanged = $conversation->updated_at > now()->subMinutes(5);

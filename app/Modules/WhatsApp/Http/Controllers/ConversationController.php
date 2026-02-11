@@ -207,6 +207,7 @@ class ConversationController extends Controller
             ->limit(50)
             ->get()
             ->reverse() // Reverse to show oldest first
+            ->values()
             ->map(function ($message) {
                 return [
                     'id' => $message->id,
@@ -389,6 +390,7 @@ class ConversationController extends Controller
             ->limit(50)
             ->get()
             ->reverse()
+            ->values()
             ->map(function ($message) {
                 return [
                     'id' => $message->id,
