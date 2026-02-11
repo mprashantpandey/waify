@@ -21,6 +21,7 @@ interface Message {
     payload?: any;
     status: string;
     created_at: string;
+    updated_at?: string | null;
     sent_at: string | null;
     delivered_at: string | null;
     read_at: string | null;
@@ -95,6 +96,40 @@ interface AgentItem {
     role: string;
 }
 
+const normalizeMessage = (value: any): Message | null => {
+    if (!value || value.id == null || !value.created_at) return null;
+    const id = Number(value.id);
+    if (!Number.isInteger(id) || id < 1) return null;
+
+    return {
+        id,
+        direction: value.direction === 'inbound' ? 'inbound' : 'outbound',
+        type: String(value.type ?? 'text'),
+        text_body: value.text_body ?? null,
+        payload: value.payload ?? null,
+        status: String(value.status ?? 'queued'),
+        created_at: String(value.created_at),
+        updated_at: value.updated_at ?? null,
+        sent_at: value.sent_at ?? null,
+        delivered_at: value.delivered_at ?? null,
+        read_at: value.read_at ?? null,
+    };
+};
+
+const mergeMessages = (existing: Message[], incoming: Message[]) => {
+    const map = new Map<number, Message>();
+    for (const message of existing) {
+        map.set(message.id, message);
+    }
+    for (const message of incoming) {
+        const prev = map.get(message.id);
+        map.set(message.id, prev ? { ...prev, ...message } : message);
+    }
+    return Array.from(map.values()).sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+};
+
 export default function ConversationsShow({
     account,
     conversation: initialConversation,
@@ -141,7 +176,14 @@ export default function ConversationsShow({
         );
     }
     const toArray = <T,>(value: T[] | null | undefined): T[] => (Array.isArray(value) ? value : []);
-    const normalizedMessages = resolvedMessages;
+    const normalizedMessages = useMemo(
+        () =>
+            toArray(resolvedMessages)
+                .map(normalizeMessage)
+                .filter((message): message is Message => message !== null)
+                .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
+        [resolvedMessages]
+    );
     const normalizedNotes = resolvedNotes;
     const normalizedAuditEvents = resolvedAuditEvents;
     const normalizedAgents = resolvedAgents;
@@ -188,9 +230,16 @@ export default function ConversationsShow({
     const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
     const lastMessageIdRef = useRef<number>(Math.max(...normalizedMessages.map((m) => m.id), 0));
     const processedMessageIds = useRef<Set<number>>(new Set(normalizedMessages.map((m) => m.id)));
+    const lastMessageUpdatedAtRef = useRef<string>(
+        normalizedMessages.reduce((latest, current) => {
+            const candidate = current.updated_at ?? current.created_at;
+            if (!latest) return candidate;
+            return new Date(candidate).getTime() > new Date(latest).getTime() ? candidate : latest;
+        }, '')
+    );
     const lastNoteIdRef = useRef<number>(Math.max(...normalizedNotes.map((n) => n.id), 0));
     const lastAuditIdRef = useRef<number>(Math.max(...normalizedAuditEvents.map((e) => e.id), 0));
-    const assignedToRef = useRef<number | null>(initialConversation.assigned_to ?? null);
+    const assignedToRef = useRef<number | null>(resolvedConversation.assigned_to ?? null);
 
     const { data, setData, post, processing, errors, reset } = useForm({
         message: ''});
@@ -201,15 +250,21 @@ export default function ConversationsShow({
         setMessages(normalizedMessages);
         setNotes(normalizedNotes);
         setAuditEvents(normalizedAuditEvents);
+        assignedToRef.current = resolvedConversation.assigned_to ?? null;
         lastMessageIdRef.current = Math.max(...normalizedMessages.map((m) => m.id), 0);
         processedMessageIds.current = new Set(normalizedMessages.map((m) => m.id));
+        lastMessageUpdatedAtRef.current = normalizedMessages.reduce((latest, current) => {
+            const candidate = current.updated_at ?? current.created_at;
+            if (!latest) return candidate;
+            return new Date(candidate).getTime() > new Date(latest).getTime() ? candidate : latest;
+        }, '');
         lastNoteIdRef.current = Math.max(...normalizedNotes.map((n) => n.id), 0);
         lastAuditIdRef.current = Math.max(...normalizedAuditEvents.map((e) => e.id), 0);
     }, [
         resolvedConversation?.id,
-        normalizedMessages.length,
-        normalizedNotes.length,
-        normalizedAuditEvents.length,
+        normalizedMessages,
+        normalizedNotes,
+        normalizedAuditEvents,
     ]);
 
     const emojiList = ['😀', '😁', '😂', '🤣', '😍', '😘', '😊', '🥰', '😎', '🤝', '👍', '🙏', '🎉', '🔥', '✨', '💡', '😢', '😮', '😡', '🤔', '😅', '🙌', '✅', '❌'];
@@ -523,18 +578,12 @@ export default function ConversationsShow({
             conversationChannel,
             '.whatsapp.message.created',
             (data: any) => {
-                const newMessage = data.message;
+                const newMessage = normalizeMessage(data?.message);
                 if (newMessage && !processedMessageIds.current.has(newMessage.id)) {
                     processedMessageIds.current.add(newMessage.id);
-                    setMessages((prev) => {
-                        if (prev.find((m) => m.id === newMessage.id)) {
-                            return prev;
-                        }
-                        return [...prev, newMessage].sort(
-                            (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-                        );
-                    });
+                    setMessages((prev) => mergeMessages(prev, [newMessage]));
                     lastMessageIdRef.current = Math.max(lastMessageIdRef.current, newMessage.id);
+                    lastMessageUpdatedAtRef.current = newMessage.updated_at ?? newMessage.created_at;
 
                     if (newMessage.direction === 'inbound') {
                         addToast({
@@ -551,16 +600,21 @@ export default function ConversationsShow({
             conversationChannel,
             '.whatsapp.message.updated',
             (data: any) => {
+                const messageId = Number(data?.message?.id);
+                if (!Number.isInteger(messageId) || messageId < 1) return;
+                const updatedAt = data?.message?.updated_at ?? new Date().toISOString();
+                lastMessageUpdatedAtRef.current = updatedAt;
                 setMessages((prev) =>
                     prev.map((msg) =>
-                        msg.id === data.message.id
+                        msg.id === messageId
                             ? {
                                   ...msg,
-                                  status: data.message.status,
-                                  error_message: data.message.error_message,
-                                  sent_at: data.message.sent_at,
-                                  delivered_at: data.message.delivered_at,
-                                  read_at: data.message.read_at}
+                                  status: data.message.status ?? msg.status,
+                                  updated_at: updatedAt,
+                                  sent_at: data.message.sent_at ?? msg.sent_at,
+                                  delivered_at: data.message.delivered_at ?? msg.delivered_at,
+                                  read_at: data.message.read_at ?? msg.read_at,
+                              }
                             : msg
                     )
                 );
@@ -666,40 +720,62 @@ export default function ConversationsShow({
                     {
                         params: {
                             after_message_id: lastMessageIdRef.current,
+                            after_updated_at: lastMessageUpdatedAtRef.current || undefined,
                             after_note_id: lastNoteIdRef.current,
                             after_audit_id: lastAuditIdRef.current}}
                 );
 
-                const newMessagesFromServer = toArray<Message>(response.data?.new_messages);
-                const updatedMessagesFromServer = toArray<Message>(response.data?.updated_messages);
+                const newMessagesFromServer = toArray<any>(response.data?.new_messages)
+                    .map(normalizeMessage)
+                    .filter((message): message is Message => message !== null);
+                const updatedMessagesFromServer = toArray<any>(response.data?.updated_messages);
                 const newNotesFromServer = toArray<NoteItem>(response.data?.new_notes);
                 const newAuditEventsFromServer = toArray<AuditEventItem>(response.data?.new_audit_events);
 
                 if (newMessagesFromServer.length > 0) {
-                    setMessages((prev) => {
-                        const existingIds = new Set(prev.map((m) => m.id));
-                        const newMessages = newMessagesFromServer.filter(
-                            (m: Message) => !existingIds.has(m.id)
-                        );
-                        return [...prev, ...newMessages].sort(
-                            (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-                        );
-                    });
+                    setMessages((prev) => mergeMessages(prev, newMessagesFromServer));
                     lastMessageIdRef.current = Math.max(
                         ...newMessagesFromServer.map((m: Message) => m.id),
                         lastMessageIdRef.current
                     );
+                    for (const message of newMessagesFromServer) {
+                        processedMessageIds.current.add(message.id);
+                        const updatedAt = message.updated_at ?? message.created_at;
+                        if (
+                            !lastMessageUpdatedAtRef.current ||
+                            new Date(updatedAt).getTime() > new Date(lastMessageUpdatedAtRef.current).getTime()
+                        ) {
+                            lastMessageUpdatedAtRef.current = updatedAt;
+                        }
+                    }
                 }
 
                 if (updatedMessagesFromServer.length > 0) {
                     setMessages((prev) =>
                         prev.map((msg) => {
                             const updated = updatedMessagesFromServer.find(
-                                (um: Message) => um.id === msg.id
+                                (um: any) => Number(um.id) === msg.id
                             );
-                            return updated ? { ...msg, ...updated } : msg;
+                            return updated
+                                ? {
+                                      ...msg,
+                                      status: updated.status ?? msg.status,
+                                      updated_at: updated.updated_at ?? msg.updated_at,
+                                      sent_at: updated.sent_at ?? msg.sent_at,
+                                      delivered_at: updated.delivered_at ?? msg.delivered_at,
+                                      read_at: updated.read_at ?? msg.read_at,
+                                  }
+                                : msg;
                         })
                     );
+                    const latestUpdatedAt = updatedMessagesFromServer
+                        .map((message: any) => message?.updated_at)
+                        .filter(Boolean)
+                        .sort()
+                        .pop();
+                    if (latestUpdatedAt) {
+                        lastMessageUpdatedAtRef.current = latestUpdatedAt;
+                    }
                 }
 
                 if (newNotesFromServer.length > 0) {
@@ -720,6 +796,10 @@ export default function ConversationsShow({
 
                 if (response.data.conversation) {
                     setConversation((prev) => ({ ...prev, ...response.data.conversation }));
+                }
+
+                if (response.data?.server_time) {
+                    lastMessageUpdatedAtRef.current = response.data.server_time;
                 }
             } catch (error) {
                 console.error('[Conversation] Polling error:', error);

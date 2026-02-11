@@ -93,6 +93,8 @@ class InboxStreamController extends Controller
         $afterMessageId = $request->query('after_message_id', 0);
         $afterNoteId = $request->query('after_note_id', 0);
         $afterAuditId = $request->query('after_audit_id', 0);
+        $afterUpdatedAt = $request->query('after_updated_at');
+        $afterUpdatedAtDate = $afterUpdatedAt ? Carbon::parse($afterUpdatedAt) : Carbon::now()->subMinutes(5);
 
         // Get new messages
         $newMessages = WhatsAppMessage::where('whatsapp_conversation_id', $conversation->id)
@@ -108,14 +110,16 @@ class InboxStreamController extends Controller
                     'payload' => $message->payload,
                     'status' => $message->status,
                     'created_at' => $message->created_at->toIso8601String(),
+                    'updated_at' => $message->updated_at?->toIso8601String(),
                     'sent_at' => $message->sent_at?->toIso8601String(),
                     'delivered_at' => $message->delivered_at?->toIso8601String(),
                     'read_at' => $message->read_at?->toIso8601String()];
             });
 
-        // Get updated messages (status changes) - simplified, just return recent status changes
+        // Get updated messages (status changes) regardless of message id growth.
         $updatedMessages = WhatsAppMessage::where('whatsapp_conversation_id', $conversation->id)
-            ->where('id', '>', $afterMessageId)
+            ->where('updated_at', '>', $afterUpdatedAtDate)
+            ->where('id', '<=', $afterMessageId > 0 ? $afterMessageId : PHP_INT_MAX)
             ->where(function ($query) {
                 $query->whereNotNull('sent_at')
                     ->orWhereNotNull('delivered_at')
@@ -128,6 +132,7 @@ class InboxStreamController extends Controller
                 return [
                     'id' => $message->id,
                     'status' => $message->status,
+                    'updated_at' => $message->updated_at?->toIso8601String(),
                     'sent_at' => $message->sent_at?->toIso8601String(),
                     'delivered_at' => $message->delivered_at?->toIso8601String(),
                     'read_at' => $message->read_at?->toIso8601String()];
@@ -192,6 +197,7 @@ class InboxStreamController extends Controller
         }
 
         return response()->json([
+            'server_time' => now()->toIso8601String(),
             'new_messages' => $newMessages,
             'updated_messages' => $updatedMessages,
             'new_notes' => $newNotes,

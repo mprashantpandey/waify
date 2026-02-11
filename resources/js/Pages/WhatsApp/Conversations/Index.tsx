@@ -15,7 +15,7 @@ import { Head } from '@inertiajs/react';
 
 interface Conversation {
     id: number;
-    account_id?: number;
+    account_id?: number | string;
     contact: {
         id: number;
         wa_id: string;
@@ -31,6 +31,45 @@ interface Conversation {
     assigned_to?: number | null;
     priority?: string | null;
 }
+
+const normalizeConversation = (value: any): Conversation | null => {
+    if (!value || value.id == null) return null;
+
+    const id = Number(value.id);
+    const connectionId = Number(value?.connection?.id);
+    if (!Number.isInteger(id) || id < 1 || !Number.isInteger(connectionId) || connectionId < 1) {
+        return null;
+    }
+
+    const waId = String(value?.contact?.wa_id ?? '').trim();
+    const name = String(value?.contact?.name ?? waId ?? '').trim();
+
+    return {
+        id,
+        account_id: value.account_id,
+        contact: {
+            id: Number(value?.contact?.id ?? 0),
+            wa_id: waId,
+            name: name || waId || 'Unknown',
+        },
+        status: String(value.status ?? 'open'),
+        last_message_preview: value.last_message_preview ?? null,
+        last_message_at: value.last_message_at ?? null,
+        connection: {
+            id: connectionId,
+            name: String(value?.connection?.name ?? 'Unknown'),
+        },
+        assigned_to: value.assigned_to == null ? null : Number(value.assigned_to),
+        priority: value.priority ?? null,
+    };
+};
+
+const normalizeConversationList = (items: unknown): Conversation[] => {
+    if (!Array.isArray(items)) return [];
+    return items
+        .map(normalizeConversation)
+        .filter((item): item is Conversation => item !== null);
+};
 
 export default function ConversationsIndex({
     account,
@@ -54,7 +93,7 @@ export default function ConversationsIndex({
     const notifyAssignmentEnabled = auth?.user?.notify_assignment_enabled ?? true;
     const soundEnabled = auth?.user?.notify_sound_enabled ?? true;
     const [conversations, setConversations] = useState<Conversation[]>(
-        Array.isArray(initialConversations?.data) ? initialConversations.data : []
+        normalizeConversationList(initialConversations?.data)
     );
     const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState(initialFilters?.search ?? '');
@@ -63,7 +102,7 @@ export default function ConversationsIndex({
     const lastPollRef = useRef<Date>(new Date());
     const processedMessageIds = useRef<Set<string>>(new Set());
     const assignmentStateRef = useRef<Map<number, number | null>>(
-        new Map(initialConversations.data.map((c) => [c.id, c.assigned_to ?? null]))
+        new Map(normalizeConversationList(initialConversations?.data).map((c) => [c.id, c.assigned_to ?? null]))
     );
 
     const playNotificationSound = useCallback(() => {
@@ -104,9 +143,17 @@ export default function ConversationsIndex({
                 const currentAccountId = account?.id;
                 setConversations((prev) => {
                     const byId = new Map(prev.map((c) => [c.id, c]));
-                    list.forEach((conv: Conversation) => {
-                        if (currentAccountId != null && conv.account_id != null && !isSameAccountId(conv.account_id, currentAccountId)) return;
-                        byId.set(conv.id, conv);
+                    list.forEach((conv: any) => {
+                        const normalized = normalizeConversation(conv);
+                        if (!normalized) return;
+                        if (
+                            currentAccountId != null &&
+                            normalized.account_id != null &&
+                            !isSameAccountId(normalized.account_id, currentAccountId)
+                        ) {
+                            return;
+                        }
+                        byId.set(normalized.id, normalized);
                     });
                     return Array.from(byId.values()).sort((a, b) => {
                         const timeA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
@@ -121,9 +168,7 @@ export default function ConversationsIndex({
 
     // Keep state in sync with server payload (in case of hydration/props mismatch)
     useEffect(() => {
-        if (Array.isArray(initialConversations?.data)) {
-            setConversations(initialConversations.data);
-        }
+        setConversations(normalizeConversationList(initialConversations?.data));
     }, [initialConversations]);
 
     // Backend search: debounce and reload with search param
@@ -221,21 +266,19 @@ export default function ConversationsIndex({
                 if (!processedMessageIds.current.has(eventId)) {
                     processedMessageIds.current.add(eventId);
                     const conv = data.conversation || {};
-                    const convId = Number(conv.id);
-                    if (!Number.isInteger(convId) || convId < 1) return;
-                    const convAccountId = conv.account_id != null ? Number(conv.account_id) : undefined;
-                    if (account?.id != null && convAccountId != null && convAccountId !== account.id) return;
-                    const incoming: Conversation = {
-                        id: convId,
-                        account_id: convAccountId,
-                        contact: conv.contact ?? { id: 0, wa_id: '', name: '' },
-                        status: conv.status ?? 'open',
-                        last_message_preview: conv.last_message_preview ?? null,
-                        last_message_at: conv.last_message_at ?? conv.last_activity_at ?? null,
-                        connection: conv.connection ?? { id: 0, name: '' },
+                    const incoming = normalizeConversation({
+                        ...conv,
                         assigned_to: conv.assignee_id ?? conv.assigned_to ?? null,
-                        priority: conv.priority ?? null,
-                    };
+                        last_message_at: conv.last_message_at ?? conv.last_activity_at ?? null,
+                    });
+                    if (!incoming) return;
+                    if (
+                        account?.id != null &&
+                        incoming.account_id != null &&
+                        !isSameAccountId(incoming.account_id, account.id)
+                    ) {
+                        return;
+                    }
                     setConversations((prev) => applyConversationUpdated(prev, incoming));
 
                     if (currentUserId && notifyAssignmentEnabled && incoming.assigned_to === currentUserId) {
@@ -456,13 +499,7 @@ export default function ConversationsIndex({
                                     {filteredConversations.map((conversation) => (
                                         <Link
                                             key={conversation.id}
-                                            href={(() => {
-                                                const id = parseInt(String(conversation.id), 10);
-                                                const sameAccount = conversation.account_id == null || isSameAccountId(conversation.account_id, account?.id);
-                                                return (Number.isInteger(id) && id >= 1 && sameAccount)
-                                                    ? route('app.whatsapp.conversations.show', { conversation: id })
-                                                    : '#';
-                                            })()}
+                                            href={route('app.whatsapp.conversations.show', { conversation: conversation.id })}
                                             className="group block px-4 py-3 hover:bg-[#f0f2f5] dark:hover:bg-gray-800 transition-colors"
                                         >
                                             <div className="flex items-start gap-3">

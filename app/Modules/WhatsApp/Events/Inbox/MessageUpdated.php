@@ -50,9 +50,9 @@ class MessageUpdated implements ShouldBroadcast
                 'id' => $this->message->id,
                 'status' => $this->message->status,
                 'error_message' => $this->message->error_message,
+                'updated_at' => $this->message->updated_at?->toIso8601String(),
                 'sent_at' => $this->message->sent_at?->toIso8601String(),
                 'delivered_at' => $this->message->delivered_at?->toIso8601String(),
                 'read_at' => $this->message->read_at?->toIso8601String()]];
     }
 }
-

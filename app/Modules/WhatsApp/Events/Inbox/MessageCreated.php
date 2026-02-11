@@ -57,6 +57,7 @@ class MessageCreated implements ShouldBroadcast
                 'payload' => $this->message->payload,
                 'status' => $this->message->status,
                 'created_at' => $this->message->created_at->toIso8601String(),
+                'updated_at' => $this->message->updated_at?->toIso8601String(),
                 'meta_message_id' => $this->message->meta_message_id],
             'contact' => $this->message->conversation?->contact ? [
                 'wa_id' => $this->message->conversation->contact->wa_id,

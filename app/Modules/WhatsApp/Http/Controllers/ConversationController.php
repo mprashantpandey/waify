@@ -56,6 +56,8 @@ class ConversationController extends Controller
 
         $query = WhatsAppConversation::where('account_id', $account->id)
             ->select($conversationSelect)
+            ->whereHas('contact')
+            ->whereHas('connection')
             ->with([
                 'contact:id,account_id,wa_id,name',
                 'connection:id,account_id,name']);
@@ -214,6 +216,7 @@ class ConversationController extends Controller
                     'payload' => $message->payload,
                     'status' => $message->status,
                     'created_at' => $message->created_at->toIso8601String(),
+                    'updated_at' => $message->updated_at?->toIso8601String(),
                     'sent_at' => $message->sent_at?->toIso8601String(),
                     'delivered_at' => $message->delivered_at?->toIso8601String(),
                     'read_at' => $message->read_at?->toIso8601String()];
@@ -395,6 +398,7 @@ class ConversationController extends Controller
                     'payload' => $message->payload,
                     'status' => $message->status,
                     'created_at' => $message->created_at->toIso8601String(),
+                    'updated_at' => $message->updated_at?->toIso8601String(),
                     'sent_at' => $message->sent_at?->toIso8601String(),
                     'delivered_at' => $message->delivered_at?->toIso8601String(),
                     'read_at' => $message->read_at?->toIso8601String()];
