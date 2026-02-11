@@ -171,13 +171,14 @@ class Campaign extends Model
      */
     public function getCompletionPercentageAttribute(): float
     {
-        if ($this->total_recipients === 0) {
+        $totalRecipients = (int) $this->total_recipients;
+        if ($totalRecipients <= 0) {
             return 0;
         }
 
         $processed = max(0, (int) $this->sent_count + (int) $this->failed_count);
 
-        return round(($processed / $this->total_recipients) * 100, 2);
+        return round(($processed / $totalRecipients) * 100, 2);
     }
 
     /**
@@ -185,11 +186,12 @@ class Campaign extends Model
      */
     public function getDeliveryRateAttribute(): float
     {
-        if ($this->sent_count === 0) {
+        $sentCount = (int) $this->sent_count;
+        if ($sentCount <= 0) {
             return 0;
         }
 
-        return round(($this->delivered_count / $this->sent_count) * 100, 2);
+        return round(((int) $this->delivered_count / $sentCount) * 100, 2);
     }
 
     /**
@@ -197,10 +199,11 @@ class Campaign extends Model
      */
     public function getReadRateAttribute(): float
     {
-        if ($this->delivered_count === 0) {
+        $deliveredCount = (int) $this->delivered_count;
+        if ($deliveredCount <= 0) {
             return 0;
         }
 
-        return round(($this->read_count / $this->delivered_count) * 100, 2);
+        return round(((int) $this->read_count / $deliveredCount) * 100, 2);
     }
 }
