@@ -96,6 +96,19 @@ interface AgentItem {
     role: string;
 }
 
+const extractList = <T,>(value: unknown): T[] => {
+    if (Array.isArray(value)) return value as T[];
+    if (value && typeof value === 'object') {
+        const maybeData = (value as any).data;
+        if (Array.isArray(maybeData)) return maybeData as T[];
+        const values = Object.values(value as Record<string, unknown>);
+        if (values.every((item) => item && typeof item === 'object')) {
+            return values as T[];
+        }
+    }
+    return [];
+};
+
 const normalizeMessage = (value: any): Message | null => {
     if (!value || value.id == null || !value.created_at) return null;
     const id = Number(value.id);
@@ -158,12 +171,24 @@ export default function ConversationsShow({
 }) {
     const pageProps = usePage().props as any;
     const resolvedConversation: Conversation | null = initialConversation ?? pageProps?.conversation ?? null;
-    const resolvedMessages: Message[] = Array.isArray(initialMessages) ? initialMessages : (Array.isArray(pageProps?.messages) ? pageProps.messages : []);
-    const resolvedNotes: NoteItem[] = Array.isArray(initialNotes) ? initialNotes : (Array.isArray(pageProps?.notes) ? pageProps.notes : []);
-    const resolvedAuditEvents: AuditEventItem[] = Array.isArray(initialAuditEvents) ? initialAuditEvents : (Array.isArray(pageProps?.audit_events) ? pageProps.audit_events : []);
-    const resolvedAgents: AgentItem[] = Array.isArray(agents) ? agents : (Array.isArray(pageProps?.agents) ? pageProps.agents : []);
-    const resolvedTemplates: TemplateItem[] = Array.isArray(templates) ? templates : (Array.isArray(pageProps?.templates) ? pageProps.templates : []);
-    const resolvedLists: ListItem[] = Array.isArray(lists) ? lists : (Array.isArray(pageProps?.lists) ? pageProps.lists : []);
+    const resolvedMessages: Message[] = extractList<Message>(initialMessages).length > 0
+        ? extractList<Message>(initialMessages)
+        : extractList<Message>(pageProps?.messages);
+    const resolvedNotes: NoteItem[] = extractList<NoteItem>(initialNotes).length > 0
+        ? extractList<NoteItem>(initialNotes)
+        : extractList<NoteItem>(pageProps?.notes);
+    const resolvedAuditEvents: AuditEventItem[] = extractList<AuditEventItem>(initialAuditEvents).length > 0
+        ? extractList<AuditEventItem>(initialAuditEvents)
+        : extractList<AuditEventItem>(pageProps?.audit_events);
+    const resolvedAgents: AgentItem[] = extractList<AgentItem>(agents).length > 0
+        ? extractList<AgentItem>(agents)
+        : extractList<AgentItem>(pageProps?.agents);
+    const resolvedTemplates: TemplateItem[] = extractList<TemplateItem>(templates).length > 0
+        ? extractList<TemplateItem>(templates)
+        : extractList<TemplateItem>(pageProps?.templates);
+    const resolvedLists: ListItem[] = extractList<ListItem>(lists).length > 0
+        ? extractList<ListItem>(lists)
+        : extractList<ListItem>(pageProps?.lists);
 
     if (!resolvedConversation) {
         return (
