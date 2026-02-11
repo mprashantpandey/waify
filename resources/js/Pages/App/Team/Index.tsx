@@ -71,7 +71,6 @@ export default function TeamIndex({
                 role: inviteRole},
             {
                 onSuccess: () => {
-                    toast.success('Member invited successfully');
                     setInviteEmail('');
                     setInviteRole('member');
                     setShowInviteDialog(false);
@@ -97,7 +96,6 @@ export default function TeamIndex({
                 { role: newRole },
                 {
                     onSuccess: () => {
-                        toast.success('Role updated successfully');
                         setEditingMember(null);
                     },
                     onError: () => {
@@ -119,7 +117,6 @@ export default function TeamIndex({
                 route('app.team.remove', { user: member.id }),
                 {
                     onSuccess: () => {
-                        toast.success('Member removed successfully');
                         router.reload({ only: ['members'] });
                     },
                     onError: () => {
@@ -140,9 +137,7 @@ export default function TeamIndex({
             router.delete(
                 route('app.team.invites.revoke', { invitation: invite.id }),
                 {
-                    onSuccess: () => {
-                        toast.success('Invitation revoked successfully');
-                    },
+                    onSuccess: () => {},
                     onError: () => {
                         toast.error('Failed to revoke invitation');
                     }}
@@ -162,9 +157,7 @@ export default function TeamIndex({
                 route('app.team.invites.resend', { invitation: invite.id }),
                 {},
                 {
-                    onSuccess: () => {
-                        toast.success('Invitation resent successfully');
-                    },
+                    onSuccess: () => {},
                     onError: () => {
                         toast.error('Failed to resend invitation');
                     }}

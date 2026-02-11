@@ -146,7 +146,7 @@ class TeamController extends Controller
         }
 
         $request->validate([
-            'email' => 'required|email',
+            'email' => 'required|email:rfc,dns',
             'role' => 'required|in:admin,member']);
 
         $inviteEmail = strtolower(trim($request->email));
@@ -216,7 +216,8 @@ class TeamController extends Controller
         ]);
 
         try {
-            Mail::to($inviteEmail)->queue(new AccountInvitationMail($invitation));
+            // Send synchronously so invite delivery does not depend on queue workers.
+            Mail::to($inviteEmail)->send(new AccountInvitationMail($invitation));
         } catch (\Throwable $e) {
             Log::warning('Failed to send account invitation email', [
                 'email' => $inviteEmail,
@@ -227,9 +228,7 @@ class TeamController extends Controller
                 ->with('info', $inviteUrl);
         }
 
-        return back()
-            ->with('success', 'Invitation sent successfully.')
-            ->with('info', "Invite link: {$inviteUrl}");
+        return back()->with('success', 'Invitation sent successfully.');
     }
 
     /**
@@ -397,7 +396,8 @@ class TeamController extends Controller
         ]);
 
         try {
-            Mail::to($invitation->email)->queue(new AccountInvitationMail($invitation));
+            // Send synchronously so resend result matches user feedback immediately.
+            Mail::to($invitation->email)->send(new AccountInvitationMail($invitation));
         } catch (\Throwable $e) {
             Log::warning('Failed to resend account invitation email', [
                 'email' => $invitation->email,
@@ -408,8 +408,6 @@ class TeamController extends Controller
                 ->with('info', $inviteUrl);
         }
 
-        return back()
-            ->with('success', 'Invitation resent successfully.')
-            ->with('info', "Invite link: {$inviteUrl}");
+        return back()->with('success', 'Invitation resent successfully.');
     }
 }
