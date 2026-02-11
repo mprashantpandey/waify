@@ -240,32 +240,70 @@ export default function ConversationsShow({
     const lastNoteIdRef = useRef<number>(Math.max(...normalizedNotes.map((n) => n.id), 0));
     const lastAuditIdRef = useRef<number>(Math.max(...normalizedAuditEvents.map((e) => e.id), 0));
     const assignedToRef = useRef<number | null>(resolvedConversation.assigned_to ?? null);
+    const hydratedConversationIdRef = useRef<number | null>(null);
 
     const { data, setData, post, processing, errors, reset } = useForm({
         message: ''});
 
     useEffect(() => {
         if (!resolvedConversation) return;
-        setConversation(resolvedConversation);
-        setMessages(normalizedMessages);
-        setNotes(normalizedNotes);
-        setAuditEvents(normalizedAuditEvents);
-        assignedToRef.current = resolvedConversation.assigned_to ?? null;
-        lastMessageIdRef.current = Math.max(...normalizedMessages.map((m) => m.id), 0);
-        processedMessageIds.current = new Set(normalizedMessages.map((m) => m.id));
-        lastMessageUpdatedAtRef.current = normalizedMessages.reduce((latest, current) => {
-            const candidate = current.updated_at ?? current.created_at;
-            if (!latest) return candidate;
-            return new Date(candidate).getTime() > new Date(latest).getTime() ? candidate : latest;
-        }, '');
-        lastNoteIdRef.current = Math.max(...normalizedNotes.map((n) => n.id), 0);
-        lastAuditIdRef.current = Math.max(...normalizedAuditEvents.map((e) => e.id), 0);
-    }, [
-        resolvedConversation?.id,
-        normalizedMessages,
-        normalizedNotes,
-        normalizedAuditEvents,
-    ]);
+
+        const conversationChanged = hydratedConversationIdRef.current !== resolvedConversation.id;
+        setConversation((prev) => (conversationChanged ? resolvedConversation : { ...prev, ...resolvedConversation }));
+
+        if (conversationChanged) {
+            setMessages(normalizedMessages);
+            setNotes(normalizedNotes);
+            setAuditEvents(normalizedAuditEvents);
+            hydratedConversationIdRef.current = resolvedConversation.id;
+            assignedToRef.current = resolvedConversation.assigned_to ?? null;
+            lastMessageIdRef.current = Math.max(...normalizedMessages.map((m) => m.id), 0);
+            processedMessageIds.current = new Set(normalizedMessages.map((m) => m.id));
+            lastMessageUpdatedAtRef.current = normalizedMessages.reduce((latest, current) => {
+                const candidate = current.updated_at ?? current.created_at;
+                if (!latest) return candidate;
+                return new Date(candidate).getTime() > new Date(latest).getTime() ? candidate : latest;
+            }, '');
+            lastNoteIdRef.current = Math.max(...normalizedNotes.map((n) => n.id), 0);
+            lastAuditIdRef.current = Math.max(...normalizedAuditEvents.map((e) => e.id), 0);
+            return;
+        }
+
+        // Same conversation: merge props into live state, never wipe to empty on partial updates.
+        if (normalizedMessages.length > 0) {
+            setMessages((prev) => mergeMessages(prev, normalizedMessages));
+            lastMessageIdRef.current = Math.max(
+                ...normalizedMessages.map((m) => m.id),
+                lastMessageIdRef.current
+            );
+        }
+        if (normalizedNotes.length > 0) {
+            setNotes((prev) => {
+                const byId = new Map(prev.map((note) => [note.id, note]));
+                normalizedNotes.forEach((note) => byId.set(note.id, note));
+                return Array.from(byId.values()).sort(
+                    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                );
+            });
+            lastNoteIdRef.current = Math.max(
+                ...normalizedNotes.map((n) => n.id),
+                lastNoteIdRef.current
+            );
+        }
+        if (normalizedAuditEvents.length > 0) {
+            setAuditEvents((prev) => {
+                const byId = new Map(prev.map((event) => [event.id, event]));
+                normalizedAuditEvents.forEach((event) => byId.set(event.id, event));
+                return Array.from(byId.values()).sort(
+                    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+                );
+            });
+            lastAuditIdRef.current = Math.max(
+                ...normalizedAuditEvents.map((e) => e.id),
+                lastAuditIdRef.current
+            );
+        }
+    }, [resolvedConversation, normalizedMessages, normalizedNotes, normalizedAuditEvents]);
 
     const emojiList = ['😀', '😁', '😂', '🤣', '😍', '😘', '😊', '🥰', '😎', '🤝', '👍', '🙏', '🎉', '🔥', '✨', '💡', '😢', '😮', '😡', '🤔', '😅', '🙌', '✅', '❌'];
     const quickReplies = [
