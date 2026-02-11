@@ -44,13 +44,14 @@ class AppServiceProvider extends ServiceProvider
         Vite::prefetch(concurrency: 3);
 
         // Queue workers do not run HTTP middleware, so load runtime platform settings
-        // for console/queue processes to keep broadcasting and integrations consistent.
+        // for console/queue processes to keep broadcasting, mail, and integrations consistent.
         if (app()->runningInConsole()) {
             try {
                 /** @var PlatformSettingsService $settingsService */
                 $settingsService = app(PlatformSettingsService::class);
                 $settingsService->applyGeneralConfig();
                 $settingsService->applyLocalization();
+                $settingsService->applyMailConfig();
                 $settingsService->applyPusherConfig();
                 $settingsService->applyWhatsAppConfig();
             } catch (\Throwable $exception) {
@@ -61,9 +62,11 @@ class AppServiceProvider extends ServiceProvider
 
             Queue::before(function (JobProcessing $event) {
                 try {
-                    app(PlatformSettingsService::class)->applyPusherConfig();
+                    $settings = app(PlatformSettingsService::class);
+                    $settings->applyMailConfig();
+                    $settings->applyPusherConfig();
                 } catch (\Throwable $exception) {
-                    \Log::warning('Failed to apply pusher config before queued job', [
+                    \Log::warning('Failed to apply platform config before queued job', [
                         'job' => $event->job?->resolveName(),
                         'error' => $exception->getMessage(),
                     ]);
