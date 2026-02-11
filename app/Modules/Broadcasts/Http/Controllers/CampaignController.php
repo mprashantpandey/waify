@@ -13,6 +13,7 @@ use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -107,7 +108,7 @@ class CampaignController extends Controller
 
         // Get available templates
         $templates = WhatsAppTemplate::where('account_id', $account->id)
-            ->where('status', 'APPROVED')
+            ->whereIn('status', ['APPROVED', 'approved'])
             ->where('is_archived', false)
             ->with('connection')
             ->get()
@@ -160,7 +161,11 @@ class CampaignController extends Controller
             'whatsapp_template_id' => [
                 'required_if:type,template',
                 'nullable',
-                Rule::exists('whatsapp_templates', 'id')->where('account_id', $account->id),
+                Rule::exists('whatsapp_templates', 'id')->where(function (Builder $query) use ($account) {
+                    $query->where('account_id', $account->id)
+                        ->whereIn('status', ['APPROVED', 'approved'])
+                        ->where('is_archived', false);
+                }),
             ],
             'template_params' => 'nullable|array',
             'message_text' => 'required_if:type,text|nullable|string',
@@ -188,6 +193,22 @@ class CampaignController extends Controller
             $validated['custom_recipients'] = $withPhone;
         } else {
             $validated['custom_recipients'] = null;
+        }
+
+        // Ensure selected template belongs to selected connection.
+        if (($validated['type'] ?? null) === 'template' && !empty($validated['whatsapp_template_id'])) {
+            $templateBelongsToConnection = WhatsAppTemplate::where('id', $validated['whatsapp_template_id'])
+                ->where('account_id', $account->id)
+                ->whereIn('status', ['APPROVED', 'approved'])
+                ->where('is_archived', false)
+                ->where('whatsapp_connection_id', $validated['whatsapp_connection_id'])
+                ->exists();
+
+            if (!$templateBelongsToConnection) {
+                return back()->withErrors([
+                    'whatsapp_template_id' => 'Selected template is not available for the selected connection.',
+                ])->withInput();
+            }
         }
 
         try {

@@ -22,7 +22,7 @@ interface Template {
     language: string;
     category: string;
     body_text: string | null;
-    connection_id: number;
+    connection_id: number | string;
 }
 
 interface Segment {
@@ -105,7 +105,7 @@ export default function BroadcastsCreate({
 
     // Filter templates by selected connection
     const availableTemplates = selectedConnection
-        ? templates.filter((t) => t.connection_id === selectedConnection)
+        ? templates.filter((t) => Number(t.connection_id) === Number(selectedConnection))
         : templates;
 
     return (
