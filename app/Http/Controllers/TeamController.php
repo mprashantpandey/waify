@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\AccountUser;
 use App\Models\AccountInvitation;
 use App\Mail\AccountInvitationMail;
+use App\Core\Billing\EntitlementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
@@ -15,6 +16,11 @@ use Inertia\Response;
 
 class TeamController extends Controller
 {
+    public function __construct(
+        protected EntitlementService $entitlementService
+    ) {
+    }
+
     /**
      * Check if user can view team.
      */
@@ -160,6 +166,10 @@ class TeamController extends Controller
             return back()->with('error', 'User is already the owner of this account.');
         }
 
+        if (!$this->entitlementService->canCreateAgent($account)) {
+            return back()->with('error', 'Your plan team limit has been reached. Upgrade to add more members.');
+        }
+
         if ($existingUser) {
             $account->users()->attach($existingUser->id, [
                 'role' => $request->role]);
@@ -180,6 +190,11 @@ class TeamController extends Controller
             'token' => AccountInvitation::generateToken(),
             'expires_at' => now()->addDays(7)]);
 
+        $inviteUrl = route('register', [
+            'invite' => $invitation->token,
+            'email' => $invitation->email,
+        ]);
+
         try {
             Mail::to($inviteEmail)->send(new AccountInvitationMail($invitation));
         } catch (\Throwable $e) {
@@ -187,9 +202,14 @@ class TeamController extends Controller
                 'email' => $inviteEmail,
                 'account_id' => $account->id,
                 'error' => $e->getMessage()]);
+            return back()
+                ->with('warning', 'Invitation created, but email could not be sent. Share the invite link manually.')
+                ->with('info', $inviteUrl);
         }
 
-        return back()->with('success', 'Invitation sent successfully.');
+        return back()
+            ->with('success', 'Invitation sent successfully.')
+            ->with('info', "Invite link: {$inviteUrl}");
     }
 
     /**
@@ -344,25 +364,32 @@ class TeamController extends Controller
             return back()->with('error', 'Invite has already been accepted.');
         }
 
-        if (!$invitation->isExpired()) {
-            return back()->with('error', 'Invite is still active. You can resend after it expires.');
-        }
+        // Always refresh token and expiry on resend.
+        $invitation->update([
+            'token' => AccountInvitation::generateToken(),
+            'expires_at' => now()->addDays(7),
+        ]);
 
-        if ($invitation->isExpired()) {
-            $invitation->update([
-                'token' => AccountInvitation::generateToken(),
-                'expires_at' => now()->addDays(7)]);
-        }
+        $invitation = $invitation->fresh();
+        $inviteUrl = route('register', [
+            'invite' => $invitation->token,
+            'email' => $invitation->email,
+        ]);
 
         try {
-            Mail::to($invitation->email)->send(new AccountInvitationMail($invitation->fresh()));
+            Mail::to($invitation->email)->send(new AccountInvitationMail($invitation));
         } catch (\Throwable $e) {
             Log::warning('Failed to resend account invitation email', [
                 'email' => $invitation->email,
                 'account_id' => $account->id,
                 'error' => $e->getMessage()]);
+            return back()
+                ->with('warning', 'Invite refreshed, but email could not be sent. Share the invite link manually.')
+                ->with('info', $inviteUrl);
         }
 
-        return back()->with('success', 'Invitation resent successfully.');
+        return back()
+            ->with('success', 'Invitation resent successfully.')
+            ->with('info', "Invite link: {$inviteUrl}");
     }
 }

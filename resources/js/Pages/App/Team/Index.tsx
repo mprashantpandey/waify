@@ -77,11 +77,8 @@ export default function TeamIndex({
                     setShowInviteDialog(false);
                 },
                 onError: (errors) => {
-                    if (errors.email) {
-                        toast.error(errors.email);
-                    } else {
-                        toast.error('Failed to invite member');
-                    }
+                    const firstError = errors.email || errors.role || errors.error;
+                    toast.error(firstError || 'Failed to invite member');
                 }}
         );
     };
@@ -154,10 +151,6 @@ export default function TeamIndex({
     };
 
     const handleResendInvite = async (invite: PendingInvite) => {
-        if (invite.expires_at && new Date(invite.expires_at) > new Date()) {
-            toast.error('You can resend after the invite expires.');
-            return;
-        }
         const confirmed = await confirm({
             title: 'Resend Invitation',
             message: `Resend invitation to ${invite.email}?`,
@@ -265,7 +258,7 @@ export default function TeamIndex({
                                 />
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 flex items-center gap-1">
                                     <Mail className="h-3 w-3" />
-                                    User must already have an account
+                                    New users can accept the invite and sign up from the invite link
                                 </p>
                             </div>
                             <div>
@@ -332,7 +325,6 @@ export default function TeamIndex({
                                             variant="secondary"
                                             size="sm"
                                             onClick={() => handleResendInvite(invite)}
-                                            disabled={invite.expires_at ? new Date(invite.expires_at) > new Date() : false}
                                         >
                                             Resend
                                         </Button>
