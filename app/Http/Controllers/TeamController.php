@@ -147,9 +147,11 @@ class TeamController extends Controller
 
         $request->validate([
             'email' => 'required|email:rfc,dns',
-            'role' => 'required|in:admin,member']);
+            // New invites are chat-agent only for now.
+            'role' => 'nullable|in:member']);
 
         $inviteEmail = strtolower(trim($request->email));
+        $inviteRole = 'member';
         $existingUser = User::where('email', $inviteEmail)->first();
 
         if ($existingUser && $existingUser->isSuperAdmin()) {
@@ -188,7 +190,7 @@ class TeamController extends Controller
                 ->delete();
 
             $account->users()->attach($existingUser->id, [
-                'role' => $request->role]);
+                'role' => $inviteRole]);
 
             $message = $removedMemberships > 0
                 ? 'Member moved from previous team and added successfully.'
@@ -206,7 +208,7 @@ class TeamController extends Controller
             'account_id' => $account->id,
             'invited_by' => $user->id,
             'email' => $inviteEmail,
-            'role' => $request->role,
+            'role' => $inviteRole,
             'token' => AccountInvitation::generateToken(),
             'expires_at' => now()->addDays(7)]);
 

@@ -54,13 +54,12 @@ export default function TeamIndex({
 }) {
     const { confirm, toast } = useNotifications();
     const [inviteEmail, setInviteEmail] = useState('');
-    const [inviteRole, setInviteRole] = useState('member');
     const [showInviteDialog, setShowInviteDialog] = useState(false);
     const [editingMember, setEditingMember] = useState<Member | null>(null);
 
     const handleInvite = () => {
-        if (!inviteEmail || !inviteRole) {
-            toast.error('Please fill in all fields');
+        if (!inviteEmail) {
+            toast.error('Please enter an email');
             return;
         }
 
@@ -68,11 +67,10 @@ export default function TeamIndex({
             route('app.team.invite', {}),
             {
                 email: inviteEmail,
-                role: inviteRole},
+                role: 'member'},
             {
                 onSuccess: () => {
                     setInviteEmail('');
-                    setInviteRole('member');
                     setShowInviteDialog(false);
                 },
                 onError: (errors) => {
@@ -256,15 +254,12 @@ export default function TeamIndex({
                             </div>
                             <div>
                                 <Label htmlFor="role" className="text-sm font-semibold">Role</Label>
-                                <select
+                                <div
                                     id="role"
-                                    value={inviteRole}
-                                    onChange={(e) => setInviteRole(e.target.value)}
-                                    className="mt-2 w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 px-4 py-2.5"
+                                    className="mt-2 w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200"
                                 >
-                                    <option value="member">Member</option>
-                                    <option value="admin">Admin</option>
-                                </select>
+                                    Chat Agent
+                                </div>
                             </div>
                             <div className="flex items-center gap-3 pt-2">
                                 <Button onClick={handleInvite} className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700">

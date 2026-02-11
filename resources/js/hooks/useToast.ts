@@ -12,12 +12,17 @@ let toastIdCounter = 0;
 const toastListeners: Set<(toasts: Toast[]) => void> = new Set();
 let toasts: Toast[] = [];
 const recentToastSignatures: Map<string, { id: string; at: number }> = new Map();
-const TOAST_DEDUPE_WINDOW_MS = 4000;
+const TOAST_DEDUPE_WINDOW_MS = 6000;
 const GENERIC_TITLES = new Set(['success', 'error', 'warning', 'info', 'status']);
 
 function normalizeToastMessage(toast: Omit<Toast, 'id'>): string {
-    const title = (toast.title || '').trim();
-    const description = (toast.description || '').trim();
+    const normalize = (value: string): string => value
+        .trim()
+        .toLowerCase()
+        .replace(/[.!?]+$/g, '')
+        .replace(/\s+/g, ' ');
+    const title = normalize(toast.title || '');
+    const description = normalize(toast.description || '');
 
     if (!title && !description) {
         return '';
@@ -33,7 +38,7 @@ function normalizeToastMessage(toast: Omit<Toast, 'id'>): string {
         return `${title} | ${description}`.toLowerCase();
     }
 
-    return (description || title).toLowerCase();
+    return description || title;
 }
 
 export function useToast() {
@@ -42,7 +47,7 @@ export function useToast() {
     const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
         const now = Date.now();
         const canonicalMessage = normalizeToastMessage(toast);
-        const signature = `${toast.variant || 'info'}|${canonicalMessage}`;
+        const signature = canonicalMessage || `${toast.variant || 'info'}|${toast.title || ''}|${toast.description || ''}`;
         const recent = recentToastSignatures.get(signature);
         if (recent && now - recent.at < TOAST_DEDUPE_WINDOW_MS) {
             return recent.id;

@@ -96,12 +96,13 @@ class TemplateSendController extends Controller
 
         $validated = $request->validate([
             'to_wa_id' => 'required|string',
-            'variables' => 'required|array',
+            'variables' => 'sometimes|array',
             'variables.*' => 'nullable|string']);
 
         // Validate variables count
         $requiredVars = $this->composer->extractRequiredVariables($template);
-        if (count($validated['variables']) < $requiredVars['total']) {
+        $variables = $validated['variables'] ?? [];
+        if (count($variables) < $requiredVars['total']) {
             return redirect()->back()->withErrors([
                 'variables' => "Template requires {$requiredVars['total']} variables"]);
         }
@@ -117,7 +118,7 @@ class TemplateSendController extends Controller
             $payload = $this->composer->preparePayload(
                 $template,
                 $validated['to_wa_id'],
-                $validated['variables']
+                $variables
             );
 
             // Get or create conversation (with lock to prevent duplicates)
@@ -129,7 +130,7 @@ class TemplateSendController extends Controller
                 'whatsapp_conversation_id' => $conversation->id,
                 'direction' => 'outbound',
                 'type' => 'template',
-                'text_body' => $this->composer->renderPreview($template, $validated['variables'])['body'],
+                'text_body' => $this->composer->renderPreview($template, $variables)['body'],
                 'payload' => $payload,
                 'status' => 'queued']);
 
@@ -139,7 +140,7 @@ class TemplateSendController extends Controller
                 'whatsapp_template_id' => $template->id,
                 'whatsapp_message_id' => $message->id,
                 'to_wa_id' => $validated['to_wa_id'],
-                'variables' => $validated['variables'],
+                'variables' => $variables,
                 'status' => 'queued']);
 
             // Load relationships for broadcast
