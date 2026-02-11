@@ -92,17 +92,32 @@ class InboxStreamController extends Controller
             abort(404);
         }
 
-        $afterMessageId = $request->query('after_message_id', 0);
+        $afterMessageId = (int) $request->query('after_message_id', 0);
         $afterNoteId = $request->query('after_note_id', 0);
         $afterAuditId = $request->query('after_audit_id', 0);
         $afterUpdatedAt = $request->query('after_updated_at');
         $afterUpdatedAtDate = $afterUpdatedAt ? Carbon::parse($afterUpdatedAt) : Carbon::now()->subMinutes(5);
+        $messageBatchSize = 200;
 
-        // Get new messages
-        $newMessages = WhatsAppMessage::where('whatsapp_conversation_id', $conversation->id)
-            ->where('id', '>', $afterMessageId)
-            ->orderBy('id', 'asc')
-            ->get()
+        // Get new messages.
+        // When client has no cursor yet (after_message_id=0), bootstrap with the latest bounded
+        // slice instead of returning the full history, which can be too heavy on large threads.
+        $newMessagesQuery = WhatsAppMessage::where('whatsapp_conversation_id', $conversation->id);
+        if ($afterMessageId > 0) {
+            $newMessagesQuery->where('id', '>', $afterMessageId)
+                ->orderBy('id', 'asc')
+                ->limit($messageBatchSize);
+        } else {
+            $newMessagesQuery->orderBy('id', 'desc')
+                ->limit($messageBatchSize);
+        }
+
+        $newMessagesCollection = $newMessagesQuery->get();
+        if ($afterMessageId <= 0) {
+            $newMessagesCollection = $newMessagesCollection->reverse()->values();
+        }
+
+        $newMessages = $newMessagesCollection
             ->map(function ($message) {
                 return [
                     'id' => $message->id,
@@ -118,6 +133,11 @@ class InboxStreamController extends Controller
                     'read_at' => $message->read_at?->toIso8601String()];
             })
             ->values();
+
+        $historyTruncated = false;
+        if ($afterMessageId <= 0) {
+            $historyTruncated = WhatsAppMessage::where('whatsapp_conversation_id', $conversation->id)->count() > $newMessages->count();
+        }
 
         // Get updated messages (status changes) regardless of message id growth.
         $updatedMessages = WhatsAppMessage::where('whatsapp_conversation_id', $conversation->id)
@@ -208,6 +228,8 @@ class InboxStreamController extends Controller
             'updated_messages' => $updatedMessages,
             'new_notes' => $newNotes,
             'new_audit_events' => $newAuditEvents,
-            'conversation' => $conversationMeta]);
+            'conversation' => $conversationMeta,
+            'history_truncated' => $historyTruncated,
+            'batch_size' => $messageBatchSize]);
     }
 }

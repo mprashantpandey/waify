@@ -150,6 +150,7 @@ export default function ConversationsShow({
     account,
     conversation: initialConversation,
     messages: initialMessages = [],
+    total_messages,
     templates = [],
     lists = [],
     notes: initialNotes = [],
@@ -162,6 +163,7 @@ export default function ConversationsShow({
     account: any;
     conversation: Conversation;
     messages: Message[];
+    total_messages?: number;
     templates: TemplateItem[];
     lists?: ListItem[];
     notes: NoteItem[];
@@ -192,6 +194,7 @@ export default function ConversationsShow({
     const resolvedLists: ListItem[] = extractList<ListItem>(lists).length > 0
         ? extractList<ListItem>(lists)
         : extractList<ListItem>(pageProps?.lists);
+    const initialTotalMessages = Number(total_messages ?? pageProps?.total_messages ?? 0);
 
     if (!resolvedConversation) {
         return (
@@ -226,7 +229,7 @@ export default function ConversationsShow({
     const soundEnabled = auth?.user?.notify_sound_enabled ?? true;
     const [messages, setMessages] = useState<Message[]>(normalizedMessages);
     const [conversation, setConversation] = useState<Conversation>(resolvedConversation);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState<boolean>(normalizedMessages.length === 0 && initialTotalMessages > 0);
     const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
     const [showEmojiBar, setShowEmojiBar] = useState(false);
     const [showQuickReplies, setShowQuickReplies] = useState(false);
@@ -269,6 +272,7 @@ export default function ConversationsShow({
     const lastAuditIdRef = useRef<number>(maxId(normalizedAuditEvents));
     const assignedToRef = useRef<number | null>(resolvedConversation.assigned_to ?? null);
     const hydratedConversationIdRef = useRef<number | null>(null);
+    const historyBootstrapAttemptedRef = useRef<boolean>(normalizedMessages.length > 0);
 
     const { data, setData, post, processing, errors, reset } = useForm({
         message: ''});
@@ -283,8 +287,10 @@ export default function ConversationsShow({
             setMessages(normalizedMessages);
             setNotes(normalizedNotes);
             setAuditEvents(normalizedAuditEvents);
+            setLoading(normalizedMessages.length === 0 && initialTotalMessages > 0);
             hydratedConversationIdRef.current = resolvedConversation.id;
             assignedToRef.current = resolvedConversation.assigned_to ?? null;
+            historyBootstrapAttemptedRef.current = normalizedMessages.length > 0;
             lastMessageIdRef.current = maxId(normalizedMessages);
             processedMessageIds.current = new Set(normalizedMessages.map((m) => m.id));
             lastMessageUpdatedAtRef.current = normalizedMessages.reduce((latest, current) => {
@@ -300,6 +306,8 @@ export default function ConversationsShow({
         // Same conversation: merge props into live state, never wipe to empty on partial updates.
         if (normalizedMessages.length > 0) {
             setMessages((prev) => mergeMessages(prev, normalizedMessages));
+            setLoading(false);
+            historyBootstrapAttemptedRef.current = true;
             lastMessageIdRef.current = Math.max(
                 ...normalizedMessages.map((m) => m.id),
                 lastMessageIdRef.current
@@ -331,7 +339,7 @@ export default function ConversationsShow({
                 lastAuditIdRef.current
             );
         }
-    }, [resolvedConversation, normalizedMessages, normalizedNotes, normalizedAuditEvents]);
+    }, [resolvedConversation, normalizedMessages, normalizedNotes, normalizedAuditEvents, initialTotalMessages]);
 
     const emojiList = ['😀', '😁', '😂', '🤣', '😍', '😘', '😊', '🥰', '😎', '🤝', '👍', '🙏', '🎉', '🔥', '✨', '💡', '😢', '😮', '😡', '🤔', '😅', '🙌', '✅', '❌'];
     const quickReplies = [
@@ -634,6 +642,58 @@ export default function ConversationsShow({
         }
     }, [messages, shouldAutoScroll]);
 
+    const recoverHistory = useCallback(async () => {
+        if (!account?.id || !conversation?.id) return;
+
+        setLoading(true);
+        try {
+            const response = await axios.get(
+                route('app.whatsapp.inbox.conversation.stream', {
+                    conversation: conversation.id}),
+                {
+                    params: {
+                        after_message_id: 0,
+                        after_note_id: Math.max(0, lastNoteIdRef.current || 0),
+                        after_audit_id: Math.max(0, lastAuditIdRef.current || 0),
+                    }}
+            );
+
+            const recoveredMessages = toArray<any>(response.data?.new_messages)
+                .map(normalizeMessage)
+                .filter((message): message is Message => message !== null);
+
+            if (recoveredMessages.length > 0) {
+                setMessages((prev) => (prev.length > 0 ? mergeMessages(prev, recoveredMessages) : recoveredMessages));
+                lastMessageIdRef.current = Math.max(lastMessageIdRef.current, maxId(recoveredMessages));
+                for (const message of recoveredMessages) {
+                    processedMessageIds.current.add(message.id);
+                    const updatedAt = message.updated_at ?? message.created_at;
+                    if (
+                        !lastMessageUpdatedAtRef.current ||
+                        new Date(updatedAt).getTime() > new Date(lastMessageUpdatedAtRef.current).getTime()
+                    ) {
+                        lastMessageUpdatedAtRef.current = updatedAt;
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('[Conversation] History recovery failed:', error);
+        } finally {
+            historyBootstrapAttemptedRef.current = true;
+            setLoading(false);
+        }
+    }, [account?.id, conversation?.id]);
+
+    useEffect(() => {
+        if (!conversation?.id) return;
+        if (messages.length > 0) return;
+        if (initialTotalMessages <= 0) return;
+        if (historyBootstrapAttemptedRef.current) return;
+
+        historyBootstrapAttemptedRef.current = true;
+        recoverHistory();
+    }, [conversation?.id, messages.length, initialTotalMessages, recoverHistory]);
+
     // Realtime subscription with dedup
     useEffect(() => {
         if (!account?.id || !conversation?.id) return;
@@ -800,6 +860,7 @@ export default function ConversationsShow({
 
                 if (newMessagesFromServer.length > 0) {
                     setMessages((prev) => mergeMessages(prev, newMessagesFromServer));
+                    historyBootstrapAttemptedRef.current = true;
                     lastMessageIdRef.current = Math.max(maxId(newMessagesFromServer), lastMessageIdRef.current);
                     for (const message of newMessagesFromServer) {
                         processedMessageIds.current.add(message.id);
@@ -858,8 +919,10 @@ export default function ConversationsShow({
                 if (response.data?.server_time) {
                     lastMessageUpdatedAtRef.current = response.data.server_time;
                 }
+                setLoading(false);
             } catch (error) {
                 console.error('[Conversation] Polling error:', error);
+                setLoading(false);
             }
         };
 
@@ -1227,7 +1290,16 @@ export default function ConversationsShow({
                                     <Send className="h-8 w-8 text-gray-400" />
                                 </div>
                                 <p className="text-gray-500 dark:text-gray-400 font-medium mb-1">No messages yet</p>
-                                <p className="text-sm text-gray-400 dark:text-gray-500">Start the conversation!</p>
+                                <p className="text-sm text-gray-400 dark:text-gray-500">
+                                    {initialTotalMessages > 0 ? 'History did not load yet.' : 'Start the conversation!'}
+                                </p>
+                                {initialTotalMessages > 0 && (
+                                    <div className="mt-3">
+                                        <Button type="button" variant="secondary" onClick={recoverHistory}>
+                                            Retry Loading History
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             messages.map((message, index) => {
