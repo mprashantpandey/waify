@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 export interface Toast {
     id: string;
@@ -11,11 +11,20 @@ export interface Toast {
 let toastIdCounter = 0;
 const toastListeners: Set<(toasts: Toast[]) => void> = new Set();
 let toasts: Toast[] = [];
+const recentToastSignatures: Map<string, { id: string; at: number }> = new Map();
+const TOAST_DEDUPE_WINDOW_MS = 1500;
 
 export function useToast() {
     const [localToasts, setLocalToasts] = useState<Toast[]>(toasts);
 
     const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
+        const now = Date.now();
+        const signature = `${toast.variant || 'info'}|${toast.title}|${toast.description || ''}`;
+        const recent = recentToastSignatures.get(signature);
+        if (recent && now - recent.at < TOAST_DEDUPE_WINDOW_MS) {
+            return recent.id;
+        }
+
         const id = `toast-${++toastIdCounter}`;
         const newToast: Toast = {
             id,
@@ -23,6 +32,7 @@ export function useToast() {
             ...toast};
 
         toasts = [...toasts, newToast];
+        recentToastSignatures.set(signature, { id, at: now });
         toastListeners.forEach((listener) => listener(toasts));
         setLocalToasts(toasts);
 
@@ -56,15 +66,16 @@ export function useToast() {
         }};
 
     // Subscribe to global toast updates
-    useState(() => {
+    useEffect(() => {
         const listener = (newToasts: Toast[]) => {
             setLocalToasts(newToasts);
         };
         toastListeners.add(listener);
+        setLocalToasts(toasts);
         return () => {
             toastListeners.delete(listener);
         };
-    });
+    }, []);
 
     return {
         toasts: localToasts,
