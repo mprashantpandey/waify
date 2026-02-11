@@ -14,7 +14,10 @@ export default function FAQs({ faqs: initialFaqs }: { faqs: FAQ[] }) {
     const defaultFaqs: FAQ[] = [
         {
             question: 'What is WACP?',
-            answer: 'WACP (WhatsApp Cloud Platform) is a comprehensive platform for managing WhatsApp Business communications at scale. It provides tools for template management, chatbot automation, team collaboration, and more.'},
+            answer: 'WACP (WhatsApp Cloud Platform) is a comprehensive platform for managing WhatsApp Business communications at scale. We are an official Meta Tech Provider. The platform provides tools for template management, chatbot automation, team collaboration, and more.'},
+        {
+            question: 'Are you a Meta Tech Provider?',
+            answer: 'Yes. We are an official Meta Tech Provider, so you get a trusted, compliant connection to the Meta WhatsApp Cloud API with enterprise-grade support and reliability.'},
         {
             question: 'How do I get started?',
             answer: 'Getting started is easy! Sign up for a free account, create your account profile, and connect your WhatsApp Business Account. Our onboarding wizard will guide you through the setup process.'},

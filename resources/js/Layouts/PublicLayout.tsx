@@ -198,7 +198,7 @@ export default function PublicLayout({ children }: PropsWithChildren) {
                                     <span className="text-lg font-bold text-white">{platformName}</span>
                                 </Link>
                                 <p className="text-sm text-gray-500">
-                                    WhatsApp Cloud Platform for modern businesses.
+                                    WhatsApp Cloud Platform for modern businesses. Official Meta Tech Provider.
                                 </p>
                             </div>
 

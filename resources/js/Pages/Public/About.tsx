@@ -71,7 +71,7 @@ export default function About() {
                                 enterprise managing millions of conversations, WACP provides the tools you need.
                             </p>
                             <p className="text-gray-700 dark:text-gray-300 text-lg leading-relaxed">
-                                Today, we're proud to serve hundreds of businesses, helping them connect with their customers in more 
+                                As an official Meta Tech Provider, we're proud to serve hundreds of businesses, helping them connect with their customers in more 
                                 meaningful ways. But we're just getting started. Our mission is to make WhatsApp the primary channel 
                                 for business communication, and we're building the platform to make that happen.
                             </p>
@@ -135,7 +135,7 @@ export default function About() {
                     <div className="relative z-10">
                         <h2 className="text-3xl md:text-4xl font-bold mb-4">Join Us on This Journey</h2>
                         <p className="text-blue-100 mb-8 max-w-2xl mx-auto text-lg">
-                            Whether you're a customer, partner, or potential team member, we'd love to hear from you.
+                            We're an official Meta Tech Provider. Whether you're a customer, partner, or potential team member, we'd love to hear from you.
                         </p>
                         <div className="flex items-center justify-center gap-4 flex-wrap">
                             <Link href={route('contact')}>

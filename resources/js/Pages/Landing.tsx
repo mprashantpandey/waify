@@ -12,7 +12,8 @@ import {
     TrendingUp,
     Shield,
     Globe,
-    Sparkles
+    Sparkles,
+    BadgeCheck
 } from 'lucide-react';
 import Button from '@/Components/UI/Button';
 import axios from 'axios';
@@ -81,11 +82,19 @@ export default function Landing({
             {/* Hero Section */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
                 <div className="text-center">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-full mb-6">
-                        <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                        <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-                            No Credit Card Required • Start Free Trial
-                        </span>
+                    <div className="flex flex-wrap items-center justify-center gap-3 mb-6">
+                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-full">
+                            <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                            <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+                                No Credit Card Required • Start Free Trial
+                            </span>
+                        </div>
+                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border-2 border-emerald-500/50 dark:border-emerald-400/50 rounded-full shadow-sm">
+                            <BadgeCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                            <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                                Official Meta Tech Provider
+                            </span>
+                        </div>
                     </div>
                     <h1 className="text-5xl md:text-7xl font-bold text-gray-900 dark:text-gray-100 mb-6 bg-gradient-to-r from-gray-900 via-blue-600 to-purple-600 dark:from-gray-100 dark:via-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
                         WhatsApp Cloud Platform
@@ -95,7 +104,7 @@ export default function Landing({
                         </span>
                     </h1>
                     <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto mb-8 leading-relaxed">
-                        Connect Meta WhatsApp Cloud API, manage templates, run chatbots, automate messages,
+                        As an official Meta Tech Provider, we help you connect Meta WhatsApp Cloud API, manage templates, run chatbots, automate messages,
                         and scale your customer communication with enterprise-grade features.
                     </p>
                     <div className="flex items-center justify-center gap-4 flex-wrap">
@@ -274,7 +283,7 @@ export default function Landing({
                         Ready to Transform Your Business Communication?
                     </h2>
                     <p className="text-xl text-blue-100 mb-8">
-                        Join thousands of businesses using WACP to scale their WhatsApp communication.
+                        As an official Meta Tech Provider, we help thousands of businesses scale their WhatsApp communication.
                         <br />
                         <span className="font-semibold">Start your free trial today - no credit card required!</span>
                     </p>
