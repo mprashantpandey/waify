@@ -5,6 +5,7 @@ namespace App\Modules\Chatbots\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\Chatbots\Models\Bot;
 use App\Modules\Chatbots\Models\BotFlow;
+use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
@@ -26,6 +27,59 @@ class BotFlowController extends Controller
         $validator = Validator::make($request->all(), $rules);
 
         $validator->after(function ($validator) use ($request) {
+            $account = $request->attributes->get('account') ?? current_account();
+
+            if ($request->has('trigger')) {
+                $trigger = $request->input('trigger', []);
+                if (!is_array($trigger)) {
+                    $validator->errors()->add('trigger', 'Trigger must be an object.');
+                } else {
+                    $triggerType = $trigger['type'] ?? null;
+                    if ($triggerType === 'keyword') {
+                        $keywords = $trigger['keywords'] ?? [];
+                        if (!is_array($keywords)) {
+                            $validator->errors()->add('trigger.keywords', 'Keywords must be an array.');
+                        } else {
+                            $keywords = array_values(array_filter(array_map(
+                                static fn ($keyword) => is_string($keyword) ? trim($keyword) : '',
+                                $keywords
+                            ), static fn ($keyword) => $keyword !== ''));
+                            if (empty($keywords)) {
+                                $validator->errors()->add('trigger.keywords', 'At least one keyword is required.');
+                            }
+                        }
+                    }
+
+                    if ($triggerType === 'button_reply') {
+                        $buttonId = isset($trigger['button_id']) ? trim((string) $trigger['button_id']) : '';
+                        if ($buttonId === '') {
+                            $validator->errors()->add('trigger.button_id', 'Button reply ID is required.');
+                        }
+                    }
+
+                    if ($triggerType === 'inbound_message' && isset($trigger['connection_ids'])) {
+                        $connectionIds = $trigger['connection_ids'];
+                        if (!is_array($connectionIds)) {
+                            $validator->errors()->add('trigger.connection_ids', 'Connection IDs must be an array.');
+                        } else {
+                            $normalizedIds = array_values(array_unique(array_map(
+                                static fn ($id) => (int) $id,
+                                array_filter($connectionIds, static fn ($id) => is_numeric($id))
+                            )));
+
+                            if (!empty($normalizedIds)) {
+                                $validCount = WhatsAppConnection::where('account_id', $account->id)
+                                    ->whereIn('id', $normalizedIds)
+                                    ->count();
+                                if ($validCount !== count($normalizedIds)) {
+                                    $validator->errors()->add('trigger.connection_ids', 'One or more trigger connections are invalid.');
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             if ($request->has('nodes')) {
                 $nodes = $request->input('nodes', []);
                 if (!is_array($nodes)) {
@@ -69,6 +123,25 @@ class BotFlowController extends Controller
                             if ($actionType === 'send_text') {
                                 if (!array_key_exists('message', $config) || !is_string($config['message'])) {
                                     $validator->errors()->add("nodes.$i.config.message", 'Message is required for send_text.');
+                                }
+                            }
+                            if ($actionType === 'send_template') {
+                                $templateId = $config['template_id'] ?? null;
+                                if (!is_numeric($templateId) || (int) $templateId <= 0) {
+                                    $validator->errors()->add("nodes.$i.config.template_id", 'Template ID is required for send_template.');
+                                }
+                            }
+                            if ($actionType === 'assign_agent') {
+                                $agentId = $config['agent_id'] ?? null;
+                                if (!is_numeric($agentId) || (int) $agentId <= 0) {
+                                    $validator->errors()->add("nodes.$i.config.agent_id", 'Agent ID is required for assign_agent.');
+                                }
+                            }
+                            if ($actionType === 'add_tag') {
+                                $tagId = $config['tag_id'] ?? null;
+                                $tagName = isset($config['tag']) ? trim((string) $config['tag']) : (isset($config['tag_name']) ? trim((string) $config['tag_name']) : '');
+                                if ((!is_numeric($tagId) || (int) $tagId <= 0) && $tagName === '') {
+                                    $validator->errors()->add("nodes.$i.config.tag_id", 'Tag ID or name is required for add_tag.');
                                 }
                             }
                         }

@@ -33,7 +33,12 @@ class TriggerEvaluator
 
         // Check connection filter
         if (isset($trigger['connection_ids']) && is_array($trigger['connection_ids'])) {
-            if (!in_array($context->getConnectionId(), $trigger['connection_ids'])) {
+            $allowedConnectionIds = array_values(array_unique(array_map(
+                static fn ($id) => (int) $id,
+                array_filter($trigger['connection_ids'], static fn ($id) => is_numeric($id))
+            )));
+
+            if (!in_array((int) $context->getConnectionId(), $allowedConnectionIds, true)) {
                 return false;
             }
         }
@@ -51,6 +56,13 @@ class TriggerEvaluator
     protected function matchesKeyword(array $trigger, BotContext $context): bool
     {
         $keywords = $trigger['keywords'] ?? [];
+        if (!is_array($keywords)) {
+            return false;
+        }
+        $keywords = array_values(array_filter(array_map(
+            static fn ($keyword) => is_string($keyword) ? trim($keyword) : '',
+            $keywords
+        ), static fn ($keyword) => $keyword !== ''));
         if (empty($keywords)) {
             return false;
         }

@@ -36,6 +36,13 @@ interface Flow {
     trigger: any;
     enabled: boolean;
     priority: number;
+    health?: {
+        has_nodes: boolean;
+        has_executable_node: boolean;
+        has_start_node: boolean;
+        has_edges: boolean;
+        is_runnable: boolean;
+    };
     nodes: Node[];
     edges: Edge[];
 }
@@ -48,6 +55,10 @@ interface BotType {
     is_default: boolean;
     applies_to: any;
     version: number;
+    health?: {
+        enabled_flows_count: number;
+        runnable_flows_count: number;
+    };
     flows: Flow[];
 }
 
@@ -675,6 +686,19 @@ export default function ChatbotsShow({
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
+                    {data.status === 'active' && (bot.health?.runnable_flows_count ?? 0) === 0 && (
+                        <Card className="border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 shadow-none">
+                            <CardContent className="p-4">
+                                <div className="text-sm font-medium text-amber-800 dark:text-amber-100">
+                                    This bot is active but has no runnable flow.
+                                </div>
+                                <div className="text-xs text-amber-700 dark:text-amber-200 mt-1">
+                                    Add an enabled flow with at least one executable node (`action`, `delay`, or `webhook`).
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+
                     <Card className="border-0 shadow-lg">
                         <CardHeader className="bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20">
                             <div className="flex items-center gap-3">
@@ -1008,6 +1032,11 @@ export default function ChatbotsShow({
                                                 <div className="text-xs text-gray-500 dark:text-gray-400">
                                                     Trigger: {flow.trigger?.type || 'inbound_message'} • Priority: {flow.priority}
                                                 </div>
+                                                {flow.enabled && flow.health && !flow.health.is_runnable && (
+                                                    <div className="text-xs text-amber-600 dark:text-amber-300 mt-1">
+                                                        Not runnable: add at least one executable node.
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="flex flex-wrap gap-2">
                                                 <Button

@@ -73,8 +73,10 @@ class Bot extends Model
 
     public function appliesToConnection(int $connectionId): bool
     {
-        if (empty($this->applies_to)) {
-            return false;
+        // Backward compatibility: older bots may have null applies_to.
+        // Treat that as "all connections" so active bots still run.
+        if (empty($this->applies_to) || !is_array($this->applies_to)) {
+            return true;
         }
 
         if ($this->applies_to['all_connections'] ?? false) {
@@ -82,6 +84,14 @@ class Bot extends Model
         }
 
         $connectionIds = $this->applies_to['connection_ids'] ?? [];
-        return in_array($connectionId, $connectionIds);
+        if (!is_array($connectionIds)) {
+            $connectionIds = [$connectionIds];
+        }
+        $connectionIds = array_values(array_unique(array_map(
+            static fn ($id) => (int) $id,
+            array_filter($connectionIds, static fn ($id) => is_numeric($id))
+        )));
+
+        return in_array((int) $connectionId, $connectionIds, true);
     }
 }

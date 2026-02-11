@@ -18,6 +18,23 @@ use Inertia\Response;
 
 class BotController extends Controller
 {
+    protected function flowHealth(BotFlow $flow): array
+    {
+        $nodes = $flow->nodes;
+        $hasNodes = $nodes->isNotEmpty();
+        $hasExecutableNode = $nodes->contains(fn (BotNode $node) => in_array($node->type, ['action', 'delay', 'webhook'], true));
+        $hasStartNode = $nodes->contains(fn (BotNode $node) => (bool) ($node->config['is_start'] ?? false));
+        $hasEdges = $flow->edges->isNotEmpty();
+
+        return [
+            'has_nodes' => $hasNodes,
+            'has_executable_node' => $hasExecutableNode,
+            'has_start_node' => $hasStartNode,
+            'has_edges' => $hasEdges,
+            'is_runnable' => $flow->enabled && $hasNodes && $hasExecutableNode,
+        ];
+    }
+
     /**
      * Display a listing of bots.
      */
@@ -36,6 +53,12 @@ class BotController extends Controller
                     ->where('created_at', '>=', now()->subDays(7))
                     ->get();
 
+                $enabledFlows = $bot->flows()->where('enabled', true)->with(['nodes', 'edges'])->get();
+                $runnableFlows = $enabledFlows->filter(function (BotFlow $flow) {
+                    $health = $this->flowHealth($flow);
+                    return $health['is_runnable'] === true;
+                });
+
                 return [
                     'id' => $bot->id,
                     'name' => $bot->name,
@@ -45,6 +68,9 @@ class BotController extends Controller
                     'applies_to' => $bot->applies_to,
                     'version' => $bot->version,
                     'flows_count' => $bot->flows()->count(),
+                    'enabled_flows_count' => $enabledFlows->count(),
+                    'runnable_flows_count' => $runnableFlows->count(),
+                    'is_runnable' => $bot->status === 'active' ? $runnableFlows->isNotEmpty() : true,
                     'executions_count' => $executions->count(),
                     'errors_count' => $executions->where('status', 'failed')->count(),
                     'last_run_at' => $executions->max('created_at')?->toIso8601String(),
@@ -139,6 +165,9 @@ class BotController extends Controller
         }
 
         $bot->load(['flows.nodes', 'flows.edges', 'creator', 'updater']);
+        $flowHealthById = $bot->flows->mapWithKeys(function (BotFlow $flow) {
+            return [(int) $flow->id => $this->flowHealth($flow)];
+        });
 
         $connections = \App\Modules\WhatsApp\Models\WhatsAppConnection::where('account_id', $account->id)
             ->where('is_active', true)
@@ -193,6 +222,7 @@ class BotController extends Controller
                         'trigger' => $flow->trigger,
                         'enabled' => $flow->enabled,
                         'priority' => $flow->priority,
+                        'health' => $flowHealthById[(int) $flow->id] ?? null,
                         'nodes' => $flow->nodes->map(function ($node) {
                             return [
                                 'id' => $node->id,
@@ -213,6 +243,12 @@ class BotController extends Controller
                         }),
                     ];
                 }),
+                'health' => [
+                    'enabled_flows_count' => $bot->flows->where('enabled', true)->count(),
+                    'runnable_flows_count' => $bot->flows
+                        ->filter(fn (BotFlow $flow) => (($flowHealthById[(int) $flow->id]['is_runnable'] ?? false) === true))
+                        ->count(),
+                ],
             ],
             'connections' => $connections,
             'templates' => $templates,
@@ -273,6 +309,19 @@ class BotController extends Controller
             'applies_to' => $validated['applies_to'],
             'version' => $isPublishing ? $bot->version + 1 : $bot->version,
             'updated_by' => $request->user()->id]);
+
+        $runnableFlowsCount = $bot->flows()
+            ->where('enabled', true)
+            ->whereHas('nodes', function ($query) {
+                $query->whereIn('type', ['action', 'delay', 'webhook']);
+            })
+            ->count();
+
+        if ($bot->status === 'active' && $runnableFlowsCount === 0) {
+            return redirect()->back()
+                ->with('success', 'Bot updated successfully.')
+                ->with('warning', 'Bot is active but has no runnable flow yet.');
+        }
 
         return redirect()->back()->with('success', 'Bot updated successfully.');
     }

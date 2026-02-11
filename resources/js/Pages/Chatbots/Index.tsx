@@ -19,6 +19,9 @@ interface Bot {
     };
     version: number;
     flows_count: number;
+    enabled_flows_count?: number;
+    runnable_flows_count?: number;
+    is_runnable?: boolean;
     executions_count: number;
     errors_count: number;
     last_run_at: string | null;
@@ -148,6 +151,15 @@ export default function ChatbotsIndex({
                                             </p>
                                         </div>
                                     </div>
+
+                                    {bot.status === 'active' && bot.is_runnable === false && (
+                                        <div className="flex items-center gap-2 p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-700">
+                                            <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                                            <span className="text-xs font-medium text-amber-800 dark:text-amber-200">
+                                                Active but no runnable flow
+                                            </span>
+                                        </div>
+                                    )}
 
                                     {bot.errors_count > 0 && (
                                         <div className="flex items-center gap-2 p-2 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">

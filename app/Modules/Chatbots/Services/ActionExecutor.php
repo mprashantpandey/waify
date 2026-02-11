@@ -8,7 +8,6 @@ use App\Modules\Chatbots\Models\BotNode;
 use App\Modules\Chatbots\Models\BotEdge;
 use App\Modules\WhatsApp\Events\Inbox\ConversationUpdated;
 use App\Modules\WhatsApp\Events\Inbox\MessageCreated;
-use App\Modules\WhatsApp\Events\Inbox\MessageUpdated;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use App\Modules\WhatsApp\Services\TemplateComposer;
 use App\Modules\WhatsApp\Services\WhatsAppClient;
@@ -70,8 +69,16 @@ class ActionExecutor
                 return ['success' => false, 'error' => 'Rate limit exceeded for this conversation'];
             }
 
-            $messageText = $config['message'] ?? '';
-            $toWaId = $context->conversation->contact->wa_id;
+            $messageText = trim((string) ($config['message'] ?? ''));
+            if ($messageText === '') {
+                return ['success' => false, 'error' => 'Message text is required'];
+            }
+
+            $contact = $context->conversation->contact;
+            $toWaId = $contact?->wa_id;
+            if (!$toWaId) {
+                return ['success' => false, 'error' => 'Conversation contact wa_id not found'];
+            }
 
             // Send via WhatsApp API
             $response = $this->whatsappClient->sendTextMessage(
@@ -139,7 +146,11 @@ class ActionExecutor
                 return ['success' => false, 'error' => 'Template not found'];
             }
 
-            $toWaId = $context->conversation->contact->wa_id;
+            $contact = $context->conversation->contact;
+            $toWaId = $contact?->wa_id;
+            if (!$toWaId) {
+                return ['success' => false, 'error' => 'Conversation contact wa_id not found'];
+            }
 
             // Prepare payload
             $payload = $this->templateComposer->preparePayload($template, $toWaId, $variables);

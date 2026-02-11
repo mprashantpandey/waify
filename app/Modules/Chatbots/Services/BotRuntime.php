@@ -58,6 +58,15 @@ class BotRuntime
     ): void {
         $account = $conversation->account;
         $connection = $conversation->connection;
+        if (!$account || !$connection) {
+            Log::channel('chatbots')->warning('Inbound message skipped: missing account/connection context', [
+                'conversation_id' => $conversation->id,
+                'message_id' => $inboundMessage->id,
+                'account_present' => (bool) $account,
+                'connection_present' => (bool) $connection,
+            ]);
+            return;
+        }
 
         // Get eligible bots
         $bots = Bot::where('account_id', $account->id)
@@ -101,6 +110,17 @@ class BotRuntime
                 ->where('enabled', true)
                 ->orderBy('priority')
                 ->get();
+
+            if ($flows->isEmpty()) {
+                Log::channel('chatbots')->warning('Active bot has no enabled flows', [
+                    'account_id' => $account->id,
+                    'bot_id' => $bot->id,
+                    'bot_name' => $bot->name,
+                    'conversation_id' => $conversation->id,
+                    'message_id' => $inboundMessage->id,
+                ]);
+                continue;
+            }
 
             foreach ($flows as $flow) {
                 $this->processFlow($flow, $context);
@@ -384,13 +404,6 @@ class BotRuntime
             }
             }
 
-            // Update execution
-            $execution->update([
-                'status' => 'success',
-                'finished_at' => now(),
-                'logs' => array_slice($logs, 0, 100), // Cap logs size
-            ]);
-
             if ($actionCount === 0) {
                 Log::channel('chatbots')->warning('Execution completed but no actions were executed', [
                     'execution_id' => $execution->id,
@@ -398,7 +411,23 @@ class BotRuntime
                     'nodes_count' => $nodes->count(),
                     'has_edges' => !$edgesByFrom->isEmpty(),
                 ]);
+
+                $execution->update([
+                    'status' => 'skipped',
+                    'finished_at' => now(),
+                    'error_message' => 'No executable actions were run for this flow',
+                    'logs' => array_slice($logs, 0, 100),
+                ]);
+
+                return;
             }
+
+            // Update execution
+            $execution->update([
+                'status' => 'success',
+                'finished_at' => now(),
+                'logs' => array_slice($logs, 0, 100), // Cap logs size
+            ]);
         } catch (\Exception $e) {
             Log::channel('chatbots')->error('Bot execution failed', [
                 'execution_id' => $execution->id,

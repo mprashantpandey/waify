@@ -91,12 +91,19 @@ class ConditionEvaluator
         $startTime = $config['start_time'] ?? '00:00';
         $endTime = $config['end_time'] ?? '23:59';
         $days = $config['days'] ?? [0, 1, 2, 3, 4, 5, 6]; // 0 = Sunday
+        if (!is_array($days)) {
+            $days = [];
+        }
+        $days = array_values(array_unique(array_map(
+            static fn ($day) => (int) $day,
+            array_filter($days, static fn ($day) => is_numeric($day))
+        )));
 
         $now = now()->setTimezone($timezone);
         $currentDay = (int) $now->format('w');
         $currentTime = $now->format('H:i');
 
-        if (!in_array($currentDay, $days)) {
+        if (!in_array($currentDay, $days, true)) {
             return false;
         }
 
@@ -106,7 +113,14 @@ class ConditionEvaluator
     protected function connectionIs(array $config, BotContext $context): bool
     {
         $connectionIds = $config['connection_ids'] ?? [];
-        return in_array($context->getConnectionId(), $connectionIds);
+        if (!is_array($connectionIds)) {
+            $connectionIds = [$connectionIds];
+        }
+        $connectionIds = array_values(array_unique(array_map(
+            static fn ($id) => (int) $id,
+            array_filter($connectionIds, static fn ($id) => is_numeric($id))
+        )));
+        return in_array((int) $context->getConnectionId(), $connectionIds, true);
     }
 
     protected function conversationStatus(array $config, BotContext $context): bool
