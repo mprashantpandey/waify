@@ -27,8 +27,8 @@ class CronDiagnosticsService
                 'id' => 'central-worker',
                 'title' => 'Central Cron Command',
                 'schedule' => '* * * * *',
-                'description' => 'Use this single command in cPanel. It processes inbox, chatbot, campaign, and other queued jobs in one worker pass.',
-                'command' => "cd {$appPath} && php artisan queue:work --queue=default,chatbots,campaigns --stop-when-empty --sleep=1 --tries=3 --timeout=120 {$nullRedirect}",
+                'description' => 'Use this single command in cPanel. It keeps one worker active for ~55 seconds every minute to reduce bot/inbox delay, then cron starts it again on the next minute tick.',
+                'command' => "cd {$appPath} && flock -n /tmp/waify-queue.lock timeout 55 php artisan queue:work --queue=default,chatbots,campaigns --sleep=1 --tries=3 --timeout=120 {$nullRedirect}",
             ],
         ];
 
