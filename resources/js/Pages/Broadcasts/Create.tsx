@@ -103,9 +103,14 @@ export default function BroadcastsCreate({
         setData('recipient_filters', { ...(data.recipient_filters || {}), segment_ids: next });
     };
 
-    // Filter templates by selected connection
+    // Filter templates by selected connection. Keep legacy unbound templates visible.
     const availableTemplates = selectedConnection
-        ? templates.filter((t) => Number(t.connection_id) === Number(selectedConnection))
+        ? templates.filter((t) => {
+            if (t.connection_id === null || t.connection_id === undefined || t.connection_id === '') {
+                return true;
+            }
+            return Number(t.connection_id) === Number(selectedConnection);
+        })
         : templates;
 
     return (

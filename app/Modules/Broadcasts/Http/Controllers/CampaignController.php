@@ -108,7 +108,7 @@ class CampaignController extends Controller
 
         // Get available templates
         $templates = WhatsAppTemplate::where('account_id', $account->id)
-            ->whereIn('status', ['APPROVED', 'approved'])
+            ->whereRaw('LOWER(TRIM(status)) = ?', ['approved'])
             ->where('is_archived', false)
             ->with('connection')
             ->get()
@@ -163,7 +163,7 @@ class CampaignController extends Controller
                 'nullable',
                 Rule::exists('whatsapp_templates', 'id')->where(function (Builder $query) use ($account) {
                     $query->where('account_id', $account->id)
-                        ->whereIn('status', ['APPROVED', 'approved'])
+                        ->whereRaw('LOWER(TRIM(status)) = ?', ['approved'])
                         ->where('is_archived', false);
                 }),
             ],
@@ -199,9 +199,13 @@ class CampaignController extends Controller
         if (($validated['type'] ?? null) === 'template' && !empty($validated['whatsapp_template_id'])) {
             $templateBelongsToConnection = WhatsAppTemplate::where('id', $validated['whatsapp_template_id'])
                 ->where('account_id', $account->id)
-                ->whereIn('status', ['APPROVED', 'approved'])
+                ->whereRaw('LOWER(TRIM(status)) = ?', ['approved'])
                 ->where('is_archived', false)
-                ->where('whatsapp_connection_id', $validated['whatsapp_connection_id'])
+                ->where(function (Builder $query) use ($validated) {
+                    $query->where('whatsapp_connection_id', $validated['whatsapp_connection_id'])
+                        // Some legacy synced templates may miss connection_id.
+                        ->orWhereNull('whatsapp_connection_id');
+                })
                 ->exists();
 
             if (!$templateBelongsToConnection) {
