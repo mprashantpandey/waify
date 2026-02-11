@@ -552,13 +552,6 @@ class PlatformSettingsController extends Controller
             'mail.from.name' => $mailInput['from_name'] ?? PlatformSetting::get('mail.from_name', config('mail.from.name')),
         ]);
 
-        if ($driver === 'smtp') {
-            config([
-                'mail.default' => 'failover',
-                'mail.mailers.failover.mailers' => ['smtp', 'log'],
-            ]);
-        } else {
-            config(['mail.default' => $driver]);
-        }
+        config(['mail.default' => $driver]);
     }
 }

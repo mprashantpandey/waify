@@ -141,14 +141,7 @@ class PlatformSettingsService
         $fromName = $this->get('mail.from_name', config('mail.from.name'));
 
         if ($driver) {
-            if ($driver === 'smtp') {
-                config([
-                    'mail.default' => 'failover',
-                    'mail.mailers.failover.mailers' => ['smtp', 'log'],
-                ]);
-            } else {
-                config(['mail.default' => $driver]);
-            }
+            config(['mail.default' => $driver]);
         }
         
         if ($host) {
