@@ -22,6 +22,22 @@ class TeamController extends Controller
     }
 
     /**
+     * Use direct SMTP for invite flows when default mailer is failover.
+     * This avoids false-positive "sent" states when fallback mailers swallow SMTP issues.
+     */
+    private function resolveInviteMailer(): string
+    {
+        $defaultMailer = (string) config('mail.default', 'smtp');
+        $mailers = (array) config('mail.mailers', []);
+
+        if ($defaultMailer === 'failover' && array_key_exists('smtp', $mailers)) {
+            return 'smtp';
+        }
+
+        return $defaultMailer;
+    }
+
+    /**
      * Check if user can view team.
      */
     private function canViewTeam(User $user, Account $account): bool
@@ -219,11 +235,13 @@ class TeamController extends Controller
 
         try {
             // Send synchronously so invite delivery does not depend on queue workers.
-            Mail::to($inviteEmail)->send(new AccountInvitationMail($invitation));
+            $mailer = $this->resolveInviteMailer();
+            Mail::mailer($mailer)->to($inviteEmail)->send(new AccountInvitationMail($invitation));
         } catch (\Throwable $e) {
             Log::warning('Failed to send account invitation email', [
                 'email' => $inviteEmail,
                 'account_id' => $account->id,
+                'mailer' => $this->resolveInviteMailer(),
                 'error' => $e->getMessage()]);
             return back()
                 ->with('warning', 'Invitation created, but email could not be sent. Share the invite link manually.')
@@ -262,7 +280,8 @@ class TeamController extends Controller
         }
 
         $request->validate([
-            'role' => 'required|in:admin,member']);
+            // Team members are chat agents only.
+            'role' => 'required|in:member']);
 
         if (!$account->users()->where('user_id', $user->id)->exists()) {
             return back()->with('error', 'User is not a member of this account.');
@@ -399,11 +418,13 @@ class TeamController extends Controller
 
         try {
             // Send synchronously so resend result matches user feedback immediately.
-            Mail::to($invitation->email)->send(new AccountInvitationMail($invitation));
+            $mailer = $this->resolveInviteMailer();
+            Mail::mailer($mailer)->to($invitation->email)->send(new AccountInvitationMail($invitation));
         } catch (\Throwable $e) {
             Log::warning('Failed to resend account invitation email', [
                 'email' => $invitation->email,
                 'account_id' => $account->id,
+                'mailer' => $this->resolveInviteMailer(),
                 'error' => $e->getMessage()]);
             return back()
                 ->with('warning', 'Invite refreshed, but email could not be sent. Share the invite link manually.')

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { usePage } from '@inertiajs/react';
 import { useToast } from '@/hooks/useToast';
 
@@ -11,8 +11,20 @@ import { useToast } from '@/hooks/useToast';
 export function GlobalFlashHandler() {
     const { flash, errors } = usePage().props as { flash?: FlashProps; errors?: Record<string, string> };
     const { addToast } = useToast();
+    const lastPayloadRef = useRef<string>('');
 
     useEffect(() => {
+        const payloadSignature = JSON.stringify({
+            flash: flash ?? null,
+            errors: errors ?? null,
+        });
+
+        // Inertia can re-render with the same flash payload; avoid duplicate toasts.
+        if (lastPayloadRef.current === payloadSignature) {
+            return;
+        }
+        lastPayloadRef.current = payloadSignature;
+
         const emitted = new Set<string>();
         const emit = (title: string, description: string, variant: 'success' | 'error' | 'warning' | 'info') => {
             const key = `${variant}|${title}|${description}`;
@@ -54,7 +66,10 @@ export function GlobalFlashHandler() {
                 .map(([key, value]) => (typeof value === 'string' ? value : Array.isArray(value) ? value[0] : String(value)))
                 .filter(Boolean);
             const description = messages.length === 1 ? messages[0] : messages.slice(0, 3).join(' • ');
-            emit('Error', description, 'error');
+            const flashError = (flash?.error ?? '').trim().toLowerCase();
+            if (!flashError || flashError !== description.trim().toLowerCase()) {
+                emit('Error', description, 'error');
+            }
         }
     }, [flash, errors, addToast]);
 

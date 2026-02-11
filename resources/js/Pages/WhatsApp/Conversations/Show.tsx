@@ -804,6 +804,17 @@ export default function ConversationsShow({
                 if (data.audit_event) {
                     setAuditEvents((prev) => [data.audit_event, ...prev]);
                     lastAuditIdRef.current = Math.max(lastAuditIdRef.current, data.audit_event.id);
+                    const ev = data.audit_event;
+                    const isAssignment = ev.event_type === 'assigned' || ev.event_type === 'auto_assigned';
+                    const assignedToSomeoneElse = ev.meta?.assigned_to != null && ev.meta.assigned_to !== currentUserId;
+                    if (isAssignment && ev.description && assignedToSomeoneElse) {
+                        addToast({
+                            title: ev.event_type === 'auto_assigned' ? 'Chat auto-assigned' : 'Assignment updated',
+                            description: ev.description,
+                            variant: 'info',
+                            duration: 4000,
+                        });
+                    }
                 }
             }
         );
@@ -1407,6 +1418,16 @@ export default function ConversationsShow({
                                     <div className="text-xs text-gray-500 dark:text-gray-400">
                                         Assigned to {agentMap.get(conversation.assigned_to)?.name || 'Unknown'}
                                     </div>
+                                )}
+                                {currentUserId && conversation.assigned_to !== currentUserId && normalizedAgents.some((a) => a.id === currentUserId) && (
+                                    <button
+                                        type="button"
+                                        onClick={() => updateConversationMeta({ assigned_to: currentUserId })}
+                                        disabled={metaUpdating}
+                                        className="mt-2 text-xs font-medium text-[#25D366] hover:text-[#20BD5A] dark:text-[#34C759] disabled:opacity-50"
+                                    >
+                                        Assign to me
+                                    </button>
                                 )}
                             </div>
 

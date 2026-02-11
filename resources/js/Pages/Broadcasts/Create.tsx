@@ -8,7 +8,6 @@ import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
 import { ArrowLeft } from 'lucide-react';
 import { Link, Head } from '@inertiajs/react';
-import { useToast } from '@/hooks/useToast';
 
 interface Connection {
     id: number;
@@ -43,7 +42,6 @@ export default function BroadcastsCreate({
     contactsCount: number;
     segments: Segment[];
 }) {
-    const { toast } = useToast();
     const [campaignType, setCampaignType] = useState<'template' | 'text' | 'media'>('template');
     const [recipientType, setRecipientType] = useState<'contacts' | 'custom' | 'segment'>('contacts');
     const [selectedSegments, setSelectedSegments] = useState<number[]>([]);
@@ -69,13 +67,7 @@ export default function BroadcastsCreate({
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
-        post(route('app.broadcasts.store', {}), {
-            onSuccess: () => {
-                toast.success('Campaign created successfully');
-            },
-            onError: () => {
-                toast.error('Failed to create campaign');
-            }});
+        post(route('app.broadcasts.store', {}));
     };
 
     const addCustomRecipient = () => {

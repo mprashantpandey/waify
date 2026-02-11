@@ -33,6 +33,12 @@ class ActionExecutor
     {
         $type = $node->type;
         $config = $node->config;
+        $directActionTypes = ['send_text', 'send_template', 'send_buttons', 'send_list', 'assign_agent', 'add_tag', 'set_status', 'set_priority'];
+
+        if (in_array($type, $directActionTypes, true)) {
+            $config['action_type'] = $type;
+            return $this->executeAction($config, $context);
+        }
 
         return match ($type) {
             'action' => $this->executeAction($config, $context),

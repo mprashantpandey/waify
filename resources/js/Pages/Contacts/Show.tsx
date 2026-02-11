@@ -5,7 +5,6 @@ import { Badge } from '@/Components/UI/Badge';
 import Button from '@/Components/UI/Button';
 import { ArrowLeft, MessageSquare, Clock, User, Loader2, Trash2 } from 'lucide-react';
 import { Head } from '@inertiajs/react';
-import { useToast } from '@/hooks/useToast';
 import { useState } from 'react';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
@@ -56,7 +55,6 @@ export default function ContactsShow({
         segments: contactProp?.segments ?? [],
     };
     const tags = Array.isArray(tagsProp) ? tagsProp : [];
-    const { toast } = useToast();
     const [showNoteForm, setShowNoteForm] = useState(false);
     const [navigatingToConversation, setNavigatingToConversation] = useState(false);
     const [deletingContact, setDeletingContact] = useState(false);
@@ -76,25 +74,15 @@ export default function ContactsShow({
 
     const handleUpdate = (e: React.FormEvent) => {
         e.preventDefault();
-        put(route('app.contacts.update', { contact: contact.slug || contact.id }), {
-            onSuccess: () => {
-                toast.success('Contact updated');
-            },
-            onError: () => {
-                toast.error('Failed to update contact');
-            }});
+        put(route('app.contacts.update', { contact: contact.slug || contact.id }));
     };
 
     const handleAddNote = (e: React.FormEvent) => {
         e.preventDefault();
         postNote(route('app.contacts.add-note', { contact: contact.slug || contact.id }), {
             onSuccess: () => {
-                toast.success('Note added');
                 setShowNoteForm(false);
                 setNoteData('note', '');
-            },
-            onError: () => {
-                toast.error('Failed to add note');
             }});
     };
 
@@ -105,13 +93,6 @@ export default function ContactsShow({
 
         setDeletingContact(true);
         router.delete(route('app.contacts.destroy', { contact: contact.slug || contact.id }), {
-            onSuccess: () => {
-                toast.success('Contact deleted');
-            },
-            onError: () => {
-                toast.error('Failed to delete contact');
-                setDeletingContact(false);
-            },
             onFinish: () => {
                 setDeletingContact(false);
             },

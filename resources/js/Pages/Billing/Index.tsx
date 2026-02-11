@@ -6,7 +6,6 @@ import { Badge } from '@/Components/UI/Badge';
 import Button from '@/Components/UI/Button';
 import { Progress } from '@/Components/UI/Progress';
 import { CreditCard, TrendingUp, Users, MessageSquare, FileText, Zap, AlertCircle, Clock, CheckCircle, ArrowRight } from 'lucide-react';
-import { useToast } from '@/hooks/useToast';
 import { useNotifications } from '@/hooks/useNotifications';
 import { Head } from '@inertiajs/react';
 import { Alert } from '@/Components/UI/Alert';
@@ -39,7 +38,7 @@ interface Usage {
 
 interface Account {
     slug: string;
-    owner_id: number;
+    owner_id: number | string;
 }
 
 export default function BillingIndex({
@@ -57,9 +56,8 @@ export default function BillingIndex({
     current_agents_count?: number;
 }) {
     const { auth } = usePage().props as any;
-    const { addToast } = useToast();
     const { confirm } = useNotifications();
-    const isOwner = account.owner_id === auth?.user?.id;
+    const isOwner = Number(account.owner_id) === Number(auth?.user?.id);
 
     const getStatusBadge = (status: string) => {
         const statusMap: Record<string, { variant: 'success' | 'warning' | 'danger' | 'default'; label: string }> = {

@@ -9,7 +9,6 @@ import InputError from '@/Components/InputError';
 import { Badge } from '@/Components/UI/Badge';
 import { ArrowLeft, Send, User, MessageSquare, Phone, Sparkles, Eye } from 'lucide-react';
 import { Link, Head } from '@inertiajs/react';
-import { useToast } from '@/hooks/useToast';
 
 interface Template {
     id: number;
@@ -62,7 +61,6 @@ export default function TemplatesSend({
     contacts: Contact[];
     conversations: Conversation[];
 }) {
-    const { toast } = useToast();
     const [recipientType, setRecipientType] = useState<'contact' | 'conversation' | 'manual'>('conversation');
     const [selectedContact, setSelectedContact] = useState<string>('');
     const [selectedConversation, setSelectedConversation] = useState<string>('');
@@ -91,13 +89,7 @@ export default function TemplatesSend({
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
         post(route('app.whatsapp.templates.send.store', {
-            template: template.slug}), {
-            onSuccess: () => {
-                toast.success('Template sent successfully');
-            },
-            onError: () => {
-                toast.error('Failed to send template');
-            }});
+            template: template.slug}));
     };
 
     // Render preview

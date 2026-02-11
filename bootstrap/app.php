@@ -78,6 +78,32 @@ return Application::configure(basePath: dirname(__DIR__))
             if ($request->header('X-Inertia') && $is403) {
                 return \Inertia\Inertia::render('Error/Forbidden')->toResponse($request)->setStatusCode(403);
             }
+
+            // Return Inertia 500 page for Inertia requests so users see a friendly message
+            $statusCode = method_exists($e, 'getStatusCode') ? $e->getStatusCode() : 500;
+            $is500 = $statusCode >= 500 || !method_exists($e, 'getStatusCode');
+            if ($request->header('X-Inertia') && $is500) {
+                $context = [
+                    'path' => $request->path(),
+                    'method' => $request->method(),
+                ];
+                if ($request->user()) {
+                    $context['user_id'] = $request->user()->id;
+                }
+                if ($request->attributes->get('account')) {
+                    $context['account_id'] = $request->attributes->get('account')->id;
+                }
+                if ($request->attributes->has('webhook_correlation_id')) {
+                    $context['correlation_id'] = $request->attributes->get('webhook_correlation_id');
+                }
+                \Illuminate\Support\Facades\Log::error('Server error (Inertia)', array_merge($context, [
+                    'exception' => get_class($e),
+                    'message' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ]));
+                return \Inertia\Inertia::render('Error/ServerError')->toResponse($request)->setStatusCode(500);
+            }
             
             // Don't leak stack traces in production
             if (app()->environment('production')) {

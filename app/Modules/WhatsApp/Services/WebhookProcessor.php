@@ -386,7 +386,7 @@ class WebhookProcessor
             return;
         }
 
-        $agentIds = $this->getAssignableAgentIds($account);
+        $agentIds = $account->getAssignableAgentIds();
         if (empty($agentIds)) {
             return;
         }
@@ -408,12 +408,15 @@ class WebhookProcessor
             'assigned_to' => $assigneeId,
         ]);
 
+        $assigneeName = \App\Models\User::find($assigneeId)?->name ?? 'Unknown';
+        $description = "Assigned to {$assigneeName} (auto-assign)";
+
         $audit = WhatsAppConversationAuditEvent::create([
             'account_id' => $account->id,
             'whatsapp_conversation_id' => $conversation->id,
             'actor_id' => null,
             'event_type' => 'auto_assigned',
-            'description' => 'Auto-assigned by round robin',
+            'description' => $description,
             'meta' => [
                 'assigned_to' => $assigneeId,
             ],
@@ -429,27 +432,5 @@ class WebhookProcessor
         ]));
 
         event(new ConversationUpdated($conversation));
-    }
-
-    /**
-     * Build a list of assignable agent IDs.
-     */
-    protected function getAssignableAgentIds(Account $account): array
-    {
-        $ids = [];
-
-        if ($account->owner_id) {
-            $ids[] = $account->owner_id;
-        }
-
-        $memberIds = $account->users()
-            ->whereIn('account_users.role', ['admin', 'member'])
-            ->pluck('users.id')
-            ->toArray();
-
-        $ids = array_values(array_unique(array_merge($ids, $memberIds)));
-        sort($ids);
-
-        return $ids;
     }
 }

@@ -13,6 +13,13 @@ import TextInput from '@/Components/TextInput';
 import Button from '@/Components/UI/Button';
 import { Head } from '@inertiajs/react';
 
+interface Agent {
+    id: number;
+    name: string;
+    email?: string;
+    role?: string;
+}
+
 interface Conversation {
     id: number;
     account_id?: number | string;
@@ -75,6 +82,7 @@ export default function ConversationsIndex({
     account,
     conversations: initialConversations,
     connections,
+    agents: initialAgents = [],
     filters: initialFilters = { search: '' },
 }: {
     account: any;
@@ -84,6 +92,7 @@ export default function ConversationsIndex({
         meta: any;
     };
     connections?: Array<{ id: number; name: string }>;
+    agents?: Agent[];
     filters?: { search?: string };
 }) {
     const { subscribe, connected } = useRealtime();
@@ -99,6 +108,9 @@ export default function ConversationsIndex({
     const [searchQuery, setSearchQuery] = useState(initialFilters?.search ?? '');
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [connectionFilter, setConnectionFilter] = useState<number | 'all'>('all');
+    const [assigneeFilter, setAssigneeFilter] = useState<'all' | 'me' | 'unassigned'>('all');
+    const [assigningId, setAssigningId] = useState<number | null>(null);
+    const agents: Agent[] = Array.isArray(initialAgents) ? initialAgents : [];
     const lastPollRef = useRef<Date>(new Date());
     const processedMessageIds = useRef<Set<string>>(new Set());
     const assignmentStateRef = useRef<Map<number, number | null>>(
@@ -210,9 +222,16 @@ export default function ConversationsIndex({
                 return false;
             }
 
+            // Assignee filter
+            if (assigneeFilter === 'me') {
+                if (currentUserId == null || conv.assigned_to !== currentUserId) return false;
+            } else if (assigneeFilter === 'unassigned') {
+                if (conv.assigned_to != null) return false;
+            }
+
             return true;
         });
-    }, [conversations, account?.id, searchQuery, statusFilter, connectionFilter]);
+    }, [conversations, account?.id, searchQuery, statusFilter, connectionFilter, assigneeFilter, currentUserId]);
 
     // Helper functions for realtime updates
     const applyConversationUpdated = (prev: Conversation[], updated: Conversation) => {
@@ -435,12 +454,22 @@ export default function ConversationsIndex({
                                         ))}
                                     </select>
                                 )}
-                                {(searchQuery || statusFilter !== 'all' || connectionFilter !== 'all') && (
+                                <select
+                                    value={assigneeFilter}
+                                    onChange={(e) => setAssigneeFilter(e.target.value as 'all' | 'me' | 'unassigned')}
+                                    className="rounded-full border-gray-300 shadow-sm focus:border-[#25D366] focus:ring-[#25D366] dark:bg-gray-800 dark:border-gray-700 text-xs px-3 py-1.5"
+                                >
+                                    <option value="all">All assignees</option>
+                                    <option value="me">Assigned to me</option>
+                                    <option value="unassigned">Unassigned</option>
+                                </select>
+                                {(searchQuery || statusFilter !== 'all' || connectionFilter !== 'all' || assigneeFilter !== 'all') && (
                                     <button
                                         onClick={() => {
                                             setSearchQuery('');
                                             setStatusFilter('all');
                                             setConnectionFilter('all');
+                                            setAssigneeFilter('all');
                                         }}
                                         className="ml-auto text-xs text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 inline-flex items-center gap-1"
                                         aria-label="Clear filters"
@@ -464,14 +493,14 @@ export default function ConversationsIndex({
                                 <div className="p-6">
                                     <EmptyState
                                         icon={MessageSquare}
-                                        title={searchQuery || statusFilter !== 'all' || connectionFilter !== 'all'
+                                        title={searchQuery || statusFilter !== 'all' || connectionFilter !== 'all' || assigneeFilter !== 'all'
                                             ? 'No chats match your filters'
                                             : 'No chats yet'}
-                                        description={searchQuery || statusFilter !== 'all' || connectionFilter !== 'all'
+                                        description={searchQuery || statusFilter !== 'all' || connectionFilter !== 'all' || assigneeFilter !== 'all'
                                             ? 'Try clearing filters or start a new conversation.'
                                             : 'Start a conversation from New chat or when a contact messages you.'}
                                         action={
-                                            searchQuery || statusFilter !== 'all' || connectionFilter !== 'all' ? (
+                                            searchQuery || statusFilter !== 'all' || connectionFilter !== 'all' || assigneeFilter !== 'all' ? (
                                                 <Button
                                                     type="button"
                                                     variant="secondary"
@@ -479,6 +508,7 @@ export default function ConversationsIndex({
                                                         setSearchQuery('');
                                                         setStatusFilter('all');
                                                         setConnectionFilter('all');
+                                                        setAssigneeFilter('all');
                                                     }}
                                                 >
                                                     Clear filters
@@ -496,44 +526,95 @@ export default function ConversationsIndex({
                                 </div>
                             ) : (
                                 <div className="divide-y divide-gray-200 dark:divide-gray-800">
-                                    {filteredConversations.map((conversation) => (
-                                        <Link
-                                            key={conversation.id}
-                                            href={route('app.whatsapp.conversations.show', { conversation: conversation.id })}
-                                            className="group block px-4 py-3 hover:bg-[#f0f2f5] dark:hover:bg-gray-800 transition-colors"
-                                        >
-                                            <div className="flex items-start gap-3">
-                                                <div className="h-11 w-11 rounded-full bg-[#25D366] text-white flex items-center justify-center font-semibold text-lg">
-                                                    {conversation.contact.name?.charAt(0).toUpperCase() || conversation.contact.wa_id.charAt(0)}
-                                                </div>
-                                                <div className="min-w-0 flex-1">
-                                                    <div className="flex items-center justify-between">
-                                                        <p className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                                            {conversation.contact.name || conversation.contact.wa_id}
-                                                        </p>
-                                                        <span className="text-[11px] text-gray-500 dark:text-gray-400">
-                                                            {formatTime(conversation.last_message_at)}
-                                                        </span>
+                                    {filteredConversations.map((conversation) => {
+                                        const assigneeName = conversation.assigned_to
+                                            ? (agents.find((a) => a.id === conversation.assigned_to)?.name ?? '—')
+                                            : '—';
+                                        return (
+                                            <div
+                                                key={conversation.id}
+                                                className="group flex items-start gap-2 px-4 py-3 hover:bg-[#f0f2f5] dark:hover:bg-gray-800 transition-colors"
+                                            >
+                                                <Link
+                                                    href={route('app.whatsapp.conversations.show', { conversation: conversation.id })}
+                                                    className="min-w-0 flex-1 flex items-start gap-3"
+                                                >
+                                                    <div className="h-11 w-11 shrink-0 rounded-full bg-[#25D366] text-white flex items-center justify-center font-semibold text-lg">
+                                                        {conversation.contact.name?.charAt(0).toUpperCase() || conversation.contact.wa_id.charAt(0)}
                                                     </div>
-                                                    <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                                                        <span className="truncate">
-                                                            {conversation.last_message_preview || 'No messages yet'}
-                                                        </span>
-                                                    </div>
-                                                    <div className="mt-1 flex items-center gap-2">
-                                                        <Badge variant={conversation.status === 'open' ? 'success' : 'default'} className="px-2 py-0.5 text-[10px]">
-                                                            {conversation.status}
-                                                        </Badge>
-                                                        <span className="text-[11px] text-gray-400">•</span>
-                                                        <div className="flex items-center gap-1 text-[11px] text-gray-500">
-                                                            <Phone className="h-3 w-3" />
-                                                            {conversation.connection.name}
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-center justify-between">
+                                                            <p className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                                                {conversation.contact.name || conversation.contact.wa_id}
+                                                            </p>
+                                                            <span className="text-[11px] text-gray-500 dark:text-gray-400 shrink-0 ml-1">
+                                                                {formatTime(conversation.last_message_at)}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                                            <span className="truncate">
+                                                                {conversation.last_message_preview || 'No messages yet'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="mt-1 flex items-center gap-2 flex-wrap">
+                                                            <Badge variant={conversation.status === 'open' ? 'success' : 'default'} className="px-2 py-0.5 text-[10px]">
+                                                                {conversation.status}
+                                                            </Badge>
+                                                            <span className="text-[11px] text-gray-400">•</span>
+                                                            <div className="flex items-center gap-1 text-[11px] text-gray-500">
+                                                                <Phone className="h-3 w-3" />
+                                                                {conversation.connection.name}
+                                                            </div>
+                                                            <span className="text-[11px] text-gray-400">•</span>
+                                                            <span className="text-[11px] text-gray-500" title="Assignee">
+                                                                {assigneeName}
+                                                            </span>
                                                         </div>
                                                     </div>
-                                                </div>
+                                                </Link>
+                                                {agents.length > 0 && (
+                                                    <div
+                                                        className="shrink-0 pt-0.5"
+                                                        onClick={(e) => e.preventDefault()}
+                                                        onMouseDown={(e) => e.stopPropagation()}
+                                                    >
+                                                        <select
+                                                            value={conversation.assigned_to ?? ''}
+                                                            disabled={assigningId === conversation.id}
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                const assignedTo = val === '' ? null : Number(val);
+                                                                setAssigningId(conversation.id);
+                                                                setConversations((prev) =>
+                                                                    prev.map((c) =>
+                                                                        c.id === conversation.id ? { ...c, assigned_to: assignedTo } : c
+                                                                    )
+                                                                );
+                                                                router.post(
+                                                                    route('app.whatsapp.conversations.update', { conversation: conversation.id }),
+                                                                    { assigned_to: assignedTo },
+                                                                    {
+                                                                        preserveState: true,
+                                                                        preserveScroll: true,
+                                                                        onFinish: () => setAssigningId(null),
+                                                                    }
+                                                                );
+                                                            }}
+                                                            className="rounded border-gray-300 dark:border-gray-600 dark:bg-gray-800 text-[11px] py-1 px-2 max-w-[120px] truncate focus:border-[#25D366] focus:ring-[#25D366]"
+                                                            title="Assign to"
+                                                        >
+                                                            <option value="">Unassigned</option>
+                                                            {agents.map((a) => (
+                                                                <option key={a.id} value={a.id}>
+                                                                    {a.name}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                )}
                                             </div>
-                                        </Link>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>

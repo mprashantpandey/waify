@@ -189,7 +189,7 @@ export default function TeamIndex({
             return (
                 <Badge variant="info" className="flex items-center gap-1.5 px-3 py-1">
                     <Shield className="h-3.5 w-3.5" />
-                    Admin
+                    Legacy Admin
                 </Badge>
             );
         }
@@ -197,7 +197,7 @@ export default function TeamIndex({
         return (
             <Badge variant="default" className="flex items-center gap-1.5 px-3 py-1">
                 <User className="h-3.5 w-3.5" />
-                Member
+                Chat Agent
             </Badge>
         );
     };
@@ -386,8 +386,12 @@ export default function TeamIndex({
                                                         onBlur={() => setEditingMember(null)}
                                                         autoFocus
                                                     >
-                                                        <option value="member">Member</option>
-                                                        <option value="admin">Admin</option>
+                                                        {member.role !== 'member' && (
+                                                            <option value={member.role}>
+                                                                {member.role === 'admin' ? 'Legacy Admin' : member.role}
+                                                            </option>
+                                                        )}
+                                                        <option value="member">Chat Agent</option>
                                                     </select>
                                                 ) : (
                                                     <>

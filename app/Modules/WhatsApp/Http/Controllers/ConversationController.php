@@ -15,6 +15,7 @@ use App\Modules\WhatsApp\Models\WhatsAppContact;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use App\Modules\WhatsApp\Models\WhatsAppConversationNote;
 use App\Modules\WhatsApp\Models\WhatsAppConversationAuditEvent;
+use App\Models\User;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use App\Modules\WhatsApp\Models\WhatsAppTemplateSend;
@@ -101,10 +102,13 @@ class ConversationController extends Controller
             ->where('is_active', true)
             ->get(['id', 'name']);
 
+        $agents = $account->getAssignableAgents()->all();
+
         return Inertia::render('WhatsApp/Conversations/Index', [
             'account' => $account,
             'conversations' => $conversations,
             'connections' => $connections,
+            'agents' => $agents,
             'filters' => ['search' => $request->input('search', '')],
         ]);
     }
@@ -227,8 +231,12 @@ class ConversationController extends Controller
 
         $templates = WhatsAppTemplate::where('account_id', $account->id)
             ->where('whatsapp_connection_id', $conversation->whatsapp_connection_id)
-            ->where('status', 'approved')
-            ->where('is_archived', false)
+            ->whereRaw('LOWER(TRIM(status)) = ?', ['approved'])
+            ->where(function ($query) {
+                // Keep compatibility with legacy rows where is_archived may be NULL.
+                $query->where('is_archived', false)
+                    ->orWhereNull('is_archived');
+            })
             ->orderBy('name')
             ->get([
                 'id',
@@ -307,28 +315,7 @@ class ConversationController extends Controller
                 ];
             });
 
-        $agents = collect();
-        if ($account->owner) {
-            $agents->push([
-                'id' => $account->owner->id,
-                'name' => $account->owner->name,
-                'email' => $account->owner->email,
-                'role' => 'owner',
-            ]);
-        }
-
-        $accountMembers = $account->users()
-            ->get(['users.id', 'users.name', 'users.email', 'account_users.role'])
-            ->map(function ($user) {
-                return [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'role' => $user->pivot?->role ?? 'member',
-                ];
-            });
-
-        $agents = $agents->merge($accountMembers)->unique('id')->values();
+        $agents = $account->getAssignableAgents()->all();
 
         $assignedTo = Schema::hasColumn('whatsapp_conversations', 'assigned_to')
             ? $conversation->assigned_to
@@ -496,18 +483,27 @@ class ConversationController extends Controller
 
         if (array_key_exists('assigned_to', $validated) && Schema::hasColumn('whatsapp_conversations', 'assigned_to')) {
             $assigneeId = $validated['assigned_to'];
+            $previousAssigneeId = $conversation->assigned_to;
             if ($assigneeId) {
-                $isInAccount = (int) $account->owner_id === (int) $assigneeId
-                    || $account->users()->where('users.id', $assigneeId)->exists();
-
-                if (!$isInAccount) {
-                    return back()->withErrors(['assigned_to' => 'Assignee must belong to this account.']);
+                $assignableIds = $account->getAssignableAgentIds();
+                if (!in_array((int) $assigneeId, $assignableIds, true)) {
+                    return back()->withErrors(['assigned_to' => 'Selected agent is not a team member for this account.']);
                 }
             }
             $updates['assigned_to'] = $assigneeId ?: null;
+
+            $actorName = $request->user()?->name ?? 'Someone';
+            $assigneeName = $assigneeId ? (User::find($assigneeId)?->name ?? 'Unknown') : null;
+            if ($assigneeId && $previousAssigneeId && (int) $previousAssigneeId !== (int) $assigneeId) {
+                $description = "Transferred to {$assigneeName} by {$actorName}";
+            } elseif ($assigneeId) {
+                $description = "Assigned to {$assigneeName} by {$actorName}";
+            } else {
+                $description = "Unassigned by {$actorName}";
+            }
             $auditPayloads[] = [
                 'event_type' => 'assigned',
-                'description' => $assigneeId ? 'Conversation assigned' : 'Conversation unassigned',
+                'description' => $description,
                 'meta' => ['assigned_to' => $assigneeId],
             ];
         }
@@ -659,13 +655,16 @@ class ConversationController extends Controller
 
         $validated = $request->validate([
             'template_id' => 'required|integer|exists:whatsapp_templates,id',
-            'variables' => 'array',
+            'variables' => 'nullable|array',
             'variables.*' => 'nullable|string|max:1024']);
 
         $template = WhatsAppTemplate::where('account_id', $account->id)
             ->where('whatsapp_connection_id', $conversation->whatsapp_connection_id)
-            ->where('status', 'approved')
-            ->where('is_archived', false)
+            ->whereRaw('LOWER(TRIM(status)) = ?', ['approved'])
+            ->where(function ($query) {
+                $query->where('is_archived', false)
+                    ->orWhereNull('is_archived');
+            })
             ->findOrFail($validated['template_id']);
 
         $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);

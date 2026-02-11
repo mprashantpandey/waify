@@ -175,7 +175,11 @@ class BotController extends Controller
             ->get(['id', 'name']);
 
         $templates = \App\Modules\WhatsApp\Models\WhatsAppTemplate::where('account_id', $account->id)
-            ->where('is_archived', false)
+            ->whereRaw('LOWER(TRIM(status)) = ?', ['approved'])
+            ->where(function ($query) {
+                $query->where('is_archived', false)
+                    ->orWhereNull('is_archived');
+            })
             ->orderBy('name')
             ->get(['id', 'name', 'language', 'status']);
 

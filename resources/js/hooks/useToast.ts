@@ -19,8 +19,12 @@ function normalizeToastMessage(toast: Omit<Toast, 'id'>): string {
     const normalize = (value: string): string => value
         .trim()
         .toLowerCase()
+        .replace(/\b(successfully|successful|success)\b/g, '')
+        .replace(/\bfailed to\b/g, '')
+        .replace(/\bunable to\b/g, '')
         .replace(/[.!?]+$/g, '')
-        .replace(/\s+/g, ' ');
+        .replace(/\s+/g, ' ')
+        .trim();
     const title = normalize(toast.title || '');
     const description = normalize(toast.description || '');
 

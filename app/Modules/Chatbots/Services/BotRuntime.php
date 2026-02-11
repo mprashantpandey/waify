@@ -29,6 +29,11 @@ class BotRuntime
             return $type;
         }
 
+        // Backward compatibility: older flows may persist the action type as node type.
+        if (in_array($type, ['send_text', 'send_template', 'send_buttons', 'send_list', 'assign_agent', 'add_tag', 'set_status', 'set_priority'], true)) {
+            return 'action';
+        }
+
         $config = is_array($node->config) ? $node->config : [];
 
         // If the config shape clearly matches a known node category, treat it as such.

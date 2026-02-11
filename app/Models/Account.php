@@ -155,6 +155,44 @@ class Account extends Model
     }
 
     /**
+     * Get assignable agents (owner + members with admin/member role) for chat assignment.
+     * Returns array of [id, name, email, role] for display in dropdowns.
+     */
+    public function getAssignableAgents(): \Illuminate\Support\Collection
+    {
+        $agents = collect();
+
+        if ($this->owner_id && $this->owner) {
+            $agents->push([
+                'id' => $this->owner->id,
+                'name' => $this->owner->name,
+                'email' => $this->owner->email,
+                'role' => 'owner',
+            ]);
+        }
+
+        $members = $this->users()
+            ->whereIn('account_users.role', ['admin', 'member'])
+            ->get(['users.id', 'users.name', 'users.email', 'account_users.role'])
+            ->map(fn ($user) => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->pivot?->role ?? 'member',
+            ]);
+
+        return $agents->merge($members)->unique('id')->values();
+    }
+
+    /**
+     * Get assignable agent user IDs (for auto-assign and validation).
+     */
+    public function getAssignableAgentIds(): array
+    {
+        return $this->getAssignableAgents()->pluck('id')->map(fn ($id) => (int) $id)->values()->all();
+    }
+
+    /**
      * Generate a unique slug from the name.
      */
     public static function generateSlug(string $name): string
