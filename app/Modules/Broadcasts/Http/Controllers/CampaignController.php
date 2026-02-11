@@ -201,7 +201,7 @@ class CampaignController extends Controller
                 ->where('account_id', $account->id)
                 ->whereRaw('LOWER(TRIM(status)) = ?', ['approved'])
                 ->where('is_archived', false)
-                ->where(function (Builder $query) use ($validated) {
+                ->where(function ($query) use ($validated) {
                     $query->where('whatsapp_connection_id', $validated['whatsapp_connection_id'])
                         // Some legacy synced templates may miss connection_id.
                         ->orWhereNull('whatsapp_connection_id');
