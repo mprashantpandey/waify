@@ -6,7 +6,10 @@ use App\Modules\Floaters\Models\FloaterWidget;
 use App\Modules\Floaters\Policies\FloaterWidgetPolicy;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Policies\WhatsAppConnectionPolicy;
+use App\Services\PlatformSettingsService;
+use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
@@ -39,6 +42,34 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Vite::prefetch(concurrency: 3);
+
+        // Queue workers do not run HTTP middleware, so load runtime platform settings
+        // for console/queue processes to keep broadcasting and integrations consistent.
+        if (app()->runningInConsole()) {
+            try {
+                /** @var PlatformSettingsService $settingsService */
+                $settingsService = app(PlatformSettingsService::class);
+                $settingsService->applyGeneralConfig();
+                $settingsService->applyLocalization();
+                $settingsService->applyPusherConfig();
+                $settingsService->applyWhatsAppConfig();
+            } catch (\Throwable $exception) {
+                \Log::warning('Failed to apply platform settings during console bootstrap', [
+                    'error' => $exception->getMessage(),
+                ]);
+            }
+
+            Queue::before(function (JobProcessing $event) {
+                try {
+                    app(PlatformSettingsService::class)->applyPusherConfig();
+                } catch (\Throwable $exception) {
+                    \Log::warning('Failed to apply pusher config before queued job', [
+                        'job' => $event->job?->resolveName(),
+                        'error' => $exception->getMessage(),
+                    ]);
+                }
+            });
+        }
 
         // Register policies
         Gate::policy(WhatsAppConnection::class, WhatsAppConnectionPolicy::class);

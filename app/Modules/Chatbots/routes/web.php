@@ -23,6 +23,7 @@ Route::middleware(['module.entitled:automation.chatbots'])->group(function () {
     Route::get('/chatbots/{bot}', [BotController::class, 'show'])->name('chatbots.show');
     Route::patch('/chatbots/{bot}', [BotController::class, 'update'])->name('chatbots.update');
     Route::delete('/chatbots/{bot}', [BotController::class, 'destroy'])->name('chatbots.destroy');
+    Route::post('/chatbots/{bot}/delete', [BotController::class, 'destroy'])->name('chatbots.destroy.post');
 
     // Flows
     Route::post('/chatbots/{bot}/flows', [BotFlowController::class, 'store'])->name('chatbots.flows.store');

@@ -646,9 +646,11 @@ export default function ConversationsShow({
         playNotificationSound,
     ]);
 
-    // Fallback polling when disconnected
+    // Poll conversation updates continuously.
+    // Keep polling even when Echo reports connected, because transport can be connected
+    // while server-side broadcasting is misconfigured and events are not delivered.
     useEffect(() => {
-        if (connected || !account?.id || !conversation?.id) {
+        if (!account?.id || !conversation?.id) {
             if (pollingInterval) {
                 clearInterval(pollingInterval);
                 setPollingInterval(null);
@@ -724,14 +726,15 @@ export default function ConversationsShow({
             }
         };
 
-        const interval = setInterval(poll, 15000);
+        const intervalMs = connected ? 12000 : 7000;
+        const interval = setInterval(poll, intervalMs);
         setPollingInterval(interval);
         poll();
 
         return () => {
             clearInterval(interval);
         };
-    }, [connected, account?.id, account?.slug, conversation?.id]);
+    }, [connected, account?.id, conversation?.id]);
 
     const handleSend = useCallback(async () => {
         if (processing) return;

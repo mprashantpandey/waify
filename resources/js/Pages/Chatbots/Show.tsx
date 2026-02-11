@@ -122,6 +122,11 @@ const defaultNodeForm = {
     actionMessage: '',
     actionTemplateId: '' as '' | number,
     actionTemplateVariables: '{}',
+    actionListId: '' as '' | number,
+    actionButtonsJson: '[]',
+    actionButtonBodyText: '',
+    actionButtonHeaderText: '',
+    actionButtonFooterText: '',
     actionAgentId: '' as '' | number,
     actionTagId: '' as '' | number,
     actionTagName: '',
@@ -229,7 +234,7 @@ export default function ChatbotsShow({
         if (!confirm(`Delete bot "${bot.name}"? This will also delete flows and execution logs.`)) {
             return;
         }
-        router.delete(route('app.chatbots.destroy', { bot: bot.id }), {
+        router.post(route('app.chatbots.destroy.post', { bot: bot.id }), { _method: 'delete' }, {
             onSuccess: () => toast.success('Bot deleted'),
             onError: () => toast.error('Failed to delete bot'),
         });
@@ -400,6 +405,11 @@ export default function ChatbotsShow({
             actionMessage: config.message || '',
             actionTemplateId: config.template_id || '',
             actionTemplateVariables: config.variables ? JSON.stringify(config.variables, null, 2) : '{}',
+            actionListId: config.list_id || '',
+            actionButtonsJson: config.buttons ? JSON.stringify(config.buttons, null, 2) : '[]',
+            actionButtonBodyText: config.body_text || config.message || '',
+            actionButtonHeaderText: config.header_text || '',
+            actionButtonFooterText: config.footer_text || '',
             actionAgentId: config.agent_id || '',
             actionTagId: config.tag_id || '',
             actionTagName: config.tag || config.tag_name || '',
@@ -501,6 +511,22 @@ export default function ChatbotsShow({
                     toast.error('Template variables must be valid JSON');
                     throw error;
                 }
+            }
+        }
+
+        if (nodeForm.actionType === 'send_list') {
+            actionConfig.list_id = Number(nodeForm.actionListId);
+        }
+
+        if (nodeForm.actionType === 'send_buttons') {
+            actionConfig.body_text = nodeForm.actionButtonBodyText;
+            actionConfig.header_text = nodeForm.actionButtonHeaderText || null;
+            actionConfig.footer_text = nodeForm.actionButtonFooterText || null;
+            try {
+                actionConfig.buttons = JSON.parse(nodeForm.actionButtonsJson || '[]');
+            } catch (error) {
+                toast.error('Buttons must be valid JSON');
+                throw error;
             }
         }
 
@@ -1307,6 +1333,8 @@ export default function ChatbotsShow({
                                         >
                                             <option value="send_text">Send text</option>
                                             <option value="send_template">Send template</option>
+                                            <option value="send_buttons">Send buttons</option>
+                                            <option value="send_list">Send list</option>
                                             <option value="assign_agent">Assign agent</option>
                                             <option value="add_tag">Add tag</option>
                                             <option value="set_status">Set status</option>
@@ -1345,6 +1373,46 @@ export default function ChatbotsShow({
                                                     placeholder='{"1": "value"}'
                                                 />
                                             </div>
+                                        )}
+
+                                        {nodeForm.actionType === 'send_buttons' && (
+                                            <div className="space-y-2">
+                                                <TextInput
+                                                    value={nodeForm.actionButtonBodyText}
+                                                    onChange={(e) => setNodeForm({ ...nodeForm, actionButtonBodyText: e.target.value })}
+                                                    className="mt-1 rounded-xl"
+                                                    placeholder="Body text"
+                                                />
+                                                <TextInput
+                                                    value={nodeForm.actionButtonHeaderText}
+                                                    onChange={(e) => setNodeForm({ ...nodeForm, actionButtonHeaderText: e.target.value })}
+                                                    className="mt-1 rounded-xl"
+                                                    placeholder="Header text (optional)"
+                                                />
+                                                <TextInput
+                                                    value={nodeForm.actionButtonFooterText}
+                                                    onChange={(e) => setNodeForm({ ...nodeForm, actionButtonFooterText: e.target.value })}
+                                                    className="mt-1 rounded-xl"
+                                                    placeholder="Footer text (optional)"
+                                                />
+                                                <textarea
+                                                    value={nodeForm.actionButtonsJson}
+                                                    onChange={(e) => setNodeForm({ ...nodeForm, actionButtonsJson: e.target.value })}
+                                                    className="mt-1 w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 px-4 py-2.5"
+                                                    rows={3}
+                                                    placeholder='[{"id":"btn_1","text":"Option 1"},{"id":"btn_2","text":"Option 2"}]'
+                                                />
+                                            </div>
+                                        )}
+
+                                        {nodeForm.actionType === 'send_list' && (
+                                            <TextInput
+                                                type="number"
+                                                value={nodeForm.actionListId}
+                                                onChange={(e) => setNodeForm({ ...nodeForm, actionListId: e.target.value ? Number(e.target.value) : '' })}
+                                                className="mt-1 rounded-xl"
+                                                placeholder="WhatsApp list ID"
+                                            />
                                         )}
 
                                         {nodeForm.actionType === 'assign_agent' && (
