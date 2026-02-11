@@ -334,6 +334,16 @@ class ContactController extends Controller
             abort(404);
         }
 
+        $hasConversations = $contact->conversations()
+            ->where('account_id', $account->id)
+            ->exists();
+
+        if ($hasConversations) {
+            return redirect()
+                ->route('app.contacts.show', ['contact' => $contact->slug ?? $contact->id])
+                ->with('error', 'Contact cannot be deleted because conversation history exists. Archive or clear conversations first.');
+        }
+
         $contactLabel = $contact->name ?: $contact->wa_id;
 
         \DB::transaction(function () use ($account, $request, $contact, $contactLabel): void {
