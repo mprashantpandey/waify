@@ -38,32 +38,56 @@ class HandleInertiaRequests extends Middleware
         $accounts = [];
         $navigation = [];
         
+        $accountRole = null;
+
         if ($user) {
             $accounts = $user->accounts()->get()->merge($user->ownedAccounts()->get())->unique('id')->values();
-            
+
             if ($account) {
+                // Resolve current user's role for this account (owner, admin, or member/chat-agent)
+                if ((int) $account->owner_id === (int) $user->id) {
+                    $accountRole = 'owner';
+                } else {
+                    $pivot = $account->users()->where('user_id', $user->id)->first()?->pivot;
+                    $accountRole = $pivot ? $pivot->role : null;
+                }
+                // Platform admins have no pivot but can access; treat as full access (no account_role restriction)
+
                 $moduleRegistry = app(\App\Core\Modules\ModuleRegistry::class);
                 $navigation = $moduleRegistry->getNavigationForAccount($account);
-                
-                // Add static navigation items
-                $staticNav = [
-                    [
-                        'label' => 'Team',
-                        'href' => 'app.team.index',
-                        'icon' => 'Users',
-                        'group' => 'core'],
-                    [
-                        'label' => 'Activity Logs',
-                        'href' => 'app.activity-logs',
-                        'icon' => 'Activity',
-                        'group' => 'core'],
-                    [
-                        'label' => 'Settings',
-                        'href' => 'app.settings',
-                        'icon' => 'Settings',
-                        'group' => 'other']];
-                
-                $navigation = array_merge($navigation, $staticNav);
+
+                // Chat agents (role === 'member') only see Inbox and Dashboard
+                if ($accountRole === 'member') {
+                    $navigation = array_values(array_filter($navigation, function ($item) {
+                        $href = $item['href'] ?? '';
+                        return $href === 'app.whatsapp.conversations.index';
+                    }));
+                    if (empty($navigation)) {
+                        $navigation = [
+                            ['label' => 'Inbox', 'href' => 'app.whatsapp.conversations.index', 'icon' => 'Inbox', 'group' => 'messaging'],
+                        ];
+                    }
+                } else {
+                    // Add static navigation items for non-members (owner, admin, platform admin)
+                    $staticNav = [
+                        [
+                            'label' => 'Team',
+                            'href' => 'app.team.index',
+                            'icon' => 'Users',
+                            'group' => 'core'],
+                        [
+                            'label' => 'Activity Logs',
+                            'href' => 'app.activity-logs',
+                            'icon' => 'Activity',
+                            'group' => 'core'],
+                        [
+                            'label' => 'Settings',
+                            'href' => 'app.settings',
+                            'icon' => 'Settings',
+                            'group' => 'other']];
+
+                    $navigation = array_merge($navigation, $staticNav);
+                }
             }
         }
 
@@ -101,6 +125,7 @@ class HandleInertiaRequests extends Middleware
                 ] : null,
                 'profile_complete' => $isProfileComplete],
             'account' => $account,
+            'account_role' => $accountRole ?? null,
             'accounts' => $accounts,
             'navigation' => $navigation,
             'branding' => $brandingService->getAll(),

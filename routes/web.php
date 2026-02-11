@@ -95,7 +95,8 @@ Route::middleware(['auth', 'super.admin'])->prefix('/platform')->name('platform.
 });
 
 // App routes (requires auth + account + account active + account subscribed)
-Route::middleware(['auth', 'account.resolve', 'account.active', 'account.subscribed'])->prefix('/app')->name('app.')->group(function () {
+// restrict.chat.agent: chat agents (role member) only see Inbox; others have full access
+Route::middleware(['auth', 'account.resolve', 'account.active', 'account.subscribed', 'restrict.chat.agent'])->prefix('/app')->name('app.')->group(function () {
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     
