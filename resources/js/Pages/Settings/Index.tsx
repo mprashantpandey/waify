@@ -1,13 +1,12 @@
 import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent } from '@/Components/UI/Card';
 import { Tabs, TabsList, TabsTrigger, TabsContent, useTabs } from '@/Components/UI/Tabs';
-import { User, CreditCard, Bell, Shield, Inbox, Clock3 } from 'lucide-react';
+import { User, CreditCard, Bell, Shield, Inbox } from 'lucide-react';
 import ProfileTab from './Tabs/ProfileTab';
 import BillingTab from './Tabs/BillingTab';
 import SecurityTab from './Tabs/SecurityTab';
 import NotificationsTab from './Tabs/NotificationsTab';
 import InboxTab from './Tabs/InboxTab';
-import CronTab from './Tabs/CronTab';
 import { Head } from '@inertiajs/react';
 
 export default function SettingsIndex() {
@@ -39,11 +38,6 @@ export default function SettingsIndex() {
             label: 'Inbox',
             icon: Inbox,
             component: <InboxTab />},
-        {
-            id: 'cron',
-            label: 'Cron',
-            icon: Clock3,
-            component: <CronTab />},
     ];
 
     return (

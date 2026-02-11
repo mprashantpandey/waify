@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Platform;
 
 use App\Http\Controllers\Controller;
 use App\Models\PlatformSetting;
+use App\Services\CronDiagnosticsService;
 use App\Services\PlatformSettingsValidationService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -11,6 +12,10 @@ use Inertia\Response;
 
 class PlatformSettingsController extends Controller
 {
+    public function __construct(
+        protected CronDiagnosticsService $cronDiagnosticsService
+    ) {}
+
     /**
      * Display platform settings.
      */
@@ -218,6 +223,7 @@ class PlatformSettingsController extends Controller
             'ai' => $aiSettings,
             'whatsapp' => $whatsappSettings,
             'support' => $supportSettings,
+            'cron' => $this->cronDiagnosticsService->platformSummary(),
             'misconfigured_settings' => array_values($misconfiguredSettings)]);
     }
 

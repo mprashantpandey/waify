@@ -1,53 +1,35 @@
-import { useMemo, useState } from 'react';
-import { usePage } from '@inertiajs/react';
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Components/UI/Card';
 import Button from '@/Components/UI/Button';
-import {
-    AlertTriangle,
-    CheckCircle2,
-    Clock3,
-    Copy,
-    ServerCog,
-    ShieldAlert,
-} from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock3, Copy, ServerCog, ShieldAlert } from 'lucide-react';
 
-type CronCommand = {
+interface CronCommand {
     id: string;
     title: string;
     schedule: string;
     description: string;
     command: string;
-};
+}
 
-type CronStatus = {
+interface CronStatus {
     key: string;
     label: string;
     status: 'healthy' | 'warning' | 'critical';
     last_activity_at: string | null;
     metrics: Record<string, string | number | boolean | null>;
-};
+}
 
-type CronSettings = {
-    timezone: string;
-    commands: CronCommand[];
-    statuses: CronStatus[];
-    log_files: Record<string, { exists: boolean; path: string; last_modified_at: string | null }>;
-};
+interface CronTabProps {
+    cron: {
+        timezone: string;
+        commands: CronCommand[];
+        statuses: CronStatus[];
+        log_files: Record<string, { exists: boolean; path: string; last_modified_at: string | null }>;
+    };
+}
 
-export default function CronTab() {
-    const { cronSettings } = usePage().props as { cronSettings?: CronSettings };
+export default function CronTab({ cron }: CronTabProps) {
     const [copiedId, setCopiedId] = useState<string | null>(null);
-
-    const settings = useMemo<CronSettings>(() => {
-        return (
-            cronSettings ?? {
-                timezone: 'UTC',
-                commands: [],
-                statuses: [],
-                log_files: {},
-            }
-        );
-    }, [cronSettings]);
 
     const copy = async (id: string, value: string) => {
         try {
@@ -88,22 +70,18 @@ export default function CronTab() {
 
     return (
         <div className="space-y-6">
-            <Card className="border-0 shadow-lg">
-                <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900/20 dark:to-slate-800/20">
-                    <div className="flex items-center gap-3">
-                        <div className="rounded-xl bg-slate-700 p-2">
-                            <ServerCog className="h-5 w-5 text-white" />
-                        </div>
-                        <div>
-                            <CardTitle className="text-xl font-bold">Cron & Background Jobs</CardTitle>
-                            <CardDescription>
-                                Configure these commands in your hosting control panel. Timezone: {settings.timezone}
-                            </CardDescription>
-                        </div>
-                    </div>
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <ServerCog className="h-5 w-5" />
+                        Cron Commands
+                    </CardTitle>
+                    <CardDescription>
+                        Configure these commands in your hosting control panel. Timezone: {cron.timezone}
+                    </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4 p-6">
-                    {settings.commands.map((item) => (
+                <CardContent className="space-y-4">
+                    {cron.commands.map((item) => (
                         <div
                             key={item.id}
                             className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900"
@@ -137,13 +115,13 @@ export default function CronTab() {
                 </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg">
-                <CardHeader className="bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900">
-                    <CardTitle className="text-xl font-bold">System Status</CardTitle>
-                    <CardDescription>Live status inferred from your account activity and queue state.</CardDescription>
+            <Card>
+                <CardHeader>
+                    <CardTitle>Background System Status</CardTitle>
+                    <CardDescription>Global system health inferred from queue, messages, and execution history.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4 p-6">
-                    {settings.statuses.map((item) => (
+                <CardContent className="space-y-4">
+                    {cron.statuses.map((item) => (
                         <div
                             key={item.key}
                             className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900"
