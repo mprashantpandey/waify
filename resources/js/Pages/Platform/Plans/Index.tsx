@@ -7,7 +7,7 @@ import ConfirmationDialog from '@/Components/UI/ConfirmationDialog';
 import { useToast } from '@/hooks/useToast';
 import { Plus, Edit, Eye, ToggleLeft, ToggleRight, CreditCard } from 'lucide-react';
 import { usePage } from '@inertiajs/react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 interface Plan {
     id: number;
@@ -25,28 +25,13 @@ interface Plan {
 }
 
 export default function PlansIndex({ plans }: { plans: Plan[] }) {
-    const { auth, flash } = usePage().props as any;
+    const { auth } = usePage().props as any;
     const { addToast } = useToast();
     const [confirmToggle, setConfirmToggle] = useState<{ show: boolean; planId: string | null; planName: string; isActive: boolean }>({
         show: false,
         planId: null,
         planName: '',
         isActive: false});
-
-    useEffect(() => {
-        if (flash?.success) {
-            addToast({
-                title: 'Success',
-                description: flash.success,
-                variant: 'success'});
-        }
-        if (flash?.error) {
-            addToast({
-                title: 'Error',
-                description: flash.error,
-                variant: 'error'});
-        }
-    }, [flash, addToast]);
 
     const handleToggle = (planId: string, planName: string, isActive: boolean) => {
         setConfirmToggle({

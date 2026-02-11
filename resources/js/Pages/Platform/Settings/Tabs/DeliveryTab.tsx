@@ -15,6 +15,10 @@ interface DeliveryProps {
         mail: {
             driver: string;
             mail_related_failures_last_24h: number;
+            notification_failures_last_24h: number;
+            fallback_enabled: boolean;
+            fallback_last_triggered_at: string | null;
+            fallback_last_error: string | null;
         };
         triggers: {
             chatbots_24h: Record<string, number>;
@@ -108,6 +112,14 @@ export default function DeliveryTab({ delivery }: DeliveryProps) {
                     <CardContent className="space-y-2 text-sm">
                         <div>Driver: <strong>{delivery.mail.driver}</strong></div>
                         <div>Mail-related failures (24h): <strong>{delivery.mail.mail_related_failures_last_24h}</strong></div>
+                        <div>Notification failures (24h): <strong>{delivery.mail.notification_failures_last_24h}</strong></div>
+                        <div>Failover enabled: <strong>{delivery.mail.fallback_enabled ? 'Yes' : 'No'}</strong></div>
+                        <div>Last fallback: <strong>{fmt(delivery.mail.fallback_last_triggered_at)}</strong></div>
+                        {delivery.mail.fallback_last_error && (
+                            <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
+                                Last fallback error: {delivery.mail.fallback_last_error}
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 
@@ -191,4 +203,3 @@ export default function DeliveryTab({ delivery }: DeliveryProps) {
         </div>
     );
 }
-

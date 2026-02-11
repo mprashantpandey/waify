@@ -1,4 +1,4 @@
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import PlatformShell from '@/Layouts/PlatformShell';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
@@ -20,7 +20,6 @@ interface Module {
 export default function PlatformModulesIndex({ modules }: { modules: Module[] }) {
     const { addToast } = useToast();
     const confirm = useConfirm();
-    const { flash } = usePage().props as any;
 
     const handleToggle = async (module: Module) => {
         if (module.is_core) {
@@ -73,18 +72,6 @@ export default function PlatformModulesIndex({ modules }: { modules: Module[] })
                         Enable or disable modules systemwide. Disabled modules will not be available to any tenant.
                     </p>
                 </div>
-
-                {flash?.success && (
-                    <div className="rounded-md bg-green-50 dark:bg-green-900/20 p-4">
-                        <p className="text-sm text-green-800 dark:text-green-200">{flash.success}</p>
-                    </div>
-                )}
-
-                {flash?.error && (
-                    <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-4">
-                        <p className="text-sm text-red-800 dark:text-red-200">{flash.error}</p>
-                    </div>
-                )}
 
                 {/* Core Modules */}
                 <Card>

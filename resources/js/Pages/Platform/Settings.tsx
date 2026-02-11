@@ -43,7 +43,7 @@ export default function PlatformSettings({
     cron,
     delivery,
     misconfigured_settings}: any) {
-    const { auth, flash } = usePage().props as any;
+    const { auth } = usePage().props as any;
     
     // Get initial tab from URL query parameter or default to 'general'
     const getInitialTab = () => {
@@ -86,28 +86,6 @@ export default function PlatformSettings({
         whatsapp: whatsapp || {},
         support: support || {}});
 
-    // Show toast notifications for flash messages
-    useEffect(() => {
-        if (flash?.success) {
-            addToast({
-                title: 'Success',
-                description: flash.success,
-                variant: 'success'});
-        }
-        if (flash?.error) {
-            addToast({
-                title: 'Error',
-                description: flash.error,
-                variant: 'error'});
-        }
-        if (flash?.warning) {
-            addToast({
-                title: 'Warning',
-                description: flash.warning,
-                variant: 'warning'});
-        }
-    }, [flash, addToast]);
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
@@ -130,12 +108,6 @@ export default function PlatformSettings({
             preserveScroll: false,
             forceFormData: true, // Required for file uploads
             only: ['general', 'security', 'payment', 'integrations', 'analytics', 'compliance', 'performance', 'features', 'pusher', 'mail', 'storage', 'branding', 'ai', 'whatsapp', 'support', 'flash'],
-            onSuccess: () => {
-                addToast({
-                    title: 'Settings Saved',
-                    description: 'All settings have been updated successfully.',
-                    variant: 'success'});
-            },
             onError: (errors) => {
                 const errorMessages = Object.values(errors).flat();
                 addToast({

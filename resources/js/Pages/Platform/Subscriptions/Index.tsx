@@ -4,10 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
 import { Input } from '@/Components/UI/Input';
 import { Label } from '@/Components/UI/Label';
-import { useToast } from '@/hooks/useToast';
 import { FileText, Search, Building2 } from 'lucide-react';
 import { usePage } from '@inertiajs/react';
-import { useEffect } from 'react';
 
 interface Subscription {
     id: number;
@@ -49,23 +47,7 @@ export default function SubscriptionsIndex({
     subscriptions: PaginatedSubscriptions;
     filters: { status?: string };
 }) {
-    const { auth, flash } = usePage().props as any;
-    const { addToast } = useToast();
-
-    useEffect(() => {
-        if (flash?.success) {
-            addToast({
-                title: 'Success',
-                description: flash.success,
-                variant: 'success'});
-        }
-        if (flash?.error) {
-            addToast({
-                title: 'Error',
-                description: flash.error,
-                variant: 'error'});
-        }
-    }, [flash, addToast]);
+    const { auth } = usePage().props as any;
 
     const getStatusBadge = (status: string) => {
         const variants: Record<string, 'success' | 'warning' | 'danger' | 'info' | 'default'> = {

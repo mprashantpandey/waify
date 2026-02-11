@@ -2,8 +2,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/Components/UI/Card';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
+import Button from '@/Components/UI/Button';
 import { Mail, Eye, EyeOff } from 'lucide-react';
-import { useState } from 'react';
+import { router } from '@inertiajs/react';
+import { useEffect, useState } from 'react';
 
 interface MailTabProps {
     data: any;
@@ -13,6 +15,35 @@ interface MailTabProps {
 
 export default function MailTab({ data, setData, errors }: MailTabProps) {
     const [showPassword, setShowPassword] = useState(false);
+    const [testEmail, setTestEmail] = useState('');
+    const [testing, setTesting] = useState(false);
+
+    useEffect(() => {
+        if (!testEmail && data.mail?.from_address) {
+            setTestEmail(data.mail.from_address);
+        }
+    }, [data.mail?.from_address, testEmail]);
+
+    const sendTestEmail = () => {
+        setTesting(true);
+        router.post(route('platform.settings.mail.test'), {
+            test_email: testEmail,
+            mail: {
+                driver: data.mail?.driver || 'smtp',
+                host: data.mail?.host || '',
+                port: data.mail?.port || 587,
+                username: data.mail?.username || '',
+                password: data.mail?.password || '',
+                encryption: data.mail?.encryption || 'tls',
+                from_address: data.mail?.from_address || '',
+                from_name: data.mail?.from_name || '',
+            },
+        }, {
+            preserveState: true,
+            preserveScroll: true,
+            onFinish: () => setTesting(false),
+        });
+    };
 
     return (
         <Card>
@@ -133,8 +164,36 @@ export default function MailTab({ data, setData, errors }: MailTabProps) {
                         <InputError message={errors['mail.from_name']} />
                     </div>
                 </div>
+                <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto]">
+                        <div>
+                            <InputLabel htmlFor="mail.test_email" value="Test Recipient" />
+                            <TextInput
+                                id="mail.test_email"
+                                type="email"
+                                value={testEmail}
+                                onChange={(e) => setTestEmail(e.target.value)}
+                                className="mt-1"
+                                placeholder="admin@example.com"
+                            />
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                Sends a diagnostics email with current unsaved values. If SMTP fails, fallback writes to `log` mailer and raises an alert in Delivery tab.
+                            </p>
+                        </div>
+                        <div className="flex items-end">
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                disabled={testing || !testEmail}
+                                onClick={sendTestEmail}
+                            >
+                                {testing ? 'Sending...' : 'Send Test Email'}
+                            </Button>
+                        </div>
+                    </div>
+                    <InputError message={errors.test_email} />
+                </div>
             </CardContent>
         </Card>
     );
 }
-

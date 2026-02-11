@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\PlatformSetting;
 use App\Models\Subscription;
 use App\Modules\Broadcasts\Models\Campaign;
 use App\Modules\Broadcasts\Models\CampaignMessage;
@@ -75,6 +76,14 @@ class CronDiagnosticsService
                 })
                 ->count()
             : 0;
+        $notificationFailures24h = $failedJobsExists
+            ? DB::table('failed_jobs')
+                ->where('failed_at', '>=', $now->copy()->subDay())
+                ->where('payload', 'like', '%Illuminate\\\\Notifications\\\\SendQueuedNotifications%')
+                ->count()
+            : 0;
+        $mailFallbackLastTriggeredAt = PlatformSetting::get('mail.fallback.last_triggered_at');
+        $mailFallbackLastError = PlatformSetting::get('mail.fallback.last_error');
 
         $chatbotExec24h = [
             'success' => 0,
@@ -165,6 +174,10 @@ class CronDiagnosticsService
             'mail' => [
                 'driver' => $mailDriver,
                 'mail_related_failures_last_24h' => (int) $mailFailures24h,
+                'notification_failures_last_24h' => (int) $notificationFailures24h,
+                'fallback_enabled' => $mailDriver === 'failover',
+                'fallback_last_triggered_at' => $this->isoOrNull($mailFallbackLastTriggeredAt),
+                'fallback_last_error' => is_string($mailFallbackLastError) ? $mailFallbackLastError : null,
             ],
             'triggers' => [
                 'chatbots_24h' => $chatbotExec24h,

@@ -2,10 +2,13 @@
 
 namespace App\Services;
 
+use App\Models\PlatformSetting;
 use Illuminate\Contracts\Notifications\Dispatcher;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class NotificationDispatchService
 {
@@ -37,8 +40,22 @@ class NotificationDispatchService
                 continue;
             }
 
-            $this->dispatcher->send($notifiable, $notification);
-            $sent++;
+            try {
+                $this->dispatcher->send($notifiable, $notification);
+                $sent++;
+            } catch (Throwable $exception) {
+                $error = mb_substr($exception->getMessage(), 0, 500);
+                PlatformSetting::set('mail.fallback.last_triggered_at', now()->toIso8601String(), 'string', 'mail');
+                PlatformSetting::set('mail.fallback.last_error', $error, 'string', 'mail');
+
+                Log::warning('Notification dispatch failed', [
+                    'notification' => $notification::class,
+                    'recipient' => is_object($notifiable) && method_exists($notifiable, 'getKey')
+                        ? (string) $notifiable->getKey()
+                        : gettype($notifiable),
+                    'error' => $error,
+                ]);
+            }
         }
 
         return $sent;
@@ -83,4 +100,3 @@ class NotificationDispatchService
         return 'notif:dedupe:' . sha1($notification::class . '|' . $recipient . '|' . $fingerprint);
     }
 }
-

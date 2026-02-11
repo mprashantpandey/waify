@@ -9,7 +9,6 @@ import { useToast } from '@/hooks/useToast';
 import { ArrowLeft, Save } from 'lucide-react';
 import { Link } from '@inertiajs/react';
 import { usePage } from '@inertiajs/react';
-import { useEffect } from 'react';
 
 interface Module {
     id: number;
@@ -18,23 +17,8 @@ interface Module {
 }
 
 export default function PlansCreate({ modules, default_currency = 'USD' }: { modules: Module[]; default_currency?: string }) {
-    const { auth, flash } = usePage().props as any;
+    const { auth } = usePage().props as any;
     const { addToast } = useToast();
-
-    useEffect(() => {
-        if (flash?.success) {
-            addToast({
-                title: 'Success',
-                description: flash.success,
-                variant: 'success'});
-        }
-        if (flash?.error) {
-            addToast({
-                title: 'Error',
-                description: flash.error,
-                variant: 'error'});
-        }
-    }, [flash, addToast]);
 
     const { data, setData, post, processing, errors } = useForm({
         key: '',

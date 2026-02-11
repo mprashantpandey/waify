@@ -61,6 +61,7 @@ Route::middleware(['auth', 'super.admin'])->prefix('/platform')->name('platform.
     Route::post('/users/{user}/remove-super-admin', [\App\Http\Controllers\Platform\PlatformUserController::class, 'removeSuperAdmin'])->name('users.remove-super-admin');
     Route::get('/settings', [\App\Http\Controllers\Platform\PlatformSettingsController::class, 'index'])->name('settings');
     Route::post('/settings', [\App\Http\Controllers\Platform\PlatformSettingsController::class, 'update'])->name('settings.update');
+    Route::post('/settings/mail/test', [\App\Http\Controllers\Platform\PlatformSettingsController::class, 'testMail'])->name('settings.mail.test');
     Route::get('/modules', [\App\Http\Controllers\Platform\ModuleController::class, 'index'])->name('modules.index');
     Route::post('/modules/{module}/toggle', [\App\Http\Controllers\Platform\ModuleController::class, 'toggle'])->name('modules.toggle');
     Route::patch('/modules/{module}', [\App\Http\Controllers\Platform\ModuleController::class, 'update'])->name('modules.update');

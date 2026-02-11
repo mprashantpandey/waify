@@ -8,7 +8,6 @@ import { Progress } from '@/Components/UI/Progress';
 import { CreditCard, TrendingUp, Users, MessageSquare, FileText, Zap, AlertCircle, Clock, CheckCircle, ArrowRight } from 'lucide-react';
 import { useToast } from '@/hooks/useToast';
 import { useNotifications } from '@/hooks/useNotifications';
-import { useEffect } from 'react';
 import { Head } from '@inertiajs/react';
 import { Alert } from '@/Components/UI/Alert';
 
@@ -57,23 +56,10 @@ export default function BillingIndex({
     current_connections_count?: number;
     current_agents_count?: number;
 }) {
-    const { auth, flash } = usePage().props as any;
+    const { auth } = usePage().props as any;
     const { addToast } = useToast();
     const { confirm } = useNotifications();
     const isOwner = account.owner_id === auth?.user?.id;
-
-    useEffect(() => {
-        if (flash?.success) {
-            addToast({
-                title: flash.success,
-                variant: 'success'});
-        }
-        if (flash?.error) {
-            addToast({
-                title: flash.error,
-                variant: 'error'});
-        }
-    }, [flash, addToast]);
 
     const getStatusBadge = (status: string) => {
         const statusMap: Record<string, { variant: 'success' | 'warning' | 'danger' | 'default'; label: string }> = {

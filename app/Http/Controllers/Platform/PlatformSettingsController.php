@@ -7,8 +7,11 @@ use App\Models\PlatformSetting;
 use App\Services\CronDiagnosticsService;
 use App\Services\PlatformSettingsValidationService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 class PlatformSettingsController extends Controller
 {
@@ -455,5 +458,107 @@ class PlatformSettingsController extends Controller
 
         return redirect()->route('platform.settings')
             ->with('success', 'Settings updated successfully.');
+    }
+
+    public function testMail(Request $request)
+    {
+        $validated = $request->validate([
+            'test_email' => 'required|email',
+            'mail.driver' => 'required|string|in:smtp,sendmail,mailgun,ses,postmark,log,array',
+            'mail.host' => 'nullable|string',
+            'mail.port' => 'nullable|integer|min:1|max:65535',
+            'mail.username' => 'nullable|string',
+            'mail.password' => 'nullable|string',
+            'mail.encryption' => 'nullable|string|in:tls,ssl',
+            'mail.from_address' => 'nullable|email',
+            'mail.from_name' => 'nullable|string|max:255',
+        ]);
+
+        $mailInput = (array) ($validated['mail'] ?? []);
+        $testEmail = (string) $validated['test_email'];
+        $this->applyRuntimeMailConfiguration($mailInput);
+
+        $subject = '[Waify] SMTP Test - ' . now()->format('Y-m-d H:i:s');
+        $body = implode("\n", [
+            'This is a test email from Waify Platform Settings.',
+            '',
+            'Diagnostics:',
+            '- Driver: ' . (string) config('mail.default'),
+            '- SMTP Host: ' . (string) config('mail.mailers.smtp.host'),
+            '- SMTP Port: ' . (string) config('mail.mailers.smtp.port'),
+            '- Encryption: ' . (string) (config('mail.mailers.smtp.encryption') ?? 'none'),
+            '- Timestamp: ' . now()->toIso8601String(),
+        ]);
+
+        try {
+            Mail::raw($body, function ($message) use ($testEmail, $subject) {
+                $message->to($testEmail)->subject($subject);
+            });
+
+            PlatformSetting::set('mail.test.last_success_at', now()->toIso8601String(), 'string', 'mail');
+
+            return redirect()->route('platform.settings', ['tab' => 'mail'])
+                ->with('success', "Test email sent to {$testEmail} using driver '" . config('mail.default') . "'.");
+        } catch (Throwable $smtpError) {
+            $error = mb_substr($smtpError->getMessage(), 0, 500);
+
+            try {
+                // If SMTP fails, force a log transport fallback so operators can still inspect mail payloads.
+                Mail::mailer('log')->raw($body, function ($message) use ($testEmail, $subject) {
+                    $message->to($testEmail)->subject($subject . ' [FALLBACK LOG]');
+                });
+
+                PlatformSetting::set('mail.fallback.last_triggered_at', now()->toIso8601String(), 'string', 'mail');
+                PlatformSetting::set('mail.fallback.last_error', $error, 'string', 'mail');
+
+                Log::warning('SMTP test failed, mail fallback to log transport was used', [
+                    'test_email' => $testEmail,
+                    'driver' => config('mail.default'),
+                    'error' => $error,
+                ]);
+
+                return redirect()->route('platform.settings', ['tab' => 'mail'])
+                    ->with('warning', 'SMTP test failed. Fallback to log mailer was used. Check logs and delivery diagnostics.');
+            } catch (Throwable $fallbackError) {
+                $fallbackErrorMessage = mb_substr($fallbackError->getMessage(), 0, 500);
+
+                PlatformSetting::set('mail.fallback.last_triggered_at', now()->toIso8601String(), 'string', 'mail');
+                PlatformSetting::set('mail.fallback.last_error', $error . ' | Fallback failed: ' . $fallbackErrorMessage, 'string', 'mail');
+
+                Log::error('Mail test failed for both SMTP and fallback log transport', [
+                    'test_email' => $testEmail,
+                    'driver' => config('mail.default'),
+                    'smtp_error' => $error,
+                    'fallback_error' => $fallbackErrorMessage,
+                ]);
+
+                return redirect()->route('platform.settings', ['tab' => 'mail'])
+                    ->with('error', 'SMTP test failed and fallback could not be written. Check server logs.');
+            }
+        }
+    }
+
+    private function applyRuntimeMailConfiguration(array $mailInput): void
+    {
+        $driver = (string) ($mailInput['driver'] ?? PlatformSetting::get('mail.driver', config('mail.default', 'smtp')));
+
+        config([
+            'mail.mailers.smtp.host' => $mailInput['host'] ?? PlatformSetting::get('mail.host', config('mail.mailers.smtp.host')),
+            'mail.mailers.smtp.port' => (int) ($mailInput['port'] ?? PlatformSetting::get('mail.port', config('mail.mailers.smtp.port', 587))),
+            'mail.mailers.smtp.username' => $mailInput['username'] ?? PlatformSetting::get('mail.username', config('mail.mailers.smtp.username')),
+            'mail.mailers.smtp.password' => $mailInput['password'] ?? PlatformSetting::get('mail.password', config('mail.mailers.smtp.password')),
+            'mail.mailers.smtp.encryption' => $mailInput['encryption'] ?? PlatformSetting::get('mail.encryption', config('mail.mailers.smtp.encryption', 'tls')),
+            'mail.from.address' => $mailInput['from_address'] ?? PlatformSetting::get('mail.from_address', config('mail.from.address')),
+            'mail.from.name' => $mailInput['from_name'] ?? PlatformSetting::get('mail.from_name', config('mail.from.name')),
+        ]);
+
+        if ($driver === 'smtp') {
+            config([
+                'mail.default' => 'failover',
+                'mail.mailers.failover.mailers' => ['smtp', 'log'],
+            ]);
+        } else {
+            config(['mail.default' => $driver]);
+        }
     }
 }
