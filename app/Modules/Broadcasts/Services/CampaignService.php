@@ -46,10 +46,8 @@ class CampaignService
      */
     protected function performPrepareRecipients(Campaign $campaign): int
     {
-        // Delete existing recipients if re-preparing (within transaction)
-        DB::transaction(function () use ($campaign) {
-            $campaign->recipients()->delete();
-        });
+        // Delete existing recipients if re-preparing.
+        $campaign->recipients()->delete();
 
         $recipients = [];
 
@@ -89,12 +87,18 @@ class CampaignService
                     'template_params' => $recipient['template_params'] ?? null,
                     'status' => 'pending']);
             }
+
+            $campaign->update([
+                'total_recipients' => count($recipients),
+                'sent_count' => 0,
+                'delivered_count' => 0,
+                'read_count' => 0,
+                'failed_count' => 0,
+                'completed_at' => null,
+            ]);
         });
-
-        $count = count($recipients);
-        $campaign->lockForUpdate()->update(['total_recipients' => $count]);
-
-        return $count;
+        
+        return count($recipients);
     }
 
     /**
@@ -146,13 +150,18 @@ class CampaignService
         if (!$campaign->custom_recipients) {
             return [];
         }
-
-        return array_map(function ($recipient) {
-            return [
-                'phone_number' => $recipient['phone'] ?? $recipient,
-                'name' => $recipient['name'] ?? null,
-                'template_params' => $recipient['params'] ?? null];
-        }, $campaign->custom_recipients);
+        
+        return collect($campaign->custom_recipients)
+            ->map(function ($recipient) {
+                return [
+                    'phone_number' => trim((string) ($recipient['phone'] ?? $recipient)),
+                    'name' => $recipient['name'] ?? null,
+                    'template_params' => $recipient['params'] ?? null,
+                ];
+            })
+            ->filter(fn ($recipient) => $recipient['phone_number'] !== '')
+            ->values()
+            ->all();
     }
 
     /**
@@ -232,11 +241,12 @@ class CampaignService
 
         $campaign->update([
             'status' => 'sending',
-            'started_at' => now()]);
+            'started_at' => $campaign->started_at ?? now(),
+            'completed_at' => null,
+        ]);
 
         // Dispatch job to send campaign messages (on dedicated queue)
-        \App\Modules\Broadcasts\Jobs\SendCampaignMessageJob::dispatch($campaign->id)
-            ->onQueue('campaigns');
+        $this->dispatchNextSend($campaign->id);
     }
 
     /**
@@ -298,7 +308,7 @@ class CampaignService
                 );
 
                 // Update campaign stats (with lock to prevent race conditions)
-                $campaign->lockForUpdate()->increment('sent_count');
+                Campaign::whereKey($campaign->id)->increment('sent_count');
 
                 return true;
             }
@@ -406,8 +416,7 @@ class CampaignService
             'failed_at' => now(),
             'failure_reason' => $reason]);
 
-        // Update campaign stats with lock
-        $recipient->campaign->lockForUpdate()->increment('failed_count');
+        Campaign::whereKey($recipient->campaign_id)->increment('failed_count');
     }
 
     /**
@@ -441,17 +450,17 @@ class CampaignService
                 case 'delivered':
                     $updateData['delivered_at'] = $timestamp ?? now();
                     $recipientUpdate['delivered_at'] = $timestamp ?? now();
-                    $message->campaign->lockForUpdate()->increment('delivered_count');
+                    Campaign::whereKey($message->campaign_id)->increment('delivered_count');
                     break;
                 case 'read':
                     $updateData['read_at'] = $timestamp ?? now();
                     $recipientUpdate['read_at'] = $timestamp ?? now();
-                    $message->campaign->lockForUpdate()->increment('read_count');
+                    Campaign::whereKey($message->campaign_id)->increment('read_count');
                     break;
                 case 'failed':
                     $updateData['failed_at'] = $timestamp ?? now();
                     $recipientUpdate['failed_at'] = $timestamp ?? now();
-                    $message->campaign->lockForUpdate()->increment('failed_count');
+                    Campaign::whereKey($message->campaign_id)->increment('failed_count');
                     break;
             }
 
@@ -476,5 +485,79 @@ class CampaignService
                 'status' => 'completed',
                 'completed_at' => now()]);
         }
+    }
+
+    public function retryFailedRecipients(Campaign $campaign): int
+    {
+        $failedRecipients = $campaign->recipients()
+            ->where('status', 'failed')
+            ->get();
+
+        $failedCount = $failedRecipients->count();
+        if ($failedCount === 0) {
+            return 0;
+        }
+
+        DB::transaction(function () use ($campaign, $failedRecipients, $failedCount) {
+            foreach ($failedRecipients as $recipient) {
+                $recipient->update([
+                    'status' => 'pending',
+                    'failed_at' => null,
+                    'failure_reason' => null,
+                    'sent_at' => null,
+                    'delivered_at' => null,
+                    'read_at' => null,
+                    'message_id' => null,
+                    'wamid' => null,
+                ]);
+            }
+
+            $campaign->update([
+                'status' => 'sending',
+                'completed_at' => null,
+                'failed_count' => max(0, (int) $campaign->failed_count - $failedCount),
+            ]);
+        });
+
+        $this->dispatchNextSend($campaign->id);
+
+        return $failedCount;
+    }
+
+    public function duplicateCampaign(Campaign $campaign, int $userId): Campaign
+    {
+        $copy = Campaign::create([
+            'account_id' => $campaign->account_id,
+            'whatsapp_connection_id' => $campaign->whatsapp_connection_id,
+            'whatsapp_template_id' => $campaign->whatsapp_template_id,
+            'created_by' => $userId,
+            'name' => $campaign->name . ' (Copy)',
+            'description' => $campaign->description,
+            'type' => $campaign->type,
+            'status' => 'draft',
+            'template_params' => $campaign->template_params,
+            'message_text' => $campaign->message_text,
+            'media_url' => $campaign->media_url,
+            'media_type' => $campaign->media_type,
+            'scheduled_at' => null,
+            'started_at' => null,
+            'completed_at' => null,
+            'recipient_type' => $campaign->recipient_type,
+            'recipient_filters' => $campaign->recipient_filters,
+            'custom_recipients' => $campaign->custom_recipients,
+            'send_delay_seconds' => $campaign->send_delay_seconds,
+            'respect_opt_out' => $campaign->respect_opt_out,
+            'metadata' => $campaign->metadata,
+        ]);
+
+        $this->prepareRecipients($copy);
+
+        return $copy;
+    }
+
+    protected function dispatchNextSend(int $campaignId): void
+    {
+        \App\Modules\Broadcasts\Jobs\SendCampaignMessageJob::dispatch($campaignId)
+            ->onQueue('campaigns');
     }
 }

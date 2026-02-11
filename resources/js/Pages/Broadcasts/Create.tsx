@@ -216,6 +216,19 @@ export default function BroadcastsCreate({
                                     />
                                     Text Message
                                 </label>
+                                <label className="flex items-center">
+                                    <input
+                                        type="radio"
+                                        value="media"
+                                        checked={campaignType === 'media'}
+                                        onChange={(e) => {
+                                            setCampaignType('media');
+                                            setData('type', 'media');
+                                        }}
+                                        className="mr-2"
+                                    />
+                                    Media Message
+                                </label>
                             </div>
 
                             {campaignType === 'template' && (
@@ -264,6 +277,52 @@ export default function BroadcastsCreate({
                                         required
                                     />
                                     <InputError message={errors.message_text} className="mt-2" />
+                                </div>
+                            )}
+
+                            {campaignType === 'media' && (
+                                <div className="space-y-4">
+                                    <div>
+                                        <InputLabel htmlFor="media_type" value="Media Type *" />
+                                        <select
+                                            id="media_type"
+                                            value={data.media_type}
+                                            onChange={(e) => setData('media_type', e.target.value as any)}
+                                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700"
+                                            required
+                                        >
+                                            <option value="image">Image</option>
+                                            <option value="video">Video</option>
+                                            <option value="document">Document</option>
+                                            <option value="audio">Audio</option>
+                                        </select>
+                                        <InputError message={errors.media_type} className="mt-2" />
+                                    </div>
+                                    <div>
+                                        <InputLabel htmlFor="media_url" value="Media URL *" />
+                                        <TextInput
+                                            id="media_url"
+                                            type="url"
+                                            value={data.media_url}
+                                            onChange={(e) => setData('media_url', e.target.value)}
+                                            className="mt-1 block w-full"
+                                            placeholder="https://example.com/file.jpg"
+                                            required
+                                        />
+                                        <InputError message={errors.media_url} className="mt-2" />
+                                    </div>
+                                    <div>
+                                        <InputLabel htmlFor="media_caption" value="Caption (optional)" />
+                                        <textarea
+                                            id="media_caption"
+                                            value={data.message_text}
+                                            onChange={(e) => setData('message_text', e.target.value)}
+                                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700"
+                                            rows={3}
+                                            placeholder="Optional caption for image/video/document"
+                                        />
+                                        <InputError message={errors.message_text} className="mt-2" />
+                                    </div>
                                 </div>
                             )}
                         </CardContent>

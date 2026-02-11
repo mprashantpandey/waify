@@ -114,6 +114,28 @@ export default function BroadcastsShow({
             }});
     };
 
+    const handleDuplicate = () => {
+        router.post(route('app.broadcasts.duplicate', { campaign: campaign.slug }), {}, {
+            onSuccess: () => toast.success('Campaign duplicated'),
+            onError: () => toast.error('Failed to duplicate campaign'),
+        });
+    };
+
+    const handleRetryFailed = () => {
+        router.post(route('app.broadcasts.retry-failed', { campaign: campaign.slug }), {}, {
+            onSuccess: () => toast.success('Retry queued for failed recipients'),
+            onError: () => toast.error('Failed to retry failed recipients'),
+        });
+    };
+
+    const handleDelete = () => {
+        if (!confirm('Delete this campaign permanently?')) return;
+        router.delete(route('app.broadcasts.destroy', { campaign: campaign.slug }), {
+            onSuccess: () => toast.success('Campaign deleted'),
+            onError: () => toast.error('Failed to delete campaign'),
+        });
+    };
+
     return (
         <AppShell>
             <Head title={campaign.name} />
@@ -159,6 +181,19 @@ export default function BroadcastsShow({
                                 <Button onClick={handleCancel} variant="secondary" className="text-red-600 hover:text-red-700">
                                     <X className="h-4 w-4 mr-2" />
                                     Cancel
+                                </Button>
+                            )}
+                            {stats.failed > 0 && (
+                                <Button onClick={handleRetryFailed} variant="secondary">
+                                    Retry Failed
+                                </Button>
+                            )}
+                            <Button onClick={handleDuplicate} variant="secondary">
+                                Duplicate
+                            </Button>
+                            {['draft', 'cancelled', 'completed'].includes(campaign.status) && (
+                                <Button onClick={handleDelete} variant="secondary" className="text-red-600 hover:text-red-700">
+                                    Delete
                                 </Button>
                             )}
                         </div>

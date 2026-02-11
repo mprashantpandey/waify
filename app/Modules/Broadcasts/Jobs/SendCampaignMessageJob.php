@@ -25,6 +25,9 @@ class SendCampaignMessageJob implements ShouldQueue
      * The number of seconds to wait before retrying the job.
      */
     public $backoff = 60;
+    public $timeout = 120;
+
+    protected int $batchSize = 20;
 
     /**
      * Create a new job instance.
@@ -43,7 +46,7 @@ class SendCampaignMessageJob implements ShouldQueue
     {
         // Use lock to prevent concurrent processing of the same campaign
         $lockKey = "campaign_send:{$this->campaignId}";
-        $lock = \Illuminate\Support\Facades\Cache::lock($lockKey, 60); // 1 minute lock
+        $lock = \Illuminate\Support\Facades\Cache::lock($lockKey, 120); // lock while a batch is processed
 
         if (!$lock->get()) {
             // Another job is processing this campaign, retry later
@@ -59,37 +62,47 @@ class SendCampaignMessageJob implements ShouldQueue
                 return;
             }
 
-            // Get next pending recipient (use lock to prevent race conditions)
-            $recipient = \DB::transaction(function () use ($campaign) {
-                return $campaign->recipients()
-                    ->where('status', 'pending')
-                    ->lockForUpdate() // Row-level lock
-                    ->orderBy('id')
-                    ->first();
-            });
+            $iterations = $campaign->send_delay_seconds > 0 ? 1 : $this->batchSize;
+            $processed = 0;
 
-            if (!$recipient) {
-                // No more recipients, check if campaign is complete
+            for ($i = 0; $i < $iterations; $i++) {
+                $recipient = \DB::transaction(function () use ($campaign) {
+                    /** @var CampaignRecipient|null $next */
+                    $next = $campaign->recipients()
+                        ->where('status', 'pending')
+                        ->lockForUpdate()
+                        ->orderBy('id')
+                        ->first();
+
+                    return $next;
+                });
+
+                if (!$recipient) {
+                    break;
+                }
+
+                $processed++;
+                $campaignService->sendToRecipient($campaign, $recipient);
+            }
+
+            if ($processed === 0) {
                 $campaignService->checkCampaignCompletion($campaign);
                 return;
             }
 
-            // Send message to recipient
-            $campaignService->sendToRecipient($campaign, $recipient);
+            $hasPending = $campaign->recipients()
+                ->where('status', 'pending')
+                ->exists();
 
-            // Schedule next message if there's a delay
-            if ($campaign->send_delay_seconds > 0) {
-                dispatch(new SendCampaignMessageJob($this->campaignId))
-                    ->delay(now()->addSeconds($campaign->send_delay_seconds))
-                    ->onQueue('campaigns');
-            } else {
-                // Send next message immediately (but on queue to avoid blocking)
-                dispatch(new SendCampaignMessageJob($this->campaignId))
-                    ->onQueue('campaigns');
+            if ($hasPending) {
+                $next = (new SendCampaignMessageJob($this->campaignId))->onQueue('campaigns');
+                if ($campaign->send_delay_seconds > 0) {
+                    $next->delay(now()->addSeconds($campaign->send_delay_seconds));
+                }
+                dispatch($next);
             }
         } finally {
             $lock->release();
         }
     }
 }
-

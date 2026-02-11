@@ -1,4 +1,5 @@
 import { Link, router } from '@inertiajs/react';
+import { useMemo, useState } from 'react';
 import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
@@ -39,8 +40,26 @@ export default function BroadcastsIndex({
         links: any;
         meta: any;
     };
-    filters: { status?: string };
+    filters: { status?: string; search?: string };
 }) {
+    const [search, setSearch] = useState(filters.search || '');
+    const [status, setStatus] = useState(filters.status || '');
+
+    const activeFilters = useMemo(() => {
+        const payload: Record<string, string> = {};
+        if (search.trim()) payload.search = search.trim();
+        if (status) payload.status = status;
+        return payload;
+    }, [search, status]);
+
+    const applyFilters = () => {
+        router.get(route('app.broadcasts.index', {}), activeFilters, {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+        });
+    };
+
     const getStatusBadge = (status: string) => {
         const statusMap: Record<string, { variant: 'success' | 'warning' | 'danger' | 'default' | 'info'; label: string; icon: any }> = {
             draft: { variant: 'default', label: 'Draft', icon: Clock },
@@ -86,6 +105,50 @@ export default function BroadcastsIndex({
                         </Button>
                     </Link>
                 </div>
+
+                <Card className="border-0 shadow-lg">
+                    <CardContent className="p-4">
+                        <div className="flex flex-col gap-3 md:flex-row">
+                            <input
+                                type="text"
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
+                                placeholder="Search by campaign name or description"
+                                className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 md:flex-1"
+                            />
+                            <select
+                                value={status}
+                                onChange={(e) => setStatus(e.target.value)}
+                                className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 md:w-48"
+                            >
+                                <option value="">All statuses</option>
+                                <option value="draft">Draft</option>
+                                <option value="scheduled">Scheduled</option>
+                                <option value="sending">Sending</option>
+                                <option value="paused">Paused</option>
+                                <option value="completed">Completed</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                            <div className="flex gap-2">
+                                <Button variant="secondary" onClick={() => {
+                                    setSearch('');
+                                    setStatus('');
+                                    router.get(route('app.broadcasts.index', {}), {}, {
+                                        preserveState: true,
+                                        preserveScroll: true,
+                                        replace: true,
+                                    });
+                                }}>
+                                    Reset
+                                </Button>
+                                <Button onClick={applyFilters}>
+                                    Apply
+                                </Button>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
 
                 {campaigns.data.length === 0 ? (
                     <Card className="border-0 shadow-xl">

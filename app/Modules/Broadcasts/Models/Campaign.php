@@ -175,7 +175,9 @@ class Campaign extends Model
             return 0;
         }
 
-        return round(($this->sent_count / $this->total_recipients) * 100, 2);
+        $processed = max(0, (int) $this->sent_count + (int) $this->failed_count);
+
+        return round(($processed / $this->total_recipients) * 100, 2);
     }
 
     /**
@@ -202,4 +204,3 @@ class Campaign extends Model
         return round(($this->read_count / $this->delivered_count) * 100, 2);
     }
 }
-

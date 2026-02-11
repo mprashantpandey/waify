@@ -35,12 +35,20 @@ class CampaignController extends Controller
             ->with(['connection', 'template', 'creator'])
             ->orderBy('created_at', 'desc');
 
+        if ($request->filled('search')) {
+            $search = trim((string) $request->string('search'));
+            $query->where(function ($inner) use ($search) {
+                $inner->where('name', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
+            });
+        }
+
         // Filter by status
         if ($request->has('status') && $request->status) {
             $query->where('status', $request->status);
         }
 
-        $campaigns = $query->paginate(20)->through(function ($campaign) {
+        $campaigns = $query->paginate(20)->withQueryString()->through(function ($campaign) {
                 return [
                     'id' => $campaign->id,
                     'slug' => $campaign->slug,
@@ -73,7 +81,10 @@ class CampaignController extends Controller
             'account' => $account,
             'campaigns' => $campaigns,
             'filters' => [
-                'status' => $request->status]]);
+                'status' => $request->status,
+                'search' => (string) $request->string('search'),
+            ],
+        ]);
     }
 
     /**
@@ -142,7 +153,10 @@ class CampaignController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'type' => 'required|in:template,text,media',
-            'whatsapp_connection_id' => 'required|exists:whatsapp_connections,id',
+            'whatsapp_connection_id' => [
+                'required',
+                Rule::exists('whatsapp_connections', 'id')->where('account_id', $account->id),
+            ],
             'whatsapp_template_id' => [
                 'required_if:type,template',
                 'nullable',
@@ -211,7 +225,7 @@ class CampaignController extends Controller
             DB::commit();
 
             return redirect()->route('app.broadcasts.show', [
-                'campaign' => $campaign->id])->with('success', 'Campaign created successfully.');
+                'campaign' => $campaign->slug])->with('success', 'Campaign created successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Failed to create campaign', [
@@ -258,6 +272,9 @@ class CampaignController extends Controller
                 'description' => $campaign->description,
                 'status' => $campaign->status,
                 'type' => $campaign->type,
+                'recipient_type' => $campaign->recipient_type,
+                'send_delay_seconds' => $campaign->send_delay_seconds,
+                'respect_opt_out' => (bool) $campaign->respect_opt_out,
                 'scheduled_at' => $campaign->scheduled_at?->toIso8601String(),
                 'started_at' => $campaign->started_at?->toIso8601String(),
                 'completed_at' => $campaign->completed_at?->toIso8601String(),
@@ -283,7 +300,68 @@ class CampaignController extends Controller
                     'read_at' => $recipient->read_at?->toIso8601String(),
                     'failed_at' => $recipient->failed_at?->toIso8601String(),
                     'failure_reason' => $recipient->failure_reason];
-            })]);
+            }),
+        ]);
+    }
+
+    public function duplicate(Request $request, Campaign $campaign)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if (!account_ids_match($campaign->account_id, $account->id)) {
+            abort(404);
+        }
+
+        try {
+            $copy = $this->campaignService->duplicateCampaign($campaign, (int) $request->user()->id);
+
+            return redirect()->route('app.broadcasts.show', ['campaign' => $copy->slug])
+                ->with('success', 'Campaign duplicated successfully.');
+        } catch (\Throwable $e) {
+            Log::error('Failed to duplicate campaign', [
+                'campaign_id' => $campaign->id,
+                'account_id' => $account->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withErrors([
+                'error' => 'Failed to duplicate campaign: ' . $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function retryFailed(Request $request, Campaign $campaign)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if (!account_ids_match($campaign->account_id, $account->id)) {
+            abort(404);
+        }
+
+        if (!in_array($campaign->status, ['sending', 'completed', 'paused', 'cancelled'], true)) {
+            return back()->withErrors([
+                'error' => 'Failed recipients can only be retried after campaign execution starts.',
+            ]);
+        }
+
+        try {
+            $retried = $this->campaignService->retryFailedRecipients($campaign);
+            if ($retried === 0) {
+                return back()->with('success', 'No failed recipients to retry.');
+            }
+
+            return back()->with('success', "Queued {$retried} failed recipients for retry.");
+        } catch (\Throwable $e) {
+            Log::error('Failed to retry campaign recipients', [
+                'campaign_id' => $campaign->id,
+                'account_id' => $account->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return back()->withErrors([
+                'error' => 'Failed to retry recipients: ' . $e->getMessage(),
+            ]);
+        }
     }
 
     /**
@@ -356,5 +434,25 @@ class CampaignController extends Controller
         $campaign->update(['status' => 'cancelled']);
 
         return back()->with('success', 'Campaign cancelled successfully.');
+    }
+
+    public function destroy(Request $request, Campaign $campaign)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if (!account_ids_match($campaign->account_id, $account->id)) {
+            abort(404);
+        }
+
+        if (!in_array($campaign->status, ['draft', 'cancelled', 'completed'], true)) {
+            return back()->withErrors([
+                'error' => 'Only draft, cancelled, or completed campaigns can be deleted.',
+            ]);
+        }
+
+        $campaign->delete();
+
+        return redirect()->route('app.broadcasts.index')
+            ->with('success', 'Campaign deleted successfully.');
     }
 }
