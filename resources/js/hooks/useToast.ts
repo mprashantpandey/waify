@@ -12,17 +12,49 @@ let toastIdCounter = 0;
 const toastListeners: Set<(toasts: Toast[]) => void> = new Set();
 let toasts: Toast[] = [];
 const recentToastSignatures: Map<string, { id: string; at: number }> = new Map();
-const TOAST_DEDUPE_WINDOW_MS = 1500;
+const TOAST_DEDUPE_WINDOW_MS = 4000;
+const GENERIC_TITLES = new Set(['success', 'error', 'warning', 'info', 'status']);
+
+function normalizeToastMessage(toast: Omit<Toast, 'id'>): string {
+    const title = (toast.title || '').trim();
+    const description = (toast.description || '').trim();
+
+    if (!title && !description) {
+        return '';
+    }
+
+    // If title is generic and description contains the actual message, use description as canonical text.
+    if (description && GENERIC_TITLES.has(title.toLowerCase())) {
+        return description.toLowerCase();
+    }
+
+    // If both exist, include both for semantic uniqueness.
+    if (title && description) {
+        return `${title} | ${description}`.toLowerCase();
+    }
+
+    return (description || title).toLowerCase();
+}
 
 export function useToast() {
     const [localToasts, setLocalToasts] = useState<Toast[]>(toasts);
 
     const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
         const now = Date.now();
-        const signature = `${toast.variant || 'info'}|${toast.title}|${toast.description || ''}`;
+        const canonicalMessage = normalizeToastMessage(toast);
+        const signature = `${toast.variant || 'info'}|${canonicalMessage}`;
         const recent = recentToastSignatures.get(signature);
         if (recent && now - recent.at < TOAST_DEDUPE_WINDOW_MS) {
             return recent.id;
+        }
+
+        // Keep dedupe map bounded.
+        if (recentToastSignatures.size > 200) {
+            for (const [key, value] of recentToastSignatures.entries()) {
+                if (now - value.at > TOAST_DEDUPE_WINDOW_MS * 2) {
+                    recentToastSignatures.delete(key);
+                }
+            }
         }
 
         const id = `toast-${++toastIdCounter}`;
