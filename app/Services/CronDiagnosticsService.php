@@ -24,25 +24,11 @@ class CronDiagnosticsService
 
         $commands = [
             [
-                'id' => 'queue-worker',
-                'title' => 'Queue Worker (Primary)',
+                'id' => 'central-worker',
+                'title' => 'Central Cron Command',
                 'schedule' => '* * * * *',
-                'description' => 'Recommended for cPanel cron. Processes inbox, chatbot, and campaign jobs every minute.',
+                'description' => 'Use this single command in cPanel. It processes inbox, chatbot, campaign, and other queued jobs in one worker pass.',
                 'command' => "cd {$appPath} && php artisan queue:work --queue=default,chatbots,campaigns --stop-when-empty --sleep=1 --tries=3 --timeout=120 {$nullRedirect}",
-            ],
-            [
-                'id' => 'scheduler',
-                'title' => 'Laravel Scheduler',
-                'schedule' => '* * * * *',
-                'description' => 'Recommended for all installations. Runs scheduled tasks.',
-                'command' => "cd {$appPath} && php artisan schedule:run {$nullRedirect}",
-            ],
-            [
-                'id' => 'chatbots-diagnose',
-                'title' => 'Chatbots Diagnostics',
-                'schedule' => '*/15 * * * *',
-                'description' => 'Optional health check to catch non-runnable bot flows.',
-                'command' => "cd {$appPath} && php artisan chatbots:diagnose {$nullRedirect}",
             ],
         ];
 
