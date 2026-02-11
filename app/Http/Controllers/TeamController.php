@@ -171,10 +171,30 @@ class TeamController extends Controller
         }
 
         if ($existingUser) {
+            // Enforce single-team membership for agents:
+            // move user from any previous account memberships before adding here.
+            $ownsAnotherAccount = Account::query()
+                ->where('owner_id', $existingUser->id)
+                ->where('id', '!=', $account->id)
+                ->exists();
+
+            if ($ownsAnotherAccount) {
+                return back()->with('error', 'This user owns another account and cannot be auto-moved. Transfer ownership first.');
+            }
+
+            $removedMemberships = AccountUser::query()
+                ->where('user_id', $existingUser->id)
+                ->where('account_id', '!=', $account->id)
+                ->delete();
+
             $account->users()->attach($existingUser->id, [
                 'role' => $request->role]);
 
-            return back()->with('success', 'Member added successfully.');
+            $message = $removedMemberships > 0
+                ? 'Member moved from previous team and added successfully.'
+                : 'Member added successfully.';
+
+            return back()->with('success', $message);
         }
 
         AccountInvitation::where('account_id', $account->id)
