@@ -25,6 +25,7 @@ use App\Services\AI\ConversationAssistantService;
 use App\Core\Billing\PlanResolver;
 use App\Models\AiUsageLog;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -577,29 +578,75 @@ class ConversationController extends Controller
             return response()->json(['error' => 'AI module is not available on your plan.'], 403);
         }
 
+        if (!\App\Models\PlatformSetting::get('ai.enabled', false)) {
+            return response()->json(['error' => 'AI is disabled in platform settings.'], 403);
+        }
+
         try {
             $suggestion = $this->conversationAssistant->suggestReply($conversation);
             $suggestion = trim($suggestion);
 
+            if ($suggestion === '') {
+                return response()->json(['error' => 'AI returned an empty suggestion. Please try again.'], 422);
+            }
+
             $user = $request->user();
-            if ($user && $account) {
-                AiUsageLog::create([
-                    'user_id' => $user->id,
-                    'account_id' => $account->id,
-                    'feature' => 'conversation_suggest',
-                ]);
+            if ($user && $account && Schema::hasTable('ai_usage_logs')) {
+                try {
+                    AiUsageLog::create([
+                        'user_id' => $user->id,
+                        'account_id' => $account->id,
+                        'feature' => 'conversation_suggest',
+                    ]);
+                } catch (\Illuminate\Database\QueryException $e) {
+                    // Usage logging should never block AI suggestions.
+                    \Illuminate\Support\Facades\Log::warning('AI usage log write failed', [
+                        'conversation_id' => $conversation->id,
+                        'user_id' => $user->id,
+                        'account_id' => $account->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
 
             return response()->json(['suggestion' => $suggestion]);
         } catch (\Throwable $e) {
+            [$error, $status] = $this->mapAiSuggestionError($e);
             \Illuminate\Support\Facades\Log::warning('AI suggestion failed', [
                 'conversation_id' => $conversation->id,
+                'account_id' => $account?->id,
+                'user_id' => $request->user()?->id,
+                'exception' => $e::class,
                 'error' => $e->getMessage(),
             ]);
             return response()->json([
-                'error' => $e->getMessage() ? 'AI suggestion failed. Please try again.' : 'AI is not configured or temporarily unavailable.',
-            ], 503);
+                'error' => $error,
+            ], $status);
         }
+    }
+
+    protected function mapAiSuggestionError(\Throwable $e): array
+    {
+        $message = trim((string) $e->getMessage());
+        $lower = Str::lower($message);
+
+        if (Str::contains($lower, ['api key not configured', 'unknown ai provider', 'not configured'])) {
+            return ['AI provider is not configured. Please check Platform Settings -> AI.', 422];
+        }
+
+        if (Str::contains($lower, ['invalid api key', 'unauthorized', 'authentication'])) {
+            return ['AI provider authentication failed. Please verify API credentials in Platform Settings.', 422];
+        }
+
+        if (Str::contains($lower, ['timeout', 'timed out', 'curl error 28', 'connection', 'network'])) {
+            return ['AI provider timed out. Please retry in a few seconds.', 503];
+        }
+
+        if ($message !== '') {
+            return ['AI suggestion failed: ' . $message, 503];
+        }
+
+        return ['AI suggestion failed. Please try again.', 503];
     }
 
     /**
