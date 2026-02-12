@@ -10,7 +10,7 @@ return [
     'nav' => [
         [
             'label' => 'AI Assistant',
-            'href' => 'app.ai',
+            'href' => 'app.ai.index',
             'icon' => 'Sparkles',
             'group' => 'ai']]];
 

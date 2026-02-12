@@ -23,6 +23,7 @@ use App\Modules\WhatsApp\Services\TemplateComposer;
 use App\Modules\WhatsApp\Services\WhatsAppClient;
 use App\Services\AI\ConversationAssistantService;
 use App\Core\Billing\PlanResolver;
+use App\Models\AiUsageLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -579,6 +580,16 @@ class ConversationController extends Controller
         try {
             $suggestion = $this->conversationAssistant->suggestReply($conversation);
             $suggestion = trim($suggestion);
+
+            $user = $request->user();
+            if ($user && $account) {
+                AiUsageLog::create([
+                    'user_id' => $user->id,
+                    'account_id' => $account->id,
+                    'feature' => 'conversation_suggest',
+                ]);
+            }
+
             return response()->json(['suggestion' => $suggestion]);
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::warning('AI suggestion failed', [

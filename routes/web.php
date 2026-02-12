@@ -139,8 +139,12 @@ Route::middleware(['auth', 'account.resolve', 'account.active', 'account.subscri
     
     // Module placeholder pages
     Route::get('/whatsapp', [ModuleController::class, 'show'])->name('whatsapp')->defaults('module', 'whatsapp');
-    // Templates route removed - using app.whatsapp.templates.index instead
-    Route::get('/ai', [ModuleController::class, 'show'])->name('ai')->defaults('module', 'ai');
+
+    // AI module (requires AI entitlement)
+    Route::middleware(['module.entitled:ai'])->prefix('ai')->name('ai.')->group(function () {
+        Route::get('/', [\App\Modules\AI\Http\Controllers\AiController::class, 'index'])->name('index');
+        Route::post('/settings', [\App\Modules\AI\Http\Controllers\AiController::class, 'updateSettings'])->name('settings');
+    });
     
     // Load module routes (WhatsApp, Chatbots, etc.)
     if (file_exists(__DIR__.'/../app/Modules/WhatsApp/routes/web.php')) {

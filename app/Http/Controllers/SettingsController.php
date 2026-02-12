@@ -56,7 +56,6 @@ class SettingsController extends Controller
             'notify_assignment_enabled' => 'required|boolean',
             'notify_mention_enabled' => 'required|boolean',
             'notify_sound_enabled' => 'required|boolean',
-            'ai_suggestions_enabled' => 'required|boolean',
         ]);
 
         $user->update($validated);

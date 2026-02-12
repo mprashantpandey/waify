@@ -26,7 +26,8 @@ class User extends Authenticatable
         'notify_assignment_enabled',
         'notify_mention_enabled',
         'notify_sound_enabled',
-        'ai_suggestions_enabled'];
+        'ai_suggestions_enabled',
+        'ai_prompts'];
 
     /**
      * The attributes that should be hidden for serialization.
@@ -51,7 +52,8 @@ class User extends Authenticatable
             'notify_assignment_enabled' => 'boolean',
             'notify_mention_enabled' => 'boolean',
             'notify_sound_enabled' => 'boolean',
-            'ai_suggestions_enabled' => 'boolean'];
+            'ai_suggestions_enabled' => 'boolean',
+            'ai_prompts' => 'array'];
     }
 
     /**
