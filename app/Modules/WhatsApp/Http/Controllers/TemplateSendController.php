@@ -96,12 +96,20 @@ class TemplateSendController extends Controller
 
         $validated = $request->validate([
             'to_wa_id' => 'required|string',
-            'variables' => 'sometimes|array',
-            'variables.*' => 'nullable|string']);
+            'variables' => 'nullable',
+        ]);
 
         // Validate variables count
         $requiredVars = $this->composer->extractRequiredVariables($template);
         $variables = $validated['variables'] ?? [];
+        if (!is_array($variables)) {
+            $variables = [];
+        }
+        $variables = array_values(array_map(
+            static fn ($value) => is_scalar($value) ? (string) $value : '',
+            $variables
+        ));
+
         if (count($variables) < $requiredVars['total']) {
             return redirect()->back()->withErrors([
                 'variables' => "Template requires {$requiredVars['total']} variables"]);

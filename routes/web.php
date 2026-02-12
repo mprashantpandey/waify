@@ -35,6 +35,23 @@ Route::post('/widgets/{widget}/event', [\App\Modules\Floaters\Http\Controllers\P
 // Auth routes
 require __DIR__.'/auth.php';
 
+// Legacy dashboard route retained for auth/verification redirects and old links.
+Route::middleware(['auth'])->get('/dashboard', function (\Illuminate\Http\Request $request) {
+    $user = $request->user();
+
+    if ($user?->isSuperAdmin()) {
+        return redirect()->route('platform.dashboard');
+    }
+
+    $hasAccounts = $user
+        ? ($user->ownedAccounts()->exists() || $user->accounts()->exists())
+        : false;
+
+    return $hasAccounts
+        ? redirect()->route('app.dashboard')
+        : redirect()->route('onboarding');
+})->name('dashboard');
+
 // CSRF token refresh endpoint (no auth required, but session must be valid)
 // This allows refreshing CSRF tokens even when user is not authenticated
 Route::get('/csrf-token/refresh', [\App\Http\Controllers\CsrfTokenController::class, 'refresh'])->name('csrf-token.refresh');

@@ -7,6 +7,7 @@ use App\Modules\Floaters\Policies\FloaterWidgetPolicy;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Policies\WhatsAppConnectionPolicy;
 use App\Services\PlatformSettingsService;
+use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Queue;
@@ -42,6 +43,12 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Vite::prefetch(concurrency: 3);
+
+        // Keep factory resolution stable for module models (App\Modules\*\Models\*)
+        // by mapping to flat factory classes in database/factories.
+        Factory::guessFactoryNamesUsing(function (string $modelName): string {
+            return 'Database\\Factories\\'.class_basename($modelName).'Factory';
+        });
 
         // Queue workers do not run HTTP middleware, so load runtime platform settings
         // for console/queue processes to keep broadcasting, mail, and integrations consistent.
