@@ -21,6 +21,8 @@ use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use App\Modules\WhatsApp\Models\WhatsAppTemplateSend;
 use App\Modules\WhatsApp\Services\TemplateComposer;
 use App\Modules\WhatsApp\Services\WhatsAppClient;
+use App\Services\AI\ConversationAssistantService;
+use App\Core\Billing\PlanResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -35,7 +37,9 @@ class ConversationController extends Controller
         protected WhatsAppClient $whatsappClient,
         protected TemplateComposer $templateComposer,
         protected EntitlementService $entitlementService,
-        protected UsageService $usageService
+        protected UsageService $usageService,
+        protected ConversationAssistantService $conversationAssistant,
+        protected PlanResolver $planResolver
     ) {
     }
 
@@ -317,6 +321,9 @@ class ConversationController extends Controller
 
         $agents = $account->getAssignableAgents()->all();
 
+        $effectiveModules = $this->planResolver->getEffectiveModules($account);
+        $aiAvailable = in_array('ai', $effectiveModules, true);
+
         $assignedTo = Schema::hasColumn('whatsapp_conversations', 'assigned_to')
             ? $conversation->assigned_to
             : null;
@@ -352,6 +359,7 @@ class ConversationController extends Controller
                 'auto_assign_enabled' => (bool) $account->auto_assign_enabled,
                 'auto_assign_strategy' => $account->auto_assign_strategy ?? 'round_robin',
             ],
+            'ai_available' => $aiAvailable,
         ]);
     }
 
@@ -546,6 +554,41 @@ class ConversationController extends Controller
         event(new ConversationUpdated($conversation));
 
         return back()->with('success', 'Conversation updated.');
+    }
+
+    /**
+     * Get an AI-suggested reply for the conversation (requires user preference and AI module).
+     */
+    public function aiSuggest(Request $request, WhatsAppConversation $conversation)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if (!account_ids_match($conversation->account_id, $account->id)) {
+            return response()->json(['error' => 'Conversation not found.'], 404);
+        }
+
+        if (!$request->user()?->ai_suggestions_enabled) {
+            return response()->json(['error' => 'AI suggestions are disabled in your settings.'], 403);
+        }
+
+        $effectiveModules = $this->planResolver->getEffectiveModules($account);
+        if (!in_array('ai', $effectiveModules, true)) {
+            return response()->json(['error' => 'AI module is not available on your plan.'], 403);
+        }
+
+        try {
+            $suggestion = $this->conversationAssistant->suggestReply($conversation);
+            $suggestion = trim($suggestion);
+            return response()->json(['suggestion' => $suggestion]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('AI suggestion failed', [
+                'conversation_id' => $conversation->id,
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json([
+                'error' => $e->getMessage() ? 'AI suggestion failed. Please try again.' : 'AI is not configured or temporarily unavailable.',
+            ], 503);
+        }
     }
 
     /**

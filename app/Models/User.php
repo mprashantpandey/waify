@@ -25,7 +25,8 @@ class User extends Authenticatable
         'is_platform_admin',
         'notify_assignment_enabled',
         'notify_mention_enabled',
-        'notify_sound_enabled'];
+        'notify_sound_enabled',
+        'ai_suggestions_enabled'];
 
     /**
      * The attributes that should be hidden for serialization.
@@ -49,7 +50,8 @@ class User extends Authenticatable
             'is_platform_admin' => 'boolean',
             'notify_assignment_enabled' => 'boolean',
             'notify_mention_enabled' => 'boolean',
-            'notify_sound_enabled' => 'boolean'];
+            'notify_sound_enabled' => 'boolean',
+            'ai_suggestions_enabled' => 'boolean'];
     }
 
     /**

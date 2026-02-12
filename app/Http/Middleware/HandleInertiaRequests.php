@@ -122,6 +122,7 @@ class HandleInertiaRequests extends Middleware
                     'notify_assignment_enabled' => $user->notify_assignment_enabled ?? true,
                     'notify_mention_enabled' => $user->notify_mention_enabled ?? true,
                     'notify_sound_enabled' => $user->notify_sound_enabled ?? true,
+                    'ai_suggestions_enabled' => $user->ai_suggestions_enabled ?? false,
                 ] : null,
                 'profile_complete' => $isProfileComplete],
             'account' => $account,

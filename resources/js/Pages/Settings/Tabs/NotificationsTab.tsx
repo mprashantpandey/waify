@@ -13,6 +13,7 @@ export default function NotificationsTab() {
         notify_assignment_enabled: Boolean(user?.notify_assignment_enabled ?? true),
         notify_mention_enabled: Boolean(user?.notify_mention_enabled ?? true),
         notify_sound_enabled: Boolean(user?.notify_sound_enabled ?? true),
+        ai_suggestions_enabled: Boolean(user?.ai_suggestions_enabled ?? false),
     });
 
     const submit = (e: React.FormEvent) => {
@@ -108,6 +109,30 @@ export default function NotificationsTab() {
                                 </label>
                             </div>
                             <InputError message={errors.notify_sound_enabled} className="mt-2" />
+                        </div>
+
+                        <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                        AI suggestions in conversations
+                                    </div>
+                                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                                        Show an AI suggest button in WhatsApp chats to get reply suggestions (requires AI module on your plan).
+                                    </p>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        className="sr-only peer"
+                                        checked={data.ai_suggestions_enabled}
+                                        onChange={(e) => setData('ai_suggestions_enabled', e.target.checked)}
+                                    />
+                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500/30 rounded-full peer dark:bg-gray-700 peer-checked:bg-blue-500"></div>
+                                    <div className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition peer-checked:translate-x-5"></div>
+                                </label>
+                            </div>
+                            <InputError message={errors.ai_suggestions_enabled} className="mt-2" />
                         </div>
 
                         <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">

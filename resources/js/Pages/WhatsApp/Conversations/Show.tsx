@@ -5,7 +5,7 @@ import Button from '@/Components/UI/Button';
 import TextInput from '@/Components/TextInput';
 import { Textarea } from '@/Components/UI/Textarea';
 import { Badge } from '@/Components/UI/Badge';
-import { ArrowLeft, Send, Check, CheckCheck, Clock, Menu, Phone, Wifi, WifiOff, X, Smile, Paperclip, Image as ImageIcon, MapPin, FileText, Zap, List, Square, Plus } from 'lucide-react';
+import { ArrowLeft, Send, Check, CheckCheck, Clock, Menu, Phone, Wifi, WifiOff, X, Smile, Paperclip, Image as ImageIcon, MapPin, FileText, Zap, List, Square, Plus, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRealtime } from '@/Providers/RealtimeProvider';
 import { MessageSkeleton } from '@/Components/UI/Skeleton';
@@ -159,7 +159,9 @@ export default function ConversationsShow({
     inbox_settings: inboxSettings = {
         auto_assign_enabled: false,
         auto_assign_strategy: 'round_robin',
-    }}: {
+    },
+    ai_available: aiAvailable = false,
+}: {
     account: any;
     conversation: Conversation;
     messages: Message[];
@@ -173,6 +175,7 @@ export default function ConversationsShow({
         auto_assign_enabled: boolean;
         auto_assign_strategy: string;
     };
+    ai_available?: boolean;
 }) {
     const pageProps = usePage().props as any;
     const resolvedConversation: Conversation | null = initialConversation ?? pageProps?.conversation ?? null;
@@ -195,6 +198,7 @@ export default function ConversationsShow({
         ? extractList<ListItem>(lists)
         : extractList<ListItem>(pageProps?.lists);
     const initialTotalMessages = Number(total_messages ?? pageProps?.total_messages ?? 0);
+    const resolvedAiAvailable = Boolean(aiAvailable ?? pageProps?.ai_available ?? false);
 
     if (!resolvedConversation) {
         return (
@@ -227,6 +231,8 @@ export default function ConversationsShow({
     const notifyAssignmentEnabled = auth?.user?.notify_assignment_enabled ?? true;
     const notifyMentionEnabled = auth?.user?.notify_mention_enabled ?? true;
     const soundEnabled = auth?.user?.notify_sound_enabled ?? true;
+    const aiSuggestionsEnabled = auth?.user?.ai_suggestions_enabled ?? false;
+    const showAiSuggest = Boolean(resolvedAiAvailable && aiSuggestionsEnabled);
     const [messages, setMessages] = useState<Message[]>(normalizedMessages);
     const [conversation, setConversation] = useState<Conversation>(resolvedConversation);
     const [loading, setLoading] = useState<boolean>(normalizedMessages.length === 0 && initialTotalMessages > 0);
@@ -235,6 +241,7 @@ export default function ConversationsShow({
     const [showQuickReplies, setShowQuickReplies] = useState(false);
     const [showTemplates, setShowTemplates] = useState(false);
     const [showLists, setShowLists] = useState(false);
+    const [aiSuggestLoading, setAiSuggestLoading] = useState(false);
     const [showButtons, setShowButtons] = useState(false);
     const [showLocation, setShowLocation] = useState(false);
     const [selectedList, setSelectedList] = useState<ListItem | null>(null);
@@ -1049,6 +1056,25 @@ export default function ConversationsShow({
         },
         [addToast, conversation.id, metaUpdating]
     );
+
+    const handleAiSuggest = useCallback(() => {
+        if (!showAiSuggest || aiSuggestLoading) return;
+        setAiSuggestLoading(true);
+        axios
+            .post(route('app.whatsapp.conversations.ai-suggest', { conversation: conversation.id }))
+            .then((res) => {
+                const suggestion = res.data?.suggestion;
+                if (typeof suggestion === 'string' && suggestion.trim()) {
+                    setData('message', suggestion.trim());
+                    addToast({ title: 'AI suggestion added', description: 'Edit or send as is.', variant: 'info', duration: 2000 });
+                }
+            })
+            .catch((err) => {
+                const msg = err?.response?.data?.error || err?.message || 'AI suggestion failed.';
+                addToast({ title: 'AI suggestion failed', description: msg, variant: 'error' });
+            })
+            .finally(() => setAiSuggestLoading(false));
+    }, [showAiSuggest, aiSuggestLoading, conversation.id, setData, addToast]);
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -2088,6 +2114,23 @@ export default function ConversationsShow({
                                 autoFocus
                                 aria-label="Message input"
                             />
+                            {showAiSuggest && (
+                                <Button
+                                    type="button"
+                                    onClick={handleAiSuggest}
+                                    disabled={processing || aiSuggestLoading}
+                                    aria-label="Get AI reply suggestion"
+                                    title="Suggest reply with AI"
+                                    variant="secondary"
+                                    className="shrink-0 rounded-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800"
+                                >
+                                    {aiSuggestLoading ? (
+                                        <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" aria-hidden />
+                                    ) : (
+                                        <Sparkles className="h-4 w-4 text-amber-500" />
+                                    )}
+                                </Button>
+                            )}
                             <Button
                                 type="submit"
                                 disabled={processing || (!data.message.trim() && attachments.length === 0)}
