@@ -17,7 +17,9 @@ class WhatsAppConversation extends Model
         'account_id',
         'whatsapp_connection_id',
         'whatsapp_contact_id',
+        'assigned_to',
         'status',
+        'priority',
         'last_message_at',
         'last_message_preview',
         'metadata'];
