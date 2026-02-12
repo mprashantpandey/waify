@@ -15,6 +15,7 @@ class RestrictChatAgentAccess
         'app.dashboard',
         'app.whatsapp.conversations',
         'app.whatsapp.inbox',
+        'app.ai',
         'app.accounts.switch',
     ];
 
@@ -57,6 +58,6 @@ class RestrictChatAgentAccess
         }
 
         return redirect()->route('app.whatsapp.conversations.index')
-            ->with('error', 'You do not have permission to access that page. Chat agents can only access the Inbox.');
+            ->with('error', 'You do not have permission to access that page. Chat agents can only access Inbox and AI Assistant.');
     }
 }

@@ -56,11 +56,15 @@ class HandleInertiaRequests extends Middleware
                 $moduleRegistry = app(\App\Core\Modules\ModuleRegistry::class);
                 $navigation = $moduleRegistry->getNavigationForAccount($account);
 
-                // Chat agents (role === 'member') only see Inbox and Dashboard
+                // Chat agents (role === 'member') only see Inbox + AI Assistant
                 if ($accountRole === 'member') {
                     $navigation = array_values(array_filter($navigation, function ($item) {
                         $href = $item['href'] ?? '';
-                        return $href === 'app.whatsapp.conversations.index';
+                        return in_array($href, [
+                            'app.whatsapp.conversations.index',
+                            'app.ai.index',
+                            'app.ai',
+                        ], true);
                     }));
                     if (empty($navigation)) {
                         $navigation = [

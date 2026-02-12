@@ -45,7 +45,6 @@ class ModuleRegistry
 
         $settingsService = app(\App\Services\PlatformSettingsService::class);
         $analyticsEnabled = $settingsService->isFeatureEnabled('analytics');
-        $aiEnabled = (bool) \App\Models\PlatformSetting::get('ai.enabled', false);
 
         // Get modules available on the account's plan
         $planResolver = app(\App\Core\Billing\PlanResolver::class);
@@ -60,7 +59,7 @@ class ModuleRegistry
         // Combine: modules must be:
         // 1. Enabled at platform level
         // 2. Either on the plan AND enabled in account, OR core/enabled_by_default AND enabled in account
-        return $this->all()->filter(function ($module) use ($platformEnabledModules, $availableModuleKeys, $accountModuleKeys, $analyticsEnabled, $aiEnabled) {
+        return $this->all()->filter(function ($module) use ($platformEnabledModules, $availableModuleKeys, $accountModuleKeys, $analyticsEnabled) {
             $moduleKey = $module['key'];
 
             // First check: module must be enabled at platform level
@@ -72,10 +71,6 @@ class ModuleRegistry
                 return false;
             }
 
-            if ($moduleKey === 'ai' && !$aiEnabled) {
-                return false;
-            }
-            
             $isOnPlan = in_array($moduleKey, $availableModuleKeys);
             $isEnabledInAccount = in_array($moduleKey, $accountModuleKeys);
             $isCore = $module['is_core'] ?? false;

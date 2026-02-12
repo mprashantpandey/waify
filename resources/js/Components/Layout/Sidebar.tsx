@@ -76,21 +76,42 @@ export function Sidebar({ navigation, currentRoute, account, isOpen = false, onC
         growth: 'Growth',
         billing: 'Billing'};
 
+    const tryRouteHref = (routeName: string): string | null => {
+        try {
+            return route(routeName, { });
+        } catch (error) {
+            return null;
+        }
+    };
+
+    const resolveRouteHref = (routeName: string): string | null => {
+        const direct = tryRouteHref(routeName);
+        if (direct) {
+            return direct;
+        }
+
+        // Backward/forward compatible route-name fallback: app.foo <-> app.foo.index
+        if (routeName.endsWith('.index')) {
+            return tryRouteHref(routeName.slice(0, -'.index'.length));
+        }
+
+        return tryRouteHref(`${routeName}.index`);
+    };
+
     const renderNavItem = (item: NavItem, index: number) => {
         const Icon = iconMap[item.icon] || LayoutDashboard;
         
         // Try to generate the route
         let href = '#';
-        try {
-            if (account) {
-                href = route(item.href, { });
-            } else {
-                // No account, can't generate route - skip this item
+        if (account) {
+            const resolved = resolveRouteHref(item.href);
+            if (!resolved) {
+                // Route doesn't exist (e.g., stale cached route names)
                 return null;
             }
-        } catch (error) {
-            // Route doesn't exist (e.g., module disabled at platform level)
-            // Skip this nav item silently
+            href = resolved;
+        } else {
+            // No account, can't generate route - skip this item
             return null;
         }
         
