@@ -696,9 +696,13 @@ class ConversationController extends Controller
             abort(404);
         }
 
+        if (!$request->has('variables') || $request->input('variables') === null || $request->input('variables') === '') {
+            $request->merge(['variables' => []]);
+        }
+
         $validated = $request->validate([
             'template_id' => 'required|integer|exists:whatsapp_templates,id',
-            'variables' => 'nullable|array',
+            'variables' => 'sometimes|array',
             'variables.*' => 'nullable|string|max:1024']);
 
         $template = WhatsAppTemplate::where('account_id', $account->id)

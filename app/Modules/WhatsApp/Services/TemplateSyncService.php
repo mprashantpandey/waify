@@ -8,10 +8,12 @@ use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class TemplateSyncService
 {
     protected string $baseUrl;
+    protected ?bool $connectionHasSyncColumns = null;
 
     public function __construct()
     {
@@ -159,10 +161,7 @@ class TemplateSyncService
             }
         });
 
-        // Update connection sync timestamp
-        $connection->update([
-            'last_synced_at' => now(),
-            'last_meta_error' => count($errors) > 0 ? json_encode($errors) : null]);
+        $this->persistConnectionSyncState($connection, $errors);
 
         return [
             'created' => $created,
@@ -257,5 +256,26 @@ class TemplateSyncService
         );
 
         return $template;
+    }
+
+    /**
+     * Persist sync metadata only when schema supports these columns.
+     * Some deployments still run an older whatsapp_connections schema.
+     */
+    protected function persistConnectionSyncState(WhatsAppConnection $connection, array $errors): void
+    {
+        if ($this->connectionHasSyncColumns === null) {
+            $this->connectionHasSyncColumns = Schema::hasColumn('whatsapp_connections', 'last_synced_at')
+                && Schema::hasColumn('whatsapp_connections', 'last_meta_error');
+        }
+
+        if (!$this->connectionHasSyncColumns) {
+            return;
+        }
+
+        $connection->update([
+            'last_synced_at' => now(),
+            'last_meta_error' => count($errors) > 0 ? json_encode($errors) : null,
+        ]);
     }
 }

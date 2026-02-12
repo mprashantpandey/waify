@@ -356,8 +356,8 @@ class TemplateManagementService
         array $templateData,
         array $metaResponse
     ): WhatsAppTemplate {
-        // Extract components from response
-        $components = $metaResponse['components'] ?? $templateData;
+        // Meta create response often omits components; use our request payload components as fallback.
+        $components = $metaResponse['components'] ?? $this->buildTemplatePayload($templateData)['components'] ?? [];
         
         $bodyText = null;
         $headerType = null;
@@ -389,7 +389,7 @@ class TemplateManagementService
             'name' => $templateData['name'],
             'language' => $templateData['language'],
             'category' => strtoupper($templateData['category']),
-            'status' => strtolower($metaResponse['status'] ?? 'PENDING'),
+            'status' => strtolower(trim((string) ($metaResponse['status'] ?? 'PENDING'))),
             'quality_score' => $metaResponse['quality_score'] ?? null,
             'body_text' => $bodyText,
             'header_type' => $headerType,
@@ -505,4 +505,3 @@ class TemplateManagementService
         Cache::put($rateLimitKey . ':ttl', 60 - (now()->second), 60);
     }
 }
-

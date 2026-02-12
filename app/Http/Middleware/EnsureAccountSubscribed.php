@@ -2,12 +2,18 @@
 
 namespace App\Http\Middleware;
 
+use App\Core\Billing\SubscriptionService;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 class EnsureAccountSubscribed
 {
+    public function __construct(
+        protected SubscriptionService $subscriptionService
+    ) {
+    }
+
     /**
      * Handle an incoming request.
      *
@@ -22,6 +28,9 @@ class EnsureAccountSubscribed
         }
 
         $subscription = $account->subscription;
+        if ($subscription) {
+            $subscription = $this->subscriptionService->syncAndNormalize($subscription);
+        }
 
         // Allow access to billing pages always
         $route = $request->route()?->getName();

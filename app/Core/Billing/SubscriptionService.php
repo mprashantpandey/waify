@@ -173,6 +173,61 @@ class SubscriptionService
     }
 
     /**
+     * Sync provider state and normalize local subscription status based on dates.
+     */
+    public function syncAndNormalize(Subscription $subscription): Subscription
+    {
+        $provider = $this->providerManager->getForSubscription($subscription);
+        $subscription = $provider->syncSubscription($subscription)->fresh();
+
+        // End of period cancellation.
+        if (
+            $subscription->cancel_at_period_end
+            && $subscription->current_period_end
+            && $subscription->current_period_end->isPast()
+            && $subscription->status !== 'canceled'
+        ) {
+            $subscription->update([
+                'status' => 'canceled',
+                'canceled_at' => now(),
+                'cancel_at_period_end' => false,
+            ]);
+
+            return $subscription->fresh();
+        }
+
+        // Expired trial without conversion.
+        if (
+            $subscription->status === 'trialing'
+            && $subscription->trial_ends_at
+            && $subscription->trial_ends_at->isPast()
+        ) {
+            $subscription->update([
+                'status' => 'past_due',
+                'last_payment_failed_at' => now(),
+                'last_error' => $subscription->last_error ?: 'Trial ended. Upgrade plan to continue.',
+            ]);
+
+            return $subscription->fresh();
+        }
+
+        // Expired paid period.
+        if (
+            $subscription->status === 'active'
+            && $subscription->current_period_end
+            && $subscription->current_period_end->isPast()
+        ) {
+            $subscription->update([
+                'status' => 'past_due',
+                'last_payment_failed_at' => now(),
+                'last_error' => $subscription->last_error ?: 'Subscription period ended. Renew to continue.',
+            ]);
+        }
+
+        return $subscription->fresh();
+    }
+
+    /**
      * Log a billing event.
      */
     protected function logEvent(Account $account, string $type, array $data = [], ?User $actor = null): void

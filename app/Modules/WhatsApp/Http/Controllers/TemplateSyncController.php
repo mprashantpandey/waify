@@ -5,6 +5,7 @@ namespace App\Modules\WhatsApp\Http\Controllers;
 use App\Http\Controllers\Controller;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Services\TemplateSyncService;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
@@ -40,10 +41,11 @@ class TemplateSyncController extends Controller
                 $result['created'],
                 $result['updated']
             ));
+        } catch (AuthorizationException $e) {
+            throw $e;
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
                 'sync' => 'Failed to sync templates: ' . $e->getMessage()]);
         }
     }
 }
-

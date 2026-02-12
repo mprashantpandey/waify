@@ -29,7 +29,11 @@ class TemplateController extends Controller
 
         $query = WhatsAppTemplate::where('account_id', $account->id)
             ->with('connection')
-            ->where('is_archived', false);
+            ->where(function ($q) {
+                // Legacy rows may have NULL is_archived.
+                $q->where('is_archived', false)
+                    ->orWhereNull('is_archived');
+            });
 
         // Filters
         if ($request->has('connection') && $request->connection) {
@@ -37,7 +41,7 @@ class TemplateController extends Controller
         }
 
         if ($request->has('status') && $request->status) {
-            $query->where('status', $request->status);
+            $query->whereRaw('LOWER(TRIM(status)) = ?', [strtolower(trim((string) $request->status))]);
         }
 
         if ($request->has('category') && $request->category) {

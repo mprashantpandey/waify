@@ -94,9 +94,14 @@ class TemplateSendController extends Controller
 
         $template->load('connection');
 
+        if (!$request->has('variables') || $request->input('variables') === null || $request->input('variables') === '') {
+            $request->merge(['variables' => []]);
+        }
+
         $validated = $request->validate([
             'to_wa_id' => 'required|string',
-            'variables' => 'nullable',
+            'variables' => 'sometimes|array',
+            'variables.*' => 'nullable|string|max:1024',
         ]);
 
         // Validate variables count
