@@ -19,9 +19,9 @@ This document summarizes an audit of the Waify codebase for production deploymen
 
 | Area | Current | Recommendation |
 |------|---------|----------------|
-| **Contact form** | No rate limit on `POST /contact`. | Add `throttle:5,1` (or similar) to prevent abuse and spam. |
-| **Password reset** | Uses Laravel default. | Ensure `throttle` on `password.email` and `password.store` (e.g. `throttle:3,1` on forgot-password) if not already in framework. |
-| **Webhook CIDR** | `WebhookSecurity` uses a simple `str_starts_with($requestIp, $network)` for CIDR. | Use a proper CIDR check (e.g. `symfony/http-client` or a small CIDR library) for correct behaviour. |
+| **Contact form** | No rate limit on `POST /contact`. | **Done**: `throttle:5,1` added. |
+| **Password reset** | Uses Laravel default. | **Done**: `throttle:3,1` on forgot-password and reset-password routes. |
+| **Webhook CIDR** | `WebhookSecurity` used a simple prefix check for CIDR. | **Done**: Proper IPv4 CIDR check (ip2long + mask) in `WebhookSecurity::ipInCidr()`. |
 | **.env.example** | `APP_DEBUG=true`, `LOG_LEVEL=debug`. | Add comments: “Set `APP_DEBUG=false` and `LOG_LEVEL=warning` (or `error`) in production.” |
 | **Sensitive config** | Platform settings (Razorpay keys, etc.) in DB. | Ensure DB and backups are restricted; consider encrypting sensitive platform settings at rest. |
 
@@ -40,8 +40,8 @@ This document summarizes an audit of the Waify codebase for production deploymen
 
 | Area | Recommendation |
 |------|----------------|
-| **Contact form** | Add route throttle (e.g. `throttle:5,1`). |
-| **Registration** | Add throttle on `POST /register` (e.g. `throttle:3,1` per IP) if not already. |
+| **Contact form** | **Done**: `throttle:5,1` on POST /contact. |
+| **Registration** | **Done**: `throttle:5,1` on POST /register; `throttle:3,1` on forgot-password and reset-password. |
 | **Billing / sensitive actions** | Consider stricter throttle on plan switch and payment confirmation (e.g. `throttle:10,1`). |
 
 ---
@@ -58,7 +58,7 @@ This document summarizes an audit of the Waify codebase for production deploymen
 
 | Area | Recommendation |
 |------|----------------|
-| **Assignee filter** | Inbox filters by `assigned_to` (e.g. “Assigned to me”). Add composite index `(account_id, assigned_to)` or `(account_id, assigned_to, last_message_at)` if this query is hot. |
+| **Assignee filter** | **Done**: Index `(account_id, assigned_to)` on `whatsapp_conversations` added. |
 | **Audit events** | If you query audit events by conversation and time often, add index on `(whatsapp_conversation_id, created_at)`. |
 | **Heavy queries** | For very large accounts, consider cursor-based pagination or read replicas for reporting. |
 
@@ -157,10 +157,10 @@ This document summarizes an audit of the Waify codebase for production deploymen
 
 ## 9. High‑impact quick wins
 
-1. **Contact form throttle** — Add `->middleware('throttle:5,1')` to `Route::post('/contact', ...)`.
-2. **Production .env comments** — In `.env.example`, add lines for `APP_DEBUG=false`, `APP_ENV=production`, `LOG_LEVEL=warning`.
-3. **500 Inertia page** — Create `Error/ServerError.tsx` and in `bootstrap/app.php` render it for 500 when `X-Inertia` is present.
-4. **Assignee index** — Add migration with index on `(account_id, assigned_to)` for `whatsapp_conversations` if “Assigned to me” filter is used heavily.
+1. **Contact form throttle** — **Done**: `throttle:5,1` on POST /contact.
+2. **Production .env comments** — **Done**: `.env.example` documents APP_ENV, APP_DEBUG, LOG_LEVEL for production.
+3. **500 Inertia page** — **Done**: `Error/ServerError.tsx` and bootstrap/app.php 5xx handler.
+4. **Assignee index** — **Done**: Migration adds index `(account_id, assigned_to)` on `whatsapp_conversations`.
 
 ---
 
@@ -168,13 +168,13 @@ This document summarizes an audit of the Waify codebase for production deploymen
 
 | Category        | Status   | Priority improvements |
 |----------------|----------|------------------------|
-| Security       | Good     | Contact throttle; production APP_DEBUG/LOG_LEVEL; optional CIDR fix. |
-| Rate limiting  | Good     | Contact + registration throttle. |
-| Database       | Good     | Optional index for assignee filter; audit events if needed. |
+| Security       | Good     | Contact throttle; CIDR fix; .env comments — done. |
+| Rate limiting  | Good     | Contact, registration, password-reset throttle — done. |
+| Database       | Good     | Assignee index — done; audit events if needed. |
 | Error handling | Good     | Inertia 500 page; consistent log context. |
 | Config/Env     | Good     | Document production env and queue/scheduler. |
 | Testing        | Good     | More coverage on assignment and webhooks. |
 | Frontend       | Good     | Server error page; centralized error handling. |
 | Observability  | Good     | Metrics and alerts; backup docs. |
 
-Overall the application is in good shape for production. Addressing the contact form throttle, production env defaults, and the Inertia 500 page will materially improve security and UX with minimal change.
+Overall the application is in good shape for production. Contact throttle, registration/password-reset throttle, production .env comments, Inertia 500 page, assignee index, and webhook CIDR have been addressed.

@@ -77,6 +77,26 @@ class ConversationController extends Controller
             });
         }
 
+        if (Schema::hasColumn('whatsapp_conversations', 'assigned_to')) {
+            $assigneeFilter = $request->input('assignee', 'all');
+            if ($assigneeFilter === 'me') {
+                $currentUserId = $request->user()?->id;
+                if ($currentUserId) {
+                    $query->where('assigned_to', $currentUserId);
+                }
+            } elseif ($assigneeFilter === 'unassigned') {
+                $query->whereNull('assigned_to');
+            }
+        }
+
+        if ($request->filled('status') && $request->input('status') !== 'all') {
+            $query->where('status', $request->input('status'));
+        }
+
+        if ($request->filled('connection_id') && $request->input('connection_id') !== 'all') {
+            $query->where('whatsapp_connection_id', $request->input('connection_id'));
+        }
+
         $conversations = $query
             ->orderBy('last_message_at', 'desc')
             ->orderBy('id', 'desc') // Secondary sort for consistent ordering
@@ -115,7 +135,12 @@ class ConversationController extends Controller
             'conversations' => $conversations,
             'connections' => $connections,
             'agents' => $agents,
-            'filters' => ['search' => $request->input('search', '')],
+            'filters' => [
+                'search' => $request->input('search', ''),
+                'assignee' => $request->input('assignee', 'all'),
+                'status' => $request->input('status', 'all'),
+                'connection_id' => $request->input('connection_id', 'all'),
+            ],
         ]);
     }
 

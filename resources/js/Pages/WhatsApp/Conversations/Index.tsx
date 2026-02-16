@@ -93,7 +93,7 @@ export default function ConversationsIndex({
     };
     connections?: Array<{ id: number; name: string }>;
     agents?: Agent[];
-    filters?: { search?: string };
+    filters?: { search?: string; assignee?: string; status?: string; connection_id?: string | number };
 }) {
     const { subscribe, connected } = useRealtime();
     const { addToast } = useToast();
@@ -106,9 +106,15 @@ export default function ConversationsIndex({
     );
     const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState(initialFilters?.search ?? '');
-    const [statusFilter, setStatusFilter] = useState<string>('all');
-    const [connectionFilter, setConnectionFilter] = useState<number | 'all'>('all');
-    const [assigneeFilter, setAssigneeFilter] = useState<'all' | 'me' | 'unassigned'>('all');
+    const [statusFilter, setStatusFilter] = useState<string>(initialFilters?.status ?? 'all');
+    const [connectionFilter, setConnectionFilter] = useState<number | 'all'>(
+        initialFilters?.connection_id !== undefined && initialFilters?.connection_id !== 'all'
+            ? Number(initialFilters.connection_id)
+            : 'all'
+    );
+    const [assigneeFilter, setAssigneeFilter] = useState<'all' | 'me' | 'unassigned'>(
+        (initialFilters?.assignee as 'all' | 'me' | 'unassigned') ?? 'all'
+    );
     const [assigningId, setAssigningId] = useState<number | null>(null);
     const agents: Agent[] = Array.isArray(initialAgents) ? initialAgents : [];
     const lastPollRef = useRef<Date>(new Date());
@@ -189,10 +195,34 @@ export default function ConversationsIndex({
         const t = setTimeout(() => {
             if (searchQuery === lastSearchRef.current) return;
             lastSearchRef.current = searchQuery;
-            router.get(route('app.whatsapp.conversations.index', {}), { search: searchQuery || undefined }, { preserveState: true });
+            router.get(route('app.whatsapp.conversations.index', {}), {
+                search: searchQuery || undefined,
+                assignee: assigneeFilter !== 'all' ? assigneeFilter : undefined,
+                status: statusFilter !== 'all' ? statusFilter : undefined,
+                connection_id: connectionFilter !== 'all' ? connectionFilter : undefined,
+            }, { preserveState: true });
         }, 400);
         return () => clearTimeout(t);
     }, [searchQuery]);
+
+    // Reload when assignee, status, or connection filter changes (server-side filter for correct pagination)
+    const lastFiltersRef = useRef({ assignee: assigneeFilter, status: statusFilter, connection_id: connectionFilter });
+    useEffect(() => {
+        if (
+            lastFiltersRef.current.assignee === assigneeFilter &&
+            lastFiltersRef.current.status === statusFilter &&
+            lastFiltersRef.current.connection_id === connectionFilter
+        ) {
+            return;
+        }
+        lastFiltersRef.current = { assignee: assigneeFilter, status: statusFilter, connection_id: connectionFilter };
+        router.get(route('app.whatsapp.conversations.index', {}), {
+            search: searchQuery || undefined,
+            assignee: assigneeFilter !== 'all' ? assigneeFilter : undefined,
+            status: statusFilter !== 'all' ? statusFilter : undefined,
+            connection_id: connectionFilter !== 'all' ? connectionFilter : undefined,
+        }, { preserveState: true });
+    }, [assigneeFilter, statusFilter, connectionFilter]);
 
     // Filter conversations (client-side for status/connection; search is server-side when we use backend)
     const filteredConversations = useMemo(() => {

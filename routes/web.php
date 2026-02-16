@@ -26,7 +26,9 @@ Route::get('/help', [\App\Http\Controllers\PublicPagesController::class, 'help']
 Route::get('/faqs', [\App\Http\Controllers\PublicPagesController::class, 'faqs'])->name('faqs');
 Route::get('/about', [\App\Http\Controllers\PublicPagesController::class, 'about'])->name('about');
 Route::get('/contact', [\App\Http\Controllers\PublicPagesController::class, 'contact'])->name('contact');
-Route::post('/contact', [\App\Http\Controllers\PublicPagesController::class, 'contactSubmit'])->name('contact.submit');
+Route::post('/contact', [\App\Http\Controllers\PublicPagesController::class, 'contactSubmit'])
+        ->middleware('throttle:5,1')
+        ->name('contact.submit');
 
 // Public widget embeds
 Route::get('/widgets/{widget}.js', [\App\Modules\Floaters\Http\Controllers\PublicWidgetController::class, 'script'])->name('widgets.script');

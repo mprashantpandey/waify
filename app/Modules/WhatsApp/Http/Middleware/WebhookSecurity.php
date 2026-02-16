@@ -42,23 +42,19 @@ class WebhookSecurity
             $allowedIps = array_map('trim', explode(',', $allowedIpsConfig));
             $requestIp = $request->ip();
 
-            // Check exact match or CIDR notation
+            // Check exact match or CIDR notation (IPv4)
             $allowed = false;
             foreach ($allowedIps as $allowedIp) {
                 if ($requestIp === $allowedIp) {
                     $allowed = true;
                     break;
                 }
-                // Basic CIDR check (simplified)
                 if (str_contains($allowedIp, '/')) {
-                    // For production, use a proper CIDR library
-                    // This is a basic check
-                    $parts = explode('/', $allowedIp);
+                    $parts = explode('/', $allowedIp, 2);
                     if (count($parts) === 2) {
-                        $network = $parts[0];
+                        $network = trim($parts[0]);
                         $prefix = (int) $parts[1];
-                        // Simplified: just check if IP starts with network
-                        if (str_starts_with($requestIp, $network)) {
+                        if ($prefix >= 0 && $prefix <= 32 && $this->ipInCidr($requestIp, $network, $prefix)) {
                             $allowed = true;
                             break;
                         }
@@ -124,5 +120,22 @@ class WebhookSecurity
                 'error' => 'Webhook processing failed',
                 'correlation_id' => $correlationId], 500);
         }
+    }
+
+    /**
+     * Check if an IPv4 address is within a CIDR range.
+     */
+    private function ipInCidr(string $ip, string $network, int $prefixLen): bool
+    {
+        $ipLong = @ip2long($ip);
+        $networkLong = @ip2long($network);
+        if ($ipLong === false || $networkLong === false) {
+            return false;
+        }
+        // 32-bit safe: use unsigned
+        $ipLong = $ipLong & 0xFFFFFFFF;
+        $networkLong = $networkLong & 0xFFFFFFFF;
+        $mask = $prefixLen === 0 ? 0 : (0xFFFFFFFF << (32 - $prefixLen)) & 0xFFFFFFFF;
+        return ($ipLong & $mask) === ($networkLong & $mask);
     }
 }
