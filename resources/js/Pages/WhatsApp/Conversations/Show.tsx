@@ -199,6 +199,7 @@ export default function ConversationsShow({
         : extractList<ListItem>(pageProps?.lists);
     const initialTotalMessages = Number(total_messages ?? pageProps?.total_messages ?? 0);
     const resolvedAiAvailable = Boolean(aiAvailable ?? pageProps?.ai_available ?? false);
+    const platformAiEnabled = Boolean(pageProps?.ai?.enabled ?? false);
 
     if (!resolvedConversation) {
         return (
@@ -232,7 +233,7 @@ export default function ConversationsShow({
     const notifyMentionEnabled = auth?.user?.notify_mention_enabled ?? true;
     const soundEnabled = auth?.user?.notify_sound_enabled ?? true;
     const aiSuggestionsEnabled = auth?.user?.ai_suggestions_enabled ?? false;
-    const showAiSuggest = Boolean(resolvedAiAvailable && aiSuggestionsEnabled);
+    const showAiSuggest = Boolean(resolvedAiAvailable && aiSuggestionsEnabled && platformAiEnabled);
     const [messages, setMessages] = useState<Message[]>(normalizedMessages);
     const [conversation, setConversation] = useState<Conversation>(resolvedConversation);
     const [loading, setLoading] = useState<boolean>(normalizedMessages.length === 0 && initialTotalMessages > 0);
