@@ -163,7 +163,7 @@ class OnboardingController extends Controller
                     'ai_credits_monthly' => 0,
                     'retention_days' => 30,
                 ],
-                'modules' => ['whatsapp'],
+                'modules' => ['whatsapp.cloud'],
             ]);
         }
         

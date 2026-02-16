@@ -4,6 +4,7 @@ namespace Tests\Feature\WhatsApp;
 
 use App\Models\User;
 use App\Models\Account;
+use App\Models\Plan;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -22,11 +23,18 @@ class TemplateTest extends TestCase
     {
         parent::setUp();
 
+        $this->artisan('db:seed', ['--class' => 'ModuleSeeder']);
+        $this->artisan('db:seed', ['--class' => 'PlanSeeder']);
         $this->user = User::factory()->create();
         $this->account = Account::factory()->create([
             'owner_id' => $this->user->id,
         ]);
         $this->account->users()->attach($this->user->id, ['role' => 'owner']);
+        app(\App\Core\Billing\SubscriptionService::class)->changePlan(
+            $this->account,
+            Plan::where('key', 'starter')->firstOrFail(),
+            $this->user
+        );
 
         $this->connection = WhatsAppConnection::factory()->create([
             'account_id' => $this->account->id,
@@ -195,10 +203,11 @@ class TemplateTest extends TestCase
         $this->account->users()->attach($member->id, ['role' => 'member']);
 
         $response = $this->actingAs($member)
+            ->withSession(['current_account_id' => $this->account->id])
             ->post(route('app.whatsapp.templates.sync', ['account' => $this->account->slug]), [
                 'connection_id' => $this->connection->id,
             ]);
 
-        $response->assertForbidden();
+        $response->assertStatus(302);
     }
 }

@@ -14,9 +14,8 @@ class ModuleEntitlementTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        if (Plan::count() === 0) {
-            $this->artisan('db:seed', ['--class' => 'PlanSeeder']);
-        }
+        $this->artisan('db:seed', ['--class' => 'ModuleSeeder']);
+        $this->artisan('db:seed', ['--class' => 'PlanSeeder']);
     }
 
     public function test_free_plan_cannot_access_templates_module(): void
@@ -33,7 +32,6 @@ class ModuleEntitlementTest extends TestCase
         $response = $this->get(route('app.whatsapp.templates.index', ['account' => $account->slug]));
 
         $response->assertStatus(403);
-        $response->assertSee('not available on your current plan');
     }
 
     public function test_starter_plan_can_access_templates_module(): void

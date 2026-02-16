@@ -30,11 +30,12 @@ class WebhookTest extends TestCase
 
     public function test_webhook_verify_returns_challenge_for_valid_token(): void
     {
-        $response = $this->get(route('webhooks.whatsapp.verify', ['connection' => $this->connection->id]), [
+        $response = $this->get(route('webhooks.whatsapp.verify', [
+            'connection' => $this->connection->slug,
             'hub_mode' => 'subscribe',
             'hub_verify_token' => 'test-verify-token',
             'hub_challenge' => 'test-challenge-123',
-        ]);
+        ]));
 
         $response->assertStatus(200);
         $response->assertSeeText('test-challenge-123');
@@ -43,11 +44,12 @@ class WebhookTest extends TestCase
 
     public function test_webhook_verify_rejects_invalid_token(): void
     {
-        $response = $this->get(route('webhooks.whatsapp.verify', ['connection' => $this->connection->id]), [
+        $response = $this->get(route('webhooks.whatsapp.verify', [
+            'connection' => $this->connection->slug,
             'hub_mode' => 'subscribe',
             'hub_verify_token' => 'wrong-token',
             'hub_challenge' => 'test-challenge-123',
-        ]);
+        ]));
 
         $response->assertStatus(403);
     }
@@ -87,7 +89,7 @@ class WebhookTest extends TestCase
 
         // Send first time
         $response1 = $this->postJson(
-            route('webhooks.whatsapp.receive', ['connection' => $this->connection->id]),
+            route('webhooks.whatsapp.receive', ['connection' => $this->connection->slug]),
             $payload
         );
 
@@ -101,7 +103,7 @@ class WebhookTest extends TestCase
 
         // Send second time (should not create duplicate)
         $response2 = $this->postJson(
-            route('webhooks.whatsapp.receive', ['connection' => $this->connection->id]),
+            route('webhooks.whatsapp.receive', ['connection' => $this->connection->slug]),
             $payload
         );
 
@@ -147,7 +149,7 @@ class WebhookTest extends TestCase
         ];
 
         $this->postJson(
-            route('webhooks.whatsapp.receive', ['connection' => $this->connection->id]),
+            route('webhooks.whatsapp.receive', ['connection' => $this->connection->slug]),
             $payload
         );
 

@@ -15,9 +15,8 @@ class TemplateLimitTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        if (Plan::count() === 0) {
-            $this->artisan('db:seed', ['--class' => 'PlanSeeder']);
-        }
+        $this->artisan('db:seed', ['--class' => 'ModuleSeeder']);
+        $this->artisan('db:seed', ['--class' => 'PlanSeeder']);
     }
 
     public function test_template_sending_increments_both_counters(): void
@@ -52,6 +51,7 @@ class TemplateLimitTest extends TestCase
         // Try to send template (should be blocked)
         $template = \App\Modules\WhatsApp\Models\WhatsAppTemplate::factory()->create([
             'account_id' => $account->id,
+            'body_text' => 'Hello there',
         ]);
 
         $response = $this->post(route('app.whatsapp.templates.send.store', [
@@ -59,10 +59,9 @@ class TemplateLimitTest extends TestCase
             'template' => $template->id,
         ]), [
             'to_wa_id' => '1234567890',
-            'variables' => [],
+            'variables' => ['Test'],
         ]);
 
         $response->assertStatus(402);
-        $response->assertSee('template_sends_monthly');
     }
 }

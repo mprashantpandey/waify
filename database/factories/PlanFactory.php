@@ -37,7 +37,7 @@ class PlanFactory extends Factory
                 'template_sends_monthly' => 0,
                 'ai_credits_monthly' => 0,
             ],
-            'modules' => ['whatsapp'],
+            'modules' => ['whatsapp.cloud'],
             'metadata' => [],
         ];
     }
@@ -54,7 +54,7 @@ class PlanFactory extends Factory
                 'messages_monthly' => 500,
                 'template_sends_monthly' => 0,
             ],
-            'modules' => ['whatsapp'],
+            'modules' => ['whatsapp.cloud'],
         ]);
     }
 
@@ -71,7 +71,7 @@ class PlanFactory extends Factory
                 'messages_monthly' => 5000,
                 'template_sends_monthly' => 1000,
             ],
-            'modules' => ['whatsapp', 'templates', 'inbox'],
+            'modules' => ['whatsapp.cloud', 'templates', 'inbox'],
         ]);
     }
 }

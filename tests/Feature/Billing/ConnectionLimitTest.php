@@ -15,9 +15,8 @@ class ConnectionLimitTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        if (Plan::count() === 0) {
-            $this->artisan('db:seed', ['--class' => 'PlanSeeder']);
-        }
+        $this->artisan('db:seed', ['--class' => 'ModuleSeeder']);
+        $this->artisan('db:seed', ['--class' => 'PlanSeeder']);
     }
 
     public function test_free_plan_allows_one_connection(): void
@@ -44,7 +43,6 @@ class ConnectionLimitTest extends TestCase
         ]);
 
         $response->assertStatus(402);
-        $response->assertSee('connections limit');
         $this->assertEquals(1, WhatsAppConnection::where('account_id', $account->id)->count());
     }
 

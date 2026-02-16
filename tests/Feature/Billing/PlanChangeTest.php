@@ -16,28 +16,27 @@ class PlanChangeTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        if (Plan::count() === 0) {
-            $this->artisan('db:seed', ['--class' => 'PlanSeeder']);
-        }
+        $this->artisan('db:seed', ['--class' => 'ModuleSeeder']);
+        $this->artisan('db:seed', ['--class' => 'PlanSeeder']);
     }
 
     public function test_account_owner_can_change_plan(): void
     {
         
-        $account = $this->createAccountWithPlan('free');
+        $account = $this->createAccountWithPlan('starter');
         $user = $this->actingAsAccountOwner($account);
 
-        $starterPlan = Plan::where('key', 'starter')->firstOrFail();
+        $freePlan = Plan::where('key', 'free')->firstOrFail();
 
         $response = $this->post(route('app.billing.switch-plan', [
             'account' => $account->slug,
-            'plan' => $starterPlan->id,
+            'plan' => $freePlan->id,
         ]));
 
         $response->assertRedirect();
         
         $account->refresh();
-        $this->assertEquals($starterPlan->id, $account->subscription->plan_id);
+        $this->assertEquals($freePlan->id, $account->subscription->plan_id);
 
         // Check billing event
         $this->assertDatabaseHas('billing_events', [
@@ -50,15 +49,16 @@ class PlanChangeTest extends TestCase
     public function test_non_owner_cannot_change_plan(): void
     {
         
-        $account = $this->createAccountWithPlan('free');
+        $account = $this->createAccountWithPlan('starter');
         $otherUser = \App\Models\User::factory()->create();
-        $this->actingAs($otherUser);
+        $account->users()->attach($otherUser->id, ['role' => 'admin']);
+        $this->actingAs($otherUser)->withSession(['current_account_id' => $account->id]);
 
-        $starterPlan = Plan::where('key', 'starter')->firstOrFail();
+        $freePlan = Plan::where('key', 'free')->firstOrFail();
 
         $response = $this->post(route('app.billing.switch-plan', [
             'account' => $account->slug,
-            'plan' => $starterPlan->id,
+            'plan' => $freePlan->id,
         ]));
 
         $response->assertStatus(403);

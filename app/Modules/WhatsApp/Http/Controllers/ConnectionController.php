@@ -98,6 +98,10 @@ class ConnectionController extends Controller
 
         Gate::authorize('create', WhatsAppConnection::class);
 
+        if (!$this->entitlementService->canCreateConnection($account)) {
+            abort(402, 'You have reached your connections limit. Please upgrade your plan to add more connections.');
+        }
+
         $validated = $request->validate([
             'name' => 'nullable|string|max:255',
             'waba_id' => 'nullable|string|max:255',

@@ -14,11 +14,8 @@ class AccountAutoSubscriptionTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        
-        // Seed default plans (only if not already seeded)
-        if (Plan::count() === 0) {
-            $this->artisan('db:seed', ['--class' => 'PlanSeeder']);
-        }
+        $this->artisan('db:seed', ['--class' => 'ModuleSeeder']);
+        $this->artisan('db:seed', ['--class' => 'PlanSeeder']);
     }
 
     public function test_account_auto_subscribes_to_default_plan(): void
@@ -66,7 +63,7 @@ class AccountAutoSubscriptionTest extends TestCase
 
     public function test_account_with_trial_plan_has_trial_fields(): void
     {
-        $plan = Plan::factory()->starter()->create();
+        $plan = Plan::where('key', 'starter')->firstOrFail();
         
         $account = Account::factory()->create();
         $user = $account->owner;

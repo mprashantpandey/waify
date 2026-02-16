@@ -19,6 +19,7 @@ abstract class TestCase extends BaseTestCase
     {
         $user = $account->owner;
         $this->actingAs($user);
+        $this->withSession(['current_account_id' => $account->id]);
         return $user;
     }
 
