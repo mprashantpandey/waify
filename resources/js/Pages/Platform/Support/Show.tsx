@@ -3,7 +3,7 @@ import PlatformShell from '@/Layouts/PlatformShell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
 import Button from '@/Components/UI/Button';
 import { Head, Link } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRealtime } from '@/Providers/RealtimeProvider';
 import axios from 'axios';
 import { useToast } from '@/hooks/useToast';
@@ -22,6 +22,41 @@ interface Message {
         url: string;
     }[];
 }
+
+const normalizeMessage = (value: any): Message | null => {
+    if (!value || value.id == null || !value.created_at) {
+        return null;
+    }
+
+    const id = Number(value.id);
+    if (!Number.isInteger(id) || id < 1) {
+        return null;
+    }
+
+    return {
+        id,
+        sender_type: String(value.sender_type ?? 'user'),
+        sender_id: value.sender_id == null ? null : Number(value.sender_id),
+        body: String(value.body ?? ''),
+        created_at: String(value.created_at),
+        attachments: Array.isArray(value.attachments) ? value.attachments : [],
+    };
+};
+
+const mergeMessages = (existing: Message[], incoming: Message[]) => {
+    const map = new Map<number, Message>();
+    for (const message of existing) {
+        map.set(message.id, message);
+    }
+    for (const message of incoming) {
+        const prev = map.get(message.id);
+        map.set(message.id, prev ? { ...prev, ...message } : message);
+    }
+
+    return Array.from(map.values()).sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+};
 
 const isImage = (attachment: { mime_type?: string | null; file_name: string }) => {
     if (attachment.mime_type) {
@@ -74,7 +109,13 @@ export default function PlatformSupportShow({
     const { subscribe } = useRealtime();
     const { addToast } = useToast();
     const { ai } = usePage().props as any;
-    const [items, setItems] = useState<Message[]>(messages);
+    const normalizedInitialMessages = useMemo(
+        () => (Array.isArray(messages) ? messages : [])
+            .map(normalizeMessage)
+            .filter((message): message is Message => message !== null),
+        [messages]
+    );
+    const [items, setItems] = useState<Message[]>(normalizedInitialMessages);
     const [assistLoading, setAssistLoading] = useState(false);
     const [ticketData, setTicketData] = useState({
         status: thread.status,
@@ -83,10 +124,34 @@ export default function PlatformSupportShow({
         category: thread.category || '',
         tags: (thread.tags || []).join(', ')});
     const [aiNote, setAiNote] = useState<{ title: string; content: string } | null>(null);
+    const hydratedThreadIdRef = useRef<number | null>(null);
 
     useEffect(() => {
-        setItems(messages);
-    }, [messages]);
+        const incoming = (Array.isArray(messages) ? messages : [])
+            .map(normalizeMessage)
+            .filter((message): message is Message => message !== null);
+
+        const threadChanged = hydratedThreadIdRef.current !== thread.id;
+        if (threadChanged) {
+            setItems(incoming);
+            hydratedThreadIdRef.current = thread.id;
+            return;
+        }
+
+        if (incoming.length > 0) {
+            setItems((prev) => mergeMessages(prev, incoming));
+        }
+    }, [messages, thread.id]);
+
+    const mergeIncomingMessages = useCallback((incomingRaw: unknown) => {
+        const incoming = Array.isArray(incomingRaw)
+            ? incomingRaw.map(normalizeMessage).filter((message): message is Message => message !== null)
+            : [];
+        if (incoming.length === 0) {
+            return;
+        }
+        setItems((prev) => mergeMessages(prev, incoming));
+    }, []);
 
     useEffect(() => {
         if (!thread.account) {
@@ -94,18 +159,48 @@ export default function PlatformSupportShow({
         }
         const channel = `account.${thread.account.id}.support.thread.${thread.id}`;
         const unsubscribe = subscribe(channel, 'support.message.created', (payload: Message) => {
-            setItems((prev) => {
-                if (prev.some((m) => m.id === payload.id)) {
-                    return prev;
-                }
-                return [...prev, payload];
-            });
+            if ((payload as any)?.thread_id && Number((payload as any).thread_id) !== thread.id) {
+                return;
+            }
+            const normalized = normalizeMessage(payload);
+            if (!normalized) {
+                return;
+            }
+            setItems((prev) => mergeMessages(prev, [normalized]));
         });
 
         return () => {
             unsubscribe();
         };
     }, [subscribe, thread.id, thread.account?.id]);
+
+    useEffect(() => {
+        if ((thread.channel ?? 'ticket') !== 'live') {
+            return;
+        }
+
+        const poll = async () => {
+            try {
+                const res = await axios.get(
+                    route('platform.support.live.thread', { thread: thread.slug ?? thread.id }) as string,
+                    { headers: { Accept: 'application/json' } }
+                );
+                const data = res.data as { thread?: { id?: number } | null; messages?: unknown[] };
+                if (!data?.thread?.id || Number(data.thread.id) !== thread.id) {
+                    return;
+                }
+                mergeIncomingMessages(data.messages ?? []);
+            } catch (_error) {
+                // Realtime remains primary; polling is best-effort fallback only.
+            }
+        };
+
+        const interval = window.setInterval(() => {
+            void poll();
+        }, 5000);
+
+        return () => window.clearInterval(interval);
+    }, [thread.channel, thread.id, thread.slug, mergeIncomingMessages]);
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();

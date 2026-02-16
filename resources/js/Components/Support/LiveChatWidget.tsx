@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePage } from '@inertiajs/react';
 import { MessageSquare, X } from 'lucide-react';
 import Button from '@/Components/UI/Button';
@@ -45,6 +45,41 @@ interface LiveChatResponse {
     messages: Message[];
 }
 
+const normalizeMessage = (value: any): Message | null => {
+    if (!value || value.id == null || !value.created_at) {
+        return null;
+    }
+
+    const id = Number(value.id);
+    if (!Number.isInteger(id) || id < 1) {
+        return null;
+    }
+
+    return {
+        id,
+        sender_type: String(value.sender_type ?? 'user'),
+        sender_id: value.sender_id == null ? null : Number(value.sender_id),
+        body: String(value.body ?? ''),
+        created_at: String(value.created_at),
+        attachments: Array.isArray(value.attachments) ? value.attachments : [],
+    };
+};
+
+const mergeMessages = (existing: Message[], incoming: Message[]) => {
+    const map = new Map<number, Message>();
+    for (const message of existing) {
+        map.set(message.id, message);
+    }
+    for (const message of incoming) {
+        const prev = map.get(message.id);
+        map.set(message.id, prev ? { ...prev, ...message } : message);
+    }
+
+    return Array.from(map.values()).sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+};
+
 export default function LiveChatWidget() {
     const { account, branding, supportSettings } = usePage().props as any;
     const { subscribe } = useRealtime();
@@ -63,6 +98,7 @@ export default function LiveChatWidget() {
     const [draft, setDraft] = useState('');
     const [attachments, setAttachments] = useState<File[]>([]);
     const [requestingHuman, setRequestingHuman] = useState(false);
+    const threadIdRef = useRef<number | null>(null);
 
     const supportContacts = useMemo(() => {
         return {
@@ -70,66 +106,120 @@ export default function LiveChatWidget() {
             phone: branding?.support_phone as string | undefined};
     }, [branding?.support_email, branding?.support_phone]);
 
-        useEffect(() => {
-            if (!open || !account?.slug) {
+    useEffect(() => {
+        threadIdRef.current = thread?.id ?? null;
+    }, [thread?.id]);
+
+    const mergeIncomingMessages = useCallback((incomingRaw: unknown) => {
+        const incoming = Array.isArray(incomingRaw)
+            ? incomingRaw.map(normalizeMessage).filter((message): message is Message => message !== null)
+            : [];
+        if (incoming.length === 0) {
+            return;
+        }
+        setMessages((prev) => mergeMessages(prev, incoming));
+    }, []);
+
+    const loadLiveSnapshot = useCallback(
+        async (showLoading = false) => {
+            if (!account?.slug) {
                 return;
             }
 
-            let active = true;
-            setLoading(true);
-            window.axios
-                .get(route('app.support.live', {}) as string, {
-                    headers: { Accept: 'application/json' }})
-                .then((res) => {
-                    const data = res.data as LiveChatResponse;
-                    if (!active) return;
-                    setThread(data.thread);
-                    setMessages(data.messages || []);
-                })
-                .finally(() => {
-                    if (active) setLoading(false);
+            if (showLoading) {
+                setLoading(true);
+            }
+
+            try {
+                const res = await window.axios.get(route('app.support.live', {}) as string, {
+                    headers: { Accept: 'application/json' },
+                });
+                const data = res.data as LiveChatResponse;
+                const nextThread = data.thread ?? null;
+                const currentThreadId = threadIdRef.current;
+                const threadChanged = !!nextThread && currentThreadId !== nextThread.id;
+
+                setThread((prev) => {
+                    if (!nextThread) {
+                        return prev ?? null;
+                    }
+                    return prev && prev.id === nextThread.id ? { ...prev, ...nextThread } : nextThread;
                 });
 
-            return () => {
-                active = false;
-            };
-        }, [open, account?.slug]);
+                if (threadChanged) {
+                    setMessages([]);
+                }
+                mergeIncomingMessages(data.messages);
+            } finally {
+                if (showLoading) {
+                    setLoading(false);
+                }
+            }
+        },
+        [account?.slug, mergeIncomingMessages]
+    );
 
     useEffect(() => {
-        if (!thread || !account?.id) return;
+        if (!open || !account?.slug) {
+            return;
+        }
+
+        let cancelled = false;
+        setLoading(true);
+
+        loadLiveSnapshot(false)
+            .finally(() => {
+                if (!cancelled) {
+                    setLoading(false);
+                }
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [open, account?.slug, loadLiveSnapshot]);
+
+    useEffect(() => {
+        if (!open || !account?.slug) {
+            return;
+        }
+
+        const interval = window.setInterval(() => {
+            void loadLiveSnapshot(false);
+        }, 5000);
+
+        return () => window.clearInterval(interval);
+    }, [open, account?.slug, loadLiveSnapshot]);
+
+    useEffect(() => {
+        if (!open || !thread || !account?.id) return;
         
         const channel = `account.${account.id}.support.thread.${thread.id}`;
         
-        try {
-            console.log('[LiveChatWidget] Subscribing to channel', { channel, threadId: thread.id, accountId: account.id });
+        try {            
             const unsubscribe = subscribe(channel, 'support.message.created', (payload: Message) => {
-                console.log('[LiveChatWidget] Received message', { payload, channel });
-                setMessages((prev) => {
-                    if (prev.some((m) => m.id === payload.id)) {
-                        return prev;
-                    }
-                    return [...prev, payload];
-                });
+                if ((payload as any)?.thread_id && Number((payload as any).thread_id) !== thread.id) {
+                    return;
+                }
+
+                const normalized = normalizeMessage(payload);
+                if (!normalized) {
+                    return;
+                }
+
+                setMessages((prev) => mergeMessages(prev, [normalized]));
             });
 
             return () => {
                 try {
                     unsubscribe();
                 } catch (error) {
-                    console.warn('[LiveChatWidget] Error unsubscribing from channel', error);
                 }
             };
         } catch (error) {
-            console.error('[LiveChatWidget] Failed to subscribe to support channel', {
-                channel,
-                threadId: thread.id,
-                accountId: account.id,
-                error,
-            });
-            // Return empty cleanup function if subscription fails
             return () => {};
         }
-    }, [subscribe, thread?.id, account?.id]);
+    }, [open, subscribe, thread?.id, account?.id]);
 
     const sendMessage = async () => {
         if ((!draft.trim() && attachments.length === 0) || !account?.slug) return;
@@ -160,25 +250,25 @@ export default function LiveChatWidget() {
         );
         const data = res.data as { thread?: Thread | null; message?: Message; bot?: Message | null };
         if (data.thread) {
+            const currentThreadId = threadIdRef.current;
+            if (currentThreadId !== data.thread.id) {
+                setMessages([]);
+            }
             setThread(data.thread);
         }
         const newMessage = data.message;
         if (newMessage) {
-            setMessages((prev) => {
-                if (prev.some((m) => m.id === newMessage.id)) {
-                    return prev;
-                }
-                return [...prev, newMessage];
-            });
+            const normalized = normalizeMessage(newMessage);
+            if (normalized) {
+                setMessages((prev) => mergeMessages(prev, [normalized]));
+            }
         }
         const botMessage = data.bot;
         if (botMessage) {
-            setMessages((prev) => {
-                if (prev.some((m) => m.id === botMessage.id)) {
-                    return prev;
-                }
-                return [...prev, botMessage];
-            });
+            const normalized = normalizeMessage(botMessage);
+            if (normalized) {
+                setMessages((prev) => mergeMessages(prev, [normalized]));
+            }
         }
     };
 
