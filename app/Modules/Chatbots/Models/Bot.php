@@ -20,6 +20,7 @@ class Bot extends Model
         'status',
         'is_default',
         'applies_to',
+        'stop_on_first_flow',
         'version',
         'created_by',
         'updated_by'];
@@ -28,7 +29,8 @@ class Bot extends Model
     {
         return [
             'is_default' => 'boolean',
-            'applies_to' => 'array'];
+            'applies_to' => 'array',
+            'stop_on_first_flow' => 'boolean'];
     }
 
     public function account(): BelongsTo

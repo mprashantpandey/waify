@@ -54,6 +54,7 @@ interface BotType {
     status: string;
     is_default: boolean;
     applies_to: any;
+    stop_on_first_flow?: boolean;
     version: number;
     health?: {
         enabled_flows_count: number;
@@ -159,6 +160,7 @@ export default function ChatbotsShow({
         description: bot.description || '',
         status: bot.status,
         applies_to: bot.applies_to,
+        stop_on_first_flow: bot.stop_on_first_flow ?? true,
     });
 
     const [flowFormOpen, setFlowFormOpen] = useState(false);
@@ -827,6 +829,21 @@ export default function ChatbotsShow({
                                         </div>
                                     )}
                                 </div>
+                            </div>
+
+                            <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                                <label className="flex items-center gap-3 cursor-pointer p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+                                    <Checkbox
+                                        checked={data.stop_on_first_flow}
+                                        onChange={(e) => setData('stop_on_first_flow', e.target.checked)}
+                                    />
+                                    <div>
+                                        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">Stop on first flow</span>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                            When a flow’s trigger matches, run only that flow and skip the rest for this message
+                                        </p>
+                                    </div>
+                                </label>
                             </div>
 
                             <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">

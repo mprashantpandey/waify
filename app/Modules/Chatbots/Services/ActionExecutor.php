@@ -405,6 +405,15 @@ class ActionExecutor
             return ['success' => true, 'note' => 'Agent assignment not available'];
         }
 
+        $assignableIds = $context->account->getAssignableAgentIds();
+        if (!in_array((int) $agentId, $assignableIds, true)) {
+            Log::channel('chatbots')->warning('Assign agent skipped: agent not in account team', [
+                'conversation_id' => $context->conversation->id,
+                'agent_id' => $agentId,
+                'account_id' => $context->account->id]);
+            return ['success' => false, 'error' => 'Selected agent is not a team member for this account'];
+        }
+
         $context->conversation->update(['assigned_to' => $agentId]);
         event(new ConversationUpdated($context->conversation));
 

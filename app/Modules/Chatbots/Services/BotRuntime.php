@@ -237,15 +237,21 @@ class BotRuntime
             }
 
             foreach ($flows as $flow) {
-                $this->processFlow($flow, $context);
+                $ran = $this->processFlow($flow, $context);
+                if ($ran && ($bot->stop_on_first_flow ?? true)) {
+                    break;
+                }
             }
         }
     }
 
-    protected function processFlow(BotFlow $flow, BotContext $context): void
+    /**
+     * Process a single flow. Returns true if the trigger matched and execution was started.
+     */
+    protected function processFlow(BotFlow $flow, BotContext $context): bool
     {
         // Check idempotency
-        $triggerEventId = $context->inboundMessage->meta_message_id ?? 
+        $triggerEventId = $context->inboundMessage->meta_message_id ??
             "msg_{$context->inboundMessage->id}";
 
         $existingExecution = BotExecution::where('account_id', $context->account->id)
@@ -257,7 +263,7 @@ class BotRuntime
             Log::channel('chatbots')->debug('Skipping duplicate execution', [
                 'execution_id' => $existingExecution->id,
                 'trigger_event_id' => $triggerEventId]);
-            return;
+            return false;
         }
 
         // Check trigger
@@ -274,7 +280,7 @@ class BotRuntime
                 'connection_id' => $context->getConnectionId(),
                 'conversation_id' => $context->conversation->id,
             ]);
-            return;
+            return false;
         }
 
         Log::channel('chatbots')->info('Flow trigger matched, starting execution', [
@@ -345,7 +351,7 @@ class BotRuntime
                     'execution_id' => $execution->id,
                     'flow_id' => $flow->id,
                 ]);
-                return;
+                return true;
             }
 
             if ($edgesByFrom->isEmpty()) {
@@ -364,7 +370,7 @@ class BotRuntime
                     'finished_at' => now(),
                     'logs' => [['result' => 'skipped', 'reason' => 'No nodes found']],
                 ]);
-                return;
+                return true;
             }
 
             Log::channel('chatbots')->debug('Executing flow in graph mode', [
@@ -484,7 +490,7 @@ class BotRuntime
                     'logs' => array_slice($logs, 0, 100),
                 ]);
 
-                return;
+                return true;
             }
 
             // Update execution
@@ -504,5 +510,7 @@ class BotRuntime
                 'finished_at' => now(),
                 'error_message' => $e->getMessage()]);
         }
+
+        return true;
     }
 }

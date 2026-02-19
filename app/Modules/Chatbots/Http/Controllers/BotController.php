@@ -3,6 +3,8 @@
 namespace App\Modules\Chatbots\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreBotRequest;
+use App\Http\Requests\UpdateBotRequest;
 use App\Modules\Chatbots\Models\Bot;
 use App\Modules\Chatbots\Models\BotActionJob;
 use App\Modules\Chatbots\Models\BotExecution;
@@ -45,20 +47,26 @@ class BotController extends Controller
 
         Gate::authorize('viewAny', [Bot::class, $account]);
 
+        $sevenDaysAgo = now()->subDays(7);
         $bots = Bot::where('account_id', $account->id)
-            ->with(['creator', 'updater'])
+            ->with(['creator', 'updater', 'flows' => ['nodes', 'edges']])
+            ->withCount([
+                'executions as executions_last_7_count' => fn ($q) => $q->where('created_at', '>=', $sevenDaysAgo),
+                'executions as errors_last_7_count' => fn ($q) => $q->where('created_at', '>=', $sevenDaysAgo)->where('status', 'failed'),
+            ])
+            ->withAggregate(['executions as last_run_at' => fn ($q) => $q->where('created_at', '>=', $sevenDaysAgo)], 'created_at', 'max')
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(function ($bot) {
-                $executions = $bot->executions()
-                    ->where('created_at', '>=', now()->subDays(7))
-                    ->get();
-
-                $enabledFlows = $bot->flows()->where('enabled', true)->with(['nodes', 'edges'])->get();
+                $enabledFlows = $bot->flows->where('enabled', true);
                 $runnableFlows = $enabledFlows->filter(function (BotFlow $flow) {
                     $health = $this->flowHealth($flow);
                     return $health['is_runnable'] === true;
                 });
+
+                $lastRunAt = isset($bot->last_run_at) && $bot->last_run_at !== null
+                    ? \Illuminate\Support\Carbon::parse($bot->last_run_at)
+                    : null;
 
                 return [
                     'id' => $bot->id,
@@ -68,13 +76,13 @@ class BotController extends Controller
                     'is_default' => $bot->is_default,
                     'applies_to' => $bot->applies_to,
                     'version' => $bot->version,
-                    'flows_count' => $bot->flows()->count(),
+                    'flows_count' => $bot->flows->count(),
                     'enabled_flows_count' => $enabledFlows->count(),
                     'runnable_flows_count' => $runnableFlows->count(),
                     'is_runnable' => $bot->status === 'active' ? $runnableFlows->isNotEmpty() : true,
-                    'executions_count' => $executions->count(),
-                    'errors_count' => $executions->where('status', 'failed')->count(),
-                    'last_run_at' => $executions->max('created_at')?->toIso8601String(),
+                    'executions_count' => (int) ($bot->executions_last_7_count ?? 0),
+                    'errors_count' => (int) ($bot->errors_last_7_count ?? 0),
+                    'last_run_at' => $lastRunAt?->toIso8601String(),
                     'created_at' => $bot->created_at->toIso8601String()];
             });
 
@@ -104,47 +112,19 @@ class BotController extends Controller
     /**
      * Store a newly created bot.
      */
-    public function store(Request $request)
+    public function store(StoreBotRequest $request)
     {
         $account = $request->attributes->get('account') ?? current_account();
-
         Gate::authorize('manage', [Bot::class, $account]);
 
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'status' => 'required|string|in:draft,active,paused',
-            'applies_to' => 'required|array',
-            'applies_to.all_connections' => 'boolean',
-            'applies_to.connection_ids' => 'array',
-            'applies_to.connection_ids.*' => 'integer',
-        ]);
-
-        $appliesTo = $validated['applies_to'] ?? [];
-        $allConnections = (bool) ($appliesTo['all_connections'] ?? false);
-        $connectionIds = $appliesTo['connection_ids'] ?? [];
-        if (!$allConnections && empty($connectionIds)) {
-            return redirect()->back()
-                ->withErrors(['applies_to.connection_ids' => 'Select at least one connection or enable "All connections".'])
-                ->withInput();
-        }
-        if (!empty($connectionIds)) {
-            $count = WhatsAppConnection::where('account_id', $account->id)
-                ->whereIn('id', $connectionIds)
-                ->count();
-            if ($count !== count($connectionIds)) {
-                return redirect()->back()
-                    ->withErrors(['applies_to.connection_ids' => 'One or more selected connections are invalid.'])
-                    ->withInput();
-            }
-        }
-
+        $validated = $request->validated();
         $bot = Bot::create([
             'account_id' => $account->id,
             'name' => $validated['name'],
             'description' => $validated['description'] ?? null,
             'status' => $validated['status'],
             'applies_to' => $validated['applies_to'],
+            'stop_on_first_flow' => $validated['stop_on_first_flow'] ?? true,
             'created_by' => $request->user()->id,
             'updated_by' => $request->user()->id]);
 
@@ -219,6 +199,7 @@ class BotController extends Controller
                 'status' => $bot->status,
                 'is_default' => $bot->is_default,
                 'applies_to' => $bot->applies_to,
+                'stop_on_first_flow' => $bot->stop_on_first_flow ?? true,
                 'version' => $bot->version,
                 'flows' => $bot->flows->map(function ($flow) {
                     return [
@@ -265,45 +246,16 @@ class BotController extends Controller
     /**
      * Update the specified bot.
      */
-    public function update(Request $request, Bot $bot)
+    public function update(UpdateBotRequest $request, Bot $bot)
     {
         $account = $request->attributes->get('account') ?? current_account();
-
         Gate::authorize('manage', [Bot::class, $account]);
 
         if (!account_ids_match($bot->account_id, $account->id)) {
             abort(404);
         }
 
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'status' => 'required|string|in:draft,active,paused',
-            'applies_to' => 'required|array',
-            'applies_to.all_connections' => 'boolean',
-            'applies_to.connection_ids' => 'array',
-            'applies_to.connection_ids.*' => 'integer',
-        ]);
-
-        $appliesTo = $validated['applies_to'] ?? [];
-        $allConnections = (bool) ($appliesTo['all_connections'] ?? false);
-        $connectionIds = $appliesTo['connection_ids'] ?? [];
-        if (!$allConnections && empty($connectionIds)) {
-            return redirect()->back()
-                ->withErrors(['applies_to.connection_ids' => 'Select at least one connection or enable "All connections".'])
-                ->withInput();
-        }
-        if (!empty($connectionIds)) {
-            $count = WhatsAppConnection::where('account_id', $account->id)
-                ->whereIn('id', $connectionIds)
-                ->count();
-            if ($count !== count($connectionIds)) {
-                return redirect()->back()
-                    ->withErrors(['applies_to.connection_ids' => 'One or more selected connections are invalid.'])
-                    ->withInput();
-            }
-        }
-
+        $validated = $request->validated();
         $wasDraft = $bot->status === 'draft';
         $isPublishing = $wasDraft && $validated['status'] === 'active';
 
@@ -312,6 +264,7 @@ class BotController extends Controller
             'description' => $validated['description'] ?? null,
             'status' => $validated['status'],
             'applies_to' => $validated['applies_to'],
+            'stop_on_first_flow' => $validated['stop_on_first_flow'] ?? $bot->stop_on_first_flow ?? true,
             'version' => $isPublishing ? $bot->version + 1 : $bot->version,
             'updated_by' => $request->user()->id]);
 
