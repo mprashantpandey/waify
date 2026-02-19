@@ -347,7 +347,9 @@ class TeamController extends Controller
                 'user_id' => $user instanceof User ? $user->id : $user,
                 'account_id' => $account?->id,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()]);
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()]);
             
             return back()->with('error', 'Failed to remove member: ' . $e->getMessage());
         }

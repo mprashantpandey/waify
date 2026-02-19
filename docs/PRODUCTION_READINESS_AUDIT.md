@@ -42,7 +42,7 @@ This document summarizes an audit of the Waify codebase for production deploymen
 |------|----------------|
 | **Contact form** | **Done**: `throttle:5,1` on POST /contact. |
 | **Registration** | **Done**: `throttle:5,1` on POST /register; `throttle:3,1` on forgot-password and reset-password. |
-| **Billing / sensitive actions** | Consider stricter throttle on plan switch and payment confirmation (e.g. `throttle:10,1`). |
+| **Billing / sensitive actions** | **Done**: `throttle:10,1` on Razorpay order, switch-plan, and confirm. |
 
 ---
 
@@ -59,7 +59,7 @@ This document summarizes an audit of the Waify codebase for production deploymen
 | Area | Recommendation |
 |------|----------------|
 | **Assignee filter** | **Done**: Index `(account_id, assigned_to)` on `whatsapp_conversations` added. |
-| **Audit events** | If you query audit events by conversation and time often, add index on `(whatsapp_conversation_id, created_at)`. |
+| **Audit events** | **Done**: Index `(whatsapp_conversation_id, created_at)` on `whatsapp_conversation_audit_events` added. |
 | **Heavy queries** | For very large accounts, consider cursor-based pagination or read replicas for reporting. |
 
 ---
@@ -77,7 +77,8 @@ This document summarizes an audit of the Waify codebase for production deploymen
 | Area | Recommendation | Status |
 |------|----------------|--------|
 | **500 for Inertia** | Add a dedicated Inertia “Server Error” page and render it for 500 when `X-Inertia` is present, so users see a friendly message | **Done**: `Error/ServerError.tsx`; `bootstrap/app.php` renders it for 5xx Inertia requests. |
-| **Structured context** | Add request/account/user context to critical logs for debugging. | **Done**: 500 handler logs path, method, user_id, account_id, correlation_id, plus exception details. |
+| **Structured context** | Add request/account/user context to critical logs for debugging. | **Done**: 500 handler logs path, method, user_id, account_id, request_id/correlation_id, plus exception details. |
+| **Request correlation ID** | Trace all requests with a unique ID. | **Done**: `AddRequestCorrelationId` middleware sets/forwards `X-Request-ID`; 500 handler includes it in logs. |
 | **Log level** | In production use `LOG_LEVEL=warning` or `error`; avoid `debug`. | **Done**: `.env.example` documents production; comment for LOG_LEVEL. |
 | **Sensitive data** | Do not persist full message bodies, tokens, or PII in logs. | Policy: keep truncating in code; no full bodies/tokens in logs. |
 

@@ -22,8 +22,9 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
         
-        // Apply maintenance mode check (before auth)
+        // Request correlation ID first (so all logs can include it)
         $middleware->web(prepend: [
+            \App\Http\Middleware\AddRequestCorrelationId::class,
             \App\Http\Middleware\EnsureMaintenanceMode::class,
         ]);
         
@@ -95,6 +96,9 @@ return Application::configure(basePath: dirname(__DIR__))
                 }
                 if ($request->attributes->has('webhook_correlation_id')) {
                     $context['correlation_id'] = $request->attributes->get('webhook_correlation_id');
+                }
+                if ($request->attributes->has(\App\Http\Middleware\AddRequestCorrelationId::REQUEST_ID_ATTRIBUTE)) {
+                    $context['request_id'] = $request->attributes->get(\App\Http\Middleware\AddRequestCorrelationId::REQUEST_ID_ATTRIBUTE);
                 }
                 \Illuminate\Support\Facades\Log::error('Server error (Inertia)', array_merge($context, [
                     'exception' => get_class($e),

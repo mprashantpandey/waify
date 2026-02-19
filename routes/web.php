@@ -32,7 +32,9 @@ Route::post('/contact', [\App\Http\Controllers\PublicPagesController::class, 'co
 
 // Public widget embeds
 Route::get('/widgets/{widget}.js', [\App\Modules\Floaters\Http\Controllers\PublicWidgetController::class, 'script'])->name('widgets.script');
-Route::post('/widgets/{widget}/event', [\App\Modules\Floaters\Http\Controllers\PublicWidgetController::class, 'event'])->name('widgets.event');
+Route::post('/widgets/{widget}/event', [\App\Modules\Floaters\Http\Controllers\PublicWidgetController::class, 'event'])
+    ->middleware('throttle:60,1')
+    ->name('widgets.event');
 
 // Auth routes
 require __DIR__.'/auth.php';
@@ -127,12 +129,16 @@ Route::middleware(['auth', 'account.resolve', 'account.active', 'account.subscri
     Route::prefix('/settings/billing')->name('billing.')->group(function () {
         Route::get('/', [\App\Http\Controllers\Billing\BillingController::class, 'index'])->name('index');
         Route::get('/plans', [\App\Http\Controllers\Billing\BillingController::class, 'plans'])->name('plans');
-        // Razorpay routes - more specific routes first
+        // Razorpay routes - more specific routes first (throttled to limit abuse)
         Route::post('/plans/{plan}/razorpay/order', [\App\Http\Controllers\Billing\BillingController::class, 'createRazorpayOrder'])
+            ->middleware('throttle:10,1')
             ->name('razorpay.order');
         Route::post('/plans/{plan}/switch', [\App\Http\Controllers\Billing\BillingController::class, 'switchPlan'])
+            ->middleware('throttle:10,1')
             ->name('switch-plan');
-        Route::post('/razorpay/confirm', [\App\Http\Controllers\Billing\BillingController::class, 'confirmRazorpayPayment'])->name('razorpay.confirm');
+        Route::post('/razorpay/confirm', [\App\Http\Controllers\Billing\BillingController::class, 'confirmRazorpayPayment'])
+            ->middleware('throttle:10,1')
+            ->name('razorpay.confirm');
         Route::get('/history', [\App\Http\Controllers\Billing\BillingController::class, 'history'])->name('history');
         Route::post('/cancel', [\App\Http\Controllers\Billing\BillingController::class, 'cancel'])->name('cancel');
         Route::post('/resume', [\App\Http\Controllers\Billing\BillingController::class, 'resume'])->name('resume');

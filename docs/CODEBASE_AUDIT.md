@@ -29,17 +29,17 @@ This document summarizes findings from a full codebase review. Items marked **Fi
 
 - **Note:** `GET /csrf-token/refresh` is unauthenticated but session-based. Acceptable if used for public or pre-login flows; ensure it is not used in a way that weakens CSRF protection.
 
-### 2.3 Widget event endpoint
+### 2.3 Widget event endpoint — **Fixed**
 
-- **Note:** `POST /widgets/{widget}/event` is public and has no throttle. Consider `throttle:60,1` (or similar) per IP/widget to limit abuse.
+- **Note:** `POST /widgets/{widget}/event` is public. **Done**: `throttle:60,1` added to limit abuse.
 
 ---
 
 ## 3. Consistency & Naming
 
-### 3.1 Public widget route parameter name
+### 3.1 Public widget route parameter name — **Fixed**
 
-- **Suggestion:** Route is `/widgets/{widget}.js` (param `widget`) but controller method uses `$publicId`. Consider renaming to `$widget` in the controller to match the route and avoid confusion.
+- **Suggestion:** Route is `/widgets/{widget}.js` (param `widget`). **Done**: Controller methods now use `$widget` (and `$widgetModel` for the Eloquent model) to match the route.
 
 ### 3.2 Navigation: `app.ai` vs `app.ai.index`
 
@@ -57,13 +57,13 @@ This document summarizes findings from a full codebase review. Items marked **Fi
 
 - **Suggestion:** `PlatformAccountController@show` uses route model binding `Account $account` without an explicit authorization check. Super admin middleware protects the route; consider a policy or explicit check if you add more roles later.
 
-### 4.3 Billing webhook idempotency
+### 4.3 Billing webhook idempotency — **Fixed**
 
-- **Suggestion:** Razorpay webhook handler should be idempotent (e.g. use idempotency keys or id + event type) so duplicate deliveries do not double-apply payments or subscription changes.
+- **Suggestion:** Razorpay webhook handler should be idempotent. **Done**: Cache-based idempotency key (`event:order_id:payment_id`); duplicate deliveries return 200 without re-running `changePlan`.
 
-### 4.4 Error handling in TeamController
+### 4.4 Error handling in TeamController — **Fixed**
 
-- **Note:** `remove()` catches `\Exception` and returns a generic message. Good for not leaking internals; consider logging with trace for debugging.
+- **Note:** `remove()` catches `\Exception` and returns a generic message. **Done**: Log now includes `file` and `line` in addition to `trace` for easier debugging.
 
 ### 4.5 AI prompts not yet used for suggestions
 
@@ -72,11 +72,11 @@ This document summarizes findings from a full codebase review. Items marked **Fi
 ### 4.6 Database indexes
 
 - **Done (from production audit):** Index `(account_id, assigned_to)` on `whatsapp_conversations` added for assignee filtering.
-- **Suggestion:** If you query audit events by conversation and time often, add an index on `(whatsapp_conversation_id, created_at)` on the audit table.
+- **Done:** Index `(whatsapp_conversation_id, created_at)` on `whatsapp_conversation_audit_events` added for conversation + time queries.
 
-### 4.7 Logging and observability
+### 4.7 Logging and observability — **Fixed**
 
-- **Note:** Many controllers use `Log::`; 500 handler adds structured context. Consider a request correlation ID for all app routes (not only webhooks) to trace requests across logs.
+- **Note:** Many controllers use `Log::`; 500 handler adds structured context. **Done**: `AddRequestCorrelationId` middleware sets `X-Request-ID` (or accepts from client), stores in request attributes, adds to response header; 500 handler includes `request_id` in log context.
 
 ### 4.8 Frontend: filter effect and search
 
@@ -91,14 +91,17 @@ This document summarizes findings from a full codebase review. Items marked **Fi
 | Inbox filters | Backend supports `assignee`, `status`, `connection_id`; frontend sends them and reloads on change for correct pagination. |
 | Account switch | Use `users()->where(...)->exists()` instead of `users->contains()`. |
 | Login throttle | `throttle:5,1` on `POST /login`. |
+| Request correlation ID | `AddRequestCorrelationId` middleware; 500 logs include `request_id`. |
+| Widget event throttle | `throttle:60,1` on `POST /widgets/{widget}/event`. |
+| Billing throttle | `throttle:10,1` on Razorpay order, switch-plan, and confirm. |
+| Widget controller | Param `$widget` to match route; model variable `$widgetModel`. |
+| Razorpay idempotency | Cache key by event+order+payment; duplicate webhooks return 200 without reprocessing. |
+| Audit index | Index `(whatsapp_conversation_id, created_at)` on audit events table. |
+| TeamController remove | Log includes file/line when removal fails. |
 
 ---
 
 ## 6. Optional / Backlog
 
-- Throttle widget event endpoint.
-- Align controller parameter name with route (`widget` vs `publicId`).
-- Razorpay webhook idempotency.
-- Index on audit events table if needed.
-- Use `ai_prompts` in ConversationAssistantService for suggestions.
-- Correlation ID for all app requests.
+- Use `ai_prompts` in ConversationAssistantService for reply suggestions.
+- Encrypt sensitive platform settings at rest (DB/backups).

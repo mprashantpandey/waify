@@ -11,22 +11,22 @@ use Illuminate\Support\Str;
 
 class PublicWidgetController extends Controller
 {
-    public function script(Request $request, string $publicId)
+    public function script(Request $request, string $widget)
     {
-        $widget = FloaterWidget::where('public_id', $publicId)->where('is_active', true)->first();
-        if (!$widget) {
+        $widgetModel = FloaterWidget::where('public_id', $widget)->where('is_active', true)->first();
+        if (!$widgetModel) {
             return response('// widget disabled', 200, ['Content-Type' => 'application/javascript']);
         }
 
         $config = [
-            'id' => $widget->public_id,
-            'name' => $widget->name,
-            'position' => $widget->position,
-            'welcome_message' => $widget->welcome_message ?? 'Hello! How can we help?',
-            'whatsapp_phone' => $widget->whatsapp_phone,
-            'theme' => $widget->theme ?? ['primary' => '#25D366', 'background' => '#075E54'],
-            'show_on' => $widget->show_on ?? ['include' => [], 'exclude' => []],
-            'endpoint' => rtrim(config('app.url'), '/')."/widgets/{$widget->public_id}/event"];
+            'id' => $widgetModel->public_id,
+            'name' => $widgetModel->name,
+            'position' => $widgetModel->position,
+            'welcome_message' => $widgetModel->welcome_message ?? 'Hello! How can we help?',
+            'whatsapp_phone' => $widgetModel->whatsapp_phone,
+            'theme' => $widgetModel->theme ?? ['primary' => '#25D366', 'background' => '#075E54'],
+            'show_on' => $widgetModel->show_on ?? ['include' => [], 'exclude' => []],
+            'endpoint' => rtrim(config('app.url'), '/')."/widgets/{$widgetModel->public_id}/event"];
 
         $js = $this->buildScript($config);
 
@@ -35,10 +35,10 @@ class PublicWidgetController extends Controller
             'Access-Control-Allow-Origin' => '*']);
     }
 
-    public function event(Request $request, string $publicId)
+    public function event(Request $request, string $widget)
     {
-        $widget = FloaterWidget::where('public_id', $publicId)->first();
-        if (!$widget) {
+        $widgetModel = FloaterWidget::where('public_id', $widget)->first();
+        if (!$widgetModel) {
             return response()->json(['ok' => false], 404, ['Access-Control-Allow-Origin' => '*']);
         }
 
@@ -50,8 +50,8 @@ class PublicWidgetController extends Controller
 
         try {
             FloaterWidgetEvent::create([
-                'floater_widget_id' => $widget->id,
-                'account_id' => $widget->account_id,
+                'floater_widget_id' => $widgetModel->id,
+                'account_id' => $widgetModel->account_id,
                 'event_type' => $payload['event_type'],
                 'path' => $payload['path'] ?? null,
                 'referrer' => $payload['referrer'] ?? null,
@@ -60,7 +60,7 @@ class PublicWidgetController extends Controller
                 'metadata' => $payload['metadata'] ?? null]);
         } catch (\Throwable $e) {
             Log::warning('Floater widget event failed', [
-                'public_id' => $publicId,
+                'widget' => $widget,
                 'error' => $e->getMessage()]);
         }
 

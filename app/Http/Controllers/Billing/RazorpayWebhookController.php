@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\PaymentOrder;
 use App\Models\Plan;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class RazorpayWebhookController extends Controller
@@ -44,6 +45,11 @@ class RazorpayWebhookController extends Controller
         if ($event === 'payment.captured' || $event === 'order.paid') {
             $orderId = $data['payload']['order']['entity']['id'] ?? $data['payload']['payment']['entity']['order_id'] ?? null;
             $paymentId = $data['payload']['payment']['entity']['id'] ?? null;
+
+            $idempotencyKey = 'razorpay_webhook:' . ($event ?? '') . ':' . ($orderId ?? '') . ':' . ($paymentId ?? '');
+            if (!Cache::add($idempotencyKey, true, now()->addDays(7))) {
+                return response()->json(['success' => true]);
+            }
 
             if ($orderId) {
                 $paymentOrder = PaymentOrder::where('provider', 'razorpay')
