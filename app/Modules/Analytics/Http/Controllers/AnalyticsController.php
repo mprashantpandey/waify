@@ -3,7 +3,6 @@
 namespace App\Modules\Analytics\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Core\Billing\UsageService;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use App\Modules\WhatsApp\Models\WhatsAppTemplateSend;
@@ -18,10 +17,6 @@ use Inertia\Response;
 
 class AnalyticsController extends Controller
 {
-    public function __construct(
-        protected UsageService $usageService
-    ) {}
-
     /**
      * Display analytics dashboard for account.
      */
@@ -31,6 +26,7 @@ class AnalyticsController extends Controller
         if (!$account) {
             abort(404);
         }
+        $accountId = (int) $account->id;
         
         $dateRange = (int) $request->get('range', 30); // days
         if ($dateRange <= 0) {
@@ -39,11 +35,15 @@ class AnalyticsController extends Controller
         if ($dateRange > 365) {
             $dateRange = 365;
         }
-        $startDate = now()->subDays($dateRange);
-        $endDate = now();
+        // "Last N days" should include today and full day boundaries.
+        $startDate = now()->subDays($dateRange - 1)->startOfDay();
+        $endDate = now()->endOfDay();
+
+        $messagesQuery = WhatsAppMessage::query()
+            ->where('account_id', $accountId);
 
         // Message Trends
-        $messageTrends = WhatsAppMessage::where('account_id', $account->id)
+        $messageTrends = (clone $messagesQuery)
             ->select(
                 DB::raw('DATE(created_at) as date'),
                 DB::raw('COUNT(*) as total'),
@@ -56,7 +56,7 @@ class AnalyticsController extends Controller
             ->get();
 
         // Message Status Distribution
-        $messageStatusDistribution = WhatsAppMessage::where('account_id', $account->id)
+        $messageStatusDistribution = (clone $messagesQuery)
             ->select('status', DB::raw('COUNT(*) as count'))
             ->whereBetween('created_at', [$startDate, $endDate])
             ->groupBy('status')
@@ -64,7 +64,7 @@ class AnalyticsController extends Controller
             ->toArray();
 
         // Template Performance
-        $templatePerformance = WhatsAppTemplateSend::where('whatsapp_template_sends.account_id', $account->id)
+        $templatePerformance = WhatsAppTemplateSend::where('whatsapp_template_sends.account_id', $accountId)
             ->join('whatsapp_templates', 'whatsapp_template_sends.whatsapp_template_id', '=', 'whatsapp_templates.id')
             ->leftJoin('whatsapp_messages', 'whatsapp_template_sends.whatsapp_message_id', '=', 'whatsapp_messages.id')
             ->select(
@@ -94,14 +94,14 @@ class AnalyticsController extends Controller
 
         // Conversation Stats
         $conversationStats = [
-            'total' => WhatsAppConversation::where('account_id', $account->id)->count(),
-            'open' => WhatsAppConversation::where('account_id', $account->id)->where('status', 'open')->count(),
-            'closed' => WhatsAppConversation::where('account_id', $account->id)->where('status', 'closed')->count()];
+            'total' => WhatsAppConversation::where('account_id', $accountId)->count(),
+            'open' => WhatsAppConversation::where('account_id', $accountId)->where('status', 'open')->count(),
+            'closed' => WhatsAppConversation::where('account_id', $accountId)->where('status', 'closed')->count()];
 
         // Peak Hours Analysis (database-agnostic)
         $dbDriver = DB::connection()->getDriverName();
         if ($dbDriver === 'sqlite') {
-            $peakHours = WhatsAppMessage::where('account_id', $account->id)
+            $peakHours = (clone $messagesQuery)
                 ->select(
                     DB::raw("CAST(strftime('%H', created_at) AS INTEGER) as hour"),
                     DB::raw('COUNT(*) as count')
@@ -111,7 +111,7 @@ class AnalyticsController extends Controller
                 ->orderBy('hour')
                 ->get();
         } else {
-            $peakHours = WhatsAppMessage::where('account_id', $account->id)
+            $peakHours = (clone $messagesQuery)
                 ->select(
                     DB::raw('HOUR(created_at) as hour'),
                     DB::raw('COUNT(*) as count')
@@ -123,12 +123,18 @@ class AnalyticsController extends Controller
         }
 
         // Usage Stats
-        $usage = $this->usageService->getCurrentUsage($account);
+        $messagesSentThisPeriod = (clone $messagesQuery)
+            ->where('direction', 'outbound')
+            ->whereBetween('created_at', [now()->startOfMonth(), now()->endOfMonth()])
+            ->count();
+        $templateSendsThisPeriod = WhatsAppTemplateSend::where('account_id', $accountId)
+            ->whereBetween('created_at', [now()->startOfMonth(), now()->endOfMonth()])
+            ->count();
         $planResolver = app(\App\Core\Billing\PlanResolver::class);
         $limits = $planResolver->getEffectiveLimits($account);
 
         // Daily Activity
-        $dailyActivity = WhatsAppMessage::where('account_id', $account->id)
+        $dailyActivity = (clone $messagesQuery)
             ->select(
                 DB::raw('DATE(created_at) as date'),
                 DB::raw('COUNT(*) as count')
@@ -141,7 +147,7 @@ class AnalyticsController extends Controller
         // Agent response time (first inbound -> first outbound after inbound)
         $firstInboundSub = DB::table('whatsapp_messages')
             ->select('whatsapp_conversation_id', DB::raw('MIN(created_at) as first_inbound_at'))
-            ->where('account_id', $account->id)
+            ->where('account_id', $accountId)
             ->where('direction', 'inbound')
             ->whereBetween('created_at', [$startDate, $endDate])
             ->groupBy('whatsapp_conversation_id');
@@ -150,7 +156,7 @@ class AnalyticsController extends Controller
             ->joinSub($firstInboundSub, 'inbound', function ($join) {
                 $join->on('m.whatsapp_conversation_id', '=', 'inbound.whatsapp_conversation_id');
             })
-            ->where('m.account_id', $account->id)
+            ->where('m.account_id', $accountId)
             ->where('m.direction', 'outbound')
             ->whereColumn('m.created_at', '>=', 'inbound.first_inbound_at')
             ->select(
@@ -162,7 +168,7 @@ class AnalyticsController extends Controller
             ->get();
 
         $conversationIdsForResponse = $firstResponseRows->pluck('whatsapp_conversation_id')->all();
-        $conversationMap = WhatsAppConversation::where('account_id', $account->id)
+        $conversationMap = WhatsAppConversation::where('account_id', $accountId)
             ->whereIn('id', $conversationIdsForResponse)
             ->get(['id', 'assigned_to', 'created_at', 'status', 'updated_at'])
             ->keyBy('id');
@@ -213,7 +219,7 @@ class AnalyticsController extends Controller
 
         $closedEvents = collect();
         if (Schema::hasTable('whatsapp_conversation_audit_events')) {
-            $closedEvents = WhatsAppConversationAuditEvent::where('account_id', $account->id)
+            $closedEvents = WhatsAppConversationAuditEvent::where('account_id', $accountId)
                 ->where('event_type', 'status_changed')
                 ->whereBetween('created_at', [$startDate, $endDate])
                 ->get(['whatsapp_conversation_id', 'created_at', 'meta']);
@@ -232,7 +238,7 @@ class AnalyticsController extends Controller
         }
 
         if ($closedMap->isEmpty()) {
-            $closedConversations = WhatsAppConversation::where('account_id', $account->id)
+            $closedConversations = WhatsAppConversation::where('account_id', $accountId)
                 ->where('status', 'closed')
                 ->whereBetween('updated_at', [$startDate, $endDate])
                 ->get(['id', 'updated_at', 'created_at', 'assigned_to']);
@@ -249,7 +255,7 @@ class AnalyticsController extends Controller
         foreach ($closedMap as $closed) {
             $conv = $conversationMap->get($closed['conversation_id']);
             if (!$conv) {
-                $conv = WhatsAppConversation::where('account_id', $account->id)
+                $conv = WhatsAppConversation::where('account_id', $accountId)
                     ->find($closed['conversation_id']);
             }
             if (!$conv) {
@@ -291,7 +297,7 @@ class AnalyticsController extends Controller
         }
 
         // Backlog trend (open conversations over time)
-        $createdCounts = WhatsAppConversation::where('account_id', $account->id)
+        $createdCounts = WhatsAppConversation::where('account_id', $accountId)
             ->select(DB::raw('DATE(created_at) as date'), DB::raw('COUNT(*) as count'))
             ->whereBetween('created_at', [$startDate, $endDate])
             ->groupBy('date')
@@ -305,7 +311,7 @@ class AnalyticsController extends Controller
                 $closedCounts[$dateKey] = ($closedCounts[$dateKey] ?? 0) + 1;
             }
         } else {
-            $fallbackClosed = WhatsAppConversation::where('account_id', $account->id)
+            $fallbackClosed = WhatsAppConversation::where('account_id', $accountId)
                 ->where('status', 'closed')
                 ->whereBetween('updated_at', [$startDate, $endDate])
                 ->select(DB::raw('DATE(updated_at) as date'), DB::raw('COUNT(*) as count'))
@@ -315,7 +321,7 @@ class AnalyticsController extends Controller
             $closedCounts = $fallbackClosed;
         }
 
-        $createdBefore = WhatsAppConversation::where('account_id', $account->id)
+        $createdBefore = WhatsAppConversation::where('account_id', $accountId)
             ->where('created_at', '<', $startDate)
             ->count();
 
@@ -323,7 +329,7 @@ class AnalyticsController extends Controller
         if (Schema::hasTable('whatsapp_conversation_audit_events')) {
             $dbDriver = DB::connection()->getDriverName();
             if ($dbDriver === 'sqlite') {
-                $closedBefore = WhatsAppConversationAuditEvent::where('account_id', $account->id)
+                $closedBefore = WhatsAppConversationAuditEvent::where('account_id', $accountId)
                     ->where('event_type', 'status_changed')
                     ->where('created_at', '<', $startDate)
                     ->get(['meta'])
@@ -332,14 +338,14 @@ class AnalyticsController extends Controller
                     })
                     ->count();
             } else {
-                $closedBefore = WhatsAppConversationAuditEvent::where('account_id', $account->id)
+                $closedBefore = WhatsAppConversationAuditEvent::where('account_id', $accountId)
                     ->where('event_type', 'status_changed')
                     ->where('created_at', '<', $startDate)
                     ->whereRaw("JSON_EXTRACT(meta, '$.status') = 'closed'")
                     ->count();
             }
         } else {
-            $closedBefore = WhatsAppConversation::where('account_id', $account->id)
+            $closedBefore = WhatsAppConversation::where('account_id', $accountId)
                 ->where('status', 'closed')
                 ->where('updated_at', '<', $startDate)
                 ->count();
@@ -376,8 +382,8 @@ class AnalyticsController extends Controller
             'resolution_avg_minutes' => $overallResolution,
             'backlog_trend' => $backlogTrend,
             'usage' => [
-                'messages_sent' => $usage->messages_sent,
-                'template_sends' => $usage->template_sends,
+                'messages_sent' => $messagesSentThisPeriod,
+                'template_sends' => $templateSendsThisPeriod,
                 'messages_limit' => $limits['messages_monthly'] ?? 0,
                 'template_sends_limit' => $limits['template_sends_monthly'] ?? 0]]);
     }
