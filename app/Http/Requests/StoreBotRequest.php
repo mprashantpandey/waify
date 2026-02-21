@@ -28,6 +28,10 @@ class StoreBotRequest extends FormRequest
             'applies_to.connection_ids' => 'array',
             'applies_to.connection_ids.*' => 'integer',
             'stop_on_first_flow' => 'sometimes|boolean',
+            'starter_flow_mode' => 'sometimes|string|in:guided,empty',
+            'starter_trigger_type' => 'sometimes|string|in:inbound_message,keyword',
+            'starter_keywords' => 'nullable|string|max:500',
+            'starter_reply_message' => 'nullable|string|max:2000',
         ];
     }
 

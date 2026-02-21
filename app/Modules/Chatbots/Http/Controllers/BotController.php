@@ -118,18 +118,78 @@ class BotController extends Controller
         Gate::authorize('manage', [Bot::class, $account]);
 
         $validated = $request->validated();
-        $bot = Bot::create([
-            'account_id' => $account->id,
-            'name' => $validated['name'],
-            'description' => $validated['description'] ?? null,
-            'status' => $validated['status'],
-            'applies_to' => $validated['applies_to'],
-            'stop_on_first_flow' => $validated['stop_on_first_flow'] ?? true,
-            'created_by' => $request->user()->id,
-            'updated_by' => $request->user()->id]);
+        $bot = DB::transaction(function () use ($account, $request, $validated) {
+            $bot = Bot::create([
+                'account_id' => $account->id,
+                'name' => $validated['name'],
+                'description' => $validated['description'] ?? null,
+                'status' => $validated['status'],
+                'applies_to' => $validated['applies_to'],
+                'stop_on_first_flow' => $validated['stop_on_first_flow'] ?? true,
+                'created_by' => $request->user()->id,
+                'updated_by' => $request->user()->id,
+            ]);
+
+            $this->createStarterFlow($account->id, $bot, $validated);
+
+            return $bot;
+        });
 
         return redirect()->route('app.chatbots.show', [
             'bot' => $bot->id])->with('success', 'Bot created successfully.');
+    }
+
+    protected function createStarterFlow(int $accountId, Bot $bot, array $validated): void
+    {
+        $mode = $validated['starter_flow_mode'] ?? 'guided';
+        if ($mode !== 'guided') {
+            return;
+        }
+
+        $triggerType = $validated['starter_trigger_type'] ?? 'inbound_message';
+        $replyMessage = trim((string) ($validated['starter_reply_message'] ?? 'Hi! Thanks for messaging us. A team member will get back to you shortly.'));
+
+        if ($replyMessage === '') {
+            $replyMessage = 'Hi! Thanks for messaging us. A team member will get back to you shortly.';
+        }
+
+        $trigger = ['type' => $triggerType];
+        if ($triggerType === 'keyword') {
+            $raw = (string) ($validated['starter_keywords'] ?? '');
+            $keywords = array_values(array_filter(array_map(
+                static fn ($keyword) => trim($keyword),
+                preg_split('/[\n,]+/', $raw) ?: []
+            )));
+            $trigger['keywords'] = !empty($keywords) ? $keywords : ['hi'];
+            $trigger['match_type'] = 'any';
+            $trigger['case_sensitive'] = false;
+            $trigger['whole_word'] = false;
+        } else {
+            $trigger['first_message_only'] = false;
+        }
+
+        $flow = BotFlow::create([
+            'account_id' => $accountId,
+            'bot_id' => $bot->id,
+            'name' => 'Quick Start Flow',
+            'trigger' => $trigger,
+            'enabled' => true,
+            'priority' => 100,
+        ]);
+
+        BotNode::create([
+            'account_id' => $accountId,
+            'bot_flow_id' => $flow->id,
+            'type' => 'action',
+            'config' => [
+                'is_start' => true,
+                'action_type' => 'send_text',
+                'message' => $replyMessage,
+            ],
+            'sort_order' => 1,
+            'pos_x' => 360,
+            'pos_y' => 120,
+        ]);
     }
 
     /**
