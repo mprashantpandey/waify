@@ -20,14 +20,21 @@ class TransactionController extends Controller
 
     public function index(Request $request): Response
     {
-        $accountId = $request->input('account_id');
+        $accountIdRaw = $request->input('account_id');
+        $accountId = is_numeric($accountIdRaw) ? (int) $accountIdRaw : null;
         $status = $request->input('status');
         $source = $request->input('source');
+        $search = trim((string) $request->input('search', ''));
+        $page = max(1, (int) $request->input('page', 1));
+        $perPage = (int) $request->input('per_page', 25);
+        if (!in_array($perPage, [10, 25, 50, 100], true)) {
+            $perPage = 25;
+        }
 
         $walletQuery = WalletTransaction::query()->with('account:id,name,slug', 'actor:id,name,email');
         $paymentQuery = PaymentOrder::query()->with('account:id,name,slug', 'plan:id,name');
 
-        if ($accountId) {
+        if ($accountId !== null) {
             $walletQuery->where('account_id', $accountId);
             $paymentQuery->where('account_id', $accountId);
         }
@@ -85,14 +92,59 @@ class TransactionController extends Controller
             ];
         });
 
-        $rows = $walletRows->concat($paymentRows)->sortByDesc('created_at')->values()->take(500);
+        $rows = $walletRows
+            ->concat($paymentRows)
+            ->sortByDesc('created_at')
+            ->values();
+
+        if ($search !== '') {
+            $needle = mb_strtolower($search);
+            $rows = $rows->filter(function (array $row) use ($needle) {
+                $haystacks = [
+                    $row['id'] ?? '',
+                    $row['kind'] ?? '',
+                    $row['status'] ?? '',
+                    $row['source'] ?? '',
+                    $row['reference'] ?? '',
+                    $row['notes'] ?? '',
+                    $row['account']['name'] ?? '',
+                    (string) ($row['account']['id'] ?? ''),
+                ];
+
+                foreach ($haystacks as $value) {
+                    if (str_contains(mb_strtolower((string) $value), $needle)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            })->values();
+        }
+
+        $total = $rows->count();
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $page = min($page, $lastPage);
+        $offset = ($page - 1) * $perPage;
+        $data = $rows->slice($offset, $perPage)->values();
+        $from = $total === 0 ? 0 : $offset + 1;
+        $to = $total === 0 ? 0 : min($offset + $perPage, $total);
 
         return Inertia::render('Platform/Transactions/Index', [
-            'transactions' => $rows,
+            'transactions' => [
+                'data' => $data,
+                'current_page' => $page,
+                'last_page' => $lastPage,
+                'per_page' => $perPage,
+                'total' => $total,
+                'from' => $from,
+                'to' => $to,
+            ],
             'filters' => [
                 'account_id' => $accountId,
                 'status' => $status,
                 'source' => $source,
+                'search' => $search,
+                'per_page' => $perPage,
             ],
             'accounts' => Account::orderBy('name')->limit(200)->get(['id', 'name', 'slug']),
         ]);
