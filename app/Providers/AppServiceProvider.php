@@ -8,6 +8,10 @@ use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Policies\WhatsAppConnectionPolicy;
 use App\Services\PlatformSettingsService;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Mail\Events\MessageSent;
+use Illuminate\Notifications\Events\NotificationFailed;
+use Illuminate\Notifications\Events\NotificationSent;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Queue;
@@ -85,6 +89,10 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(WhatsAppConnection::class, WhatsAppConnectionPolicy::class);
         Gate::policy(\App\Modules\Chatbots\Models\Bot::class, \App\Modules\Chatbots\Policies\ChatbotPolicy::class);
         Gate::policy(FloaterWidget::class, FloaterWidgetPolicy::class);
+
+        Event::listen(NotificationSent::class, [\App\Listeners\TrackNotificationDelivery::class, 'handleSent']);
+        Event::listen(NotificationFailed::class, [\App\Listeners\TrackNotificationDelivery::class, 'handleFailed']);
+        Event::listen(MessageSent::class, [\App\Listeners\TrackMailDelivery::class, 'handle']);
 
         // Route model binding for 'plan' parameter - resolve by key (slug) instead of ID
         Route::bind('plan', function ($value) {

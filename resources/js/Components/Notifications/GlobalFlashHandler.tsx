@@ -32,7 +32,7 @@ export function GlobalFlashHandler() {
                 return;
             }
             emitted.add(key);
-            addToast({ title, description, variant });
+            addToast({ title, description, variant, source: 'flash' });
         };
 
         // Flash messages (redirect()->with('success', ...) etc.)

@@ -19,6 +19,22 @@ interface DeliveryProps {
             fallback_enabled: boolean;
             fallback_last_triggered_at: string | null;
             fallback_last_error: string | null;
+            template_diagnostics: Array<{
+                template_key: string;
+                total: number;
+                queued: number;
+                retrying: number;
+                sent: number;
+                failed: number;
+                last_attempt_at: string | null;
+            }>;
+            recent_outbox_failures: Array<{
+                template_key: string;
+                recipient: string | null;
+                provider_code: string | null;
+                failure_reason: string | null;
+                failed_at: string | null;
+            }>;
         };
         triggers: {
             chatbots_24h: Record<string, number>;
@@ -120,6 +136,23 @@ export default function DeliveryTab({ delivery }: DeliveryProps) {
                                 Last fallback error: {delivery.mail.fallback_last_error}
                             </div>
                         )}
+                        <div className="pt-2 text-xs text-slate-500 dark:text-slate-400">
+                            Template diagnostics (last 7 days)
+                        </div>
+                        {delivery.mail.template_diagnostics.length === 0 ? (
+                            <div className="text-xs text-slate-500 dark:text-slate-400">No outbox diagnostics yet.</div>
+                        ) : (
+                            <div className="space-y-1">
+                                {delivery.mail.template_diagnostics.map((row) => (
+                                    <div key={row.template_key} className="rounded-md bg-gray-50 p-2 text-xs dark:bg-gray-800">
+                                        <div className="font-semibold">{row.template_key}</div>
+                                        <div className="mt-1">
+                                            total: <strong>{row.total}</strong> | sent: <strong>{row.sent}</strong> | failed: <strong>{row.failed}</strong> | queued/retrying: <strong>{row.queued + row.retrying}</strong>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 
@@ -194,6 +227,40 @@ export default function DeliveryTab({ delivery }: DeliveryProps) {
                                         <span className="text-xs text-red-700/80 dark:text-red-300/80">{fmt(failure.failed_at)}</span>
                                     </div>
                                     <div className="text-xs text-red-800 dark:text-red-200">{failure.error}</div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-base">Recent Email Delivery Failures</CardTitle>
+                    <CardDescription>Template-level diagnostics from notification outbox.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {delivery.mail.recent_outbox_failures.length === 0 ? (
+                        <div className="flex items-center gap-2 rounded-lg bg-green-50 p-3 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-300">
+                            <CheckCircle2 className="h-4 w-4" />
+                            No recent email delivery failures.
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            {delivery.mail.recent_outbox_failures.map((failure, idx) => (
+                                <div key={`${failure.template_key}-${failure.failed_at}-${idx}`} className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900/40 dark:bg-amber-900/20">
+                                    <div className="mb-1 flex items-center justify-between gap-3">
+                                        <span className="font-semibold text-amber-800 dark:text-amber-200">
+                                            {failure.template_key}
+                                        </span>
+                                        <span className="text-xs text-amber-700/80 dark:text-amber-300/80">{fmt(failure.failed_at)}</span>
+                                    </div>
+                                    <div className="text-xs text-amber-900 dark:text-amber-100">
+                                        recipient: {failure.recipient || 'unknown'} | code: {failure.provider_code || 'n/a'}
+                                    </div>
+                                    {failure.failure_reason && (
+                                        <div className="mt-1 text-xs text-amber-800 dark:text-amber-200">{failure.failure_reason}</div>
+                                    )}
                                 </div>
                             ))}
                         </div>

@@ -13,7 +13,8 @@ use Throwable;
 class NotificationDispatchService
 {
     public function __construct(
-        protected Dispatcher $dispatcher
+        protected Dispatcher $dispatcher,
+        protected NotificationOutboxService $outboxService
     ) {
     }
 
@@ -40,11 +41,14 @@ class NotificationDispatchService
                 continue;
             }
 
+            $outbox = $this->outboxService->queueForNotification($notifiable, $notification, 'mail');
+
             try {
                 $this->dispatcher->send($notifiable, $notification);
                 $sent++;
             } catch (Throwable $exception) {
                 $error = mb_substr($exception->getMessage(), 0, 500);
+                $this->outboxService->markFailed($outbox, $error);
                 PlatformSetting::set('mail.fallback.last_triggered_at', now()->toIso8601String(), 'string', 'mail');
                 PlatformSetting::set('mail.fallback.last_error', $error, 'string', 'mail');
 

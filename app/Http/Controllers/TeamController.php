@@ -8,8 +8,8 @@ use App\Models\AccountUser;
 use App\Models\AccountInvitation;
 use App\Mail\AccountInvitationMail;
 use App\Core\Billing\EntitlementService;
+use App\Services\MailDeliveryService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -17,7 +17,8 @@ use Inertia\Response;
 class TeamController extends Controller
 {
     public function __construct(
-        protected EntitlementService $entitlementService
+        protected EntitlementService $entitlementService,
+        protected MailDeliveryService $mailDeliveryService
     ) {
     }
 
@@ -236,7 +237,16 @@ class TeamController extends Controller
         try {
             // Send synchronously so invite delivery does not depend on queue workers.
             $mailer = $this->resolveInviteMailer();
-            Mail::mailer($mailer)->to($inviteEmail)->send(new AccountInvitationMail($invitation));
+            $this->mailDeliveryService->sendMailable(
+                recipient: $inviteEmail,
+                mailable: new AccountInvitationMail($invitation),
+                mailer: $mailer,
+                account: $account,
+                meta: [
+                    'feature' => 'team_invite',
+                    'invitation_id' => $invitation->id,
+                ]
+            );
         } catch (\Throwable $e) {
             Log::warning('Failed to send account invitation email', [
                 'email' => $inviteEmail,
@@ -421,7 +431,16 @@ class TeamController extends Controller
         try {
             // Send synchronously so resend result matches user feedback immediately.
             $mailer = $this->resolveInviteMailer();
-            Mail::mailer($mailer)->to($invitation->email)->send(new AccountInvitationMail($invitation));
+            $this->mailDeliveryService->sendMailable(
+                recipient: $invitation->email,
+                mailable: new AccountInvitationMail($invitation),
+                mailer: $mailer,
+                account: $account,
+                meta: [
+                    'feature' => 'team_invite_resend',
+                    'invitation_id' => $invitation->id,
+                ]
+            );
         } catch (\Throwable $e) {
             Log::warning('Failed to resend account invitation email', [
                 'email' => $invitation->email,

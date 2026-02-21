@@ -26,6 +26,7 @@ class CronDiagnosticsService
         $failedJobsExists = Schema::hasTable('failed_jobs');
         $botExecutionsExists = Schema::hasTable('bot_executions');
         $campaignMessagesExists = Schema::hasTable('campaign_messages');
+        $notificationOutboxExists = Schema::hasTable('notification_outbox');
 
         $pendingByQueue = $jobsExists
             ? DB::table('jobs')
@@ -84,6 +85,62 @@ class CronDiagnosticsService
             : 0;
         $mailFallbackLastTriggeredAt = PlatformSetting::get('mail.fallback.last_triggered_at');
         $mailFallbackLastError = PlatformSetting::get('mail.fallback.last_error');
+        $templateDiagnostics = [];
+        $recentOutboxFailures = [];
+
+        if ($notificationOutboxExists) {
+            $templateDiagnostics = DB::table('notification_outbox')
+                ->select([
+                    DB::raw("COALESCE(NULLIF(template_key, ''), 'unclassified') as template_key"),
+                    DB::raw('COUNT(*) as total'),
+                    DB::raw("SUM(CASE WHEN status = 'queued' THEN 1 ELSE 0 END) as queued"),
+                    DB::raw("SUM(CASE WHEN status = 'retrying' THEN 1 ELSE 0 END) as retrying"),
+                    DB::raw("SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as sent"),
+                    DB::raw("SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed"),
+                    DB::raw('MAX(last_attempt_at) as last_attempt_at'),
+                ])
+                ->where('channel', 'mail')
+                ->where('created_at', '>=', $now->copy()->subDays(7))
+                ->groupBy(DB::raw("COALESCE(NULLIF(template_key, ''), 'unclassified')"))
+                ->orderByDesc('failed')
+                ->orderByDesc('total')
+                ->limit(12)
+                ->get()
+                ->map(fn ($row) => [
+                    'template_key' => (string) $row->template_key,
+                    'total' => (int) $row->total,
+                    'queued' => (int) $row->queued,
+                    'retrying' => (int) $row->retrying,
+                    'sent' => (int) $row->sent,
+                    'failed' => (int) $row->failed,
+                    'last_attempt_at' => $this->isoOrNull($row->last_attempt_at),
+                ])
+                ->values()
+                ->all();
+
+            $recentOutboxFailures = DB::table('notification_outbox')
+                ->select([
+                    DB::raw("COALESCE(NULLIF(template_key, ''), 'unclassified') as template_key"),
+                    'recipient',
+                    'provider_code',
+                    'failure_reason',
+                    'failed_at',
+                ])
+                ->where('channel', 'mail')
+                ->where('status', 'failed')
+                ->orderByDesc('failed_at')
+                ->limit(10)
+                ->get()
+                ->map(fn ($row) => [
+                    'template_key' => (string) $row->template_key,
+                    'recipient' => $row->recipient ? (string) $row->recipient : null,
+                    'provider_code' => $row->provider_code ? (string) $row->provider_code : null,
+                    'failure_reason' => $row->failure_reason ? mb_substr((string) $row->failure_reason, 0, 240) : null,
+                    'failed_at' => $this->isoOrNull($row->failed_at),
+                ])
+                ->values()
+                ->all();
+        }
 
         $chatbotExec24h = [
             'success' => 0,
@@ -178,6 +235,8 @@ class CronDiagnosticsService
                 'fallback_enabled' => $mailDriver === 'failover',
                 'fallback_last_triggered_at' => $this->isoOrNull($mailFallbackLastTriggeredAt),
                 'fallback_last_error' => is_string($mailFallbackLastError) ? $mailFallbackLastError : null,
+                'template_diagnostics' => $templateDiagnostics,
+                'recent_outbox_failures' => $recentOutboxFailures,
             ],
             'triggers' => [
                 'chatbots_24h' => $chatbotExec24h,

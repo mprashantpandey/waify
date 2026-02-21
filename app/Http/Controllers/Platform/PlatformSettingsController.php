@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Platform;
 
 use App\Http\Controllers\Controller;
 use App\Models\PlatformSetting;
+use App\Services\NotificationOutboxService;
 use App\Services\CronDiagnosticsService;
 use App\Services\PlatformSettingsValidationService;
 use Illuminate\Http\Request;
@@ -490,9 +491,19 @@ class PlatformSettingsController extends Controller
             '- Timestamp: ' . now()->toIso8601String(),
         ]);
 
+        $outboxService = app(NotificationOutboxService::class);
+        $outbox = $outboxService->queueForMail(
+            recipient: $testEmail,
+            templateKey: 'platform_mail_test',
+            subject: $subject,
+            account: null,
+            meta: ['feature' => 'platform_mail_test']
+        );
+
         try {
-            Mail::raw($body, function ($message) use ($testEmail, $subject) {
+            Mail::raw($body, function ($message) use ($testEmail, $subject, $outbox) {
                 $message->to($testEmail)->subject($subject);
+                $message->getHeaders()->addTextHeader('X-Waify-Outbox-Id', (string) $outbox->id);
             });
 
             PlatformSetting::set('mail.test.last_success_at', now()->toIso8601String(), 'string', 'mail');
@@ -501,6 +512,7 @@ class PlatformSettingsController extends Controller
                 ->with('success', "Test email sent to {$testEmail} using driver '" . config('mail.default') . "'.");
         } catch (Throwable $smtpError) {
             $error = mb_substr($smtpError->getMessage(), 0, 500);
+            $outboxService->markFailed($outbox, $error);
 
             try {
                 // If SMTP fails, force a log transport fallback so operators can still inspect mail payloads.

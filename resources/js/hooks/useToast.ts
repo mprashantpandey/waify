@@ -6,6 +6,7 @@ export interface Toast {
     description?: string;
     variant?: 'success' | 'error' | 'warning' | 'info';
     duration?: number;
+    source?: string;
 }
 
 let toastIdCounter = 0;
@@ -13,7 +14,9 @@ const toastListeners: Set<(toasts: Toast[]) => void> = new Set();
 let toasts: Toast[] = [];
 const recentToastSignatures: Map<string, { id: string; at: number }> = new Map();
 const TOAST_DEDUPE_WINDOW_MS = 6000;
+const TOAST_EVENT_DEDUPE_WINDOW_MS = 10000;
 const GENERIC_TITLES = new Set(['success', 'error', 'warning', 'info', 'status']);
+const recentEventSignatures: Map<string, number> = new Map();
 
 function normalizeToastMessage(toast: Omit<Toast, 'id'>): string {
     const normalize = (value: string): string => value
@@ -52,6 +55,24 @@ export function useToast() {
         const now = Date.now();
         const canonicalMessage = normalizeToastMessage(toast);
         const signature = canonicalMessage || `${toast.variant || 'info'}|${toast.title || ''}|${toast.description || ''}`;
+        const eventSignature = `${toast.variant || 'info'}|${signature}`;
+
+        // Global duplicate-toast guard middleware (event-level)
+        // Prevents duplicate toasts from mixed sources (flash + local handlers).
+        const eventSeenAt = recentEventSignatures.get(eventSignature);
+        if (eventSeenAt && now - eventSeenAt < TOAST_EVENT_DEDUPE_WINDOW_MS) {
+            return `guarded-${eventSignature}`;
+        }
+        recentEventSignatures.set(eventSignature, now);
+
+        if (recentEventSignatures.size > 400) {
+            for (const [key, at] of recentEventSignatures.entries()) {
+                if (now - at > TOAST_EVENT_DEDUPE_WINDOW_MS * 2) {
+                    recentEventSignatures.delete(key);
+                }
+            }
+        }
+
         const recent = recentToastSignatures.get(signature);
         if (recent && now - recent.at < TOAST_DEDUPE_WINDOW_MS) {
             return recent.id;
