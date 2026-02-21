@@ -6,6 +6,7 @@ import Button from '@/Components/UI/Button';
 import { ArrowLeft, Play, Pause, X, BarChart3, Users, Send, CheckCircle2, Eye, XCircle } from 'lucide-react';
 import { Head } from '@inertiajs/react';
 import { useToast } from '@/hooks/useToast';
+import { useState } from 'react';
 
 interface Campaign {
     id: number;
@@ -51,13 +52,16 @@ export default function BroadcastsShow({
     account,
     campaign,
     stats,
-    recipients}: {
+    recipients,
+    testTargetPhone}: {
     account: any;
     campaign: Campaign;
     stats: Stats;
     recipients: Recipient[];
+    testTargetPhone?: string | null;
 }) {
     const { toast } = useToast();
+    const [testPhone, setTestPhone] = useState(testTargetPhone || '');
 
     const getStatusBadge = (status: string) => {
         const statusMap: Record<string, { variant: 'success' | 'warning' | 'danger' | 'default' | 'info'; label: string }> = {
@@ -136,6 +140,15 @@ export default function BroadcastsShow({
         });
     };
 
+    const handleSendTest = () => {
+        router.post(route('app.broadcasts.send-test', { campaign: campaign.slug }), {
+            phone: testPhone,
+        }, {
+            onSuccess: () => toast.success('Test message sent'),
+            onError: () => toast.error('Failed to send test message'),
+        });
+    };
+
     return (
         <AppShell>
             <Head title={campaign.name} />
@@ -191,6 +204,17 @@ export default function BroadcastsShow({
                             <Button onClick={handleDuplicate} variant="secondary">
                                 Duplicate
                             </Button>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    value={testPhone}
+                                    onChange={(e) => setTestPhone(e.target.value)}
+                                    placeholder="Test phone"
+                                    className="rounded-md border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-800"
+                                />
+                                <Button onClick={handleSendTest} variant="secondary">
+                                    Send Test To Me
+                                </Button>
+                            </div>
                             {['draft', 'cancelled', 'completed'].includes(campaign.status) && (
                                 <Button onClick={handleDelete} variant="secondary" className="text-red-600 hover:text-red-700">
                                     Delete

@@ -28,6 +28,10 @@ interface Connection {
     webhook_subscribed: boolean;
     webhook_last_received_at: string | null;
     webhook_last_error: string | null;
+    throughput_cap_per_minute?: number | null;
+    quiet_hours_start?: string | null;
+    quiet_hours_end?: string | null;
+    quiet_hours_timezone?: string | null;
 }
 
 export default function ConnectionsEdit({
@@ -57,7 +61,11 @@ export default function ConnectionsEdit({
         phone_number_id: connection.phone_number_id,
         business_phone: connection.business_phone || '',
         access_token: '', // Optional on update
-        api_version: connection.api_version});
+        api_version: connection.api_version,
+        throughput_cap_per_minute: connection.throughput_cap_per_minute || 120,
+        quiet_hours_start: connection.quiet_hours_start || '',
+        quiet_hours_end: connection.quiet_hours_end || '',
+        quiet_hours_timezone: connection.quiet_hours_timezone || 'UTC'});
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -292,6 +300,56 @@ export default function ConnectionsEdit({
                                     onChange={(e) => setData('api_version', e.target.value)}
                                 />
                                 <InputError message={errors.api_version} className="mt-2" />
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <InputLabel htmlFor="throughput_cap_per_minute" value="Campaign Throughput Cap / min" className="text-sm font-semibold mb-2" />
+                                    <TextInput
+                                        id="throughput_cap_per_minute"
+                                        type="number"
+                                        min={1}
+                                        max={1000}
+                                        value={data.throughput_cap_per_minute}
+                                        className="mt-1 block w-full rounded-xl"
+                                        onChange={(e) => setData('throughput_cap_per_minute', Number(e.target.value) || 120)}
+                                    />
+                                    <InputError message={errors.throughput_cap_per_minute} className="mt-2" />
+                                </div>
+                                <div>
+                                    <InputLabel htmlFor="quiet_hours_timezone" value="Quiet Hours Timezone" className="text-sm font-semibold mb-2" />
+                                    <TextInput
+                                        id="quiet_hours_timezone"
+                                        type="text"
+                                        value={data.quiet_hours_timezone}
+                                        className="mt-1 block w-full rounded-xl"
+                                        onChange={(e) => setData('quiet_hours_timezone', e.target.value)}
+                                        placeholder="Asia/Kolkata"
+                                    />
+                                    <InputError message={errors.quiet_hours_timezone} className="mt-2" />
+                                </div>
+                                <div>
+                                    <InputLabel htmlFor="quiet_hours_start" value="Quiet Hours Start (HH:MM)" className="text-sm font-semibold mb-2" />
+                                    <TextInput
+                                        id="quiet_hours_start"
+                                        type="time"
+                                        value={data.quiet_hours_start}
+                                        className="mt-1 block w-full rounded-xl"
+                                        onChange={(e) => setData('quiet_hours_start', e.target.value)}
+                                    />
+                                    <InputError message={errors.quiet_hours_start} className="mt-2" />
+                                </div>
+                                <div>
+                                    <InputLabel htmlFor="quiet_hours_end" value="Quiet Hours End (HH:MM)" className="text-sm font-semibold mb-2" />
+                                    <TextInput
+                                        id="quiet_hours_end"
+                                        type="time"
+                                        value={data.quiet_hours_end}
+                                        className="mt-1 block w-full rounded-xl"
+                                        onChange={(e) => setData('quiet_hours_end', e.target.value)}
+                                    />
+                                    <InputError message={errors.quiet_hours_end} className="mt-2" />
+                                </div>
                             </div>
 
                             <div className="border-t border-gray-200 dark:border-gray-700 pt-6 space-y-6">

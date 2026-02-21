@@ -331,6 +331,7 @@ class CampaignController extends Controller
                     'id' => $campaign->creator->id,
                     'name' => $campaign->creator->name] : null,
                 'created_at' => $campaign->created_at->toIso8601String()],
+            'testTargetPhone' => $request->user()?->phone,
             'stats' => $stats,
             'recipients' => $campaign->recipients->map(function ($recipient) {
                 return [
@@ -434,6 +435,37 @@ class CampaignController extends Controller
 
             return back()->withErrors([
                 'error' => 'Failed to start campaign: ' . $e->getMessage()]);
+        }
+    }
+
+    public function sendTest(Request $request, Campaign $campaign)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+        if (!account_ids_match($campaign->account_id, $account->id)) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'phone' => 'nullable|string|max:30',
+        ]);
+
+        $target = trim((string) ($validated['phone'] ?? $request->user()?->phone ?? ''));
+        $digits = preg_replace('/\D+/', '', $target);
+        if ($digits === '') {
+            return back()->withErrors(['error' => 'Add a valid phone number in your profile or send-test form first.']);
+        }
+
+        try {
+            $response = $this->campaignService->sendTestMessage($campaign, $digits);
+            $messageId = $response['messages'][0]['id'] ?? null;
+            return back()->with('success', 'Test message sent' . ($messageId ? " ({$messageId})" : '') . '.');
+        } catch (\Throwable $e) {
+            Log::warning('Campaign test send failed', [
+                'campaign_id' => $campaign->id,
+                'account_id' => $account->id,
+                'error' => $e->getMessage(),
+            ]);
+            return back()->withErrors(['error' => 'Test send failed: ' . $e->getMessage()]);
         }
     }
 

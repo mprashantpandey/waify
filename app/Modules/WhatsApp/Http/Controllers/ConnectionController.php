@@ -43,6 +43,10 @@ class ConnectionController extends Controller
                     'phone_number_id' => $connection->phone_number_id,
                     'business_phone' => $connection->business_phone,
                     'is_active' => $connection->is_active,
+                    'throughput_cap_per_minute' => $connection->throughput_cap_per_minute,
+                    'quiet_hours_start' => $connection->quiet_hours_start,
+                    'quiet_hours_end' => $connection->quiet_hours_end,
+                    'quiet_hours_timezone' => $connection->quiet_hours_timezone,
                     'webhook_subscribed' => $connection->webhook_subscribed,
                     'webhook_last_received_at' => $connection->webhook_last_received_at?->toIso8601String(),
                     'webhook_url' => $this->connectionService->getWebhookUrl($connection),
@@ -108,7 +112,11 @@ class ConnectionController extends Controller
             'phone_number_id' => 'required|string|max:255',
             'business_phone' => 'nullable|string|max:255',
             'access_token' => 'required|string',
-            'api_version' => 'nullable|string|max:10']);
+            'api_version' => 'nullable|string|max:10',
+            'throughput_cap_per_minute' => 'nullable|integer|min:1|max:1000',
+            'quiet_hours_start' => ['nullable', 'regex:/^\d{2}:\d{2}$/'],
+            'quiet_hours_end' => ['nullable', 'regex:/^\d{2}:\d{2}$/'],
+            'quiet_hours_timezone' => 'nullable|timezone']);
 
         if (!isset($validated['name']) || trim((string) $validated['name']) === '') {
             $seed = $validated['business_phone'] ?? $validated['phone_number_id'];
@@ -374,7 +382,11 @@ class ConnectionController extends Controller
                 'webhook_url' => $this->connectionService->getWebhookUrl($connection),
                 'webhook_subscribed' => $connection->webhook_subscribed,
                 'webhook_last_received_at' => $connection->webhook_last_received_at?->toIso8601String(),
-                'webhook_last_error' => $connection->webhook_last_error],
+                'webhook_last_error' => $connection->webhook_last_error,
+                'throughput_cap_per_minute' => $connection->throughput_cap_per_minute,
+                'quiet_hours_start' => $connection->quiet_hours_start,
+                'quiet_hours_end' => $connection->quiet_hours_end,
+                'quiet_hours_timezone' => $connection->quiet_hours_timezone],
             'canViewSecrets' => $account->isOwnedBy($request->user()) || 
                                $account->users()->where('user_id', $request->user()->id)->where('role', 'admin')->exists() ||
                                Gate::allows('update', $connection)]);
@@ -414,7 +426,11 @@ class ConnectionController extends Controller
             'phone_number_id' => 'required|string|max:255',
             'business_phone' => 'nullable|string|max:255',
             'access_token' => 'nullable|string', // Optional on update
-            'api_version' => 'nullable|string|max:10']);
+            'api_version' => 'nullable|string|max:10',
+            'throughput_cap_per_minute' => 'nullable|integer|min:1|max:1000',
+            'quiet_hours_start' => ['nullable', 'regex:/^\d{2}:\d{2}$/'],
+            'quiet_hours_end' => ['nullable', 'regex:/^\d{2}:\d{2}$/'],
+            'quiet_hours_timezone' => 'nullable|timezone']);
 
         $this->connectionService->update($connection, $validated);
 

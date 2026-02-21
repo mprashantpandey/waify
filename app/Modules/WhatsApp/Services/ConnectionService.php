@@ -16,6 +16,7 @@ class ConnectionService
         $data['account_id'] = $account->id;
         $data['webhook_verify_token'] = WhatsAppConnection::generateVerifyToken();
         $data['api_version'] = $data['api_version'] ?? config('whatsapp.meta.api_version', 'v21.0');
+        $data = $this->normalizeCampaignSafetySettings($data);
 
         // Encrypt access token if provided
         if (isset($data['access_token'])) {
@@ -43,9 +44,41 @@ class ConnectionService
             unset($data['api_version']);
         }
 
+        $data = $this->normalizeCampaignSafetySettings($data);
+
         $connection->update($data);
 
         return $connection->fresh();
+    }
+
+    protected function normalizeCampaignSafetySettings(array $data): array
+    {
+        $start = isset($data['quiet_hours_start']) ? trim((string) $data['quiet_hours_start']) : null;
+        $end = isset($data['quiet_hours_end']) ? trim((string) $data['quiet_hours_end']) : null;
+
+        if ($start === '' || $end === '') {
+            $start = $start === '' ? null : $start;
+            $end = $end === '' ? null : $end;
+        }
+
+        if (($start && !$end) || (!$start && $end)) {
+            $data['quiet_hours_start'] = null;
+            $data['quiet_hours_end'] = null;
+        } else {
+            $data['quiet_hours_start'] = $start;
+            $data['quiet_hours_end'] = $end;
+        }
+
+        $tz = isset($data['quiet_hours_timezone']) ? trim((string) $data['quiet_hours_timezone']) : '';
+        if ($tz === '') {
+            $data['quiet_hours_timezone'] = config('app.timezone');
+        }
+
+        if (array_key_exists('throughput_cap_per_minute', $data) && (int) $data['throughput_cap_per_minute'] <= 0) {
+            $data['throughput_cap_per_minute'] = null;
+        }
+
+        return $data;
     }
 
     /**

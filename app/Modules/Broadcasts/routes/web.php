@@ -11,6 +11,7 @@ Route::middleware(['module.entitled:broadcasts'])->group(function () {
     Route::get('/broadcasts/{campaign}', [CampaignController::class, 'show'])->name('broadcasts.show');
     Route::post('/broadcasts/{campaign}/duplicate', [CampaignController::class, 'duplicate'])->name('broadcasts.duplicate');
     Route::post('/broadcasts/{campaign}/retry-failed', [CampaignController::class, 'retryFailed'])->name('broadcasts.retry-failed');
+    Route::post('/broadcasts/{campaign}/send-test', [CampaignController::class, 'sendTest'])->name('broadcasts.send-test');
     Route::post('/broadcasts/{campaign}/start', [CampaignController::class, 'start'])->name('broadcasts.start');
     Route::post('/broadcasts/{campaign}/pause', [CampaignController::class, 'pause'])->name('broadcasts.pause');
     Route::post('/broadcasts/{campaign}/cancel', [CampaignController::class, 'cancel'])->name('broadcasts.cancel');

@@ -39,7 +39,11 @@ export default function ConnectionsCreate({
         waba_id: '',
         phone_number_id: '',
         business_phone: '',
-        access_token: ''});
+        access_token: '',
+        throughput_cap_per_minute: 120,
+        quiet_hours_start: '',
+        quiet_hours_end: '',
+        quiet_hours_timezone: 'UTC'});
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -462,6 +466,56 @@ export default function ConnectionsCreate({
                                     <p className="text-xs text-amber-700 dark:text-amber-300">
                                         Permanent token from Meta Business Manager. Keep this secure.
                                     </p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <InputLabel htmlFor="throughput_cap_per_minute" value="Campaign Throughput Cap / min" className="text-sm font-semibold mb-2" />
+                                    <TextInput
+                                        id="throughput_cap_per_minute"
+                                        type="number"
+                                        min={1}
+                                        max={1000}
+                                        value={data.throughput_cap_per_minute}
+                                        className="mt-1 block w-full rounded-xl"
+                                        onChange={(e) => setData('throughput_cap_per_minute', Number(e.target.value) || 120)}
+                                    />
+                                    <InputError message={errors.throughput_cap_per_minute} className="mt-2" />
+                                </div>
+                                <div>
+                                    <InputLabel htmlFor="quiet_hours_timezone" value="Quiet Hours Timezone" className="text-sm font-semibold mb-2" />
+                                    <TextInput
+                                        id="quiet_hours_timezone"
+                                        type="text"
+                                        value={data.quiet_hours_timezone}
+                                        className="mt-1 block w-full rounded-xl"
+                                        onChange={(e) => setData('quiet_hours_timezone', e.target.value)}
+                                        placeholder="Asia/Kolkata"
+                                    />
+                                    <InputError message={errors.quiet_hours_timezone} className="mt-2" />
+                                </div>
+                                <div>
+                                    <InputLabel htmlFor="quiet_hours_start" value="Quiet Hours Start (HH:MM)" className="text-sm font-semibold mb-2" />
+                                    <TextInput
+                                        id="quiet_hours_start"
+                                        type="time"
+                                        value={data.quiet_hours_start}
+                                        className="mt-1 block w-full rounded-xl"
+                                        onChange={(e) => setData('quiet_hours_start', e.target.value)}
+                                    />
+                                    <InputError message={errors.quiet_hours_start} className="mt-2" />
+                                </div>
+                                <div>
+                                    <InputLabel htmlFor="quiet_hours_end" value="Quiet Hours End (HH:MM)" className="text-sm font-semibold mb-2" />
+                                    <TextInput
+                                        id="quiet_hours_end"
+                                        type="time"
+                                        value={data.quiet_hours_end}
+                                        className="mt-1 block w-full rounded-xl"
+                                        onChange={(e) => setData('quiet_hours_end', e.target.value)}
+                                    />
+                                    <InputError message={errors.quiet_hours_end} className="mt-2" />
                                 </div>
                             </div>
 

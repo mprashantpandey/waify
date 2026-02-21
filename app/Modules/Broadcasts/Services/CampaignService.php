@@ -4,6 +4,8 @@ namespace App\Modules\Broadcasts\Services;
 
 use App\Core\Billing\PlanResolver;
 use App\Core\Billing\UsageService;
+use App\Models\PlatformSetting;
+use App\Services\OperationalAlertService;
 use App\Modules\Broadcasts\Models\Campaign;
 use App\Modules\Broadcasts\Models\CampaignMessage;
 use App\Modules\Broadcasts\Models\CampaignRecipient;
@@ -23,7 +25,8 @@ class CampaignService
         protected WhatsAppClient $whatsappClient,
         protected TemplateComposer $templateComposer,
         protected PlanResolver $planResolver,
-        protected UsageService $usageService
+        protected UsageService $usageService,
+        protected OperationalAlertService $alertService
     ) {
     }
 
@@ -305,6 +308,14 @@ class CampaignService
             return false;
         }
 
+        if (!$this->canSendNowForConnection($campaign)) {
+            $recipient->update([
+                'status' => 'pending',
+                'failure_reason' => 'Deferred by throughput/quiet-hours policy.',
+            ]);
+            return false;
+        }
+
         // Check if contact has opted out or is blocked (if respect_opt_out is enabled)
         if ($campaign->respect_opt_out && $recipient->whatsapp_contact_id) {
             $contact = WhatsAppContact::find($recipient->whatsapp_contact_id);
@@ -478,6 +489,7 @@ class CampaignService
             'failure_reason' => $reason]);
 
         Campaign::whereKey($recipient->campaign_id)->increment('failed_count');
+        $this->checkAndAlertCampaignErrorRate((int) $recipient->campaign_id);
     }
 
     /**
@@ -642,6 +654,10 @@ class CampaignService
             if (!$connection->webhook_last_received_at || $connection->webhook_last_received_at->lt(now()->subHours(24))) {
                 $warnings[] = 'Connection webhook activity is stale (>24h).';
             }
+
+            if ($connection->quiet_hours_start && $connection->quiet_hours_end && $this->getQuietHoursDelaySeconds($campaign) > 0) {
+                $warnings[] = 'Connection is currently inside quiet-hours window; send will be deferred automatically.';
+            }
         }
 
         if ($campaign->type === 'template') {
@@ -701,18 +717,19 @@ class CampaignService
     {
         $baseDelay = max(0, (int) $campaign->send_delay_seconds);
         $backoffUntil = $this->getConnectionBackoffUntil($campaign);
-        if ($backoffUntil === null) {
-            return $baseDelay;
-        }
-
-        $remaining = max(0, now()->diffInSeconds($backoffUntil, false));
-        return max($baseDelay, $remaining);
+        $remainingBackoff = $backoffUntil ? max(0, now()->diffInSeconds($backoffUntil, false)) : 0;
+        $quietHoursDelay = $this->getQuietHoursDelaySeconds($campaign);
+        return max($baseDelay, $remainingBackoff, $quietHoursDelay);
     }
 
     public function isConnectionCoolingDown(Campaign $campaign): bool
     {
         $until = $this->getConnectionBackoffUntil($campaign);
-        return $until !== null && $until->isFuture();
+        if ($until !== null && $until->isFuture()) {
+            return true;
+        }
+
+        return $this->getQuietHoursDelaySeconds($campaign) > 0;
     }
 
     protected function isRateLimitError(string $message): bool
@@ -773,5 +790,147 @@ class CampaignService
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    protected function canSendNowForConnection(Campaign $campaign): bool
+    {
+        if ($this->getQuietHoursDelaySeconds($campaign) > 0) {
+            return false;
+        }
+
+        $connection = $campaign->connection;
+        if (!$connection) {
+            return false;
+        }
+
+        $cap = (int) ($connection->throughput_cap_per_minute ?: 120);
+        $key = sprintf('campaign:throughput:%d:%s', $connection->id, now()->format('YmdHi'));
+        $current = (int) Cache::get($key, 0);
+
+        if ($current >= $cap) {
+            $secondsToNextMinute = max(1, 60 - (int) now()->second);
+            $untilKey = "campaign:connection:{$connection->id}:rate_limited_until";
+            Cache::put($untilKey, now()->addSeconds($secondsToNextMinute)->toIso8601String(), now()->addSeconds($secondsToNextMinute + 90));
+            return false;
+        }
+
+        Cache::put($key, $current + 1, 70);
+        return true;
+    }
+
+    protected function getQuietHoursDelaySeconds(Campaign $campaign): int
+    {
+        $connection = $campaign->connection;
+        if (!$connection || !$connection->quiet_hours_start || !$connection->quiet_hours_end) {
+            return 0;
+        }
+
+        $tz = $connection->quiet_hours_timezone ?: config('app.timezone', 'UTC');
+        try {
+            $localNow = now()->setTimezone($tz);
+            [$startHour, $startMinute] = array_map('intval', explode(':', (string) $connection->quiet_hours_start));
+            [$endHour, $endMinute] = array_map('intval', explode(':', (string) $connection->quiet_hours_end));
+
+            $start = $localNow->copy()->setTime($startHour, $startMinute, 0);
+            $end = $localNow->copy()->setTime($endHour, $endMinute, 0);
+            if ($end->lessThanOrEqualTo($start)) {
+                $end->addDay();
+                if ($localNow->lessThan($start)) {
+                    $start->subDay();
+                }
+            }
+
+            if ($localNow->betweenIncluded($start, $end)) {
+                return max(1, $localNow->diffInSeconds($end, false));
+            }
+        } catch (\Throwable) {
+            return 0;
+        }
+
+        return 0;
+    }
+
+    public function sendTestMessage(Campaign $campaign, string $targetWaId): array
+    {
+        if (!$campaign->connection) {
+            throw new \RuntimeException('Campaign has no WhatsApp connection configured.');
+        }
+
+        $targetWaId = trim($targetWaId);
+        if ($targetWaId === '') {
+            throw new \RuntimeException('Target phone is required for test send.');
+        }
+
+        return match ($campaign->type) {
+            'template' => $this->sendTemplateTestMessage($campaign, $targetWaId),
+            'media' => $this->whatsappClient->sendMediaMessage(
+                $campaign->connection,
+                $targetWaId,
+                (string) $campaign->media_type,
+                (string) $campaign->media_url,
+                $campaign->message_text ?: null,
+                null
+            ),
+            default => $this->whatsappClient->sendTextMessage($campaign->connection, $targetWaId, (string) $campaign->message_text),
+        };
+    }
+
+    protected function sendTemplateTestMessage(Campaign $campaign, string $targetWaId): array
+    {
+        if (!$campaign->template) {
+            throw new \RuntimeException('Template not found for campaign.');
+        }
+
+        $template = $campaign->template;
+        $components = [];
+        $params = $campaign->template_params ?? [];
+        if (!empty($params)) {
+            $payload = $this->templateComposer->preparePayload($template, $targetWaId, $params);
+            $components = $payload['template']['components'] ?? [];
+        }
+
+        return $this->whatsappClient->sendTemplateMessage(
+            $campaign->connection,
+            $targetWaId,
+            $template->name,
+            $template->language,
+            $components
+        );
+    }
+
+    protected function checkAndAlertCampaignErrorRate(int $campaignId): void
+    {
+        $campaign = Campaign::find($campaignId);
+        if (!$campaign) {
+            return;
+        }
+
+        $processed = max(0, (int) $campaign->sent_count + (int) $campaign->failed_count);
+        if ($processed < 20) {
+            return;
+        }
+
+        $failed = max(0, (int) $campaign->failed_count);
+        $rate = $processed > 0 ? ($failed / $processed) * 100 : 0;
+        $threshold = max(1, (float) PlatformSetting::get('alerts.campaign_error_rate_threshold_pct', 20));
+
+        if ($rate < $threshold) {
+            return;
+        }
+
+        $this->alertService->send(
+            eventKey: 'campaign.error_rate.high',
+            title: 'High campaign failure rate detected',
+            context: [
+                'scope' => 'campaign:' . $campaign->id,
+                'campaign_id' => $campaign->id,
+                'campaign_name' => $campaign->name,
+                'processed' => $processed,
+                'failed' => $failed,
+                'failure_rate_pct' => round($rate, 2),
+                'threshold_pct' => $threshold,
+            ],
+            severity: 'warning'
+        );
     }
 }

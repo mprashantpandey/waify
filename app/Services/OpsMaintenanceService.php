@@ -15,6 +15,11 @@ use Symfony\Component\Process\Process;
 
 class OpsMaintenanceService
 {
+    public function __construct(
+        protected OperationalAlertService $alertService
+    ) {
+    }
+
     public function runDatabaseBackup(bool $force = false): array
     {
         $lock = Cache::lock('ops:db-backup', 1800);
@@ -101,6 +106,12 @@ class OpsMaintenanceService
             ];
         } catch (\Throwable $e) {
             Log::error('Database backup failed', ['error' => $e->getMessage()]);
+            $this->alertService->send(
+                eventKey: 'backup.failed',
+                title: 'Database backup failed',
+                context: ['error' => $e->getMessage()],
+                severity: 'critical'
+            );
 
             SystemBackup::create([
                 'type' => 'database',
@@ -182,6 +193,16 @@ class OpsMaintenanceService
             PlatformSetting::set('compliance.cleanup.last_summary', json_encode($deleted), 'string', 'compliance');
 
             return ['status' => 'completed', 'message' => 'Cleanup completed.', 'deleted' => $deleted];
+        } catch (\Throwable $e) {
+            Log::error('Retention cleanup failed', ['error' => $e->getMessage()]);
+            $this->alertService->send(
+                eventKey: 'cleanup.failed',
+                title: 'Retention cleanup failed',
+                context: ['error' => $e->getMessage()],
+                severity: 'critical'
+            );
+
+            return ['status' => 'failed', 'message' => $e->getMessage()];
         } finally {
             $lock->release();
         }
@@ -257,4 +278,3 @@ class OpsMaintenanceService
         }
     }
 }
-

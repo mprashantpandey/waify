@@ -27,7 +27,11 @@ class WhatsAppConnection extends Model
         'webhook_subscribed',
         'webhook_last_received_at',
         'webhook_last_error',
-        'is_active'];
+        'is_active',
+        'throughput_cap_per_minute',
+        'quiet_hours_start',
+        'quiet_hours_end',
+        'quiet_hours_timezone'];
 
     protected static function boot()
     {
@@ -79,7 +83,8 @@ class WhatsAppConnection extends Model
     protected $casts = [
         'webhook_subscribed' => 'boolean',
         'is_active' => 'boolean',
-        'webhook_last_received_at' => 'datetime'];
+        'webhook_last_received_at' => 'datetime',
+        'throughput_cap_per_minute' => 'integer'];
 
     /**
      * Get the decrypted access token.
