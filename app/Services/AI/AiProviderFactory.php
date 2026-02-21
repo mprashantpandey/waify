@@ -33,10 +33,25 @@ class AiProviderFactory
             ),
             'gemini' => new GeminiProvider(
                 apiKey: PlatformSetting::get('ai.gemini_api_key') ?: config('ai.gemini.api_key') ?: throw new RuntimeException('Gemini API key not configured.'),
-                model: PlatformSetting::get('ai.gemini_model', config('ai.gemini.model', 'gemini-1.5-flash')),
+                model: self::normalizeGeminiModel(PlatformSetting::get('ai.gemini_model', config('ai.gemini.model', 'gemini-2.0-flash'))),
                 timeout: self::$timeout
             ),
             default => throw new RuntimeException("Unknown AI provider: {$provider}"),
         };
+    }
+
+    protected static function normalizeGeminiModel(mixed $configuredModel): string
+    {
+        $model = trim((string) $configuredModel);
+        if ($model === '') {
+            return 'gemini-2.0-flash';
+        }
+
+        // Keep tenants on a widely available free-tier-friendly model.
+        if (in_array(strtolower($model), ['gemini-pro', 'gemini-1.5-flash'], true)) {
+            return 'gemini-2.0-flash';
+        }
+
+        return $model;
     }
 }

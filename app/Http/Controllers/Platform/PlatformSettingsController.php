@@ -177,7 +177,7 @@ class PlatformSettingsController extends Controller
             'anthropic_api_key' => $get('ai.anthropic_api_key'),
             'anthropic_model' => $get('ai.anthropic_model', 'claude-3-5-haiku-20241022'),
             'gemini_api_key' => $get('ai.gemini_api_key'),
-            'gemini_model' => $get('ai.gemini_model', 'gemini-1.5-flash'),
+            'gemini_model' => $get('ai.gemini_model', 'gemini-2.0-flash'),
             'system_prompt' => $get('ai.system_prompt'),
             'temperature' => $get('ai.temperature', 0.2),
             'max_tokens' => $get('ai.max_tokens', 300)];

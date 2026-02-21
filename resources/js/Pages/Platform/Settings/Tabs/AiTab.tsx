@@ -174,10 +174,14 @@ export default function AiTab({ data, setData, errors }: AiTabProps) {
                                 <TextInput
                                     id="ai.gemini_model"
                                     type="text"
-                                    value={ai.gemini_model || 'gemini-1.5-flash'}
+                                    value={ai.gemini_model || 'gemini-2.0-flash'}
                                     onChange={(e) => setData('ai', { ...ai, gemini_model: e.target.value })}
                                     className="mt-1 block w-full"
+                                    placeholder="gemini-2.0-flash"
                                 />
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Recommended free-tier model: <span className="font-medium">gemini-2.0-flash</span>
+                                </p>
                                 {errors?.['ai.gemini_model'] && (
                                     <p className="text-sm text-red-600 mt-1">{errors['ai.gemini_model']}</p>
                                 )}

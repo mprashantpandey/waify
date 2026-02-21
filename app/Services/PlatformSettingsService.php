@@ -430,7 +430,7 @@ class PlatformSettingsService
         $anthropicApiKey = $this->get('ai.anthropic_api_key');
         $anthropicModel = $this->get('ai.anthropic_model', 'claude-3-5-haiku-20241022');
         $geminiApiKey = $this->get('ai.gemini_api_key');
-        $geminiModel = $this->get('ai.gemini_model', 'gemini-1.5-flash');
+        $geminiModel = $this->get('ai.gemini_model', 'gemini-2.0-flash');
         $temperature = $this->get('ai.temperature', 0.2);
         $maxTokens = $this->get('ai.max_tokens', 300);
 

@@ -10,37 +10,68 @@ class GeminiProvider implements AiProviderInterface
 {
     public function __construct(
         protected string $apiKey,
-        protected string $model = 'gemini-1.5-flash',
+        protected string $model = 'gemini-2.0-flash',
         protected int $timeout = 30
     ) {
     }
 
     public function generate(string $systemPrompt, string $userPrompt, float $temperature, int $maxTokens): string
     {
-        $url = "https://generativelanguage.googleapis.com/v1beta/models/{$this->model}:generateContent";
-
-        $response = Http::timeout($this->timeout)
-            ->withQueryParameters(['key' => $this->apiKey])
-            ->post($url, [
-                'contents' => [
-                    [
-                        'role' => 'user',
-                        'parts' => [
-                            ['text' => $systemPrompt . "\n\n" . $userPrompt],
-                        ],
+        $payload = [
+            'contents' => [
+                [
+                    'role' => 'user',
+                    'parts' => [
+                        ['text' => $systemPrompt . "\n\n" . $userPrompt],
                     ],
                 ],
-                'generationConfig' => [
-                    'temperature' => $temperature,
-                    'maxOutputTokens' => $maxTokens,
-                ],
-            ]);
+            ],
+            'generationConfig' => [
+                'temperature' => $temperature,
+                'maxOutputTokens' => $maxTokens,
+            ],
+        ];
 
-        if (! $response->successful()) {
-            throw new \RuntimeException('Gemini request failed: ' . ($response->json('error.message') ?? $response->body()));
+        $attempts = $this->buildAttempts($this->model);
+        $lastError = null;
+
+        foreach ($attempts as [$apiVersion, $model]) {
+            $url = "https://generativelanguage.googleapis.com/{$apiVersion}/models/{$model}:generateContent";
+            $response = Http::timeout($this->timeout)
+                ->withQueryParameters(['key' => $this->apiKey])
+                ->post($url, $payload);
+
+            if ($response->successful()) {
+                $content = $response->json('candidates.0.content.parts.0.text', '');
+                return Str::of($content)->trim()->toString();
+            }
+
+            $lastError = $response->json('error.message') ?? $response->body();
         }
 
-        $content = $response->json('candidates.0.content.parts.0.text', '');
-        return Str::of($content)->trim()->toString();
+        throw new \RuntimeException('Gemini request failed: ' . ($lastError ?: 'Unknown Gemini error.'));
+    }
+
+    protected function buildAttempts(string $requestedModel): array
+    {
+        $base = trim($requestedModel) !== '' ? trim($requestedModel) : 'gemini-2.0-flash';
+
+        $models = [$base];
+        if ($base === 'gemini-1.5-flash') {
+            $models[] = 'gemini-1.5-flash-latest';
+            $models[] = 'gemini-2.0-flash';
+        }
+        if ($base === 'gemini-pro') {
+            $models[] = 'gemini-2.0-flash';
+        }
+
+        $models = array_values(array_unique($models));
+        $attempts = [];
+        foreach ($models as $model) {
+            $attempts[] = ['v1beta', $model];
+            $attempts[] = ['v1', $model];
+        }
+
+        return $attempts;
     }
 }

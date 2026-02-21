@@ -667,6 +667,10 @@ class ConversationController extends Controller
             return ['AI provider timed out. Please retry in a few seconds.', 503];
         }
 
+        if (Str::contains($lower, ['gemini', 'model']) && Str::contains($lower, ['not found', 'not supported', 'listmodels'])) {
+            return ['Selected Gemini model is unavailable for your API key/version. Set AI model to gemini-2.0-flash in Platform Settings -> AI and try again.', 422];
+        }
+
         if ($message !== '') {
             return ['AI suggestion failed: ' . $message, 503];
         }
