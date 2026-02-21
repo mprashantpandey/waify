@@ -4,6 +4,7 @@ namespace App\Modules\AI\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\AiUsageLog;
+use App\Models\PlatformSetting;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -28,6 +29,8 @@ class AiController extends Controller
             'account' => $account,
             'ai_suggestions_enabled' => (bool) ($user->ai_suggestions_enabled ?? false),
             'ai_prompts' => is_array($user->ai_prompts) ? $user->ai_prompts : [],
+            'platform_ai_enabled' => $this->toBoolean(PlatformSetting::get('ai.enabled', false)),
+            'platform_ai_provider' => PlatformSetting::get('ai.provider', 'openai'),
             'usage' => $usage,
         ]);
     }
@@ -42,15 +45,27 @@ class AiController extends Controller
         $validated = $request->validate([
             'ai_suggestions_enabled' => 'required|boolean',
             'ai_prompts' => 'nullable|array',
-            'ai_prompts.*.purpose' => 'required|string|max:100',
-            'ai_prompts.*.label' => 'required|string|max:255',
-            'ai_prompts.*.prompt' => 'required|string|max:10000',
+            'ai_prompts.*.purpose' => 'nullable|string|max:100',
+            'ai_prompts.*.label' => 'nullable|string|max:255',
+            'ai_prompts.*.prompt' => 'nullable|string|max:10000',
         ]);
+
+        $normalizedPrompts = collect($validated['ai_prompts'] ?? [])
+            ->map(function ($prompt) {
+                return [
+                    'purpose' => trim((string) ($prompt['purpose'] ?? '')),
+                    'label' => trim((string) ($prompt['label'] ?? '')),
+                    'prompt' => trim((string) ($prompt['prompt'] ?? '')),
+                ];
+            })
+            ->filter(fn ($prompt) => $prompt['purpose'] !== '' && $prompt['label'] !== '' && $prompt['prompt'] !== '')
+            ->values()
+            ->all();
 
         try {
             $user->update([
                 'ai_suggestions_enabled' => $validated['ai_suggestions_enabled'],
-                'ai_prompts' => $validated['ai_prompts'] ?? [],
+                'ai_prompts' => $normalizedPrompts,
             ]);
         } catch (QueryException $e) {
             Log::warning('AI settings update failed due to schema mismatch', [
@@ -116,5 +131,23 @@ class AiController extends Controller
             'by_feature' => [],
             'period_start' => $period->toIso8601String(),
         ];
+    }
+
+    protected function toBoolean(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_numeric($value)) {
+            return (int) $value === 1;
+        }
+
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+            return in_array($normalized, ['1', 'true', 'yes', 'on'], true);
+        }
+
+        return (bool) $value;
     }
 }

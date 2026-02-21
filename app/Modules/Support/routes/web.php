@@ -9,6 +9,7 @@ Route::get('/support', [SupportController::class, 'index'])->name('support.index
 Route::post('/support', [SupportController::class, 'store'])->middleware('throttle:60,1')->name('support.store');
 Route::get('/support/live', [SupportController::class, 'live'])->name('support.live');
 Route::post('/support/live/message', [SupportController::class, 'liveMessage'])->middleware('throttle:60,1')->name('support.live.message');
+Route::post('/support/{thread}/assistant', [SupportController::class, 'assistant'])->middleware('throttle:30,1')->name('support.assistant');
 Route::post('/support/live/request-human', [SupportController::class, 'liveRequestHuman'])->middleware('throttle:20,1')->name('support.live.request-human');
 Route::post('/support/live/close', [SupportController::class, 'liveClose'])->middleware('throttle:20,1')->name('support.live.close');
 Route::get('/support/{thread}', [SupportController::class, 'show'])->name('support.show');

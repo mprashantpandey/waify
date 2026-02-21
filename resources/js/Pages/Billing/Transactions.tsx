@@ -5,6 +5,7 @@ import { Head } from '@inertiajs/react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
 import Button from '@/Components/UI/Button';
+import { useNotifications } from '@/hooks/useNotifications';
 
 interface WalletSummary {
     balance_minor: number;
@@ -32,6 +33,7 @@ export default function BillingTransactions({
     wallet: WalletSummary;
     transactions: TransactionRow[];
 }) {
+    const { toast } = useNotifications();
     const [topupAmountMajor, setTopupAmountMajor] = useState<string>('');
     const [topupNotes, setTopupNotes] = useState<string>('');
 
@@ -50,18 +52,78 @@ export default function BillingTransactions({
         );
     }, [transactions]);
 
-    const submitTopup = (e: FormEvent) => {
+    const loadRazorpayScript = async (): Promise<boolean> => {
+        if ((window as any).Razorpay) {
+            return true;
+        }
+        return new Promise((resolve) => {
+            const script = document.createElement('script');
+            script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+            script.async = true;
+            script.onload = () => resolve(true);
+            script.onerror = () => resolve(false);
+            document.body.appendChild(script);
+        });
+    };
+
+    const submitTopup = async (e: FormEvent) => {
         e.preventDefault();
         const major = Number(topupAmountMajor);
         if (!Number.isFinite(major) || major <= 0) {
+            toast.error('Invalid amount', 'Enter a valid top-up amount.');
+            return;
+        }
+
+        const scriptLoaded = await loadRazorpayScript();
+        if (!scriptLoaded) {
+            toast.error('Payment gateway unavailable', 'Unable to load Razorpay checkout script.');
             return;
         }
 
         const amountMinor = Math.round(major * 100);
-        router.post(route('app.billing.wallet.topup'), {
-            amount_minor: amountMinor,
-            notes: topupNotes || undefined,
-        });
+
+        try {
+            const orderResponse = await window.axios.post(route('app.billing.wallet.topup'), {
+                amount_minor: amountMinor,
+                notes: topupNotes || undefined,
+            });
+
+            const order = orderResponse?.data;
+            if (!order?.order_id || !order?.key_id) {
+                throw new Error('Invalid top-up order response');
+            }
+
+            const options = {
+                key: order.key_id,
+                amount: order.amount,
+                currency: order.currency || 'INR',
+                name: 'Wallet Top-up',
+                description: 'Add credits to wallet',
+                order_id: order.order_id,
+                handler: async (response: any) => {
+                    await window.axios.post(route('app.billing.wallet.topup.confirm'), {
+                        order_id: response.razorpay_order_id,
+                        payment_id: response.razorpay_payment_id,
+                        signature: response.razorpay_signature,
+                    });
+                    toast.success('Top-up successful', 'Wallet balance has been updated.');
+                    router.reload({ only: ['wallet', 'transactions'] });
+                },
+                modal: {
+                    ondismiss: () => {
+                        toast.warning('Top-up cancelled', 'Payment was cancelled before completion.');
+                    },
+                },
+            };
+
+            const razorpay = new (window as any).Razorpay(options);
+            razorpay.on('payment.failed', (response: any) => {
+                toast.error('Top-up failed', response?.error?.description || 'Payment failed.');
+            });
+            razorpay.open();
+        } catch (error: any) {
+            toast.error('Top-up failed', error?.response?.data?.message || error?.message || 'Could not create top-up order.');
+        }
     };
 
     return (

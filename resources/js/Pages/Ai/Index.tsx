@@ -11,6 +11,7 @@ import { Head } from '@inertiajs/react';
 import { Sparkles, Plus, Trash2, BarChart3, CheckCircle2 } from 'lucide-react';
 import { Transition } from '@headlessui/react';
 import InputError from '@/Components/InputError';
+import { useNotifications } from '@/hooks/useNotifications';
 
 interface PromptRow {
     purpose: string;
@@ -25,48 +26,66 @@ interface UsageStats {
 }
 
 export default function AiIndex({
-    account,
     ai_suggestions_enabled = false,
     ai_prompts = [],
+    platform_ai_enabled = false,
+    platform_ai_provider = 'openai',
     usage = { this_month: 0, by_feature: {}, period_start: '' },
 }: {
-    account: any;
     ai_suggestions_enabled: boolean;
     ai_prompts: PromptRow[];
+    platform_ai_enabled?: boolean;
+    platform_ai_provider?: string;
     usage: UsageStats;
 }) {
-    const [prompts, setPrompts] = useState<PromptRow[]>(Array.isArray(ai_prompts) && ai_prompts.length > 0 ? ai_prompts : []);
+    const { toast } = useNotifications();
 
-    const { data, setData, post, processing, errors, recentlySuccessful } = useForm({
+    const { data, setData, post, transform, processing, errors, recentlySuccessful } = useForm({
         ai_suggestions_enabled,
-        ai_prompts: prompts,
+        ai_prompts: Array.isArray(ai_prompts) && ai_prompts.length > 0 ? ai_prompts : [],
     });
 
     const addPrompt = () => {
-        const next = [...prompts, { purpose: `custom_${Date.now()}`, label: '', prompt: '' }];
-        setPrompts(next);
+        const next = [...data.ai_prompts, { purpose: `custom_${Date.now()}`, label: '', prompt: '' }];
         setData('ai_prompts', next);
     };
 
     const updatePrompt = (index: number, field: keyof PromptRow, value: string) => {
-        const next = prompts.map((p, i) => (i === index ? { ...p, [field]: value } : p));
-        setPrompts(next);
+        const next = data.ai_prompts.map((p, i) => (i === index ? { ...p, [field]: value } : p));
         setData('ai_prompts', next);
     };
 
     const removePrompt = (index: number) => {
-        const next = prompts.filter((_, i) => i !== index);
-        setPrompts(next);
+        const next = data.ai_prompts.filter((_, i) => i !== index);
         setData('ai_prompts', next);
     };
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
-        setData('ai_prompts', prompts);
-        post(route('app.ai.settings'), { preserveScroll: true });
+        const cleaned = data.ai_prompts
+            .map((row) => ({
+                purpose: (row.purpose || '').trim(),
+                label: (row.label || '').trim(),
+                prompt: (row.prompt || '').trim(),
+            }))
+            .filter((row) => row.purpose || row.label || row.prompt);
+
+        const hasIncomplete = cleaned.some((row) => !row.purpose || !row.label || !row.prompt);
+        if (hasIncomplete) {
+            toast.warning('Incomplete prompt rows', 'Fill purpose/label/prompt or remove incomplete rows.');
+            return;
+        }
+
+        setData('ai_prompts', cleaned);
+        transform(() => ({
+            ai_suggestions_enabled: data.ai_suggestions_enabled,
+            ai_prompts: cleaned,
+        }));
+        post(route('app.ai.settings'), {
+            preserveScroll: true,
+        });
     };
 
-    const usageByFeature = usage?.by_feature ?? {};
     const featureLabels: Record<string, string> = {
         conversation_suggest: 'Conversation reply suggestions',
         support_reply: 'Support assistant',
@@ -87,6 +106,14 @@ export default function AiIndex({
                 </div>
 
                 <form onSubmit={submit} className="space-y-6">
+                    {!platform_ai_enabled && (
+                        <Card className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20">
+                            <CardContent className="p-4 text-sm text-amber-800 dark:text-amber-200">
+                                AI is currently disabled in platform settings. Your personal prompts are saved, but AI suggestions will stay unavailable until a super admin enables AI.
+                            </CardContent>
+                        </Card>
+                    )}
+
                     <Card className="border-0 shadow-lg">
                         <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20">
                             <CardTitle className="text-lg font-bold">Conversation AI</CardTitle>
@@ -105,6 +132,7 @@ export default function AiIndex({
                                 <Switch
                                     checked={data.ai_suggestions_enabled}
                                     onCheckedChange={(checked) => setData('ai_suggestions_enabled', checked)}
+                                    disabled={!platform_ai_enabled}
                                 />
                             </div>
                         </CardContent>
@@ -118,7 +146,7 @@ export default function AiIndex({
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="p-6 space-y-4">
-                            {prompts.map((row, index) => (
+                            {data.ai_prompts.map((row, index) => (
                                 <div
                                     key={index}
                                     className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3 bg-white dark:bg-gray-800/50"
@@ -179,6 +207,9 @@ export default function AiIndex({
                                 </span>
                                 <span className="text-sm text-gray-500 dark:text-gray-400">requests this month</span>
                             </div>
+                            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                Active provider: <span className="font-medium">{platform_ai_provider}</span>
+                            </p>
                             {usage?.by_feature && Object.keys(usage.by_feature).length > 0 && (
                                 <ul className="mt-4 space-y-2">
                                     {Object.entries(usage.by_feature).map(([feature, count]) => (

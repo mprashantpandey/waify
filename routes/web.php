@@ -145,6 +145,7 @@ Route::middleware(['auth', 'account.resolve', 'account.active', 'account.subscri
         Route::get('/history', [\App\Http\Controllers\Billing\BillingController::class, 'history'])->name('history');
         Route::get('/transactions', [\App\Http\Controllers\Billing\BillingController::class, 'transactions'])->name('transactions');
         Route::post('/wallet/topup', [\App\Http\Controllers\Billing\BillingController::class, 'walletTopup'])->name('wallet.topup');
+        Route::post('/wallet/topup/confirm', [\App\Http\Controllers\Billing\BillingController::class, 'confirmWalletTopup'])->name('wallet.topup.confirm');
         Route::post('/cancel', [\App\Http\Controllers\Billing\BillingController::class, 'cancel'])->name('cancel');
         Route::post('/resume', [\App\Http\Controllers\Billing\BillingController::class, 'resume'])->name('resume');
         Route::get('/usage', [\App\Http\Controllers\Billing\BillingController::class, 'usage'])->name('usage');

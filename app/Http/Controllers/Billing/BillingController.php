@@ -10,6 +10,7 @@ use App\Core\Billing\BillingProviderManager;
 use App\Models\PaymentOrder;
 use App\Models\Plan;
 use App\Models\WalletTransaction;
+use App\Models\WalletTopupOrder;
 use App\Services\PlatformSettingsService;
 use App\Services\WalletService;
 use Illuminate\Http\Request;
@@ -662,20 +663,143 @@ class BillingController extends Controller
         }
 
         $validated = $request->validate([
-            'amount_minor' => 'required|integer|min:1|max:100000000',
+            'amount_minor' => 'required|integer|min:100|max:100000000',
             'notes' => 'nullable|string|max:255',
         ]);
 
-        $this->walletService->credit(
-            account: $account,
-            amountMinor: (int) $validated['amount_minor'],
-            source: 'self_topup',
-            actor: $request->user(),
-            reference: 'self_topup:'.now()->timestamp,
-            notes: $validated['notes'] ?? null
+        $provider = $this->providerManager->get('razorpay');
+        if (!$provider || !$provider->isEnabled() || !method_exists($provider, 'createCustomOrder')) {
+            abort(422, 'Wallet top-up requires an active Razorpay configuration.');
+        }
+
+        $settingsService = app(PlatformSettingsService::class);
+        $defaultCurrency = strtoupper((string) $settingsService->get('payment.default_currency', 'INR'));
+        if ($defaultCurrency !== 'INR') {
+            abort(422, 'Wallet top-up is only available in INR with Razorpay.');
+        }
+
+        $amountMinor = (int) $validated['amount_minor'];
+        $orderData = $provider->createCustomOrder(
+            amount: $amountMinor,
+            receipt: "ws_{$account->id}_wallet_" . time(),
+            notes: [
+                'account_id' => (string) $account->id,
+                'user_id' => (string) $request->user()->id,
+                'purpose' => 'wallet_topup',
+            ]
         );
 
-        return back()->with('success', 'Wallet top-up added.');
+        WalletTopupOrder::create([
+            'account_id' => $account->id,
+            'created_by' => $request->user()->id,
+            'provider' => 'razorpay',
+            'provider_order_id' => (string) $orderData['id'],
+            'amount' => $amountMinor,
+            'currency' => 'INR',
+            'status' => 'created',
+            'metadata' => [
+                'notes' => $validated['notes'] ?? null,
+                'order' => $orderData,
+            ],
+        ]);
+
+        $keyId = method_exists($provider, 'getKeyId') ? $provider->getKeyId() : null;
+        if (is_string($keyId)) {
+            $keyId = trim($keyId);
+        }
+
+        return response()->json([
+            'order_id' => (string) $orderData['id'],
+            'amount' => $amountMinor,
+            'currency' => 'INR',
+            'key_id' => $keyId,
+        ]);
+    }
+
+    public function confirmWalletTopup(Request $request)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if (!$account->isOwnedBy($request->user())) {
+            abort(403, 'Only account owner can confirm wallet top-up.');
+        }
+
+        $enabled = (bool) app(PlatformSettingsService::class)->get('payment.wallet_self_topup_enabled', false);
+        if (!$enabled) {
+            abort(403, 'Wallet self top-up is disabled by platform admin.');
+        }
+
+        $validated = $request->validate([
+            'order_id' => 'required|string',
+            'payment_id' => 'required|string',
+            'signature' => 'required|string',
+        ]);
+
+        $provider = $this->providerManager->get('razorpay');
+        if (!$provider || !$provider->isEnabled() || !method_exists($provider, 'getKeySecret')) {
+            abort(422, 'Razorpay is not available.');
+        }
+
+        $secret = $provider->getKeySecret();
+        $payload = $validated['order_id'] . '|' . $validated['payment_id'];
+        $expected = hash_hmac('sha256', $payload, $secret);
+
+        if (!hash_equals($expected, $validated['signature'])) {
+            abort(400, 'Invalid payment signature.');
+        }
+
+        DB::transaction(function () use ($validated, $request, $account): void {
+            $order = WalletTopupOrder::where('provider', 'razorpay')
+                ->where('provider_order_id', $validated['order_id'])
+                ->lockForUpdate()
+                ->first();
+
+            if (!$order) {
+                abort(404, 'Top-up order not found.');
+            }
+
+            if ((int) ($order->created_by ?? 0) !== (int) $request->user()->id) {
+                abort(403, 'Top-up order does not belong to this user.');
+            }
+
+            if (!account_ids_match($order->account_id, $account->id)) {
+                abort(403, 'Top-up order does not belong to this account.');
+            }
+
+            if (
+                $order->status === 'paid' &&
+                (string) $order->provider_payment_id === (string) $validated['payment_id']
+            ) {
+                return;
+            }
+
+            if (
+                $order->status === 'paid' &&
+                !empty($order->provider_payment_id) &&
+                (string) $order->provider_payment_id !== (string) $validated['payment_id']
+            ) {
+                abort(409, 'Top-up order already settled with another payment id.');
+            }
+
+            $order->update([
+                'status' => 'paid',
+                'provider_payment_id' => $validated['payment_id'],
+                'paid_at' => now(),
+            ]);
+
+            $meta = is_array($order->metadata) ? $order->metadata : [];
+            $this->walletService->credit(
+                account: $account,
+                amountMinor: (int) $order->amount,
+                source: 'self_topup',
+                actor: $request->user(),
+                reference: 'self_topup:'.$order->provider_order_id,
+                notes: (string) ($meta['notes'] ?? 'Self wallet top-up via Razorpay'),
+                meta: ['provider' => 'razorpay', 'payment_id' => $validated['payment_id']]
+            );
+        });
+
+        return response()->json(['success' => true]);
     }
 
     protected function resolvePlan(Plan|string|int $plan): Plan

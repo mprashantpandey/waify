@@ -23,7 +23,7 @@ class RazorpayBillingProvider implements BillingProvider
 
     public function isEnabled(): bool
     {
-        return (bool) PlatformSetting::get('payment.razorpay_enabled', false)
+        return $this->toBoolean(PlatformSetting::get('payment.razorpay_enabled', false))
             && !empty($this->getKeyId())
             && !empty($this->getKeySecret());
     }
@@ -169,14 +169,33 @@ class RazorpayBillingProvider implements BillingProvider
             throw new \RuntimeException('Plan is not billable.');
         }
 
+        return $this->createCustomOrder(
+            amount: $amount,
+            receipt: "ws_{$account->id}_plan_{$plan->id}_" . time(),
+            notes: [
+                'account_id' => (string) $account->id,
+                'plan_id' => (string) $plan->id,
+                'user_id' => (string) $actor->id,
+            ]
+        );
+    }
+
+    public function createCustomOrder(int $amount, string $receipt, array $notes = []): array
+    {
+        if (!$this->isEnabled()) {
+            throw new \RuntimeException('Razorpay is not enabled.');
+        }
+
+        if ($amount <= 0) {
+            throw new \RuntimeException('Order amount must be greater than zero.');
+        }
+
         $payload = [
             'amount' => $amount,
             'currency' => 'INR',
-            'receipt' => "ws_{$account->id}_plan_{$plan->id}_" . time(),
-            'notes' => [
-                'account_id' => (string) $account->id,
-                'plan_id' => (string) $plan->id,
-                'user_id' => (string) $actor->id]];
+            'receipt' => $receipt,
+            'notes' => $notes,
+        ];
 
         $response = Http::withBasicAuth($this->getKeyId(), $this->getKeySecret())
             ->post("{$this->baseUrl}/orders", $payload);
@@ -185,7 +204,8 @@ class RazorpayBillingProvider implements BillingProvider
         if (!$response->successful()) {
             Log::channel('stack')->error('Razorpay order creation failed', [
                 'status' => $response->status(),
-                'error' => $data]);
+                'error' => $data,
+            ]);
             throw new \RuntimeException($data['error']['description'] ?? 'Unable to create Razorpay order');
         }
 
@@ -213,5 +233,28 @@ class RazorpayBillingProvider implements BillingProvider
     public function getWebhookSecret(): ?string
     {
         return PlatformSetting::get('payment.razorpay_webhook_secret');
+    }
+
+    protected function toBoolean(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_numeric($value)) {
+            return (int) $value === 1;
+        }
+
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+            if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+                return true;
+            }
+            if (in_array($normalized, ['0', 'false', 'no', 'off', ''], true)) {
+                return false;
+            }
+        }
+
+        return (bool) $value;
     }
 }

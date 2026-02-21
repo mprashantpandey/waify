@@ -259,6 +259,39 @@ class SupportController extends Controller
         return redirect()->back()->with('success', 'Message sent.');
     }
 
+    public function assistant(Request $request, $thread, \App\Services\AI\SupportAssistantService $assistant)
+    {
+        if (!PlatformSetting::get('ai.enabled', false)) {
+            return response()->json(['error' => 'AI assistant is disabled.'], 403);
+        }
+
+        $account = $request->attributes->get('account') ?? current_account();
+        $thread = SupportThread::resolveThread($thread);
+        if (!$thread) {
+            abort(404);
+        }
+
+        if (!account_ids_match($thread->account_id, $account?->id)) {
+            abort(403);
+        }
+
+        $action = $request->input('action', 'reply');
+        $messages = SupportMessage::where('support_thread_id', $thread->id)
+            ->orderByDesc('created_at')
+            ->limit(20)
+            ->get()
+            ->reverse()
+            ->values();
+
+        try {
+            $suggestion = $assistant->generateReply($thread, $messages, $action);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['suggestion' => $suggestion]);
+    }
+
     public function live(Request $request)
     {
         $account = $request->attributes->get('account') ?? current_account();

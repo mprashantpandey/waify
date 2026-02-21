@@ -109,6 +109,16 @@ const extractList = <T,>(value: unknown): T[] => {
     return [];
 };
 
+const asBool = (value: unknown): boolean => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value === 1;
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        return ['1', 'true', 'yes', 'on'].includes(normalized);
+    }
+    return Boolean(value);
+};
+
 const normalizeMessage = (value: any): Message | null => {
     if (!value || value.id == null || !value.created_at) return null;
     const id = Number(value.id);
@@ -199,7 +209,7 @@ export default function ConversationsShow({
         : extractList<ListItem>(pageProps?.lists);
     const initialTotalMessages = Number(total_messages ?? pageProps?.total_messages ?? 0);
     const resolvedAiAvailable = Boolean(aiAvailable ?? pageProps?.ai_available ?? false);
-    const platformAiEnabled = Boolean(pageProps?.ai?.enabled ?? false);
+    const platformAiEnabled = asBool(pageProps?.ai?.enabled ?? false);
 
     if (!resolvedConversation) {
         return (
@@ -233,7 +243,8 @@ export default function ConversationsShow({
     const notifyMentionEnabled = auth?.user?.notify_mention_enabled ?? true;
     const soundEnabled = auth?.user?.notify_sound_enabled ?? true;
     const aiSuggestionsEnabled = auth?.user?.ai_suggestions_enabled ?? false;
-    const showAiSuggest = Boolean(resolvedAiAvailable && aiSuggestionsEnabled && platformAiEnabled);
+    const showAiSuggest = Boolean(resolvedAiAvailable);
+    const canUseAiSuggest = Boolean(resolvedAiAvailable && aiSuggestionsEnabled && platformAiEnabled);
     const [messages, setMessages] = useState<Message[]>(normalizedMessages);
     const [conversation, setConversation] = useState<Conversation>(resolvedConversation);
     const [loading, setLoading] = useState<boolean>(normalizedMessages.length === 0 && initialTotalMessages > 0);
@@ -2119,9 +2130,15 @@ export default function ConversationsShow({
                                 <Button
                                     type="button"
                                     onClick={handleAiSuggest}
-                                    disabled={processing || aiSuggestLoading}
+                                    disabled={processing || aiSuggestLoading || !canUseAiSuggest}
                                     aria-label="Get AI reply suggestion"
-                                    title="Suggest reply with AI"
+                                    title={
+                                        !aiSuggestionsEnabled
+                                            ? 'Enable AI suggestions in AI settings'
+                                            : !platformAiEnabled
+                                            ? 'AI is disabled in platform settings'
+                                            : 'Suggest reply with AI'
+                                    }
                                     variant="secondary"
                                     className="shrink-0 rounded-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800"
                                 >
