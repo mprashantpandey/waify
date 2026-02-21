@@ -62,7 +62,7 @@ class SegmentController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string|max:500',
             'filters' => 'nullable|array',
-            'filters.*.field' => 'required|string|max:100',
+            'filters.*.field' => 'required|string|max:100|in:' . implode(',', ContactSegment::allowedFilterFields()),
             'filters.*.operator' => 'required|string|in:equals,not_equals,contains,not_contains,starts_with,ends_with,greater_than,less_than,is_empty,is_not_empty',
             'filters.*.value' => 'nullable|string|max:500',
         ]);
@@ -163,7 +163,7 @@ class SegmentController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string|max:500',
             'filters' => 'nullable|array',
-            'filters.*.field' => 'required|string|max:100',
+            'filters.*.field' => 'required|string|max:100|in:' . implode(',', ContactSegment::allowedFilterFields()),
             'filters.*.operator' => 'required|string|in:equals,not_equals,contains,not_contains,starts_with,ends_with,greater_than,less_than,is_empty,is_not_empty',
             'filters.*.value' => 'nullable|string|max:500',
         ]);

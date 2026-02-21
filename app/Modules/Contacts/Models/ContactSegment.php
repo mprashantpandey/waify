@@ -104,16 +104,29 @@ class ContactSegment extends Model
     }
 
     /**
+     * Allowed contact fields for segment filters (whitelist to prevent injection).
+     */
+    public static function allowedFilterFields(): array
+    {
+        return ['name', 'wa_id', 'email', 'phone', 'company', 'status', 'source'];
+    }
+
+    /**
      * Apply filters to query.
      */
     protected function applyFilters($query, array $filters)
     {
+        $allowedFields = array_flip(static::allowedFilterFields());
+
         foreach ($filters as $filter) {
             $field = $filter['field'] ?? null;
             $operator = $filter['operator'] ?? 'equals';
             $value = $filter['value'] ?? null;
 
-            if (!$field || $value === null) {
+            if (!$field || !isset($allowedFields[$field])) {
+                continue;
+            }
+            if ($value === null && !in_array($operator, ['is_empty', 'is_not_empty'], true)) {
                 continue;
             }
 
@@ -143,7 +156,9 @@ class ContactSegment extends Model
                     $query->where($field, '<', $value);
                     break;
                 case 'is_empty':
-                    $query->whereNull($field)->orWhere($field, '');
+                    $query->where(function ($q) use ($field) {
+                        $q->whereNull($field)->orWhere($field, '');
+                    });
                     break;
                 case 'is_not_empty':
                     $query->whereNotNull($field)->where($field, '!=', '');

@@ -23,13 +23,23 @@ class SupportAttachmentController extends Controller
             abort(403);
         }
 
-        $path = Storage::disk('public')->path($attachment->file_path);
-        if (!file_exists($path)) {
+        $filePath = $attachment->file_path;
+        if ($filePath === null || $filePath === '' || str_contains($filePath, '..')) {
             abort(404);
         }
 
-        return response()->file($path, [
+        $root = Storage::disk('public')->path('');
+        $path = Storage::disk('public')->path($filePath);
+        $realPath = realpath($path);
+        if ($realPath === false || !str_starts_with($realPath, $root) || !is_file($realPath)) {
+            abort(404);
+        }
+
+        $safeName = preg_replace('/[^\w\s\-\.]/', '_', $attachment->file_name ?? 'attachment');
+        $safeName = substr($safeName, 0, 255) ?: 'attachment';
+
+        return response()->file($realPath, [
             'Content-Type' => $attachment->mime_type ?: 'application/octet-stream',
-            'Content-Disposition' => 'inline; filename="' . $attachment->file_name . '"']);
+            'Content-Disposition' => 'inline; filename="' . $safeName . '"']);
     }
 }

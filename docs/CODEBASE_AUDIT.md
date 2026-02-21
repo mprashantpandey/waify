@@ -16,6 +16,16 @@ This document summarizes findings from a full codebase review. Items marked **Fi
 - **Issue:** `AccountController@switch` used `$account->users->contains($user)`, loading all account users into memory.
 - **Fix:** Replaced with `$account->users()->where('user_id', $user->id)->exists()` so only existence is queried.
 
+### 1.3 Segment filter field injection — **Fixed**
+
+- **Issue:** `ContactSegment::applyFilters` used user-stored `field` directly in `where($field, ...)`. Stored filters could contain arbitrary column names (validation only limited length, not whitelist).
+- **Fix:** Whitelist `allowedFilterFields()` (name, wa_id, email, phone, company, status, source); apply only when field is in whitelist. Store/update validation now uses `in:...` for `filters.*.field`. Also fixed `is_empty` clause precedence (wrapped in closure).
+
+### 1.4 Support attachment path traversal and filename — **Fixed**
+
+- **Issue:** `SupportAttachmentController` used `Storage::path($attachment->file_path)` without ensuring the path stays inside the disk root; `file_name` was used raw in Content-Disposition (header injection risk).
+- **Fix:** Reject paths containing `..`; resolve with `realpath()` and ensure path is under disk root and is a file; sanitize filename for Content-Disposition (alphanumeric, space, hyphen, dot only; max 255 chars).
+
 ---
 
 ## 2. Security & Resilience
@@ -32,6 +42,10 @@ This document summarizes findings from a full codebase review. Items marked **Fi
 ### 2.3 Widget event endpoint — **Fixed**
 
 - **Note:** `POST /widgets/{widget}/event` is public. **Done**: `throttle:60,1` added to limit abuse.
+
+### 2.4 Team invite / resend — **Fixed**
+
+- **Note:** Team invite and resend had no rate limit. **Done**: `throttle:10,1` on `POST /app/team/invite` and `POST /app/team/invites/{invitation}/resend`.
 
 ---
 
@@ -98,6 +112,9 @@ This document summarizes findings from a full codebase review. Items marked **Fi
 | Razorpay idempotency | Cache key by event+order+payment; duplicate webhooks return 200 without reprocessing. |
 | Audit index | Index `(whatsapp_conversation_id, created_at)` on audit events table. |
 | TeamController remove | Log includes file/line when removal fails. |
+| Segment filter fields | Whitelist in ContactSegment + validation in SegmentController; is_empty clause fixed. |
+| Support attachment | Path traversal check (realpath under disk root); safe filename in Content-Disposition. |
+| Team invite throttle | `throttle:10,1` on invite and resend. |
 
 ---
 
@@ -105,3 +122,4 @@ This document summarizes findings from a full codebase review. Items marked **Fi
 
 - Use `ai_prompts` in ConversationAssistantService for reply suggestions.
 - Encrypt sensitive platform settings at rest (DB/backups).
+- Chatbot condition `regex_match`: consider limiting pattern length or documenting ReDoS risk for user-supplied patterns.

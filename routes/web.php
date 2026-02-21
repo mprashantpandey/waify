@@ -180,8 +180,8 @@ Route::middleware(['auth', 'account.resolve', 'account.active', 'account.subscri
     // Team management
     Route::prefix('/team')->name('team.')->group(function () {
         Route::get('/', [\App\Http\Controllers\TeamController::class, 'index'])->name('index');
-        Route::post('/invite', [\App\Http\Controllers\TeamController::class, 'invite'])->name('invite');
-        Route::post('/invites/{invitation}/resend', [\App\Http\Controllers\TeamController::class, 'resendInvite'])->name('invites.resend');
+        Route::post('/invite', [\App\Http\Controllers\TeamController::class, 'invite'])->middleware('throttle:10,1')->name('invite');
+        Route::post('/invites/{invitation}/resend', [\App\Http\Controllers\TeamController::class, 'resendInvite'])->middleware('throttle:10,1')->name('invites.resend');
         Route::delete('/invites/{invitation}', [\App\Http\Controllers\TeamController::class, 'revokeInvite'])->name('invites.revoke');
         Route::post('/{user}/update-role', [\App\Http\Controllers\TeamController::class, 'updateRole'])->name('update-role');
         Route::delete('/{user}/remove', [\App\Http\Controllers\TeamController::class, 'remove'])->name('remove');
