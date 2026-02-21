@@ -128,6 +128,13 @@ class PublicPagesController extends Controller
         ]);
     }
 
+    public function refundPolicy(): Response
+    {
+        return Inertia::render('Public/RefundPolicy', [
+            'content' => (string) \App\Models\PlatformSetting::get('cms.refund_content', ''),
+        ]);
+    }
+
     /**
      * Display the help page.
      */

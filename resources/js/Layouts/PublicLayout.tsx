@@ -54,6 +54,7 @@ export default function PublicLayout({ children }: PropsWithChildren) {
         legal: [
             { name: 'Privacy Policy', href: privacyUrl },
             { name: 'Terms of Service', href: termsUrl },
+            { name: 'Refund Policy', href: route('refund-policy') },
             ...(cookiePolicyUrl ? [{ name: 'Cookie Policy', href: cookiePolicyUrl }] : []),
         ]};
 

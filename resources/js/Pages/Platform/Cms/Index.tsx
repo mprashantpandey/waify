@@ -5,20 +5,24 @@ import { Label } from '@/Components/UI/Label';
 import Button from '@/Components/UI/Button';
 import InputError from '@/Components/InputError';
 
+interface CmsFormData {
+    terms_content: string;
+    privacy_content: string;
+    cookie_content: string;
+    refund_content: string;
+}
+
 export default function CmsPagesIndex({
     pages,
 }: {
-    pages: {
-        terms_content?: string;
-        privacy_content?: string;
-        cookie_content?: string;
-    };
+    pages: Partial<CmsFormData>;
 }) {
     const { auth } = usePage().props as any;
-    const { data, setData, post, processing, errors } = useForm({
+    const { data, setData, post, processing, errors } = useForm<CmsFormData>({
         terms_content: pages?.terms_content || '',
         privacy_content: pages?.privacy_content || '',
         cookie_content: pages?.cookie_content || '',
+        refund_content: pages?.refund_content || '',
     });
 
     const submit = (e: React.FormEvent) => {
@@ -78,6 +82,25 @@ export default function CmsPagesIndex({
 
                     <Card>
                         <CardHeader>
+                            <CardTitle>Refund Policy</CardTitle>
+                            <CardDescription>Displayed on `/refund-policy`</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Label htmlFor="refund_content">Content</Label>
+                            <textarea
+                                id="refund_content"
+                                value={data.refund_content}
+                                onChange={(e) => setData('refund_content', e.target.value)}
+                                rows={12}
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+                                placeholder="Enter refund policy content..."
+                            />
+                            <InputError message={errors.refund_content} className="mt-2" />
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
                             <CardTitle>Cookie Policy</CardTitle>
                             <CardDescription>Displayed on `/cookie-policy`</CardDescription>
                         </CardHeader>
@@ -105,4 +128,3 @@ export default function CmsPagesIndex({
         </PlatformShell>
     );
 }
-

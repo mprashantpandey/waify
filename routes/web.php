@@ -23,6 +23,7 @@ Route::get('/pricing', [\App\Http\Controllers\PublicPagesController::class, 'pri
 Route::get('/privacy', [\App\Http\Controllers\PublicPagesController::class, 'privacy'])->name('privacy');
 Route::get('/terms', [\App\Http\Controllers\PublicPagesController::class, 'terms'])->name('terms');
 Route::get('/cookie-policy', [\App\Http\Controllers\PublicPagesController::class, 'cookiePolicy'])->name('cookie-policy');
+Route::get('/refund-policy', [\App\Http\Controllers\PublicPagesController::class, 'refundPolicy'])->name('refund-policy');
 Route::get('/help', [\App\Http\Controllers\PublicPagesController::class, 'help'])->name('help');
 Route::get('/faqs', [\App\Http\Controllers\PublicPagesController::class, 'faqs'])->name('faqs');
 Route::get('/about', [\App\Http\Controllers\PublicPagesController::class, 'about'])->name('about');
