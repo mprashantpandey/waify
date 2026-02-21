@@ -17,10 +17,9 @@ class AccountController extends Controller
     {
         $user = Auth::user();
 
-        // Verify user has access (query instead of loading full users collection)
-        $isOwner = account_ids_match($account->owner_id, $user->id);
-        $isMember = $account->users()->where('user_id', $user->id)->exists();
-        if (!$isOwner && !$isMember) {
+        // Keep switch permissions aligned with global account-access policy.
+        // This allows platform admins and avoids edge-cases between owner/member checks.
+        if (!$user || !$user->canAccessAccount($account)) {
             abort(403, 'You do not have access to this account');
         }
 

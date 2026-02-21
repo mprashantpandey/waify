@@ -26,7 +26,7 @@ export default function PublicLayout({ children }: PropsWithChildren) {
     const canRegister = (window as any).route?.has?.('register') ?? true;
     const termsUrl = compliance?.terms_url || route('terms');
     const privacyUrl = compliance?.privacy_url || route('privacy');
-    const cookiePolicyUrl = compliance?.cookie_policy_url;
+    const cookiePolicyUrl = compliance?.cookie_policy_url || route('cookie-policy');
 
     const navigation = [
         { name: 'Pricing', href: route('pricing'), icon: CreditCard },
@@ -73,9 +73,11 @@ export default function PublicLayout({ children }: PropsWithChildren) {
                                             <span className="text-lg font-bold text-white">{platformName.charAt(0)}</span>
                                         </div>
                                     )}
-                                    <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                                        {platformName}
-                                    </span>
+                                    {!logoUrl && (
+                                        <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                                            {platformName}
+                                        </span>
+                                    )}
                                 </Link>
                             </div>
 
@@ -195,7 +197,7 @@ export default function PublicLayout({ children }: PropsWithChildren) {
                                             <span className="text-sm font-bold text-white">{platformName.charAt(0)}</span>
                                         </div>
                                     )}
-                                    <span className="text-lg font-bold text-white">{platformName}</span>
+                                    {!logoUrl && <span className="text-lg font-bold text-white">{platformName}</span>}
                                 </Link>
                                 <p className="text-sm text-gray-500">
                                     WhatsApp Cloud Platform for modern businesses. Official Meta Tech Provider.

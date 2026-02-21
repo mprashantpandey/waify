@@ -22,6 +22,7 @@ Route::get('/api/stats', [\App\Http\Controllers\LandingPageController::class, 's
 Route::get('/pricing', [\App\Http\Controllers\PublicPagesController::class, 'pricing'])->name('pricing');
 Route::get('/privacy', [\App\Http\Controllers\PublicPagesController::class, 'privacy'])->name('privacy');
 Route::get('/terms', [\App\Http\Controllers\PublicPagesController::class, 'terms'])->name('terms');
+Route::get('/cookie-policy', [\App\Http\Controllers\PublicPagesController::class, 'cookiePolicy'])->name('cookie-policy');
 Route::get('/help', [\App\Http\Controllers\PublicPagesController::class, 'help'])->name('help');
 Route::get('/faqs', [\App\Http\Controllers\PublicPagesController::class, 'faqs'])->name('faqs');
 Route::get('/about', [\App\Http\Controllers\PublicPagesController::class, 'about'])->name('about');
@@ -83,6 +84,8 @@ Route::middleware(['auth', 'super.admin'])->prefix('/platform')->name('platform.
     Route::get('/settings', [\App\Http\Controllers\Platform\PlatformSettingsController::class, 'index'])->name('settings');
     Route::post('/settings', [\App\Http\Controllers\Platform\PlatformSettingsController::class, 'update'])->name('settings.update');
     Route::post('/settings/mail/test', [\App\Http\Controllers\Platform\PlatformSettingsController::class, 'testMail'])->name('settings.mail.test');
+    Route::get('/cms', [\App\Http\Controllers\Platform\CmsPageController::class, 'index'])->name('cms.index');
+    Route::post('/cms', [\App\Http\Controllers\Platform\CmsPageController::class, 'update'])->name('cms.update');
     Route::get('/modules', [\App\Http\Controllers\Platform\ModuleController::class, 'index'])->name('modules.index');
     Route::post('/modules/{module}/toggle', [\App\Http\Controllers\Platform\ModuleController::class, 'toggle'])->name('modules.toggle');
     Route::patch('/modules/{module}', [\App\Http\Controllers\Platform\ModuleController::class, 'update'])->name('modules.update');

@@ -106,7 +106,9 @@ class PublicPagesController extends Controller
      */
     public function privacy(): Response
     {
-        return Inertia::render('Public/Privacy');
+        return Inertia::render('Public/Privacy', [
+            'content' => (string) \App\Models\PlatformSetting::get('cms.privacy_content', ''),
+        ]);
     }
 
     /**
@@ -114,7 +116,16 @@ class PublicPagesController extends Controller
      */
     public function terms(): Response
     {
-        return Inertia::render('Public/Terms');
+        return Inertia::render('Public/Terms', [
+            'content' => (string) \App\Models\PlatformSetting::get('cms.terms_content', ''),
+        ]);
+    }
+
+    public function cookiePolicy(): Response
+    {
+        return Inertia::render('Public/CookiePolicy', [
+            'content' => (string) \App\Models\PlatformSetting::get('cms.cookie_content', ''),
+        ]);
     }
 
     /**

@@ -102,6 +102,10 @@ export default function PlatformShell({ children, auth }: PlatformShellProps) {
             href: route('platform.templates.index'),
             icon: FileText},
         {
+            name: 'CMS Pages',
+            href: route('platform.cms.index'),
+            icon: FileText},
+        {
             name: 'Support',
             href: route('platform.support.hub'),
             icon: LifeBuoy},
