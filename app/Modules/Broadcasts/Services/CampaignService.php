@@ -2,6 +2,8 @@
 
 namespace App\Modules\Broadcasts\Services;
 
+use App\Core\Billing\PlanResolver;
+use App\Core\Billing\UsageService;
 use App\Modules\Broadcasts\Models\Campaign;
 use App\Modules\Broadcasts\Models\CampaignMessage;
 use App\Modules\Broadcasts\Models\CampaignRecipient;
@@ -9,6 +11,9 @@ use App\Modules\Contacts\Models\ContactSegment;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
 use App\Modules\WhatsApp\Services\TemplateComposer;
 use App\Modules\WhatsApp\Services\WhatsAppClient;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -16,7 +21,9 @@ class CampaignService
 {
     public function __construct(
         protected WhatsAppClient $whatsappClient,
-        protected TemplateComposer $templateComposer
+        protected TemplateComposer $templateComposer,
+        protected PlanResolver $planResolver,
+        protected UsageService $usageService
     ) {
     }
 
@@ -28,7 +35,7 @@ class CampaignService
     {
         // Use lock to prevent concurrent recipient preparation
         $lockKey = "campaign_prepare_recipients:{$campaign->id}";
-        $lock = \Illuminate\Support\Facades\Cache::lock($lockKey, 300); // 5 minute lock
+        $lock = Cache::lock($lockKey, 300); // 5 minute lock
 
         if (!$lock->get()) {
             throw new \Exception('Recipient preparation is already in progress for this campaign.');
@@ -76,6 +83,13 @@ class CampaignService
             });
         }
 
+        $sampleSize = max(0, (int) Arr::get($campaign->metadata, 'recipient_sample_size', 0));
+        $isDryRun = (bool) Arr::get($campaign->metadata, 'dry_run', false);
+        if ($sampleSize > 0 && count($recipients) > $sampleSize) {
+            shuffle($recipients);
+            $recipients = array_slice($recipients, 0, $sampleSize);
+        }
+
         // Create recipient records in transaction
         DB::transaction(function () use ($campaign, $recipients) {
             foreach ($recipients as $recipient) {
@@ -95,6 +109,10 @@ class CampaignService
                 'read_count' => 0,
                 'failed_count' => 0,
                 'completed_at' => null,
+                'metadata' => array_merge($campaign->metadata ?? [], [
+                    'effective_recipient_count' => count($recipients),
+                    'dry_run' => $isDryRun,
+                ]),
             ]);
         });
         
@@ -239,10 +257,37 @@ class CampaignService
             throw new \Exception('Campaign cannot be started in its current state.');
         }
 
+        $preflight = $this->runPreflightChecks($campaign);
+        if (!$preflight['ok']) {
+            throw new \RuntimeException('Campaign preflight failed: ' . implode(' | ', $preflight['errors']));
+        }
+
+        if ((bool) Arr::get($campaign->metadata, 'dry_run', false)) {
+            $campaign->recipients()
+                ->where('status', 'pending')
+                ->update([
+                    'status' => 'skipped',
+                    'failure_reason' => 'Dry run mode: send skipped.',
+                ]);
+
+            $campaign->update([
+                'status' => 'completed',
+                'started_at' => $campaign->started_at ?? now(),
+                'completed_at' => now(),
+                'metadata' => array_merge($campaign->metadata ?? [], [
+                    'dry_run_completed_at' => now()->toIso8601String(),
+                    'dry_run_preflight' => $preflight,
+                ]),
+            ]);
+
+            return;
+        }
+
         $campaign->update([
             'status' => 'sending',
             'started_at' => $campaign->started_at ?? now(),
             'completed_at' => null,
+            'metadata' => array_merge($campaign->metadata ?? [], ['last_preflight' => $preflight]),
         ]);
 
         // Dispatch job to send campaign messages (on dedicated queue)
@@ -309,6 +354,13 @@ class CampaignService
 
                 // Update campaign stats (with lock to prevent race conditions)
                 Campaign::whereKey($campaign->id)->increment('sent_count');
+                if ($campaign->account) {
+                    $this->usageService->incrementMessageUsage($campaign->account, 1);
+                    if ($campaign->type === 'template') {
+                        $this->usageService->incrementTemplateUsage($campaign->account, 1);
+                    }
+                }
+                $this->clearConnectionBackoff($campaign);
 
                 return true;
             }
@@ -320,6 +372,15 @@ class CampaignService
                 'campaign_id' => $campaign->id,
                 'recipient_id' => $recipient->id,
                 'error' => $e->getMessage()]);
+
+            if ($this->isRateLimitError($e->getMessage())) {
+                $this->applyConnectionBackoff($campaign, $e->getMessage());
+                $recipient->update([
+                    'status' => 'pending',
+                    'failure_reason' => 'Rate limited by provider. Retrying with adaptive delay.',
+                ]);
+                return false;
+            }
 
             $this->markRecipientFailed($recipient, $e->getMessage());
             return false;
@@ -559,5 +620,158 @@ class CampaignService
     {
         \App\Modules\Broadcasts\Jobs\SendCampaignMessageJob::dispatch($campaignId)
             ->onQueue('campaigns');
+    }
+
+    public function runPreflightChecks(Campaign $campaign): array
+    {
+        $errors = [];
+        $warnings = [];
+
+        $connection = $campaign->connection;
+        if (!$connection) {
+            $errors[] = 'No WhatsApp connection configured.';
+        } else {
+            if (!((bool) $connection->is_active)) {
+                $errors[] = 'Selected WhatsApp connection is inactive.';
+            }
+
+            if ($connection->webhook_last_error) {
+                $warnings[] = 'Connection has recent webhook errors.';
+            }
+
+            if (!$connection->webhook_last_received_at || $connection->webhook_last_received_at->lt(now()->subHours(24))) {
+                $warnings[] = 'Connection webhook activity is stale (>24h).';
+            }
+        }
+
+        if ($campaign->type === 'template') {
+            $template = $campaign->template;
+            if (!$template) {
+                $errors[] = 'Template campaign requires an approved template.';
+            } else {
+                $status = strtolower(trim((string) $template->status));
+                if ($status !== 'approved') {
+                    $errors[] = 'Template is not approved.';
+                }
+                if ((bool) $template->is_archived) {
+                    $errors[] = 'Template is archived.';
+                }
+                if (
+                    $campaign->whatsapp_connection_id
+                    && $template->whatsapp_connection_id
+                    && (int) $template->whatsapp_connection_id !== (int) $campaign->whatsapp_connection_id
+                ) {
+                    $errors[] = 'Template does not belong to the selected connection.';
+                }
+            }
+        }
+
+        $pendingCount = (int) $campaign->recipients()->where('status', 'pending')->count();
+        if ($pendingCount <= 0) {
+            $errors[] = 'No pending recipients to send.';
+        }
+
+        $account = $campaign->account;
+        if ($account) {
+            $limits = $this->planResolver->getEffectiveLimits($account);
+            $usage = $this->usageService->getCurrentUsage($account);
+
+            $messageLimit = (int) ($limits['messages_monthly'] ?? 0);
+            if ($messageLimit !== -1 && ($usage->messages_sent + $pendingCount) > $messageLimit) {
+                $errors[] = "Message quota exceeded for this campaign (required {$pendingCount}, remaining " . max(0, $messageLimit - (int) $usage->messages_sent) . ').';
+            }
+
+            if ($campaign->type === 'template') {
+                $templateLimit = (int) ($limits['template_sends_monthly'] ?? 0);
+                if ($templateLimit !== -1 && ($usage->template_sends + $pendingCount) > $templateLimit) {
+                    $errors[] = "Template send quota exceeded (required {$pendingCount}, remaining " . max(0, $templateLimit - (int) $usage->template_sends) . ').';
+                }
+            }
+        }
+
+        return [
+            'ok' => count($errors) === 0,
+            'errors' => $errors,
+            'warnings' => $warnings,
+            'pending_recipients' => $pendingCount,
+        ];
+    }
+
+    public function getDispatchDelaySeconds(Campaign $campaign): int
+    {
+        $baseDelay = max(0, (int) $campaign->send_delay_seconds);
+        $backoffUntil = $this->getConnectionBackoffUntil($campaign);
+        if ($backoffUntil === null) {
+            return $baseDelay;
+        }
+
+        $remaining = max(0, now()->diffInSeconds($backoffUntil, false));
+        return max($baseDelay, $remaining);
+    }
+
+    public function isConnectionCoolingDown(Campaign $campaign): bool
+    {
+        $until = $this->getConnectionBackoffUntil($campaign);
+        return $until !== null && $until->isFuture();
+    }
+
+    protected function isRateLimitError(string $message): bool
+    {
+        $normalized = strtolower($message);
+        return str_contains($normalized, 'rate limit')
+            || str_contains($normalized, 'too many requests')
+            || str_contains($normalized, 'error code: 4')
+            || str_contains($normalized, '429');
+    }
+
+    protected function applyConnectionBackoff(Campaign $campaign, string $reason): void
+    {
+        if (!$campaign->whatsapp_connection_id) {
+            return;
+        }
+
+        $penaltyKey = "campaign:connection:{$campaign->whatsapp_connection_id}:rate_penalty";
+        $untilKey = "campaign:connection:{$campaign->whatsapp_connection_id}:rate_limited_until";
+
+        $penalty = max(1, (int) Cache::increment($penaltyKey));
+        Cache::put($penaltyKey, $penalty, now()->addMinutes(20));
+
+        $waitSeconds = min(180, 5 * (2 ** max(0, $penalty - 1)));
+        Cache::put($untilKey, now()->addSeconds($waitSeconds)->toIso8601String(), now()->addSeconds($waitSeconds + 120));
+
+        Log::warning('Campaign connection rate-limited; adaptive backoff applied', [
+            'campaign_id' => $campaign->id,
+            'connection_id' => $campaign->whatsapp_connection_id,
+            'wait_seconds' => $waitSeconds,
+            'reason' => mb_substr($reason, 0, 500),
+        ]);
+    }
+
+    protected function clearConnectionBackoff(Campaign $campaign): void
+    {
+        if (!$campaign->whatsapp_connection_id) {
+            return;
+        }
+
+        Cache::forget("campaign:connection:{$campaign->whatsapp_connection_id}:rate_penalty");
+        Cache::forget("campaign:connection:{$campaign->whatsapp_connection_id}:rate_limited_until");
+    }
+
+    protected function getConnectionBackoffUntil(Campaign $campaign): ?Carbon
+    {
+        if (!$campaign->whatsapp_connection_id) {
+            return null;
+        }
+
+        $raw = Cache::get("campaign:connection:{$campaign->whatsapp_connection_id}:rate_limited_until");
+        if (!is_string($raw) || $raw === '') {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($raw);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 }

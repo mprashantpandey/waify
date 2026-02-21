@@ -345,8 +345,9 @@ class ContactController extends Controller
         }
 
         $contactLabel = $contact->name ?: $contact->wa_id;
+        $recoveryDays = max(1, (int) \App\Models\PlatformSetting::get('compliance.recovery_window_days', 30));
 
-        \DB::transaction(function () use ($account, $request, $contact, $contactLabel): void {
+        \DB::transaction(function () use ($account, $request, $contact, $contactLabel, $recoveryDays): void {
             ContactActivity::create([
                 'account_id' => $account->id,
                 'contact_id' => $contact->id,
@@ -356,10 +357,12 @@ class ContactController extends Controller
                 'description' => "Contact {$contactLabel} was deleted",
             ]);
 
+            $contact->purge_after_at = now()->addDays($recoveryDays);
+            $contact->save();
             $contact->delete();
         });
 
-        return redirect()->route('app.contacts.index')->with('success', 'Contact deleted successfully.');
+        return redirect()->route('app.contacts.index')->with('success', "Contact moved to recovery bin for {$recoveryDays} days.");
     }
 
     /**

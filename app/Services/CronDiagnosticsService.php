@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\PlatformSetting;
+use App\Models\SystemBackup;
 use App\Models\Subscription;
 use App\Modules\Broadcasts\Models\Campaign;
 use App\Modules\Broadcasts\Models\CampaignMessage;
@@ -27,6 +28,7 @@ class CronDiagnosticsService
         $botExecutionsExists = Schema::hasTable('bot_executions');
         $campaignMessagesExists = Schema::hasTable('campaign_messages');
         $notificationOutboxExists = Schema::hasTable('notification_outbox');
+        $systemBackupsExists = Schema::hasTable('system_backups');
 
         $pendingByQueue = $jobsExists
             ? DB::table('jobs')
@@ -216,6 +218,12 @@ class CronDiagnosticsService
         $healthScore -= min(20, $chatbotExec24h['failed'] * 2);
         $healthScore -= min(20, $campaignStats24h['failed'] * 2);
         $healthScore -= min(20, $webhookErrors * 5);
+        $latestBackup = $systemBackupsExists
+            ? SystemBackup::query()->where('type', 'database')->latest('created_at')->first()
+            : null;
+        if ($latestBackup && $latestBackup->status !== 'completed') {
+            $healthScore -= 10;
+        }
         $healthScore = max(0, (int) $healthScore);
 
         return [
@@ -249,6 +257,12 @@ class CronDiagnosticsService
                 'connections_with_errors' => $webhookErrors,
                 'last_webhook_at' => $this->isoOrNull($lastWebhookAt),
             ],
+            'backups' => [
+                'latest_status' => $latestBackup?->status,
+                'latest_completed_at' => $this->isoOrNull($latestBackup?->completed_at),
+                'latest_restore_drill_status' => $latestBackup?->restore_drill_status,
+                'latest_restore_drill_at' => $this->isoOrNull($latestBackup?->restore_drill_at),
+            ],
             'recent_failures' => $recentFailures,
         ];
     }
@@ -264,8 +278,8 @@ class CronDiagnosticsService
                 'id' => 'central-worker',
                 'title' => 'Central Cron Command',
                 'schedule' => '* * * * *',
-                'description' => 'Use this single command in cPanel. It keeps one worker active for ~55 seconds every minute to reduce bot/inbox delay, then cron starts it again on the next minute tick.',
-                'command' => "cd {$appPath} && flock -n /tmp/waify-queue.lock timeout 55 php artisan queue:work --queue=default,chatbots,campaigns --sleep=1 --tries=3 --timeout=120 {$nullRedirect}",
+                'description' => 'Single cron command: runs maintenance tick (backup/cleanup windows) then keeps worker active for ~55s each minute.',
+                'command' => "cd {$appPath} && php artisan ops:run-maintenance {$nullRedirect} && flock -n /tmp/waify-queue.lock timeout 55 php artisan queue:work --queue=default,chatbots,campaigns --sleep=1 --tries=3 --timeout=120 {$nullRedirect}",
             ],
         ];
 

@@ -187,7 +187,9 @@ class CampaignController extends Controller
             'custom_recipients.*.name' => 'nullable|string',
             'scheduled_at' => 'nullable|date|after:now',
             'send_delay_seconds' => 'nullable|integer|min:0|max:3600',
-            'respect_opt_out' => 'boolean']);
+            'respect_opt_out' => 'boolean',
+            'dry_run' => 'nullable|boolean',
+            'recipient_sample_size' => 'nullable|integer|min:0|max:100000']);
 
         // When using custom recipients, require at least one with a phone number
         if ($validated['recipient_type'] === 'custom') {
@@ -246,7 +248,11 @@ class CampaignController extends Controller
                 'recipient_filters' => $validated['recipient_filters'] ?? null,
                 'custom_recipients' => $validated['custom_recipients'] ?? null,
                 'send_delay_seconds' => $validated['send_delay_seconds'] ?? 0,
-                'respect_opt_out' => $validated['respect_opt_out'] ?? true]);
+                'respect_opt_out' => $validated['respect_opt_out'] ?? true,
+                'metadata' => [
+                    'dry_run' => (bool) ($validated['dry_run'] ?? false),
+                    'recipient_sample_size' => max(0, (int) ($validated['recipient_sample_size'] ?? 0)),
+                ]]);
 
             // Prepare recipients
             $this->campaignService->prepareRecipients($campaign);
@@ -310,6 +316,8 @@ class CampaignController extends Controller
                 'recipient_type' => $campaign->recipient_type,
                 'send_delay_seconds' => $campaign->send_delay_seconds,
                 'respect_opt_out' => (bool) $campaign->respect_opt_out,
+                'dry_run' => (bool) ($campaign->metadata['dry_run'] ?? false),
+                'recipient_sample_size' => (int) ($campaign->metadata['recipient_sample_size'] ?? 0),
                 'scheduled_at' => $campaign->scheduled_at?->toIso8601String(),
                 'started_at' => $campaign->started_at?->toIso8601String(),
                 'completed_at' => $campaign->completed_at?->toIso8601String(),
@@ -485,9 +493,12 @@ class CampaignController extends Controller
             ]);
         }
 
+        $recoveryDays = max(1, (int) \App\Models\PlatformSetting::get('compliance.recovery_window_days', 30));
+        $campaign->purge_after_at = now()->addDays($recoveryDays);
+        $campaign->save();
         $campaign->delete();
 
         return redirect()->route('app.broadcasts.index')
-            ->with('success', 'Campaign deleted successfully.');
+            ->with('success', "Campaign moved to recovery bin for {$recoveryDays} days.");
     }
 }

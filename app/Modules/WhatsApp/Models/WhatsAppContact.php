@@ -7,10 +7,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class WhatsAppContact extends Model
 {
     use HasFactory;
+    use SoftDeletes;
     protected $table = 'whatsapp_contacts';
 
     protected $fillable = [
@@ -35,7 +37,8 @@ class WhatsAppContact extends Model
         'last_contacted_at' => 'datetime',
         'metadata' => 'array',
         'custom_fields' => 'array',
-        'message_count' => 'integer'];
+        'message_count' => 'integer',
+        'purge_after_at' => 'datetime'];
 
     protected static function boot()
     {

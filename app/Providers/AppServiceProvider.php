@@ -2,6 +2,9 @@
 
 namespace App\Providers;
 
+use App\Console\Commands\OpsBackupDatabaseCommand;
+use App\Console\Commands\OpsCleanupRetentionCommand;
+use App\Console\Commands\OpsRunMaintenanceCommand;
 use App\Modules\Floaters\Models\FloaterWidget;
 use App\Modules\Floaters\Policies\FloaterWidgetPolicy;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
@@ -39,6 +42,14 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(\App\Core\Billing\BillingProviderManager::class, function ($app) {
             return new \App\Core\Billing\BillingProviderManager();
         });
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                OpsRunMaintenanceCommand::class,
+                OpsBackupDatabaseCommand::class,
+                OpsCleanupRetentionCommand::class,
+            ]);
+        }
     }
 
     /**

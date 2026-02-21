@@ -82,7 +82,10 @@ class SendCampaignMessageJob implements ShouldQueue
                 }
 
                 $processed++;
-                $campaignService->sendToRecipient($campaign, $recipient);
+                $sent = $campaignService->sendToRecipient($campaign, $recipient);
+                if (!$sent && $campaignService->isConnectionCoolingDown($campaign)) {
+                    break;
+                }
             }
 
             if ($processed === 0) {
@@ -96,8 +99,9 @@ class SendCampaignMessageJob implements ShouldQueue
 
             if ($hasPending) {
                 $next = (new SendCampaignMessageJob($this->campaignId))->onQueue('campaigns');
-                if ($campaign->send_delay_seconds > 0) {
-                    $next->delay(now()->addSeconds($campaign->send_delay_seconds));
+                $delaySeconds = $campaignService->getDispatchDelaySeconds($campaign);
+                if ($delaySeconds > 0) {
+                    $next->delay(now()->addSeconds($delaySeconds));
                 }
                 dispatch($next);
             }

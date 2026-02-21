@@ -10,10 +10,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Campaign extends Model
 {
     use HasFactory;
+    use SoftDeletes;
 
     protected $table = 'campaigns';
 
@@ -44,6 +46,7 @@ class Campaign extends Model
         'failed_count',
         'send_delay_seconds',
         'respect_opt_out',
+        'purge_after_at',
         'metadata'];
 
     protected $casts = [
@@ -53,7 +56,8 @@ class Campaign extends Model
         'metadata' => 'array',
         'scheduled_at' => 'datetime',
         'started_at' => 'datetime',
-        'completed_at' => 'datetime'];
+        'completed_at' => 'datetime',
+        'purge_after_at' => 'datetime'];
 
     protected static function boot()
     {

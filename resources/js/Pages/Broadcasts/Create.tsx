@@ -63,7 +63,9 @@ export default function BroadcastsCreate({
         custom_recipients: [] as Array<{ phone: string; name?: string }>,
         scheduled_at: '',
         send_delay_seconds: 0,
-        respect_opt_out: true});
+        respect_opt_out: true,
+        dry_run: false,
+        recipient_sample_size: 0});
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -481,6 +483,33 @@ export default function BroadcastsCreate({
                                 />
                                 <InputError message={errors.send_delay_seconds} className="mt-2" />
                             </div>
+
+                            <div>
+                                <InputLabel htmlFor="recipient_sample_size" value="Recipient Sample Size (0 = all recipients)" />
+                                <TextInput
+                                    id="recipient_sample_size"
+                                    type="number"
+                                    min="0"
+                                    value={data.recipient_sample_size}
+                                    onChange={(e) => setData('recipient_sample_size', Number(e.target.value) || 0)}
+                                    className="mt-1 block w-full"
+                                />
+                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                    Use sampling to launch in controlled batches before full scale.
+                                </p>
+                                <InputError message={errors.recipient_sample_size} className="mt-2" />
+                            </div>
+
+                            <label className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    checked={data.dry_run}
+                                    onChange={(e) => setData('dry_run', e.target.checked)}
+                                />
+                                <span className="text-sm text-gray-700 dark:text-gray-300">
+                                    Dry-run only (preflight + recipient preparation, no outbound send)
+                                </span>
+                            </label>
                         </CardContent>
                     </Card>
 
@@ -491,7 +520,7 @@ export default function BroadcastsCreate({
                             </Button>
                         </Link>
                         <Button type="submit" disabled={processing}>
-                            {data.scheduled_at ? 'Schedule Campaign' : 'Create Campaign'}
+                            {data.dry_run ? 'Create Dry Run' : (data.scheduled_at ? 'Schedule Campaign' : 'Create Campaign')}
                         </Button>
                     </div>
                 </form>

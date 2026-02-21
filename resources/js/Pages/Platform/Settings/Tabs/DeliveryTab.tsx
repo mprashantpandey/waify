@@ -47,6 +47,12 @@ interface DeliveryProps {
             connections_with_errors: number;
             last_webhook_at: string | null;
         };
+        backups: {
+            latest_status: string | null;
+            latest_completed_at: string | null;
+            latest_restore_drill_status: string | null;
+            latest_restore_drill_at: string | null;
+        };
         recent_failures: Array<{
             id: string;
             queue: string;
@@ -265,6 +271,19 @@ export default function DeliveryTab({ delivery }: DeliveryProps) {
                             ))}
                         </div>
                     )}
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-base">Backups</CardTitle>
+                    <CardDescription>Automated database backup and restore drill status.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm">
+                    <div>Latest backup status: <strong>{delivery.backups.latest_status || 'N/A'}</strong></div>
+                    <div>Latest completed at: <strong>{fmt(delivery.backups.latest_completed_at)}</strong></div>
+                    <div>Latest restore drill: <strong>{delivery.backups.latest_restore_drill_status || 'N/A'}</strong></div>
+                    <div>Restore drill at: <strong>{fmt(delivery.backups.latest_restore_drill_at)}</strong></div>
                 </CardContent>
             </Card>
         </div>
