@@ -53,7 +53,16 @@ class AnalyticsController extends Controller
             ->whereBetween('created_at', [$startDate, $endDate])
             ->groupBy('date')
             ->orderBy('date')
-            ->get();
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'date' => $row->date,
+                    'total' => (int) ($row->total ?? 0),
+                    'inbound' => (int) ($row->inbound ?? 0),
+                    'outbound' => (int) ($row->outbound ?? 0),
+                ];
+            })
+            ->values();
 
         // Message Status Distribution
         $messageStatusDistribution = (clone $messagesQuery)
@@ -61,6 +70,7 @@ class AnalyticsController extends Controller
             ->whereBetween('created_at', [$startDate, $endDate])
             ->groupBy('status')
             ->pluck('count', 'status')
+            ->map(fn($count) => (int) $count)
             ->toArray();
 
         // Template Performance
@@ -109,7 +119,12 @@ class AnalyticsController extends Controller
                 ->whereBetween('created_at', [$startDate, $endDate])
                 ->groupBy(DB::raw("CAST(strftime('%H', created_at) AS INTEGER)"))
                 ->orderBy('hour')
-                ->get();
+                ->get()
+                ->map(fn($row) => [
+                    'hour' => (int) ($row->hour ?? 0),
+                    'count' => (int) ($row->count ?? 0),
+                ])
+                ->values();
         } else {
             $peakHours = (clone $messagesQuery)
                 ->select(
@@ -119,7 +134,12 @@ class AnalyticsController extends Controller
                 ->whereBetween('created_at', [$startDate, $endDate])
                 ->groupBy(DB::raw('HOUR(created_at)'))
                 ->orderBy('hour')
-                ->get();
+                ->get()
+                ->map(fn($row) => [
+                    'hour' => (int) ($row->hour ?? 0),
+                    'count' => (int) ($row->count ?? 0),
+                ])
+                ->values();
         }
 
         // Usage Stats
@@ -142,7 +162,12 @@ class AnalyticsController extends Controller
             ->whereBetween('created_at', [$startDate, $endDate])
             ->groupBy('date')
             ->orderBy('date')
-            ->get();
+            ->get()
+            ->map(fn($row) => [
+                'date' => $row->date,
+                'count' => (int) ($row->count ?? 0),
+            ])
+            ->values();
 
         // Agent response time (first inbound -> first outbound after inbound)
         $firstInboundSub = DB::table('whatsapp_messages')
