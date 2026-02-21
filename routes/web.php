@@ -95,6 +95,9 @@ Route::middleware(['auth', 'super.admin'])->prefix('/platform')->name('platform.
     Route::post('/plans/{plan}/toggle', [\App\Http\Controllers\Platform\PlanController::class, 'toggle'])->name('plans.toggle');
     Route::get('/subscriptions', [\App\Http\Controllers\Platform\PlanController::class, 'subscriptions'])->name('subscriptions.index');
     Route::get('/subscriptions/{subscription}', [\App\Http\Controllers\Platform\PlanController::class, 'showSubscription'])->name('subscriptions.show');
+    Route::get('/transactions', [\App\Http\Controllers\Platform\TransactionController::class, 'index'])->name('transactions.index');
+    Route::post('/accounts/{account}/wallet/credit', [\App\Http\Controllers\Platform\TransactionController::class, 'credit'])->name('accounts.wallet.credit');
+    Route::post('/accounts/{account}/wallet/debit', [\App\Http\Controllers\Platform\TransactionController::class, 'debit'])->name('accounts.wallet.debit');
     Route::get('/system-health', [\App\Http\Controllers\Platform\SystemHealthController::class, 'index'])->name('system-health');
     Route::get('/analytics', [\App\Http\Controllers\Platform\AnalyticsController::class, 'index'])
         ->middleware('feature.enabled:analytics')
@@ -140,6 +143,8 @@ Route::middleware(['auth', 'account.resolve', 'account.active', 'account.subscri
             ->middleware('throttle:10,1')
             ->name('razorpay.confirm');
         Route::get('/history', [\App\Http\Controllers\Billing\BillingController::class, 'history'])->name('history');
+        Route::get('/transactions', [\App\Http\Controllers\Billing\BillingController::class, 'transactions'])->name('transactions');
+        Route::post('/wallet/topup', [\App\Http\Controllers\Billing\BillingController::class, 'walletTopup'])->name('wallet.topup');
         Route::post('/cancel', [\App\Http\Controllers\Billing\BillingController::class, 'cancel'])->name('cancel');
         Route::post('/resume', [\App\Http\Controllers\Billing\BillingController::class, 'resume'])->name('resume');
         Route::get('/usage', [\App\Http\Controllers\Billing\BillingController::class, 'usage'])->name('usage');

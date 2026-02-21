@@ -9,9 +9,11 @@ use App\Core\Billing\UsageService;
 use App\Core\Billing\BillingProviderManager;
 use App\Models\PaymentOrder;
 use App\Models\Plan;
-use App\Models\Account;
+use App\Models\WalletTransaction;
 use App\Services\PlatformSettingsService;
+use App\Services\WalletService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -21,7 +23,8 @@ class BillingController extends Controller
         protected PlanResolver $planResolver,
         protected SubscriptionService $subscriptionService,
         protected UsageService $usageService,
-        protected BillingProviderManager $providerManager
+        protected BillingProviderManager $providerManager,
+        protected WalletService $walletService
     ) {}
 
     /**
@@ -34,6 +37,8 @@ class BillingController extends Controller
         $plan = $this->planResolver->getAccountPlan($account);
         $limits = $this->planResolver->getEffectiveLimits($account);
         $usage = $this->usageService->getCurrentUsage($account);
+        $metaBilling = $this->buildMetaBillingSummary($usage);
+        $wallet = $this->walletService->getOrCreateWallet($account);
 
         // Get current counts
         $currentConnectionsCount = \App\Modules\WhatsApp\Models\WhatsAppConnection::where('account_id', $account->id)
@@ -69,7 +74,20 @@ class BillingController extends Controller
             'usage' => [
                 'messages_sent' => $usage->messages_sent,
                 'template_sends' => $usage->template_sends,
-                'ai_credits_used' => $usage->ai_credits_used],
+                'ai_credits_used' => $usage->ai_credits_used,
+                'meta_conversations_free_used' => $usage->meta_conversations_free_used ?? 0,
+                'meta_conversations_paid' => $usage->meta_conversations_paid ?? 0,
+                'meta_conversations_marketing' => $usage->meta_conversations_marketing ?? 0,
+                'meta_conversations_utility' => $usage->meta_conversations_utility ?? 0,
+                'meta_conversations_authentication' => $usage->meta_conversations_authentication ?? 0,
+                'meta_conversations_service' => $usage->meta_conversations_service ?? 0,
+                'meta_estimated_cost_minor' => $usage->meta_estimated_cost_minor ?? 0,
+            ],
+            'meta_billing' => $metaBilling,
+            'wallet' => [
+                'balance_minor' => (int) $wallet->balance_minor,
+                'currency' => $wallet->currency,
+            ],
             'current_connections_count' => $currentConnectionsCount,
             'current_agents_count' => $currentAgentsCount]);
     }
@@ -83,6 +101,10 @@ class BillingController extends Controller
         $currentPlan = $this->planResolver->getAccountPlan($account);
         $currentUsage = $this->usageService->getCurrentUsage($account);
         $currentLimits = $this->planResolver->getEffectiveLimits($account);
+        $currentConnectionsCount = \App\Modules\WhatsApp\Models\WhatsAppConnection::where('account_id', $account->id)
+            ->where('is_active', true)
+            ->count();
+        $currentAgentsCount = $account->users()->count();
 
         // Get default currency from platform settings
         $settingsService = app(PlatformSettingsService::class);
@@ -92,7 +114,7 @@ class BillingController extends Controller
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->get()
-            ->map(function ($plan) use ($currentPlan, $currentUsage, $currentLimits, $defaultCurrency) {
+            ->map(function ($plan) use ($currentPlan, $currentUsage, $currentLimits, $defaultCurrency, $currentConnectionsCount, $currentAgentsCount) {
                 $planLimits = $plan->limits ?? [];
                 $warnings = [];
 
@@ -105,6 +127,7 @@ class BillingController extends Controller
                                 $currentValue = match ($key) {
                                     'messages_monthly' => $currentUsage->messages_sent,
                                     'template_sends_monthly' => $currentUsage->template_sends,
+                                    'ai_credits_monthly' => $currentUsage->ai_credits_used,
                                     default => 0,
                                 };
                                 if ($currentValue > $limit) {
@@ -112,6 +135,18 @@ class BillingController extends Controller
                                 }
                             }
                         }
+                    }
+                }
+
+                if (isset($planLimits['whatsapp_connections']) && $planLimits['whatsapp_connections'] !== -1) {
+                    if ($currentConnectionsCount > (int) $planLimits['whatsapp_connections']) {
+                        $warnings[] = "Your active connections ({$currentConnectionsCount}) exceed this plan limit ({$planLimits['whatsapp_connections']}).";
+                    }
+                }
+
+                if (isset($planLimits['agents']) && $planLimits['agents'] !== -1) {
+                    if ($currentAgentsCount > (int) $planLimits['agents']) {
+                        $warnings[] = "Your team size ({$currentAgentsCount}) exceeds this plan limit ({$planLimits['agents']}).";
                     }
                 }
 
@@ -173,6 +208,12 @@ class BillingController extends Controller
 
         $subscription = $account->subscription;
         $isNewSubscription = !$subscription;
+        $currentPlan = $this->planResolver->getAccountPlan($account);
+
+        if ($currentPlan && (int) $currentPlan->id === (int) $plan->id) {
+            return redirect()->route('app.billing.plans')
+                ->with('info', "You're already on the {$plan->name} plan.");
+        }
 
         // For paid plans, require Razorpay checkout (redirect to create order)
         if (($plan->price_monthly ?? 0) > 0) {
@@ -375,68 +416,67 @@ class BillingController extends Controller
             abort(400, 'Invalid payment signature.');
         }
 
-        $paymentOrder = PaymentOrder::where('provider', 'razorpay')
-            ->where('provider_order_id', $validated['order_id'])
-            ->first();
+        DB::transaction(function () use ($validated, $request, $account) {
+            $paymentOrder = PaymentOrder::where('provider', 'razorpay')
+                ->where('provider_order_id', $validated['order_id'])
+                ->lockForUpdate()
+                ->first();
 
-        if (!$paymentOrder) {
-            \Log::error('Payment order not found', [
-                'order_id' => $validated['order_id'],
-                'account_id' => $account->id,
-                'user_id' => $request->user()->id,
-            ]);
-            abort(404, 'Payment order not found.');
-        }
-
-        // Check if payment belongs to this account (with type casting for safety)
-        if (!account_ids_match($paymentOrder->account_id, $account->id)) {
-            \Log::error('Payment order account mismatch', [
-                'payment_order_id' => $paymentOrder->id,
-                'payment_order_account_id' => $paymentOrder->account_id,
-                'current_account_id' => $account->id,
-                'order_id' => $validated['order_id'],
-                'user_id' => $request->user()->id,
-                'payment_created_by' => $paymentOrder->created_by,
-            ]);
-            
-            // Check if the user owns the account that the payment order belongs to
-            $paymentOrderAccount = Account::find($paymentOrder->account_id);
-            if ($paymentOrderAccount && $paymentOrderAccount->isOwnedBy($request->user())) {
-                // User owns the account that the payment was created for
-                // Update the current account context to match the payment order
-                $account = $paymentOrderAccount;
-                session(['current_account_id' => $account->id]);
-                \Log::info('Account context updated to match payment order', [
+            if (!$paymentOrder) {
+                \Log::error('Payment order not found', [
+                    'order_id' => $validated['order_id'],
                     'account_id' => $account->id,
                     'user_id' => $request->user()->id,
                 ]);
-            } else {
+                abort(404, 'Payment order not found.');
+            }
+
+            if ((int) ($paymentOrder->created_by ?? 0) !== (int) $request->user()->id) {
+                abort(403, 'Payment does not belong to this user.');
+            }
+
+            if (!account_ids_match($paymentOrder->account_id, $account->id)) {
                 abort(403, 'Payment does not belong to this account.');
             }
-        }
 
-        if ($paymentOrder->status !== 'paid') {
+            if (
+                $paymentOrder->status === 'paid' &&
+                (string) $paymentOrder->provider_payment_id === (string) $validated['payment_id']
+            ) {
+                return;
+            }
+
+            if (
+                $paymentOrder->status === 'paid' &&
+                !empty($paymentOrder->provider_payment_id) &&
+                (string) $paymentOrder->provider_payment_id !== (string) $validated['payment_id']
+            ) {
+                abort(409, 'Payment order is already settled with a different payment id.');
+            }
+
             $paymentOrder->update([
                 'status' => 'paid',
                 'provider_payment_id' => $validated['payment_id'],
-                'paid_at' => now()]);
-        }
+                'paid_at' => now(),
+            ]);
 
-        $plan = Plan::find($paymentOrder->plan_id);
-        if (!$plan) {
-            abort(404, 'Plan not found.');
-        }
+            $plan = Plan::find($paymentOrder->plan_id);
+            if (!$plan) {
+                abort(404, 'Plan not found.');
+            }
 
-        $this->subscriptionService->changePlan(
-            $account,
-            $plan,
-            $request->user(),
-            'razorpay',
-            [
-                'payment_id' => $validated['payment_id'],
-                'order_id' => $validated['order_id'],
-                'paid_at' => now()]
-        );
+            $this->subscriptionService->changePlan(
+                $account,
+                $plan,
+                $request->user(),
+                'razorpay',
+                [
+                    'payment_id' => $validated['payment_id'],
+                    'order_id' => $validated['order_id'],
+                    'paid_at' => now(),
+                ]
+            );
+        });
 
         return response()->json([
             'success' => true]);
@@ -483,6 +523,7 @@ class BillingController extends Controller
         $usageHistory = $this->usageService->getUsageHistory($account, 3);
         $currentUsage = $this->usageService->getCurrentUsage($account);
         $limits = $this->planResolver->getEffectiveLimits($account);
+        $metaBilling = $this->buildMetaBillingSummary($currentUsage);
 
         // Get limit blocked events
         $blockedEvents = \App\Models\BillingEvent::where('account_id', $account->id)
@@ -502,7 +543,16 @@ class BillingController extends Controller
             'current_usage' => [
                 'messages_sent' => $currentUsage->messages_sent,
                 'template_sends' => $currentUsage->template_sends,
-                'ai_credits_used' => $currentUsage->ai_credits_used],
+                'ai_credits_used' => $currentUsage->ai_credits_used,
+                'meta_conversations_free_used' => $currentUsage->meta_conversations_free_used ?? 0,
+                'meta_conversations_paid' => $currentUsage->meta_conversations_paid ?? 0,
+                'meta_conversations_marketing' => $currentUsage->meta_conversations_marketing ?? 0,
+                'meta_conversations_utility' => $currentUsage->meta_conversations_utility ?? 0,
+                'meta_conversations_authentication' => $currentUsage->meta_conversations_authentication ?? 0,
+                'meta_conversations_service' => $currentUsage->meta_conversations_service ?? 0,
+                'meta_estimated_cost_minor' => $currentUsage->meta_estimated_cost_minor ?? 0,
+            ],
+            'meta_billing' => $metaBilling,
             'limits' => $limits,
             'usage_history' => $usageHistory,
             'blocked_events' => $blockedEvents]);
@@ -542,6 +592,92 @@ class BillingController extends Controller
             'payments' => $payments]);
     }
 
+    public function transactions(Request $request): Response
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+        $wallet = $this->walletService->getOrCreateWallet($account);
+
+        $payments = PaymentOrder::where('account_id', $account->id)
+            ->orderByDesc('created_at')
+            ->limit(100)
+            ->get()
+            ->map(fn (PaymentOrder $order) => [
+                'type' => 'payment',
+                'id' => $order->id,
+                'direction' => 'credit',
+                'amount_minor' => (int) $order->amount,
+                'currency' => $order->currency,
+                'status' => $order->status,
+                'source' => 'subscription_payment',
+                'reference' => $order->provider_order_id,
+                'notes' => $order->provider_payment_id,
+                'created_at' => $order->created_at->toIso8601String(),
+            ]);
+
+        $walletTransactions = WalletTransaction::where('account_id', $account->id)
+            ->orderByDesc('created_at')
+            ->limit(200)
+            ->get()
+            ->map(fn (WalletTransaction $tx) => [
+                'type' => 'wallet',
+                'id' => $tx->id,
+                'direction' => $tx->direction,
+                'amount_minor' => (int) $tx->amount_minor,
+                'currency' => $tx->currency,
+                'status' => $tx->status,
+                'source' => $tx->source,
+                'reference' => $tx->reference,
+                'notes' => $tx->notes,
+                'created_at' => $tx->created_at->toIso8601String(),
+            ]);
+
+        $transactions = $payments
+            ->concat($walletTransactions)
+            ->sortByDesc('created_at')
+            ->values()
+            ->take(200)
+            ->all();
+
+        return Inertia::render('Billing/Transactions', [
+            'account' => $account,
+            'wallet' => [
+                'balance_minor' => (int) $wallet->balance_minor,
+                'currency' => $wallet->currency,
+            ],
+            'transactions' => $transactions,
+        ]);
+    }
+
+    public function walletTopup(Request $request)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if (!$account->isOwnedBy($request->user())) {
+            abort(403, 'Only account owner can top up wallet.');
+        }
+
+        $enabled = (bool) app(PlatformSettingsService::class)->get('payment.wallet_self_topup_enabled', false);
+        if (!$enabled) {
+            abort(403, 'Wallet self top-up is disabled by platform admin.');
+        }
+
+        $validated = $request->validate([
+            'amount_minor' => 'required|integer|min:1|max:100000000',
+            'notes' => 'nullable|string|max:255',
+        ]);
+
+        $this->walletService->credit(
+            account: $account,
+            amountMinor: (int) $validated['amount_minor'],
+            source: 'self_topup',
+            actor: $request->user(),
+            reference: 'self_topup:'.now()->timestamp,
+            notes: $validated['notes'] ?? null
+        );
+
+        return back()->with('success', 'Wallet top-up added.');
+    }
+
     protected function resolvePlan(Plan|string|int $plan): Plan
     {
         if ($plan instanceof Plan) {
@@ -568,5 +704,30 @@ class BillingController extends Controller
         throw new \Illuminate\Database\Eloquent\ModelNotFoundException(
             "No query results for model [App\Models\Plan] with key/id: {$plan}"
         );
+    }
+
+    protected function buildMetaBillingSummary(\App\Models\AccountUsage $usage): array
+    {
+        $settingsService = app(PlatformSettingsService::class);
+        $freeTierLimit = (int) $settingsService->get('whatsapp.meta_billing.free_tier_limit', 1000);
+        $currency = strtoupper((string) $settingsService->get('payment.default_currency', 'INR'));
+        $pricePerConversationMinor = [
+            'marketing' => (int) $settingsService->get('whatsapp.meta_billing.rate.marketing_minor', 0),
+            'utility' => (int) $settingsService->get('whatsapp.meta_billing.rate.utility_minor', 0),
+            'authentication' => (int) $settingsService->get('whatsapp.meta_billing.rate.authentication_minor', 0),
+            'service' => (int) $settingsService->get('whatsapp.meta_billing.rate.service_minor', 0),
+        ];
+
+        $freeUsed = (int) ($usage->meta_conversations_free_used ?? 0);
+
+        return [
+            'free_tier_limit' => $freeTierLimit,
+            'free_tier_used' => $freeUsed,
+            'free_tier_remaining' => max(0, $freeTierLimit - $freeUsed),
+            'estimated_cost_minor' => (int) ($usage->meta_estimated_cost_minor ?? 0),
+            'currency' => $currency,
+            'price_per_conversation_minor' => $pricePerConversationMinor,
+            'note' => 'Meta bills WhatsApp conversations separately. Values shown here are webhook-based estimates and can differ from your official Meta invoice.',
+        ];
     }
 }

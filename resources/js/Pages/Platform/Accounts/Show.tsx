@@ -22,6 +22,10 @@ interface Tenant {
     modules_enabled: number;
     whatsapp_connections_count: number;
     conversations_count: number;
+    wallet: {
+        balance_minor: number;
+        currency: string;
+    };
     created_at: string;
 }
 
@@ -32,6 +36,7 @@ export default function PlatformTenantsShow({
     const { auth } = usePage().props as any;
     const [confirmDisable, setConfirmDisable] = useState(false);
     const [confirmEnable, setConfirmEnable] = useState(false);
+    const [walletAmount, setWalletAmount] = useState('0');
 
     const handleDisable = () => {
         router.post(route('platform.accounts.disable', { account: account.id }), {
@@ -156,6 +161,42 @@ export default function PlatformTenantsShow({
                                     <dd className="mt-1 text-sm text-gray-900 dark:text-gray-100">{account.owner.email}</dd>
                                 </div>
                             </dl>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Wallet</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Current Balance</p>
+                            <p className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+                                {new Intl.NumberFormat('en-IN', { style: 'currency', currency: account.wallet.currency }).format((account.wallet.balance_minor || 0) / 100)}
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="number"
+                                    min={1}
+                                    value={walletAmount}
+                                    onChange={(e) => setWalletAmount(e.target.value)}
+                                    className="px-3 py-2 border rounded-md bg-white dark:bg-gray-900 text-sm"
+                                />
+                                <Button
+                                    variant="success"
+                                    onClick={() => router.post(route('platform.accounts.wallet.credit', { account: account.id }), { amount_minor: Number(walletAmount), notes: 'Platform credit' })}
+                                >
+                                    Credit
+                                </Button>
+                                <Button
+                                    variant="danger"
+                                    onClick={() => router.post(route('platform.accounts.wallet.debit', { account: account.id }), { amount_minor: Number(walletAmount), notes: 'Platform debit' })}
+                                >
+                                    Debit
+                                </Button>
+                            </div>
+                            <Link href={route('platform.transactions.index')} className="mt-3 inline-block text-sm text-blue-600">
+                                View all transactions
+                            </Link>
                         </CardContent>
                     </Card>
                 </div>

@@ -19,7 +19,8 @@ import {
     BarChart3,
     Activity,
     LifeBuoy,
-    Puzzle
+    Puzzle,
+    Wallet
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -88,6 +89,10 @@ export default function PlatformShell({ children, auth }: PlatformShellProps) {
             name: 'Subscriptions',
             href: route('platform.subscriptions.index'),
             icon: FileText},
+        {
+            name: 'Transactions',
+            href: route('platform.transactions.index'),
+            icon: Wallet},
         {
             name: 'Analytics',
             href: route('platform.analytics'),

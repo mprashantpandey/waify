@@ -4,12 +4,18 @@ namespace App\Http\Controllers\Platform;
 
 use App\Http\Controllers\Controller;
 use App\Models\Account;
+use App\Services\WalletService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class PlatformAccountController extends Controller
 {
+    public function __construct(
+        protected WalletService $walletService
+    ) {
+    }
+
     /**
      * Display a listing of all accounts.
      */
@@ -65,6 +71,7 @@ class PlatformAccountController extends Controller
     public function show(Account $account): Response
     {
         $account->load(['owner', 'users', 'modules']);
+        $wallet = $this->walletService->getOrCreateWallet($account);
 
         // Get WhatsApp connection count
         $whatsappConnectionsCount = 0;
@@ -94,6 +101,10 @@ class PlatformAccountController extends Controller
                 'modules_enabled' => $account->modules->where('enabled', true)->count(),
                 'whatsapp_connections_count' => $whatsappConnectionsCount,
                 'conversations_count' => $conversationsCount,
+                'wallet' => [
+                    'balance_minor' => (int) $wallet->balance_minor,
+                    'currency' => $wallet->currency,
+                ],
                 'created_at' => $account->created_at->toIso8601String()]]);
     }
 

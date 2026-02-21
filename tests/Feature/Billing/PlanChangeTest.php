@@ -64,15 +64,35 @@ class PlanChangeTest extends TestCase
         $response->assertStatus(403);
     }
 
-    public function test_downgrade_does_not_delete_data(): void
+    public function test_switching_to_same_plan_is_noop(): void
+    {
+        $account = $this->createAccountWithPlan('starter');
+        $this->actingAsAccountOwner($account);
+
+        $starterPlan = Plan::where('key', 'starter')->firstOrFail();
+
+        $response = $this->post(route('app.billing.switch-plan', [
+            'account' => $account->slug,
+            'plan' => $starterPlan->id,
+        ]));
+
+        $response->assertRedirect(route('app.billing.plans'));
+        $response->assertSessionHas('info');
+
+        $account->refresh();
+        $this->assertEquals($starterPlan->id, $account->subscription->plan_id);
+    }
+
+    public function test_downgrade_is_blocked_when_current_usage_exceeds_target_plan_limits(): void
     {
         
         $account = $this->createAccountWithPlan('starter');
-        $user = $this->actingAsAccountOwner($account);
+        $this->actingAsAccountOwner($account);
 
         // Create some connections
         \App\Modules\WhatsApp\Models\WhatsAppConnection::factory()->count(2)->create([
             'account_id' => $account->id,
+            'is_active' => true,
         ]);
 
         // Downgrade to free (1 connection limit)
@@ -84,17 +104,9 @@ class PlanChangeTest extends TestCase
         ]));
 
         $response->assertRedirect();
-        
-        // Connections should still exist
-        $this->assertEquals(2, \App\Modules\WhatsApp\Models\WhatsAppConnection::where('account_id', $account->id)->count());
-        
-        // But new connections should be blocked
-        $response = $this->post(route('app.whatsapp.connections.store', ['account' => $account->slug]), [
-            'name' => 'New Connection',
-            'phone_number_id' => '999',
-            'access_token' => 'token',
-        ]);
+        $response->assertSessionHas('error');
 
-        $response->assertStatus(402);
+        $account->refresh();
+        $this->assertEquals(Plan::where('key', 'starter')->value('id'), $account->subscription->plan_id);
     }
 }

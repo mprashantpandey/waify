@@ -33,6 +33,13 @@ interface Usage {
     messages_sent: number;
     template_sends: number;
     ai_credits_used: number;
+    meta_conversations_free_used?: number;
+    meta_conversations_paid?: number;
+    meta_conversations_marketing?: number;
+    meta_conversations_utility?: number;
+    meta_conversations_authentication?: number;
+    meta_conversations_service?: number;
+    meta_estimated_cost_minor?: number;
     storage_bytes: number;
 }
 
@@ -41,17 +48,35 @@ interface Account {
     owner_id: number | string;
 }
 
+interface Wallet {
+    balance_minor: number;
+    currency: string;
+}
+
+interface MetaBillingSummary {
+    free_tier_limit: number;
+    free_tier_used: number;
+    free_tier_remaining: number;
+    estimated_cost_minor: number;
+    currency: string;
+    note: string;
+}
+
 export default function BillingIndex({
     account,
     subscription,
     plan,
     usage,
+    meta_billing,
+    wallet,
     current_connections_count,
     current_agents_count}: {
     account: Account;
     subscription: Subscription | null;
     plan: Plan | null;
     usage: Usage;
+    meta_billing?: MetaBillingSummary;
+    wallet: Wallet;
     current_connections_count?: number;
     current_agents_count?: number;
 }) {
@@ -101,6 +126,8 @@ export default function BillingIndex({
     };
 
     const trialDays = subscription ? getTrialDaysRemaining(subscription.trial_ends_at) : null;
+    const estimatedMetaCost = (meta_billing?.estimated_cost_minor ?? usage.meta_estimated_cost_minor ?? 0) / 100;
+    const walletBalance = (wallet?.balance_minor ?? 0) / 100;
 
     const renderUsageMeter = (
         label: string,
@@ -357,6 +384,19 @@ export default function BillingIndex({
                             plan?.limits.agents,
                             current_agents_count
                         )}
+                        <div className="p-5 bg-gradient-to-r from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 rounded-xl border border-emerald-200 dark:border-emerald-800 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Meta Conversation Billing (Estimate)</span>
+                                <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                                    {new Intl.NumberFormat('en-IN', { style: 'currency', currency: meta_billing?.currency || 'INR', minimumFractionDigits: 2 }).format(estimatedMetaCost)}
+                                </span>
+                            </div>
+                            <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                                <p>Free tier used: {(meta_billing?.free_tier_used ?? usage.meta_conversations_free_used ?? 0).toLocaleString()} / {(meta_billing?.free_tier_limit ?? 1000).toLocaleString()}</p>
+                                <p>Paid conversations: {(usage.meta_conversations_paid ?? 0).toLocaleString()}</p>
+                                <p>{meta_billing?.note ?? 'Meta charges are separate from your app plan. These values are usage estimates based on webhook data.'}</p>
+                            </div>
+                        </div>
                         <div className="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-4">
                             <Link
                                 href={route('app.billing.usage', {})}
@@ -372,6 +412,16 @@ export default function BillingIndex({
                                 View payment history
                                 <ArrowRight className="h-4 w-4" />
                             </Link>
+                            <Link
+                                href={route('app.billing.transactions', {})}
+                                className="inline-flex items-center gap-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                            >
+                                View transactions & wallet
+                                <ArrowRight className="h-4 w-4" />
+                            </Link>
+                            <span className="inline-flex items-center text-sm text-gray-600 dark:text-gray-400">
+                                Wallet: {new Intl.NumberFormat('en-IN', { style: 'currency', currency: wallet?.currency || 'INR' }).format(walletBalance)}
+                            </span>
                         </div>
                     </CardContent>
                 </Card>

@@ -7,13 +7,18 @@ use App\Models\Subscription;
 use App\Models\User;
 use App\Models\Account;
 use App\Models\BillingEvent;
+use App\Models\AccountUser;
+use App\Modules\WhatsApp\Models\WhatsAppConnection;
+use App\Services\WalletService;
 use Carbon\Carbon;
 
 class SubscriptionService
 {
     public function __construct(
         protected PlanResolver $planResolver,
-        protected BillingProviderManager $providerManager
+        protected BillingProviderManager $providerManager,
+        protected WalletService $walletService,
+        protected UsageService $usageService
     ) {}
 
     /**
@@ -47,7 +52,14 @@ class SubscriptionService
     public function changePlan(Account $account, Plan $newPlan, ?User $actor = null, ?string $providerKey = null, array $metadata = []): Subscription
     {
         $oldPlan = $this->planResolver->getAccountPlan($account);
+        $this->assertPlanChangeAllowed($account, $newPlan, $oldPlan);
+
         $subscription = $account->subscription;
+        $shouldApplyWalletProration = (!$providerKey && !($metadata['skip_proration'] ?? false)) || ($metadata['force_proration'] ?? false);
+        $proration = $shouldApplyWalletProration
+            ? $this->calculateProration($subscription, $oldPlan, $newPlan)
+            : ['applied' => false, 'amount_minor' => 0, 'remaining_ratio' => 0];
+        $this->assertProrationChargeAffordable($account, $proration);
 
         if (!$subscription) {
             // Create new subscription
@@ -69,7 +81,10 @@ class SubscriptionService
             'old_plan_key' => $oldPlan?->key,
             'new_plan_key' => $newPlan->key,
             'provider' => $subscription->provider,
+            'proration' => $proration,
             'metadata' => $metadata], $actor);
+
+        $this->applyProrationToWallet($account, $proration, $actor, $subscription);
 
         return $subscription->fresh();
     }
@@ -237,5 +252,199 @@ class SubscriptionService
             'actor_id' => $actor?->id,
             'type' => $type,
             'data' => $data]);
+    }
+
+    protected function calculateProration(?Subscription $subscription, ?Plan $oldPlan, Plan $newPlan): array
+    {
+        if (!$subscription || !$oldPlan) {
+            return ['applied' => false, 'amount_minor' => 0, 'remaining_ratio' => 0];
+        }
+
+        if ($subscription->status !== 'active') {
+            return ['applied' => false, 'amount_minor' => 0, 'remaining_ratio' => 0];
+        }
+
+        $cycle = $this->resolveBillingCycle($subscription);
+        $oldPrice = $this->getPlanPriceForCycle($oldPlan, $cycle);
+        $newPrice = $this->getPlanPriceForCycle($newPlan, $cycle);
+        $delta = $newPrice - $oldPrice;
+
+        if ($delta === 0) {
+            return ['applied' => false, 'amount_minor' => 0, 'remaining_ratio' => 0];
+        }
+
+        $periodStart = $subscription->current_period_start ?: now();
+        $periodEnd = $subscription->current_period_end ?: now();
+        $now = now();
+
+        if ($periodEnd->lte($now) || $periodEnd->lte($periodStart)) {
+            return ['applied' => false, 'amount_minor' => 0, 'remaining_ratio' => 0];
+        }
+
+        $periodSeconds = max(1, $periodEnd->diffInSeconds($periodStart));
+        $remainingSeconds = max(0, $periodEnd->diffInSeconds($now));
+        if ($remainingSeconds <= 0) {
+            return ['applied' => false, 'amount_minor' => 0, 'remaining_ratio' => 0];
+        }
+
+        $remainingRatio = $remainingSeconds / $periodSeconds;
+        $proratedAmount = (int) round($delta * $remainingRatio);
+
+        return [
+            'applied' => $proratedAmount !== 0,
+            'amount_minor' => $proratedAmount,
+            'remaining_ratio' => round($remainingRatio, 6),
+            'old_price_minor' => $oldPrice,
+            'new_price_minor' => $newPrice,
+            'cycle' => $cycle,
+            'remaining_seconds' => $remainingSeconds,
+            'period_seconds' => $periodSeconds,
+        ];
+    }
+
+    protected function applyProrationToWallet(Account $account, array $proration, ?User $actor, Subscription $subscription): void
+    {
+        if (!($proration['applied'] ?? false)) {
+            return;
+        }
+
+        $amountMinor = (int) ($proration['amount_minor'] ?? 0);
+        if ($amountMinor === 0) {
+            return;
+        }
+
+        $reference = 'sub:'.$subscription->slug.':'.now()->timestamp;
+
+        if ($amountMinor > 0) {
+            $tx = $this->walletService->debit(
+                account: $account,
+                amountMinor: $amountMinor,
+                source: 'plan_proration_charge',
+                actor: $actor,
+                reference: $reference,
+                notes: 'Prorated plan upgrade charge',
+                meta: $proration
+            );
+
+            if ($tx->status !== 'success') {
+                throw new \RuntimeException('Proration charge failed due to insufficient wallet balance.');
+            }
+        } else {
+            $this->walletService->credit(
+                account: $account,
+                amountMinor: abs($amountMinor),
+                source: 'plan_proration_credit',
+                actor: $actor,
+                reference: $reference,
+                notes: 'Prorated plan downgrade credit',
+                meta: $proration
+            );
+        }
+    }
+
+    protected function assertPlanChangeAllowed(Account $account, Plan $newPlan, ?Plan $oldPlan): void
+    {
+        if (!$oldPlan || (int) $oldPlan->id === (int) $newPlan->id) {
+            return;
+        }
+
+        $targetLimits = $newPlan->limits ?? [];
+        if (!$targetLimits) {
+            return;
+        }
+
+        $usage = $this->usageService->getCurrentUsage($account);
+        $violations = [];
+
+        $limitChecks = [
+            'messages_monthly' => (int) ($usage->messages_sent ?? 0),
+            'template_sends_monthly' => (int) ($usage->template_sends ?? 0),
+            'ai_credits_monthly' => (int) ($usage->ai_credits_used ?? 0),
+        ];
+
+        foreach ($limitChecks as $limitKey => $currentValue) {
+            $limit = $targetLimits[$limitKey] ?? null;
+            if ($limit === null || (int) $limit === -1) {
+                continue;
+            }
+
+            if ($currentValue > (int) $limit) {
+                $violations[] = "{$limitKey}: {$currentValue} > {$limit}";
+            }
+        }
+
+        $agentsLimit = $targetLimits['agents'] ?? null;
+        if ($agentsLimit !== null && (int) $agentsLimit !== -1) {
+            $activeAgents = AccountUser::where('account_id', $account->id)
+                ->whereIn('role', ['admin', 'member'])
+                ->count();
+            if ($activeAgents > (int) $agentsLimit) {
+                $violations[] = "agents: {$activeAgents} > {$agentsLimit}";
+            }
+        }
+
+        $connectionsLimit = $targetLimits['whatsapp_connections'] ?? null;
+        if ($connectionsLimit !== null && (int) $connectionsLimit !== -1) {
+            $activeConnections = WhatsAppConnection::where('account_id', $account->id)
+                ->where('is_active', true)
+                ->count();
+            if ($activeConnections > (int) $connectionsLimit) {
+                $violations[] = "whatsapp_connections: {$activeConnections} > {$connectionsLimit}";
+            }
+        }
+
+        if (!empty($violations)) {
+            throw new \InvalidArgumentException(
+                'Cannot switch to this plan because your account currently exceeds one or more limits: '.implode('; ', $violations)
+            );
+        }
+    }
+
+    protected function assertProrationChargeAffordable(Account $account, array $proration): void
+    {
+        if (!($proration['applied'] ?? false)) {
+            return;
+        }
+
+        $amountMinor = (int) ($proration['amount_minor'] ?? 0);
+        if ($amountMinor <= 0) {
+            return;
+        }
+
+        $wallet = $this->walletService->getOrCreateWallet($account);
+        if ((int) $wallet->balance_minor < $amountMinor) {
+            throw new \InvalidArgumentException(
+                sprintf(
+                    'Insufficient wallet balance for prorated upgrade charge (%d required, %d available).',
+                    $amountMinor,
+                    (int) $wallet->balance_minor
+                )
+            );
+        }
+    }
+
+    protected function resolveBillingCycle(Subscription $subscription): string
+    {
+        $start = $subscription->current_period_start;
+        $end = $subscription->current_period_end;
+
+        if (!$start || !$end) {
+            return 'monthly';
+        }
+
+        $days = max(1, $start->diffInDays($end));
+        return $days > 45 ? 'yearly' : 'monthly';
+    }
+
+    protected function getPlanPriceForCycle(Plan $plan, string $cycle): int
+    {
+        if ($cycle === 'yearly') {
+            $yearly = (int) ($plan->price_yearly ?? 0);
+            if ($yearly > 0) {
+                return $yearly;
+            }
+        }
+
+        return (int) ($plan->price_monthly ?? 0);
     }
 }
