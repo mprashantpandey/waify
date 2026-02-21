@@ -8,6 +8,7 @@ use App\Modules\Chatbots\Models\BotFlow;
 use App\Modules\Chatbots\Models\BotNode;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class BotRuntime
@@ -182,14 +183,11 @@ class BotRuntime
             return;
         }
 
-        // Get eligible bots
-        $bots = Bot::where('account_id', $account->id)
-            ->where('status', 'active')
-            ->get()
-            ->filter(fn (Bot $bot) => $bot->appliesToConnection($connection->id));
-
-        if ($bots->isEmpty()) {
-            Log::channel('chatbots')->debug('No eligible bots for inbound message', [
+        // Prevent concurrent bot processing for the same conversation.
+        $lockKey = sprintf('chatbots:conversation:%d', (int) $conversation->id);
+        $lock = Cache::lock($lockKey, 30);
+        if (!$lock->get()) {
+            Log::channel('chatbots')->debug('Skipping bot run: conversation lock already held', [
                 'account_id' => $account->id,
                 'conversation_id' => $conversation->id,
                 'connection_id' => $connection->id,
@@ -198,50 +196,97 @@ class BotRuntime
             return;
         }
 
-        Log::channel('chatbots')->debug('Eligible bots for inbound message', [
-            'account_id' => $account->id,
-            'conversation_id' => $conversation->id,
-            'connection_id' => $connection->id,
-            'message_id' => $inboundMessage->id,
-            'bots' => $bots->map(fn (Bot $b) => [
-                'id' => $b->id,
-                'name' => $b->name,
-                'applies_to' => $b->applies_to,
-            ])->values()->all(),
-        ]);
+        try {
+            // Get eligible bots
+            $bots = Bot::where('account_id', $account->id)
+                ->where('status', 'active')
+                ->orderByDesc('is_default')
+                ->orderBy('id')
+                ->get()
+                ->filter(fn (Bot $bot) => $bot->appliesToConnection($connection->id))
+                ->values();
 
-        // Create context
-        $context = new BotContext(
-            account: $account,
-            conversation: $conversation,
-            inboundMessage: $inboundMessage,
-            connection: $connection
-        );
-
-        // Process each bot's flows
-        foreach ($bots as $bot) {
-            $flows = $bot->flows()
-                ->where('enabled', true)
-                ->orderBy('priority')
-                ->get();
-
-            if ($flows->isEmpty()) {
-                Log::channel('chatbots')->warning('Active bot has no enabled flows', [
+            if ($bots->isEmpty()) {
+                Log::channel('chatbots')->debug('No eligible bots for inbound message', [
                     'account_id' => $account->id,
-                    'bot_id' => $bot->id,
-                    'bot_name' => $bot->name,
                     'conversation_id' => $conversation->id,
+                    'connection_id' => $connection->id,
                     'message_id' => $inboundMessage->id,
                 ]);
-                continue;
+                return;
             }
 
-            foreach ($flows as $flow) {
-                $ran = $this->processFlow($flow, $context);
-                if ($ran && ($bot->stop_on_first_flow ?? true)) {
-                    break;
+            Log::channel('chatbots')->debug('Eligible bots for inbound message', [
+                'account_id' => $account->id,
+                'conversation_id' => $conversation->id,
+                'connection_id' => $connection->id,
+                'message_id' => $inboundMessage->id,
+                'strategy' => 'single-bot-first-match',
+                'selected_order' => $bots->pluck('id')->all(),
+                'bots' => $bots->map(fn (Bot $b) => [
+                    'id' => $b->id,
+                    'name' => $b->name,
+                    'is_default' => (bool) $b->is_default,
+                    'applies_to' => $b->applies_to,
+                ])->values()->all(),
+            ]);
+
+            // Create context
+            $context = new BotContext(
+                account: $account,
+                conversation: $conversation,
+                inboundMessage: $inboundMessage,
+                connection: $connection
+            );
+
+            // Single-bot policy: first bot that runs any flow wins.
+            foreach ($bots as $bot) {
+                $flows = $bot->flows()
+                    ->where('enabled', true)
+                    ->orderBy('priority')
+                    ->get();
+
+                if ($flows->isEmpty()) {
+                    Log::channel('chatbots')->warning('Active bot has no enabled flows', [
+                        'account_id' => $account->id,
+                        'bot_id' => $bot->id,
+                        'bot_name' => $bot->name,
+                        'conversation_id' => $conversation->id,
+                        'message_id' => $inboundMessage->id,
+                    ]);
+                    continue;
+                }
+
+                $botHandledMessage = false;
+                foreach ($flows as $flow) {
+                    $ran = $this->processFlow($flow, $context);
+                    if ($ran) {
+                        $botHandledMessage = true;
+                        if ($bot->stop_on_first_flow ?? true) {
+                            break;
+                        }
+                    }
+                }
+
+                if ($botHandledMessage) {
+                    Log::channel('chatbots')->info('Inbound message handled by bot; skipping remaining bots', [
+                        'account_id' => $account->id,
+                        'conversation_id' => $conversation->id,
+                        'message_id' => $inboundMessage->id,
+                        'bot_id' => $bot->id,
+                        'bot_name' => $bot->name,
+                    ]);
+                    return;
                 }
             }
+
+            Log::channel('chatbots')->debug('Inbound message did not match any enabled flow', [
+                'account_id' => $account->id,
+                'conversation_id' => $conversation->id,
+                'message_id' => $inboundMessage->id,
+            ]);
+        } finally {
+            $lock->release();
         }
     }
 
