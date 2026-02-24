@@ -141,7 +141,7 @@ export function Sidebar({ navigation, currentRoute, account, isOpen = false, onC
     };
 
     const sidebarContent = (
-        <nav className="flex-1 overflow-y-auto p-6 space-y-8">
+        <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6 space-y-8">
                 {Object.entries(groupedNav).map(([group, items]) => {
                     // Filter out null items and check if group has any valid items
                     const validItems = items.map(renderNavItem).filter((item) => item !== null);
@@ -180,7 +180,7 @@ export function Sidebar({ navigation, currentRoute, account, isOpen = false, onC
             {/* Mobile sidebar */}
             <aside
                 className={cn(
-                    'lg:hidden fixed inset-y-0 left-0 z-50 w-72 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transform transition-transform duration-300 ease-in-out shadow-2xl',
+                    'lg:hidden fixed inset-y-0 left-0 z-50 flex h-dvh max-h-screen w-72 flex-col bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transform transition-transform duration-300 ease-in-out shadow-2xl',
                     isOpen ? 'translate-x-0' : '-translate-x-full'
                 )}
             >
