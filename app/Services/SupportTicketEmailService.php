@@ -210,6 +210,26 @@ class SupportTicketEmailService
             $replace['{{'.$key.'}}'] = (string) ($value ?? '');
         }
 
+        // Backward-compatible aliases for older/customized template placeholders.
+        $aliases = [
+            'message_body' => ['message', 'body', 'reply_message', 'ticket_message'],
+            'ticket_subject' => ['subject', 'ticket', 'thread_subject'],
+            'ticket_id' => ['thread_id', 'ticket_slug'],
+            'recipient_name' => ['user_name', 'customer_name'],
+            'tenant_name' => ['account_name', 'workspace_name'],
+            'ticket_status' => ['status'],
+            'ticket_priority' => ['priority'],
+        ];
+        foreach ($aliases as $source => $targets) {
+            if (!array_key_exists($source, $context)) {
+                continue;
+            }
+            $value = (string) ($context[$source] ?? '');
+            foreach ($targets as $target) {
+                $replace['{{'.$target.'}}'] ??= $value;
+            }
+        }
+
         $subject = strtr((string) ($template['subject'] ?? $subjectFallback), $replace);
         $bodyText = strtr((string) ($template['body_text'] ?? $bodyTextFallback), $replace);
         $bodyHtml = strtr((string) ($template['body_html'] ?? $bodyHtmlFallback), $replace);
@@ -233,6 +253,9 @@ class SupportTicketEmailService
             'ticket_priority' => (string) ($thread->priority ?? 'normal'),
             'tenant_name' => (string) ($thread->account?->name ?? ''),
             'message_body' => (string) ($message?->body ?? ''),
+            // Backward-compatible aliases for existing customized templates
+            'message' => (string) ($message?->body ?? ''),
+            'subject' => (string) $thread->subject,
             'event_label' => 'notification',
         ], $extra);
     }
