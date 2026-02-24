@@ -67,6 +67,17 @@ class ProfileController extends Controller
 
         $user = $request->user();
 
+        $ownedAccountsCount = (int) $user->ownedAccounts()->count();
+        $memberAccountsCount = (int) $user->accounts()->count();
+
+        if ($ownedAccountsCount > 0) {
+            return Redirect::back()->with('error', 'Account deletion blocked: transfer or delete your owned tenant accounts first.');
+        }
+
+        if ($memberAccountsCount > 0) {
+            return Redirect::back()->with('error', 'Account deletion blocked: leave or be removed from all tenant teams first.');
+        }
+
         Auth::logout();
 
         $user->delete();

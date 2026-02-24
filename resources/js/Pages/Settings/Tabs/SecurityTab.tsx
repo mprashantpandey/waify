@@ -26,6 +26,8 @@ export default function SecurityTab() {
     const { props } = usePage() as any;
     const mustVerifyEmail = Boolean(props.mustVerifyEmail);
     const emailVerified = Boolean(props.emailVerified);
+    const accounts = Array.isArray(props.accounts) ? props.accounts : [];
+    const ownedAccounts = accounts.filter((a: any) => String(a?.owner_id ?? '') === String(props.auth?.user?.id ?? ''));
     const securityPolicy = props.securityPolicy;
     const twoFactor = props.twoFactor ?? {};
     const twoFactorEnabled = Boolean(twoFactor.enabled);
@@ -46,6 +48,11 @@ export default function SecurityTab() {
     const twoFactorDisableForm = useForm({
         current_password: '',
     });
+    const deleteAccountForm = useForm({
+        password: '',
+        confirmation_text: '',
+    });
+    const [showDeleteReview, setShowDeleteReview] = useState(false);
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -60,26 +67,45 @@ export default function SecurityTab() {
             }});
     };
 
-    const deleteAccount = async () => {
+    const deletePrechecks = {
+        hasOwnedAccounts: ownedAccounts.length > 0,
+        hasMemberAccounts: accounts.length > 0,
+        typedConfirmation: deleteAccountForm.data.confirmation_text.trim() === 'DELETE',
+        hasPassword: deleteAccountForm.data.password.trim().length > 0,
+    };
+    const deleteBlockedByMemberships = deletePrechecks.hasOwnedAccounts || deletePrechecks.hasMemberAccounts;
+
+    const deleteAccount = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        if (deleteBlockedByMemberships) {
+            toast.error('Resolve tenant ownership/membership before deleting your account');
+            return;
+        }
+
+        if (!deletePrechecks.typedConfirmation || !deletePrechecks.hasPassword) {
+            toast.error('Complete the deletion confirmation checks first');
+            return;
+        }
+
         const confirmed = await confirm({
-            title: 'Delete Account',
-            message: 'Are you sure you want to delete your account? This action cannot be undone. All of your data will be permanently deleted.',
+            title: 'Final Delete Confirmation',
+            message: 'This will permanently delete your user account. This action cannot be undone.',
             variant: 'danger',
-            confirmText: 'Delete Account'});
+            confirmText: 'Delete',
+        });
 
         if (!confirmed) return;
 
-        const password = prompt('Please enter your password to confirm:');
-        if (!password) return;
-
         router.delete(route('profile.destroy'), {
-            data: { password },
+            data: { password: deleteAccountForm.data.password },
             onSuccess: () => {
                 toast.success('Account deleted successfully');
             },
             onError: () => {
                 toast.error('Failed to delete account');
-            }});
+            },
+        });
     };
 
     const revokeOtherSessions = (e: React.FormEvent) => {
@@ -218,27 +244,27 @@ export default function SecurityTab() {
                             )}
                         </div>
                         <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-                            <div className="text-sm font-semibold mb-2">Platform Security Policy</div>
-                            {securityPolicy ? (
-                                <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
-                                    <p>Password min length: <strong>{securityPolicy.password_min_length}</strong></p>
-                                    <p>
-                                        Password rules:
-                                        {' '}
-                                        {[
-                                            securityPolicy.password_require_uppercase && 'uppercase',
-                                            securityPolicy.password_require_lowercase && 'lowercase',
-                                            securityPolicy.password_require_numbers && 'numbers',
-                                            securityPolicy.password_require_symbols && 'symbols',
-                                        ].filter(Boolean).join(', ') || 'default'}
-                                    </p>
-                                    <p>2FA required: <strong>{securityPolicy.require_2fa ? 'Yes' : 'No'}</strong></p>
-                                    <p>Session timeout: <strong>{securityPolicy.session_timeout} min</strong></p>
-                                    <p>Login lockout: <strong>{securityPolicy.max_login_attempts} attempts / {securityPolicy.lockout_duration} min</strong></p>
+                            <div className="text-sm font-semibold mb-2">Security Summary</div>
+                            <div className="space-y-2 text-sm">
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="text-gray-600 dark:text-gray-400">Email verification</span>
+                                    <span className={emailVerified ? 'text-green-700 dark:text-green-300 font-medium' : 'text-amber-700 dark:text-amber-300 font-medium'}>
+                                        {emailVerified ? 'Verified' : 'Pending'}
+                                    </span>
                                 </div>
-                            ) : (
-                                <p className="text-sm text-gray-500 dark:text-gray-400">Policy data unavailable.</p>
-                            )}
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="text-gray-600 dark:text-gray-400">Two-factor authentication</span>
+                                    <span className={twoFactorEnabled ? 'text-green-700 dark:text-green-300 font-medium' : 'text-gray-700 dark:text-gray-300 font-medium'}>
+                                        {twoFactorEnabled ? 'Enabled' : 'Not enabled'}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="text-gray-600 dark:text-gray-400">Policy requires 2FA</span>
+                                    <span className="text-gray-900 dark:text-gray-100 font-medium">
+                                        {securityPolicy?.require_2fa ? 'Yes' : 'No'}
+                                    </span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </CardContent>
@@ -539,14 +565,68 @@ export default function SecurityTab() {
                             Before deleting your account, please download any data or information that you wish to retain.
                         </p>
                     </div>
-                    <Button 
-                        variant="danger" 
-                        onClick={deleteAccount}
-                        className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-lg shadow-red-500/50 rounded-xl"
-                    >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete Account
-                    </Button>
+                    <div className="space-y-4">
+                        <Button
+                            variant="danger"
+                            type="button"
+                            onClick={() => setShowDeleteReview((v) => !v)}
+                            className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-lg shadow-red-500/50 rounded-xl"
+                        >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            {showDeleteReview ? 'Hide Deletion Review' : 'Start Deletion Review'}
+                        </Button>
+
+                        {showDeleteReview && (
+                            <form onSubmit={deleteAccount} className="rounded-xl border border-red-200 dark:border-red-800 p-4 space-y-4">
+                                <div className="space-y-2">
+                                    <div className={`rounded-lg px-3 py-2 text-sm ${deletePrechecks.hasOwnedAccounts ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300' : 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300'}`}>
+                                        {deletePrechecks.hasOwnedAccounts
+                                            ? `You still own ${ownedAccounts.length} tenant account(s). Transfer ownership or delete those tenants first.`
+                                            : 'No owned tenant accounts detected.'}
+                                    </div>
+                                    <div className={`rounded-lg px-3 py-2 text-sm ${deletePrechecks.hasMemberAccounts ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300' : 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300'}`}>
+                                        {deletePrechecks.hasMemberAccounts
+                                            ? `You are still linked to ${accounts.length} tenant account(s). Leave/remove yourself from all teams before account deletion.`
+                                            : 'No tenant memberships detected.'}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <InputLabel htmlFor="delete_account_confirmation_text" value='Type "DELETE" to confirm' className="text-sm font-semibold mb-2" />
+                                    <TextInput
+                                        id="delete_account_confirmation_text"
+                                        value={deleteAccountForm.data.confirmation_text}
+                                        onChange={(e) => deleteAccountForm.setData('confirmation_text', e.target.value)}
+                                        className="block w-full rounded-xl"
+                                        placeholder="DELETE"
+                                        disabled={deleteBlockedByMemberships}
+                                    />
+                                </div>
+
+                                <div>
+                                    <InputLabel htmlFor="delete_account_password" value="Current Password" className="text-sm font-semibold mb-2" />
+                                    <TextInput
+                                        id="delete_account_password"
+                                        type="password"
+                                        value={deleteAccountForm.data.password}
+                                        onChange={(e) => deleteAccountForm.setData('password', e.target.value)}
+                                        className="block w-full rounded-xl"
+                                        placeholder="Enter current password"
+                                        disabled={deleteBlockedByMemberships}
+                                    />
+                                    <InputError message={(errors as any).password} className="mt-2" />
+                                </div>
+
+                                <Button
+                                    type="submit"
+                                    variant="danger"
+                                    disabled={deleteAccountForm.processing || deleteBlockedByMemberships || !deletePrechecks.typedConfirmation || !deletePrechecks.hasPassword}
+                                >
+                                    {deleteAccountForm.processing ? 'Deleting...' : 'Request Account Deletion'}
+                                </Button>
+                            </form>
+                        )}
+                    </div>
                 </CardContent>
             </Card>
         </div>
