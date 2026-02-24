@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import PlatformShell from '@/Layouts/PlatformShell';
 import Button from '@/Components/UI/Button';
 import { Tabs, TabsList, TabsTrigger, TabsContent, useTabs } from '@/Components/UI/Tabs';
-import { Save, Radio, Mail, HardDrive, Globe, Shield, CreditCard, Webhook, BarChart3, Scale, Zap, ToggleLeft, Palette, Bot, LifeBuoy, XCircle, Clock3, Activity, FileText, MessageSquare } from 'lucide-react';
+import { Save, Radio, Mail, HardDrive, Globe, Shield, CreditCard, Webhook, BarChart3, Scale, Zap, ToggleLeft, Palette, Bot, XCircle, Clock3, Activity, FileText, MessageSquare } from 'lucide-react';
 import MisconfiguredSettingsAlert from '@/Components/Platform/MisconfiguredSettingsAlert';
 import { useToast } from '@/hooks/useToast';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -22,7 +22,6 @@ import SmsTab from './Settings/Tabs/SmsTab';
 import StorageTab from './Settings/Tabs/StorageTab';
 import BrandingTab from './Settings/Tabs/BrandingTab';
 import AiTab from './Settings/Tabs/AiTab';
-import SupportTab from './Settings/Tabs/SupportTab';
 import CronTab from './Settings/Tabs/CronTab';
 import DeliveryTab from './Settings/Tabs/DeliveryTab';
 
@@ -41,7 +40,6 @@ export default function PlatformSettings({
     branding,
     ai,
     whatsapp,
-    support,
     sms,
     settings_section,
     cron,
@@ -51,7 +49,6 @@ export default function PlatformSettings({
     
     const tabs = [
         { id: 'general', label: 'General', icon: Globe, section: 'core' },
-        { id: 'support', label: 'Support', icon: LifeBuoy, section: 'core' },
         { id: 'branding', label: 'Branding', icon: Palette, section: 'core' },
         { id: 'features', label: 'Features', icon: ToggleLeft, section: 'core' },
         { id: 'compliance', label: 'Compliance', icon: Scale, section: 'core' },
@@ -115,7 +112,6 @@ export default function PlatformSettings({
         branding: branding || {},
         ai: ai || {},
         whatsapp: whatsapp || {},
-        support: support || {},
         sms: sms || {},
         _settings_section: currentSection,
         _settings_tab: fallbackTab});
@@ -146,7 +142,7 @@ export default function PlatformSettings({
         post(route('platform.settings.update'), {
             preserveScroll: false,
             forceFormData: true, // Required for file uploads
-            only: ['general', 'security', 'payment', 'integrations', 'analytics', 'compliance', 'performance', 'features', 'pusher', 'mail', 'storage', 'branding', 'ai', 'whatsapp', 'support', 'sms', 'flash'],
+            only: ['general', 'security', 'payment', 'integrations', 'analytics', 'compliance', 'performance', 'features', 'pusher', 'mail', 'storage', 'branding', 'ai', 'whatsapp', 'sms', 'flash'],
             onError: (errors) => {
                 const errorMessages = Object.values(errors).flat();
                 addToast({
@@ -157,7 +153,7 @@ export default function PlatformSettings({
     };
 
     const sections = [
-        { id: 'core', label: 'Core', description: 'General, support, branding, features, compliance' },
+        { id: 'core', label: 'Core', description: 'General, branding, features, compliance' },
         { id: 'security', label: 'Security & Mail', description: 'Security, mail, templates, SMS, pusher' },
         { id: 'payments', label: 'Payments', description: 'Payment gateway and billing behavior' },
         { id: 'integrations', label: 'Integrations', description: 'Integrations, WhatsApp, storage' },
@@ -239,10 +235,6 @@ export default function PlatformSettings({
                         <input type="hidden" name="_settings_tab" value={activeTab} />
                         <TabsContent value="general">
                             <GeneralTab data={data} setData={setData} errors={errors} />
-                        </TabsContent>
-
-                        <TabsContent value="support">
-                            <SupportTab data={data} setData={setData} errors={errors} />
                         </TabsContent>
 
                         <TabsContent value="branding">

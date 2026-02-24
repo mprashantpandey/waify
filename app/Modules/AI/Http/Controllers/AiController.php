@@ -170,11 +170,6 @@ class AiController extends Controller
                 'label' => 'Conversation reply (WhatsApp)',
                 'description' => 'Used when suggesting reply text in WhatsApp conversations (Suggest button in chat).',
             ],
-            [
-                'value' => 'support_reply',
-                'label' => 'Support ticket / live chat',
-                'description' => 'Used for Support assistant suggestions (summaries, next steps, or reply drafts in support threads).',
-            ],
         ];
     }
 
@@ -194,13 +189,6 @@ class AiController extends Controller
                 'label' => 'Escalation-safe reply',
                 'scope' => 'all',
                 'prompt' => 'If policy/approval is needed, acknowledge and ask for required details before promising outcomes.',
-            ],
-            [
-                'purpose' => 'support_reply',
-                'purpose_description' => 'Support ticket / live chat replies',
-                'label' => 'Structured support response',
-                'scope' => 'admin',
-                'prompt' => 'Use format: What happened, Why it happened, What to do next. Keep it concise and actionable.',
             ],
         ];
     }

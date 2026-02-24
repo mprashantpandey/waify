@@ -43,14 +43,6 @@ class SystemEmailTemplateDefaults
                 'body_text' => "Hello {{name}},\n\nPlease verify your email by opening this link:\n{{verification_link}}",
                 'placeholders' => ['{{name}}', '{{email}}', '{{verification_link}}', '{{platform_name}}'],
             ],
-            'support_notification' => [
-                'key' => 'support_notification',
-                'name' => 'Support ticket notification',
-                'subject' => 'Support update: {{subject}}',
-                'body_html' => '<p>Hello {{name}},</p><p>There is an update on your support request.</p><p>{{message}}</p><p>Reply or visit the support portal for more details.</p>',
-                'body_text' => "Hello {{name}},\n\nThere is an update on your support request.\n\n{{message}}\n\nReply or visit the support portal for more details.",
-                'placeholders' => ['{{name}}', '{{email}}', '{{subject}}', '{{message}}', '{{platform_name}}'],
-            ],
             'phone_verification' => [
                 'key' => 'phone_verification',
                 'name' => 'Phone verification code',

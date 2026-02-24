@@ -162,10 +162,6 @@ class HandleInertiaRequests extends Middleware
                 'gdpr_enabled' => PlatformSetting::get('compliance.gdpr_enabled', false),
                 'cookie_consent_required' => PlatformSetting::get('compliance.cookie_consent_required', false),
             ],
-            'supportSettings' => [
-                'live_chat_enabled' => $this->toBoolean(PlatformSetting::get('support.live_chat_enabled', true)),
-                'ticket_support_enabled' => $this->toBoolean(PlatformSetting::get('support.ticket_support_enabled', true)),
-            ],
             'features' => [
                 'analytics' => $this->toBoolean(PlatformSetting::get('features.analytics', true)),
                 'public_api' => $this->toBoolean(PlatformSetting::get('features.public_api', false)),

@@ -5,7 +5,6 @@ import { Topbar } from '@/Components/Layout/Topbar';
 import { Toaster } from '@/Components/UI/Toaster';
 import { BrandingWrapper } from '@/Components/Branding/BrandingWrapper';
 import { GlobalFlashHandler } from '@/Components/Notifications/GlobalFlashHandler';
-import LiveChatWidget from '@/Components/Support/LiveChatWidget';
 import ProfileIncompleteModal from '@/Components/Profile/ProfileIncompleteModal';
 import AnalyticsScripts from '@/Components/Analytics/AnalyticsScripts';
 import CookieConsentBanner from '@/Components/Compliance/CookieConsentBanner';
@@ -60,7 +59,6 @@ export default function AppShell({ children }: AppShellProps) {
                 </div>
                 <Toaster />
                 <GlobalFlashHandler />
-                <LiveChatWidget />
                 <ProfileIncompleteModal />
                 <CookieConsentBanner />
                 <AnalyticsScripts />

@@ -70,13 +70,6 @@ class ModuleSeeder extends Seeder
                 'is_enabled' => true,
             ],
             [
-                'key' => 'support',
-                'name' => 'Support',
-                'description' => 'Support requests and live chat',
-                'is_core' => true,
-                'is_enabled' => true,
-            ],
-            [
                 'key' => 'contacts',
                 'name' => 'Contacts & CRM',
                 'description' => 'Manage contacts, tags, segments, and customer relationships',

@@ -4,7 +4,6 @@ import { Topbar } from '@/Components/Layout/Topbar';
 import { BrandingWrapper } from '@/Components/Branding/BrandingWrapper';
 import { Toaster } from '@/Components/UI/Toaster';
 import { GlobalFlashHandler } from '@/Components/Notifications/GlobalFlashHandler';
-import PlatformLiveChatWidget from '@/Components/Support/PlatformLiveChatWidget';
 import ProfileIncompleteModal from '@/Components/Profile/ProfileIncompleteModal';
 import { 
     LayoutDashboard, 
@@ -18,7 +17,6 @@ import {
     FileText,
     BarChart3,
     Activity,
-    LifeBuoy,
     Puzzle,
     Wallet
 } from 'lucide-react';
@@ -109,10 +107,6 @@ export default function PlatformShell({ children, auth }: PlatformShellProps) {
             name: 'CMS Pages',
             href: route('platform.cms.index'),
             icon: FileText},
-        {
-            name: 'Support',
-            href: route('platform.support.hub'),
-            icon: LifeBuoy},
         {
             name: 'Activity Logs',
             href: route('platform.activity-logs'),
@@ -233,7 +227,6 @@ export default function PlatformShell({ children, auth }: PlatformShellProps) {
             </div>
             <Toaster />
             <GlobalFlashHandler />
-            <PlatformLiveChatWidget />
         </BrandingWrapper>
     );
 }

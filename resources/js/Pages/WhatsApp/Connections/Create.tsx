@@ -450,10 +450,10 @@ export default function ConnectionsCreate({
                             </p>
                             <div className="mt-4">
                                 <Link
-                                    href={route('app.support.hub', {})}
+                                    href={route('contact')}
                                     className="inline-flex items-center text-sm font-semibold text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
                                 >
-                                    Contact support
+                                    Contact us
                                 </Link>
                             </div>
                         </CardContent>

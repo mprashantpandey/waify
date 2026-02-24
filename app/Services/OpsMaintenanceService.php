@@ -154,12 +154,6 @@ class OpsMaintenanceService
                     ->delete();
             }
 
-            if (DB::getSchemaBuilder()->hasTable('support_audit_logs')) {
-                $deleted['support_audit_logs'] = DB::table('support_audit_logs')
-                    ->where('created_at', '<', now()->subDays($retentionDays))
-                    ->delete();
-            }
-
             if (DB::getSchemaBuilder()->hasTable('bot_executions')) {
                 $deleted['bot_executions'] = DB::table('bot_executions')
                     ->where('created_at', '<', now()->subDays($retentionDays))

@@ -147,7 +147,7 @@ class PublicWidgetController extends Controller
 
   var panel = document.createElement('div');
   panel.className = 'waify-widget__panel';
-  panel.innerHTML = '<div class="waify-widget__header">WhatsApp Support<button class="waify-widget__close">×</button></div>' +
+  panel.innerHTML = '<div class="waify-widget__header">WhatsApp<button class="waify-widget__close">×</button></div>' +
     '<div class="waify-widget__body">' + config.welcome_message +
     '<br/><a class="waify-widget__cta" target="_blank" rel="noopener" href="https://wa.me/' + encodeURIComponent(config.whatsapp_phone) + '">Chat on WhatsApp</a>' +
     '</div>';

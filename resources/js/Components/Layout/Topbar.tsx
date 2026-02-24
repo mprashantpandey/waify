@@ -1,5 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { Moon, Sun, User, LogOut, Shield, Menu, LifeBuoy } from 'lucide-react';
+import { Moon, Sun, User, LogOut, Shield, Menu } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import Button from '@/Components/UI/Button';
 import { Badge } from '@/Components/UI/Badge';
@@ -151,22 +151,6 @@ export function Topbar({ user, onMenuClick }: TopbarProps) {
                                                 Platform Panel
                                             </Link>
                                         )}
-                                        {user.is_super_admin && (
-                                            <Link
-                                                href={route('platform.support.hub')}
-                                                className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                                            >
-                                                <LifeBuoy className="h-4 w-4" />
-                                                Support Inbox
-                                            </Link>
-                                        )}
-                                        <Link
-                                            href={route('app.support.hub', { })}
-                                            className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                                        >
-                                            <LifeBuoy className="h-4 w-4" />
-                                            Support
-                                        </Link>
                                         {impersonation?.active && (
                                             <Link
                                                 href={route('impersonate.leave')}

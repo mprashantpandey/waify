@@ -204,24 +204,6 @@ class PlatformSettingsController extends Controller
             'embedded_signup_config_id' => $get('whatsapp.embedded_signup_config_id', config('whatsapp.meta.embedded_signup_config_id')),
             'api_version' => $get('whatsapp.api_version', config('whatsapp.meta.api_version', 'v21.0'))];
 
-        // Support Settings
-        $supportFaqsRaw = $get('support.faqs');
-        $supportFaqs = [];
-        if (is_string($supportFaqsRaw) && $supportFaqsRaw !== '') {
-            $supportFaqs = json_decode($supportFaqsRaw, true) ?: [];
-        }
-
-        $supportSettings = [
-            'live_chat_enabled' => (bool) $get('support.live_chat_enabled', true),
-            'ticket_support_enabled' => (bool) $get('support.ticket_support_enabled', true),
-            'faqs' => is_array($supportFaqs) ? $supportFaqs : [],
-            'sla_hours' => (int) $get('support.sla_hours', 48),
-            'first_response_hours' => (int) $get('support.first_response_hours', 4),
-            'email_notifications_enabled' => (bool) $get('support.email_notifications_enabled', true),
-            'notify_admins' => (bool) $get('support.notify_admins', true),
-            'notify_customers' => (bool) $get('support.notify_customers', true),
-            'email_thread_notify_gap_minutes' => (int) $get('support.email_thread_notify_gap_minutes', 60)];
-
         // SMS provider settings (2FA / OTP: Twilio Verify or MSG91)
         $smsSettings = [
             'provider' => $get('sms.provider', ''),
@@ -253,7 +235,6 @@ class PlatformSettingsController extends Controller
             'branding' => $brandingSettings,
             'ai' => $aiSettings,
             'whatsapp' => $whatsappSettings,
-            'support' => $supportSettings,
             'sms' => $smsSettings,
             'settings_section' => $section,
             'cron' => $this->cronDiagnosticsService->platformSummary(),
@@ -405,23 +386,6 @@ class PlatformSettingsController extends Controller
             'whatsapp.system_user_token' => 'nullable|string',
             'whatsapp.embedded_signup_config_id' => 'nullable|string|max:255',
             'whatsapp.api_version' => 'nullable|string|max:10',
-            // Support
-            'support.live_chat_enabled' => 'nullable|boolean',
-            'support.ticket_support_enabled' => 'nullable|boolean',
-            'support.faqs' => 'nullable|array',
-            'support.faqs.*.question' => 'required_with:support.faqs|string|max:255',
-            'support.faqs.*.answer' => 'required_with:support.faqs|string|max:5000',
-            'support.faqs.*.category' => 'nullable|string|max:100',
-            'support.faqs.*.enabled' => 'nullable|boolean',
-            'support.faqs.*.order' => 'nullable|integer|min:0',
-            'support.faqs.*.tags' => 'nullable|array',
-            'support.faqs.*.tags.*' => 'nullable|string|max:50',
-            'support.sla_hours' => 'nullable|integer|min:1|max:720',
-            'support.first_response_hours' => 'nullable|integer|min:1|max:168',
-            'support.email_notifications_enabled' => 'nullable|boolean',
-            'support.notify_admins' => 'nullable|boolean',
-            'support.notify_customers' => 'nullable|boolean',
-            'support.email_thread_notify_gap_minutes' => 'nullable|integer|min:1|max:1440',
             // SMS (2FA / OTP)
             'sms.provider' => 'nullable|string|in:twilio_verify,msg91,',
             'sms.twilio_account_sid' => 'nullable|string|max:255',
@@ -447,7 +411,7 @@ class PlatformSettingsController extends Controller
         }
 
         // Update all settings groups
-        $groups = ['general', 'security', 'payment', 'integrations', 'analytics', 'compliance', 'performance', 'features', 'pusher', 'mail', 'storage', 'branding', 'ai', 'whatsapp', 'support', 'sms'];
+        $groups = ['general', 'security', 'payment', 'integrations', 'analytics', 'compliance', 'performance', 'features', 'pusher', 'mail', 'storage', 'branding', 'ai', 'whatsapp', 'sms'];
         
         // Define boolean fields that need explicit handling (for unchecked checkboxes)
         $booleanFields = [
@@ -461,8 +425,7 @@ class PlatformSettingsController extends Controller
             'general' => ['maintenance_mode'],
             'branding' => ['show_powered_by'],
             'ai' => ['enabled'],
-            'whatsapp' => ['embedded_enabled'],
-            'support' => ['live_chat_enabled', 'ticket_support_enabled', 'email_notifications_enabled', 'notify_admins', 'notify_customers']];
+            'whatsapp' => ['embedded_enabled']];
         
         foreach ($groups as $group) {
             // Handle both nested array format and dot-notation format
@@ -481,10 +444,6 @@ class PlatformSettingsController extends Controller
                 foreach ($groupData as $key => $value) {
                     // Skip null values but allow false/0/empty string
                     if ($value !== null) {
-                        if ($group === 'support' && $key === 'faqs' && is_array($value)) {
-                            $value = json_encode($value);
-                        }
-
                         // Email templates: store as JSON string; ensure system templates are never removed
                         if ($group === 'mail' && $key === 'email_templates' && is_array($value)) {
                             $normalized = SystemEmailTemplateDefaults::mergeWithSaved($value);
@@ -637,7 +596,6 @@ class PlatformSettingsController extends Controller
         $tab = (string) $tab;
         $map = [
             'general' => 'core',
-            'support' => 'core',
             'branding' => 'core',
             'features' => 'core',
             'compliance' => 'core',

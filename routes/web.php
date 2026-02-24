@@ -7,7 +7,6 @@ use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\Platform\ImpersonationController;
-use App\Http\Controllers\SupportAttachmentController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -72,7 +71,6 @@ Route::get('/csrf-token/refresh', [\App\Http\Controllers\CsrfTokenController::cl
 
 // Onboarding (requires auth, no account)
 Route::middleware(['auth'])->group(function () {
-    Route::get('/support/attachments/{attachment}', [SupportAttachmentController::class, 'show'])->name('support.attachments.show');
     Route::post('/impersonate/leave', [ImpersonationController::class, 'leave'])->name('impersonate.leave');
     Route::get('/onboarding', [OnboardingController::class, 'create'])->name('onboarding');
     Route::post('/onboarding', [OnboardingController::class, 'store'])->name('onboarding.store');
@@ -128,17 +126,6 @@ Route::middleware(['auth', 'super.admin'])->prefix('/platform')->name('platform.
     Route::get('/activity-logs', [\App\Http\Controllers\Platform\ActivityLogController::class, 'index'])->name('activity-logs');
     Route::get('/templates', [\App\Http\Controllers\Platform\TemplateController::class, 'index'])->name('templates.index');
     Route::get('/templates/{template}', [\App\Http\Controllers\Platform\TemplateController::class, 'show'])->name('templates.show');
-    Route::get('/support/hub', [\App\Http\Controllers\Platform\SupportController::class, 'hub'])->name('support.hub');
-    Route::get('/support', [\App\Http\Controllers\Platform\SupportController::class, 'index'])->name('support.index');
-    Route::get('/support/live', [\App\Http\Controllers\Platform\SupportController::class, 'live'])->name('support.live');
-    Route::get('/support/live/list', [\App\Http\Controllers\Platform\SupportController::class, 'liveList'])->name('support.live.list');
-    Route::get('/support/live/thread/{thread}', [\App\Http\Controllers\Platform\SupportController::class, 'liveThread'])->name('support.live.thread');
-    Route::post('/support/live/message', [\App\Http\Controllers\Platform\SupportController::class, 'liveMessage'])->middleware('throttle:60,1')->name('support.live.message');
-    Route::post('/support/{thread}/assistant', [\App\Http\Controllers\Platform\SupportController::class, 'assistant'])->name('support.assistant');
-    Route::get('/support/{thread}', [\App\Http\Controllers\Platform\SupportController::class, 'show'])->name('support.show');
-    Route::post('/support/{thread}/messages', [\App\Http\Controllers\Platform\SupportController::class, 'message'])->middleware('throttle:60,1')->name('support.message');
-    Route::post('/support/{thread}/close', [\App\Http\Controllers\Platform\SupportController::class, 'close'])->middleware('throttle:20,1')->name('support.close');
-    Route::post('/support/{thread}/update', [\App\Http\Controllers\Platform\SupportController::class, 'update'])->middleware('throttle:20,1')->name('support.update');
 });
 
 // App routes (requires auth + account + account active + account subscribed)
@@ -189,9 +176,6 @@ Route::middleware(['auth', 'account.resolve', 'account.active', 'account.subscri
     }
     if (file_exists(__DIR__.'/../app/Modules/Chatbots/routes/web.php')) {
         require __DIR__.'/../app/Modules/Chatbots/routes/web.php';
-    }
-    if (file_exists(__DIR__.'/../app/Modules/Support/routes/web.php')) {
-        require __DIR__.'/../app/Modules/Support/routes/web.php';
     }
     if (file_exists(__DIR__.'/../app/Modules/Broadcasts/routes/web.php')) {
         require __DIR__.'/../app/Modules/Broadcasts/routes/web.php';
