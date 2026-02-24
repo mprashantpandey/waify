@@ -6,11 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Core\Billing\PlanResolver;
 use App\Core\Billing\SubscriptionService;
 use App\Core\Billing\UsageService;
+use App\Core\Billing\MetaPricingResolver;
 use App\Core\Billing\BillingProviderManager;
 use App\Models\PaymentOrder;
 use App\Models\Plan;
 use App\Models\WalletTransaction;
 use App\Models\WalletTopupOrder;
+use App\Modules\WhatsApp\Models\WhatsAppMessageBilling;
 use App\Services\PlatformSettingsService;
 use App\Services\WalletService;
 use Illuminate\Http\Request;
@@ -24,6 +26,7 @@ class BillingController extends Controller
         protected PlanResolver $planResolver,
         protected SubscriptionService $subscriptionService,
         protected UsageService $usageService,
+        protected MetaPricingResolver $metaPricingResolver,
         protected BillingProviderManager $providerManager,
         protected WalletService $walletService
     ) {}
@@ -38,7 +41,7 @@ class BillingController extends Controller
         $plan = $this->planResolver->getAccountPlan($account);
         $limits = $this->planResolver->getEffectiveLimits($account);
         $usage = $this->usageService->getCurrentUsage($account);
-        $metaBilling = $this->buildMetaBillingSummary($usage);
+        $metaBilling = $this->buildMetaBillingSummary($usage, $account);
         $wallet = $this->walletService->getOrCreateWallet($account);
 
         // Get current counts
@@ -524,7 +527,7 @@ class BillingController extends Controller
         $usageHistory = $this->usageService->getUsageHistory($account, 3);
         $currentUsage = $this->usageService->getCurrentUsage($account);
         $limits = $this->planResolver->getEffectiveLimits($account);
-        $metaBilling = $this->buildMetaBillingSummary($currentUsage);
+        $metaBilling = $this->buildMetaBillingSummary($currentUsage, $account);
 
         // Get limit blocked events
         $blockedEvents = \App\Models\BillingEvent::where('account_id', $account->id)
@@ -830,19 +833,46 @@ class BillingController extends Controller
         );
     }
 
-    protected function buildMetaBillingSummary(\App\Models\AccountUsage $usage): array
+    protected function buildMetaBillingSummary(\App\Models\AccountUsage $usage, ?\App\Models\Account $account = null): array
     {
         $settingsService = app(PlatformSettingsService::class);
         $freeTierLimit = (int) $settingsService->get('whatsapp.meta_billing.free_tier_limit', 1000);
-        $currency = strtoupper((string) $settingsService->get('payment.default_currency', 'INR'));
-        $pricePerConversationMinor = [
-            'marketing' => (int) $settingsService->get('whatsapp.meta_billing.rate.marketing_minor', 0),
-            'utility' => (int) $settingsService->get('whatsapp.meta_billing.rate.utility_minor', 0),
-            'authentication' => (int) $settingsService->get('whatsapp.meta_billing.rate.authentication_minor', 0),
-            'service' => (int) $settingsService->get('whatsapp.meta_billing.rate.service_minor', 0),
-        ];
+        $resolvedPricing = $this->metaPricingResolver->resolve(now());
+        $currency = strtoupper((string) ($resolvedPricing['currency'] ?? $settingsService->get('payment.default_currency', 'INR')));
+        $pricePerConversationMinor = $resolvedPricing['rates'] ?? [];
 
         $freeUsed = (int) ($usage->meta_conversations_free_used ?? 0);
+        $breakdown = collect();
+        if ($account) {
+            $periodStart = now()->startOfMonth();
+            $periodEnd = now()->endOfMonth();
+
+            $rows = WhatsAppMessageBilling::query()
+                ->where('account_id', $account->id)
+                ->whereBetween('created_at', [$periodStart, $periodEnd])
+                ->select(
+                    DB::raw('COALESCE(NULLIF(category, \'\'), \'uncategorized\') as category'),
+                    'billable',
+                    DB::raw('COUNT(*) as conversations_count'),
+                    DB::raw('SUM(COALESCE(estimated_cost_minor, 0)) as estimated_cost_minor')
+                )
+                ->groupBy('category', 'billable')
+                ->get();
+
+            $categories = ['marketing', 'utility', 'authentication', 'service', 'uncategorized'];
+            $breakdown = collect($categories)->map(function (string $category) use ($rows, $pricePerConversationMinor) {
+                $freeRow = $rows->first(fn ($r) => (string) $r->category === $category && !(bool) $r->billable);
+                $paidRow = $rows->first(fn ($r) => (string) $r->category === $category && (bool) $r->billable);
+
+                return [
+                    'category' => $category,
+                    'free_count' => (int) ($freeRow->conversations_count ?? 0),
+                    'paid_count' => (int) ($paidRow->conversations_count ?? 0),
+                    'rate_minor' => (int) ($pricePerConversationMinor[$category] ?? 0),
+                    'estimated_cost_minor' => (int) ($paidRow->estimated_cost_minor ?? 0),
+                ];
+            })->values();
+        }
 
         return [
             'free_tier_limit' => $freeTierLimit,
@@ -851,6 +881,17 @@ class BillingController extends Controller
             'estimated_cost_minor' => (int) ($usage->meta_estimated_cost_minor ?? 0),
             'currency' => $currency,
             'price_per_conversation_minor' => $pricePerConversationMinor,
+            'pricing_source' => $resolvedPricing['source'] ?? 'legacy_settings',
+            'pricing_country_code' => $resolvedPricing['country_code'] ?? null,
+            'pricing_version' => $resolvedPricing['version'] ? [
+                'id' => $resolvedPricing['version']->id,
+                'country_code' => $resolvedPricing['version']->country_code,
+                'currency' => $resolvedPricing['version']->currency,
+                'effective_from' => $resolvedPricing['version']->effective_from?->toIso8601String(),
+                'effective_to' => $resolvedPricing['version']->effective_to?->toIso8601String(),
+                'notes' => $resolvedPricing['version']->notes,
+            ] : null,
+            'category_breakdown' => $breakdown->all(),
             'note' => 'Meta bills WhatsApp conversations separately. Values shown here are webhook-based estimates and can differ from your official Meta invoice.',
         ];
     }

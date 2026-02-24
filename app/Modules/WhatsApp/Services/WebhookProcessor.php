@@ -10,7 +10,10 @@ use App\Modules\WhatsApp\Models\WhatsAppContact;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use App\Modules\WhatsApp\Models\WhatsAppConversationAuditEvent;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
+use App\Modules\WhatsApp\Models\WhatsAppMessageBilling;
 use App\Models\Account;
+use App\Core\Billing\MetaPricingResolver;
+use App\Core\Billing\UsageService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -18,6 +21,12 @@ use Illuminate\Support\Facades\Schema;
 
 class WebhookProcessor
 {
+    public function __construct(
+        protected UsageService $usageService,
+        protected MetaPricingResolver $metaPricingResolver
+    ) {
+    }
+
     /**
      * Process incoming webhook payload.
      * Uses lock to prevent concurrent processing of the same webhook.
@@ -359,9 +368,103 @@ class WebhookProcessor
                 $campaignService = app(\App\Modules\Broadcasts\Services\CampaignService::class);
                 $campaignService->updateMessageStatus($metaMessageId, $status, $statusAt);
             }
+
+            $this->recordMetaBillingUsage(
+                statusData: $statusData,
+                connection: $connection,
+                message: $message,
+                campaignMessage: $campaignMessage,
+                metaMessageId: $metaMessageId,
+            );
         } finally {
             $statusLock->release();
         }
+    }
+
+    protected function recordMetaBillingUsage(
+        array $statusData,
+        WhatsAppConnection $connection,
+        ?WhatsAppMessage $message,
+        $campaignMessage,
+        string $metaMessageId
+    ): void {
+        $pricing = is_array($statusData['pricing'] ?? null) ? $statusData['pricing'] : [];
+        $conversation = is_array($statusData['conversation'] ?? null) ? $statusData['conversation'] : [];
+
+        $hasBillingHints = !empty($pricing) || !empty($conversation);
+        if (!$hasBillingHints) {
+            return;
+        }
+
+        $billable = $this->toBoolean($pricing['billable'] ?? false);
+        $category = strtolower((string) ($pricing['category'] ?? $conversation['category'] ?? ''));
+        $pricingModel = (string) ($pricing['pricing_model'] ?? '');
+        $pricingQuote = $this->metaPricingResolver->estimateCostMinor(
+            billable: $billable,
+            category: $category,
+            at: now()
+        );
+        $estimatedCostMinor = (int) ($pricingQuote['estimated_cost_minor'] ?? 0);
+
+        $billing = WhatsAppMessageBilling::firstOrCreate(
+            [
+                'account_id' => $connection->account_id,
+                'meta_message_id' => $metaMessageId,
+            ],
+            [
+                'whatsapp_message_id' => $message?->id,
+                'campaign_message_id' => $campaignMessage?->id,
+                'billable' => $billable,
+                'category' => $category ?: null,
+                'pricing_model' => $pricingModel ?: null,
+                'meta_pricing_version_id' => $pricingQuote['version_id'] ?? null,
+                'pricing_country_code' => $pricingQuote['country_code'] ?? null,
+                'pricing_currency' => $pricingQuote['currency'] ?? null,
+                'rate_minor' => $pricingQuote['rate_minor'] ?? 0,
+                'estimated_cost_minor' => $estimatedCostMinor,
+                'meta' => [
+                    'pricing' => $pricing,
+                    'conversation' => $conversation,
+                    'status' => $statusData['status'] ?? null,
+                    'pricing_resolver' => [
+                        'source' => $pricingQuote['source'] ?? null,
+                        'version_label' => $pricingQuote['version_label'] ?? null,
+                    ],
+                ],
+                'counted_at' => now(),
+            ]
+        );
+
+        if (!$billing->wasRecentlyCreated) {
+            return;
+        }
+
+        $account = $connection->account ?: Account::find($connection->account_id);
+        if (!$account) {
+            return;
+        }
+
+        $this->usageService->incrementMetaConversationUsage(
+            account: $account,
+            billable: $billable,
+            category: $category,
+            estimatedCostMinor: $estimatedCostMinor
+        );
+    }
+
+    protected function toBoolean(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_numeric($value)) {
+            return (int) $value === 1;
+        }
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+            return in_array($normalized, ['1', 'true', 'yes', 'on'], true);
+        }
+        return (bool) $value;
     }
 
     /**

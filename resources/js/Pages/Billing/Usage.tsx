@@ -10,6 +10,13 @@ interface Usage {
     messages_sent: number;
     template_sends: number;
     ai_credits_used: number;
+    meta_conversations_free_used?: number;
+    meta_conversations_paid?: number;
+    meta_conversations_marketing?: number;
+    meta_conversations_utility?: number;
+    meta_conversations_authentication?: number;
+    meta_conversations_service?: number;
+    meta_estimated_cost_minor?: number;
     storage_bytes: number;
 }
 
@@ -24,6 +31,35 @@ interface UsageHistory {
     messages_sent: number;
     template_sends: number;
     ai_credits_used: number;
+    meta_conversations_free_used?: number;
+    meta_conversations_paid?: number;
+    meta_estimated_cost_minor?: number;
+}
+
+interface MetaBillingSummary {
+    free_tier_limit: number;
+    free_tier_used: number;
+    free_tier_remaining: number;
+    estimated_cost_minor: number;
+    currency: string;
+    pricing_source?: string;
+    pricing_country_code?: string | null;
+    pricing_version?: {
+        id: number;
+        country_code?: string | null;
+        currency: string;
+        effective_from?: string | null;
+        effective_to?: string | null;
+        notes?: string | null;
+    } | null;
+    category_breakdown?: Array<{
+        category: string;
+        free_count: number;
+        paid_count: number;
+        rate_minor: number;
+        estimated_cost_minor: number;
+    }>;
+    note: string;
 }
 
 interface BlockedEvent {
@@ -40,15 +76,24 @@ interface BlockedEvent {
 export default function BillingUsage({
     account,
     current_usage,
+    meta_billing,
     limits,
     usage_history,
     blocked_events}: {
     account: any;
     current_usage: Usage;
+    meta_billing?: MetaBillingSummary;
     limits: Limits;
     usage_history: UsageHistory[];
     blocked_events: BlockedEvent[];
 }) {
+    const moneyFormatter = new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: meta_billing?.currency || 'INR',
+        minimumFractionDigits: 2,
+    });
+    const metaCategoryBreakdown = meta_billing?.category_breakdown ?? [];
+
     return (
         <AppShell>
             <Head title="Usage Details" />
@@ -141,6 +186,52 @@ export default function BillingUsage({
                                 )}
                             </div>
                         </div>
+                        <div className="mt-6 p-5 bg-gradient-to-r from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 rounded-xl border border-emerald-200 dark:border-emerald-800">
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Meta Conversation Charges (Estimate)</span>
+                                <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                                    {moneyFormatter.format((meta_billing?.estimated_cost_minor ?? current_usage.meta_estimated_cost_minor ?? 0) / 100)}
+                                </span>
+                            </div>
+                            <div className="mt-2 text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                                <p>Free tier remaining: {(meta_billing?.free_tier_remaining ?? 0).toLocaleString()} / {(meta_billing?.free_tier_limit ?? 1000).toLocaleString()}</p>
+                                <p>Paid conversations: {(current_usage.meta_conversations_paid ?? 0).toLocaleString()} | Free conversations: {(current_usage.meta_conversations_free_used ?? 0).toLocaleString()}</p>
+                                <p>By category: Marketing {(current_usage.meta_conversations_marketing ?? 0).toLocaleString()}, Utility {(current_usage.meta_conversations_utility ?? 0).toLocaleString()}, Authentication {(current_usage.meta_conversations_authentication ?? 0).toLocaleString()}, Service {(current_usage.meta_conversations_service ?? 0).toLocaleString()}</p>
+                                <p>
+                                    Pricing source: {meta_billing?.pricing_source === 'table' ? 'Versioned Meta pricing table' : 'Legacy platform settings'}
+                                    {meta_billing?.pricing_country_code ? ` (${meta_billing.pricing_country_code})` : ''}
+                                    {meta_billing?.pricing_version?.id ? ` · Version #${meta_billing.pricing_version.id}` : ''}
+                                </p>
+                                <p>{meta_billing?.note ?? 'Meta charges are separate from your app plan and shown as estimate only.'}</p>
+                            </div>
+
+                            {metaCategoryBreakdown.length > 0 && (
+                                <div className="mt-4 overflow-x-auto">
+                                    <table className="w-full text-xs">
+                                        <thead>
+                                            <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-emerald-200 dark:border-emerald-800">
+                                                <th className="py-2 pr-3 font-semibold uppercase tracking-wider">Category</th>
+                                                <th className="py-2 pr-3 font-semibold uppercase tracking-wider">Free</th>
+                                                <th className="py-2 pr-3 font-semibold uppercase tracking-wider">Paid</th>
+                                                <th className="py-2 pr-3 font-semibold uppercase tracking-wider">Rate</th>
+                                                <th className="py-2 font-semibold uppercase tracking-wider">Estimated Cost</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {metaCategoryBreakdown.map((row) => (
+                                                <tr key={row.category} className="border-b border-emerald-100/70 dark:border-emerald-900/40">
+                                                    <td className="py-2 pr-3 font-medium text-gray-800 dark:text-gray-200 capitalize">{row.category.replace('_', ' ')}</td>
+                                                    <td className="py-2 pr-3 text-gray-700 dark:text-gray-300">{row.free_count.toLocaleString()}</td>
+                                                    <td className="py-2 pr-3 text-gray-700 dark:text-gray-300">{row.paid_count.toLocaleString()}</td>
+                                                    <td className="py-2 pr-3 text-gray-700 dark:text-gray-300">{moneyFormatter.format((row.rate_minor ?? 0) / 100)}</td>
+                                                    <td className="py-2 text-gray-900 dark:text-gray-100 font-semibold">{moneyFormatter.format((row.estimated_cost_minor ?? 0) / 100)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
                     </CardContent>
                 </Card>
 
@@ -174,12 +265,15 @@ export default function BillingUsage({
                                         <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                             AI Credits
                                         </th>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                            Meta (Free/Paid)
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-gray-900">
                                     {usage_history.length === 0 ? (
                                         <tr>
-                                            <td colSpan={4} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                                            <td colSpan={5} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
                                                 No usage history available
                                             </td>
                                         </tr>
@@ -197,6 +291,9 @@ export default function BillingUsage({
                                                 </td>
                                                 <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
                                                     {period.ai_credits_used.toLocaleString()}
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
+                                                    {(period.meta_conversations_free_used ?? 0).toLocaleString()} / {(period.meta_conversations_paid ?? 0).toLocaleString()}
                                                 </td>
                                             </tr>
                                         ))
