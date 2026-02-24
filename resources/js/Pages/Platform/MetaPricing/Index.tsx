@@ -308,13 +308,14 @@ export default function PlatformMetaPricingIndex({
                                                 <th className="py-2 pr-3">Version</th>
                                                 <th className="py-2 pr-3">Rate</th>
                                                 <th className="py-2 pr-3">Cost</th>
-                                                <th className="py-2">Message</th>
+                                                <th className="py-2 pr-3">Message</th>
+                                                <th className="py-2">Action</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {(reconciliation.recent_issues || []).length === 0 ? (
                                                 <tr>
-                                                    <td colSpan={7} className="py-6 text-center text-gray-500 dark:text-gray-400">
+                                                    <td colSpan={8} className="py-6 text-center text-gray-500 dark:text-gray-400">
                                                         No current reconciliation issues detected in recent records.
                                                     </td>
                                                 </tr>
@@ -339,6 +340,22 @@ export default function PlatformMetaPricingIndex({
                                                         </td>
                                                         <td className="py-2 text-gray-500 dark:text-gray-400 font-mono">
                                                             {(row.meta_message_id || '').slice(0, 24)}...
+                                                        </td>
+                                                        <td className="py-2">
+                                                            <Button
+                                                                type="button"
+                                                                variant="secondary"
+                                                                className="px-2 py-1 text-xs"
+                                                                onClick={() =>
+                                                                    router.post(
+                                                                        route('platform.meta-pricing.billing.recalculate', { billing: row.id }),
+                                                                        {},
+                                                                        { preserveScroll: true }
+                                                                    )
+                                                                }
+                                                            >
+                                                                Recalculate
+                                                            </Button>
                                                         </td>
                                                     </tr>
                                                 ))

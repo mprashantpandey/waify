@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Platform;
 
 use App\Core\Billing\MetaPricingResolver;
 use App\Http\Controllers\Controller;
+use App\Models\Account;
 use App\Models\MetaPricingRate;
 use App\Models\MetaPricingVersion;
 use App\Modules\WhatsApp\Models\WhatsAppMessageBilling;
@@ -205,6 +206,84 @@ class MetaPricingController extends Controller
 
         return redirect()->route('platform.meta-pricing.index')
             ->with('success', 'Legacy Meta rates imported into a versioned pricing record.');
+    }
+
+    public function recalculateBillingSnapshot(Request $request, WhatsAppMessageBilling $billing)
+    {
+        $validated = $request->validate([
+            'meta_pricing_version_id' => 'nullable|integer|exists:meta_pricing_versions,id',
+        ]);
+
+        $account = Account::find($billing->account_id);
+        $category = strtolower(trim((string) $billing->category));
+        $countedAt = $billing->counted_at ?? $billing->created_at ?? now();
+        $explicitVersionId = isset($validated['meta_pricing_version_id']) ? (int) $validated['meta_pricing_version_id'] : null;
+
+        if ($explicitVersionId) {
+            $version = MetaPricingVersion::with('rates')->findOrFail($explicitVersionId);
+            $rates = $version->rates->mapWithKeys(fn ($r) => [strtolower((string) $r->category) => (int) $r->amount_minor])->all();
+            $rateMinor = $billing->billable ? (int) ($rates[$category] ?? 0) : 0;
+            $quote = [
+                'estimated_cost_minor' => $rateMinor,
+                'rate_minor' => $rateMinor,
+                'currency' => strtoupper((string) ($version->currency ?: ($billing->pricing_currency ?: 'INR'))),
+                'country_code' => $version->country_code ?: ($account?->billing_country_code ?: $billing->pricing_country_code),
+                'version_id' => $version->id,
+                'version_label' => sprintf('#%d (%s)', $version->id, optional($version->effective_from)->format('Y-m-d') ?? 'n/a'),
+                'source' => 'manual_version',
+            ];
+        } else {
+            $quote = $this->metaPricingResolver->estimateCostMinor(
+                billable: (bool) $billing->billable,
+                category: $category,
+                at: $countedAt,
+                countryCode: $account?->billing_country_code ?: $billing->pricing_country_code
+            );
+        }
+
+        $meta = is_array($billing->meta) ? $billing->meta : [];
+        $reconciliationLog = is_array($meta['reconciliation'] ?? null) ? $meta['reconciliation'] : [];
+
+        $before = [
+            'meta_pricing_version_id' => $billing->meta_pricing_version_id,
+            'pricing_country_code' => $billing->pricing_country_code,
+            'pricing_currency' => $billing->pricing_currency,
+            'rate_minor' => (int) ($billing->rate_minor ?? 0),
+            'estimated_cost_minor' => (int) ($billing->estimated_cost_minor ?? 0),
+        ];
+
+        $billing->update([
+            'meta_pricing_version_id' => $quote['version_id'] ?? null,
+            'pricing_country_code' => $quote['country_code'] ?? $billing->pricing_country_code,
+            'pricing_currency' => $quote['currency'] ?? $billing->pricing_currency,
+            'rate_minor' => (int) ($quote['rate_minor'] ?? 0),
+            'estimated_cost_minor' => (int) ($quote['estimated_cost_minor'] ?? 0),
+            'meta' => array_merge($meta, [
+                'pricing_resolver' => array_merge((array) ($meta['pricing_resolver'] ?? []), [
+                    'source' => $quote['source'] ?? 'unknown',
+                    'version_label' => $quote['version_label'] ?? null,
+                    'recalculated_at' => now()->toIso8601String(),
+                ]),
+                'reconciliation' => array_values(array_slice(array_merge($reconciliationLog, [[
+                    'action' => 'recalculate',
+                    'at' => now()->toIso8601String(),
+                    'by_user_id' => $request->user()?->id,
+                    'source' => $quote['source'] ?? null,
+                    'selected_version_id' => $explicitVersionId,
+                    'before' => $before,
+                    'after' => [
+                        'meta_pricing_version_id' => $quote['version_id'] ?? null,
+                        'pricing_country_code' => $quote['country_code'] ?? $billing->pricing_country_code,
+                        'pricing_currency' => $quote['currency'] ?? $billing->pricing_currency,
+                        'rate_minor' => (int) ($quote['rate_minor'] ?? 0),
+                        'estimated_cost_minor' => (int) ($quote['estimated_cost_minor'] ?? 0),
+                    ],
+                ]]), -20)),
+            ]),
+        ]);
+
+        return redirect()->route('platform.meta-pricing.index')
+            ->with('success', "Billing snapshot #{$billing->id} recalculated.");
     }
 
     protected function deactivateCountryVersions(?string $countryCode, ?int $exceptId = null): void
