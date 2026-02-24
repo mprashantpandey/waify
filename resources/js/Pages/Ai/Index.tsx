@@ -21,6 +21,12 @@ interface PromptRow {
     enabled?: boolean;
 }
 
+interface PurposeOption {
+    value: string;
+    label: string;
+    description: string;
+}
+
 interface UsageStats {
     this_month: number;
     by_feature: Record<string, number>;
@@ -31,13 +37,15 @@ export default function AiIndex({
     ai_suggestions_enabled = false,
     ai_prompts = [],
     prompt_library = [],
+    purpose_options = [],
     platform_ai_enabled = false,
     platform_ai_provider = 'openai',
     usage = { this_month: 0, by_feature: {}, period_start: '' },
 }: {
     ai_suggestions_enabled: boolean;
     ai_prompts: PromptRow[];
-    prompt_library?: PromptRow[];
+    prompt_library?: (PromptRow & { purpose_description?: string })[];
+    purpose_options?: PurposeOption[];
     platform_ai_enabled?: boolean;
     platform_ai_provider?: string;
     usage: UsageStats;
@@ -167,22 +175,43 @@ export default function AiIndex({
                         <CardHeader className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20">
                             <CardTitle className="text-lg font-bold">Your prompts</CardTitle>
                             <CardDescription>
-                                Add prompts for different purposes. Use a short key (e.g. reply_suggestion, summary) and a label; the prompt text guides the AI for that use case.
+                                Each prompt has a <strong>purpose</strong> (where it is used), a <strong>label</strong>, and <strong>prompt text</strong>. Purpose determines when this instruction is applied: <code className="text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">conversation_suggest</code> = WhatsApp chat reply suggestions; <code className="text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">support_reply</code> = Support ticket / live chat assistant.
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="p-6 space-y-4">
-                            {data.ai_prompts.map((row, index) => (
+                            {Array.isArray(purpose_options) && purpose_options.length > 0 && (
+                                <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-800/50 text-sm text-gray-600 dark:text-gray-400">
+                                    <p className="font-medium text-gray-700 dark:text-gray-300 mb-2">Purpose = where the prompt is used</p>
+                                    <ul className="space-y-1">
+                                        {purpose_options.map((opt) => (
+                                            <li key={opt.value}>
+                                                <span className="font-mono text-xs text-indigo-600 dark:text-indigo-400">{opt.value}</span>
+                                                {' — '}
+                                                {opt.description}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                            {data.ai_prompts.map((row, index) => {
+                                const purposeInfo = Array.isArray(purpose_options) ? purpose_options.find((o) => o.value === row.purpose) : null;
+                                return (
                                 <div
                                     key={index}
                                     className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3 bg-white dark:bg-gray-800/50"
                                 >
                                     <div className="flex items-center justify-between gap-2">
-                                        <TextInput
-                                            placeholder="Purpose key (e.g. reply_suggestion)"
-                                            value={row.purpose}
-                                            onChange={(e) => updatePrompt(index, 'purpose', e.target.value)}
-                                            className="flex-1 max-w-[200px]"
-                                        />
+                                        <div className="flex-1 max-w-[220px] space-y-1">
+                                            <TextInput
+                                                placeholder="Purpose (e.g. conversation_suggest)"
+                                                value={row.purpose}
+                                                onChange={(e) => updatePrompt(index, 'purpose', e.target.value)}
+                                                className="w-full"
+                                            />
+                                            {purposeInfo && (
+                                                <p className="text-xs text-gray-500 dark:text-gray-400">{purposeInfo.description}</p>
+                                            )}
+                                        </div>
                                         <TextInput
                                             placeholder="Label"
                                             value={row.label}
@@ -220,14 +249,15 @@ export default function AiIndex({
                                         className="w-full text-sm"
                                     />
                                 </div>
-                            ))}
+                            );
+                            })}
                             <Button type="button" variant="secondary" onClick={addPrompt} className="gap-2">
                                 <Plus className="h-4 w-4" />
                                 Add prompt
                             </Button>
                             {Array.isArray(prompt_library) && prompt_library.length > 0 && (
                                 <div className="space-y-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 p-3">
-                                    <p className="text-xs font-medium text-gray-600 dark:text-gray-300">Prompt library</p>
+                                    <p className="text-xs font-medium text-gray-600 dark:text-gray-300">Prompt library (purpose = where it’s used)</p>
                                     <div className="flex flex-wrap gap-2">
                                         {prompt_library.map((preset, idx) => (
                                             <button
@@ -235,8 +265,12 @@ export default function AiIndex({
                                                 type="button"
                                                 className="rounded-full border border-gray-300 dark:border-gray-700 px-3 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-800"
                                                 onClick={() => addFromLibrary(preset)}
+                                                title={(preset as { purpose_description?: string }).purpose_description ?? preset.purpose}
                                             >
                                                 {preset.label}
+                                                {(preset as { purpose_description?: string }).purpose_description && (
+                                                    <span className="ml-1 text-gray-500 dark:text-gray-400">· {(preset as { purpose_description?: string }).purpose_description}</span>
+                                                )}
                                             </button>
                                         ))}
                                     </div>

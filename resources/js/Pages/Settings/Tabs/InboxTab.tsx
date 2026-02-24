@@ -22,6 +22,21 @@ export default function InboxTab() {
 
     return (
         <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Auto-assignment</div>
+                    <div className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        {data.auto_assign_enabled ? 'Enabled' : 'Disabled'}
+                    </div>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Strategy</div>
+                    <div className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100 capitalize">
+                        {data.auto_assign_enabled ? data.auto_assign_strategy.replace('_', ' ') : 'Manual assignment'}
+                    </div>
+                </div>
+            </div>
+
             <Card className="border-0 shadow-lg">
                 <CardHeader className="bg-gradient-to-r from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20">
                     <div className="flex items-center gap-3">
@@ -35,6 +50,9 @@ export default function InboxTab() {
                     </div>
                 </CardHeader>
                 <CardContent className="p-6">
+                    <div className="mb-4 rounded-xl border border-emerald-100 bg-emerald-50/70 p-3 text-sm text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-900/20 dark:text-emerald-200">
+                        Routing changes apply to new incoming conversations. Existing assignments remain unchanged.
+                    </div>
                     <form onSubmit={submit} className="space-y-6">
                         <div className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm dark:border-emerald-700/50 dark:bg-gray-900">
                             <div className="flex items-start justify-between gap-4">

@@ -16,6 +16,7 @@ export default function ProfileTab() {
     const user = auth?.user;
     const phoneVerificationRequired = Boolean(account?.phone_verification_required);
     const phoneVerified = Boolean(user?.phone_verified_at);
+    const originalPhone = String(user?.phone || '');
 
     const { data, setData, patch, processing, errors, reset, recentlySuccessful } = useForm({
         name: user?.name || '',
@@ -53,6 +54,9 @@ export default function ProfileTab() {
             },
         });
     };
+
+    const phoneChanged = String(data.phone || '').trim() !== originalPhone.trim();
+    const canRequestOtp = !phoneChanged && !!String(data.phone || '').trim();
 
     return (
         <div className="space-y-6">
@@ -93,12 +97,17 @@ export default function ProfileTab() {
 
                         {!phoneVerified && (
                             <form onSubmit={verifyOtp} className="space-y-3">
+                                {phoneChanged && (
+                                    <Alert variant="warning">
+                                        You changed the phone number. Save profile changes first, then request a verification code for the new number.
+                                    </Alert>
+                                )}
                                 <div className="flex flex-col sm:flex-row gap-3">
                                     <Button
                                         type="button"
                                         variant="secondary"
                                         onClick={sendOtp}
-                                        disabled={processing || !String(data.phone || '').trim()}
+                                        disabled={processing || !canRequestOtp}
                                     >
                                         Send Verification Code
                                     </Button>

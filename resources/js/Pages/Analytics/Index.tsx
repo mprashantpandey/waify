@@ -54,6 +54,8 @@ export default function AnalyticsIndex({
     usage: {
         messages_sent: number;
         template_sends: number;
+        ai_credits_used?: number;
+        ai_credits_limit?: number;
         messages_limit: number;
         template_sends_limit: number;
     };
@@ -161,6 +163,35 @@ export default function AnalyticsIndex({
                             </div>
                         </CardContent>
                     </Card>
+
+                    {(usage.ai_credits_used !== undefined || usage.ai_credits_limit !== undefined) && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <BarChart3 className="h-5 w-5 text-amber-500" />
+                                    AI credits (this month)
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="space-y-2">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-600 dark:text-gray-400">Used</span>
+                                        <span className="font-semibold">
+                                            {formatNumber(usage.ai_credits_used ?? 0)} / {usage.ai_credits_limit === -1 || usage.ai_credits_limit === undefined ? '∞' : formatNumber(usage.ai_credits_limit)}
+                                        </span>
+                                    </div>
+                                    {(usage.ai_credits_limit ?? 0) > 0 && (
+                                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                            <div
+                                                className="bg-amber-500 h-2 rounded-full transition-all"
+                                                style={{ width: `${getUsagePercentage(usage.ai_credits_used ?? 0, usage.ai_credits_limit ?? 0)}%` }}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
                 </div>
 
                 {/* Stats Overview */}

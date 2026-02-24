@@ -22,8 +22,31 @@ export default function NotificationsTab() {
         });
     };
 
+    const enabledCount = [
+        data.notify_assignment_enabled,
+        data.notify_mention_enabled,
+        data.notify_sound_enabled,
+    ].filter(Boolean).length;
+
     return (
         <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Enabled preferences</div>
+                    <div className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">{enabledCount}/3</div>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Assignments</div>
+                    <div className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">{data.notify_assignment_enabled ? 'On' : 'Off'}</div>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Mentions + sound</div>
+                    <div className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        {data.notify_mention_enabled ? 'Mentions on' : 'Mentions off'} · {data.notify_sound_enabled ? 'Sound on' : 'Sound off'}
+                    </div>
+                </div>
+            </div>
+
             <Card className="border-0 shadow-lg">
                 <CardHeader className="bg-gradient-to-r from-indigo-50 to-blue-100 dark:from-indigo-900/20 dark:to-blue-800/20">
                     <div className="flex items-center gap-3">
@@ -37,6 +60,9 @@ export default function NotificationsTab() {
                     </div>
                 </CardHeader>
                 <CardContent className="p-6">
+                    <div className="mb-4 rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-sm text-blue-800 dark:border-blue-900/60 dark:bg-blue-900/20 dark:text-blue-200">
+                        These preferences affect your personal in-app alerts only. They do not change tenant-wide routing or campaign behavior.
+                    </div>
                     <form onSubmit={submit} className="space-y-5">
                         <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
                             <div className="flex items-start justify-between gap-4">

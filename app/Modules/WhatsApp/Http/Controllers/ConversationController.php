@@ -608,6 +608,8 @@ class ConversationController extends Controller
             return response()->json(['error' => 'AI is disabled in platform settings.'], 403);
         }
 
+        $this->entitlementService->assertWithinLimit($account, 'ai_credits_monthly', 1);
+
         try {
             $customInstruction = $this->resolveScopedPromptInstruction($request);
             $suggestion = $this->conversationAssistant->suggestReply($conversation, 25, $customInstruction);
@@ -617,6 +619,8 @@ class ConversationController extends Controller
             if ($suggestion === '') {
                 return response()->json(['error' => 'AI returned an empty suggestion. Please try again.'], 422);
             }
+
+            $this->usageService->incrementAiCredits($account, 1);
 
             $user = $request->user();
             if ($user && $account && Schema::hasTable('ai_usage_logs')) {

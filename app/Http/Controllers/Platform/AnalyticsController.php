@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use App\Models\Account;
+use App\Models\AccountUsage;
 use App\Models\Subscription;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -98,6 +99,10 @@ class AnalyticsController extends Controller
             ->orderBy('hour')
             ->get();
 
+        // AI credits (platform total for current billing period)
+        $currentPeriod = now()->format('Y-m');
+        $aiCreditsPlatform = (int) AccountUsage::where('period', $currentPeriod)->sum('ai_credits_used');
+
         // Top Accounts by Activity
         $topAccounts = Account::select(
             'accounts.id',
@@ -131,6 +136,8 @@ class AnalyticsController extends Controller
             'account_growth' => $accountGrowth,
             'subscription_distribution' => $subscriptionDistribution,
             'peak_hours' => $peakHours,
-            'top_accounts' => $topAccounts]);
+            'top_accounts' => $topAccounts,
+            'ai_credits_platform' => $aiCreditsPlatform,
+            'ai_credits_period' => $currentPeriod]);
     }
 }

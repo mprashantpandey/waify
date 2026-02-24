@@ -152,6 +152,10 @@ class AnalyticsController extends Controller
             ->count();
         $planResolver = app(\App\Core\Billing\PlanResolver::class);
         $limits = $planResolver->getEffectiveLimits($account);
+        $usageService = app(\App\Core\Billing\UsageService::class);
+        $currentUsage = $usageService->getCurrentUsage($account);
+        $aiCreditsThisMonth = (int) ($currentUsage->ai_credits_used ?? 0);
+        $aiCreditsLimit = (int) ($limits['ai_credits_monthly'] ?? 0);
 
         // Daily Activity
         $dailyActivity = (clone $messagesQuery)
@@ -409,6 +413,8 @@ class AnalyticsController extends Controller
             'usage' => [
                 'messages_sent' => $messagesSentThisPeriod,
                 'template_sends' => $templateSendsThisPeriod,
+                'ai_credits_used' => $aiCreditsThisMonth,
+                'ai_credits_limit' => $aiCreditsLimit,
                 'messages_limit' => $limits['messages_monthly'] ?? 0,
                 'template_sends_limit' => $limits['template_sends_monthly'] ?? 0]]);
     }

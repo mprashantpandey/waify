@@ -220,6 +220,19 @@ class SupportController extends Controller
             abort(404);
         }
         $thread->load('account');
+        $account = $thread->account;
+        if (!$account) {
+            return response()->json(['error' => 'Account not found.'], 404);
+        }
+
+        $planResolver = app(\App\Core\Billing\PlanResolver::class);
+        $effectiveModules = $planResolver->getEffectiveModules($account);
+        if (!in_array('ai', $effectiveModules, true)) {
+            return response()->json(['error' => 'AI module is not available for this account\'s plan.'], 403);
+        }
+
+        app(\App\Core\Billing\EntitlementService::class)->assertWithinLimit($account, 'ai_credits_monthly', 1);
+
         $action = $request->input('action', 'reply');
 
         $messages = SupportMessage::where('support_thread_id', $thread->id)
@@ -233,6 +246,20 @@ class SupportController extends Controller
             $suggestion = $assistant->generateReply($thread, $messages, $action);
         } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 422);
+        }
+
+        app(\App\Core\Billing\UsageService::class)->incrementAiCredits($account, 1);
+
+        if ($request->user() && \Illuminate\Support\Facades\Schema::hasTable('ai_usage_logs')) {
+            try {
+                \App\Models\AiUsageLog::create([
+                    'user_id' => $request->user()->id,
+                    'account_id' => $account->id,
+                    'feature' => 'support_reply',
+                ]);
+            } catch (\Illuminate\Database\QueryException $e) {
+                // non-blocking
+            }
         }
 
         return response()->json([

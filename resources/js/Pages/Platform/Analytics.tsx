@@ -10,7 +10,8 @@ import {
     MessageSquare, 
     FileText,
     Clock,
-    Building2
+    Building2,
+    Sparkles
 } from 'lucide-react';
 import { usePage } from '@inertiajs/react';
 import { useState } from 'react';
@@ -55,7 +56,9 @@ export default function Analytics({
     account_growth,
     subscription_distribution,
     peak_hours,
-    top_accounts}: {
+    top_accounts,
+    ai_credits_platform = 0,
+    ai_credits_period = '' }: {
     date_range: string;
     message_trends: MessageTrend[];
     message_status_distribution: Record<string, number>;
@@ -64,6 +67,8 @@ export default function Analytics({
     subscription_distribution: Record<string, number>;
     peak_hours: PeakHour[];
     top_accounts: TopTenant[];
+    ai_credits_platform?: number;
+    ai_credits_period?: string;
 }) {
     const { auth } = usePage().props as any;
     const [selectedRange, setSelectedRange] = useState(date_range);
@@ -112,6 +117,24 @@ export default function Analytics({
                         </select>
                     </div>
                 </div>
+
+                {/* AI credits (billing period) */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Sparkles className="h-5 w-5 text-amber-500" />
+                            AI credits (platform)
+                        </CardTitle>
+                        <CardDescription>
+                            Total AI credits used across all accounts this billing period {ai_credits_period ? `(${ai_credits_period})` : ''}
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+                            {formatNumber(ai_credits_platform)}
+                        </p>
+                    </CardContent>
+                </Card>
 
                 {/* Message Trends Chart */}
                 <Card>

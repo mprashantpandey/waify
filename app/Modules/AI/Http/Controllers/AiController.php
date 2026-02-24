@@ -30,6 +30,7 @@ class AiController extends Controller
             'ai_suggestions_enabled' => (bool) ($user->ai_suggestions_enabled ?? false),
             'ai_prompts' => is_array($user->ai_prompts) ? $user->ai_prompts : [],
             'prompt_library' => $this->promptLibrary(),
+            'purpose_options' => $this->purposeOptions(),
             'platform_ai_enabled' => $this->toBoolean(PlatformSetting::get('ai.enabled', false)),
             'platform_ai_provider' => PlatformSetting::get('ai.provider', 'openai'),
             'usage' => $usage,
@@ -158,23 +159,45 @@ class AiController extends Controller
         return (bool) $value;
     }
 
+    /**
+     * Human-readable purpose options: where each prompt type is used.
+     */
+    protected function purposeOptions(): array
+    {
+        return [
+            [
+                'value' => 'conversation_suggest',
+                'label' => 'Conversation reply (WhatsApp)',
+                'description' => 'Used when suggesting reply text in WhatsApp conversations (Suggest button in chat).',
+            ],
+            [
+                'value' => 'support_reply',
+                'label' => 'Support ticket / live chat',
+                'description' => 'Used for Support assistant suggestions (summaries, next steps, or reply drafts in support threads).',
+            ],
+        ];
+    }
+
     protected function promptLibrary(): array
     {
         return [
             [
                 'purpose' => 'conversation_suggest',
+                'purpose_description' => 'WhatsApp conversation reply suggestions',
                 'label' => 'Sales-friendly reply',
                 'scope' => 'member',
                 'prompt' => 'Reply in 1-2 short lines. Be warm, clear, and include one concrete next step.',
             ],
             [
                 'purpose' => 'conversation_suggest',
+                'purpose_description' => 'WhatsApp conversation reply suggestions',
                 'label' => 'Escalation-safe reply',
                 'scope' => 'all',
                 'prompt' => 'If policy/approval is needed, acknowledge and ask for required details before promising outcomes.',
             ],
             [
                 'purpose' => 'support_reply',
+                'purpose_description' => 'Support ticket / live chat replies',
                 'label' => 'Structured support response',
                 'scope' => 'admin',
                 'prompt' => 'Use format: What happened, Why it happened, What to do next. Keep it concise and actionable.',
