@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Account;
 use App\Models\MetaPricingRate;
 use App\Models\MetaPricingVersion;
+use App\Models\PlatformSetting;
 use App\Modules\WhatsApp\Models\WhatsAppMessageBilling;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -177,7 +178,26 @@ class MetaPricingController extends Controller
 
     public function importLegacy(Request $request)
     {
-        $legacy = $this->metaPricingResolver->resolve(now());
+        // Import from raw legacy platform settings only (not from already-versioned pricing),
+        // otherwise this action can accidentally clone the active table-based version.
+        $legacyCountry = PlatformSetting::get('whatsapp.meta_billing.default_country_code', 'IN');
+        $legacyCurrency = PlatformSetting::get('payment.default_currency', 'INR');
+        $legacy = [
+            'country_code' => $legacyCountry,
+            'currency' => $legacyCurrency,
+            'rates' => [
+                'marketing' => (int) PlatformSetting::get('whatsapp.meta_billing.rate.marketing_minor', 0),
+                'utility' => (int) PlatformSetting::get('whatsapp.meta_billing.rate.utility_minor', 0),
+                'authentication' => (int) PlatformSetting::get('whatsapp.meta_billing.rate.authentication_minor', 0),
+                'service' => (int) PlatformSetting::get('whatsapp.meta_billing.rate.service_minor', 0),
+            ],
+        ];
+
+        $hasAnyLegacyRate = collect($legacy['rates'])->contains(fn ($value) => (int) $value > 0);
+        if (!$hasAnyLegacyRate) {
+            return redirect()->route('platform.meta-pricing.index')
+                ->with('error', 'Legacy Meta rates are empty (all categories are 0). Configure legacy Meta billing rates first, then import.');
+        }
 
         DB::transaction(function () use ($legacy, $request) {
             $countryCode = $this->normalizeCountryCode($legacy['country_code'] ?? null);

@@ -5,6 +5,8 @@ namespace App\Core\Billing;
 use App\Models\Account;
 use App\Models\AccountUsage;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class UsageService
 {
@@ -122,23 +124,51 @@ class UsageService
     {
         $periods = [];
         $now = Carbon::now();
+        $hasBillingsTable = Schema::hasTable('whatsapp_message_billings');
 
         for ($i = 0; $i < $months; $i++) {
             $period = $now->copy()->subMonths($i)->format('Y-m');
             $usage = $this->getUsageForPeriod($account, $period);
+            $metaFromBillings = null;
+
+            if ($hasBillingsTable) {
+                $start = Carbon::createFromFormat('Y-m', $period)->startOfMonth();
+                $end = $start->copy()->endOfMonth();
+                $rows = DB::table('whatsapp_message_billings')
+                    ->where('account_id', $account->id)
+                    ->whereBetween('created_at', [$start, $end])
+                    ->select(
+                        DB::raw('COALESCE(NULLIF(category, \'\'), \'uncategorized\') as category'),
+                        'billable',
+                        DB::raw('COUNT(*) as conversations_count'),
+                        DB::raw('SUM(COALESCE(estimated_cost_minor, 0)) as estimated_cost_minor')
+                    )
+                    ->groupBy('category', 'billable')
+                    ->get();
+
+                $metaFromBillings = [
+                    'meta_conversations_free_used' => (int) $rows->where('billable', 0)->sum('conversations_count'),
+                    'meta_conversations_paid' => (int) $rows->where('billable', 1)->sum('conversations_count'),
+                    'meta_conversations_marketing' => (int) $rows->where('category', 'marketing')->sum('conversations_count'),
+                    'meta_conversations_utility' => (int) $rows->where('category', 'utility')->sum('conversations_count'),
+                    'meta_conversations_authentication' => (int) $rows->where('category', 'authentication')->sum('conversations_count'),
+                    'meta_conversations_service' => (int) $rows->where('category', 'service')->sum('conversations_count'),
+                    'meta_estimated_cost_minor' => (int) $rows->where('billable', 1)->sum('estimated_cost_minor'),
+                ];
+            }
             
             $periods[] = [
                 'period' => $period,
                 'messages_sent' => $usage?->messages_sent ?? 0,
                 'template_sends' => $usage?->template_sends ?? 0,
                 'ai_credits_used' => $usage?->ai_credits_used ?? 0,
-                'meta_conversations_free_used' => $usage?->meta_conversations_free_used ?? 0,
-                'meta_conversations_paid' => $usage?->meta_conversations_paid ?? 0,
-                'meta_conversations_marketing' => $usage?->meta_conversations_marketing ?? 0,
-                'meta_conversations_utility' => $usage?->meta_conversations_utility ?? 0,
-                'meta_conversations_authentication' => $usage?->meta_conversations_authentication ?? 0,
-                'meta_conversations_service' => $usage?->meta_conversations_service ?? 0,
-                'meta_estimated_cost_minor' => $usage?->meta_estimated_cost_minor ?? 0,
+                'meta_conversations_free_used' => $metaFromBillings['meta_conversations_free_used'] ?? ($usage?->meta_conversations_free_used ?? 0),
+                'meta_conversations_paid' => $metaFromBillings['meta_conversations_paid'] ?? ($usage?->meta_conversations_paid ?? 0),
+                'meta_conversations_marketing' => $metaFromBillings['meta_conversations_marketing'] ?? ($usage?->meta_conversations_marketing ?? 0),
+                'meta_conversations_utility' => $metaFromBillings['meta_conversations_utility'] ?? ($usage?->meta_conversations_utility ?? 0),
+                'meta_conversations_authentication' => $metaFromBillings['meta_conversations_authentication'] ?? ($usage?->meta_conversations_authentication ?? 0),
+                'meta_conversations_service' => $metaFromBillings['meta_conversations_service'] ?? ($usage?->meta_conversations_service ?? 0),
+                'meta_estimated_cost_minor' => $metaFromBillings['meta_estimated_cost_minor'] ?? ($usage?->meta_estimated_cost_minor ?? 0),
             ];
         }
 

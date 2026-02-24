@@ -41,6 +41,7 @@ class BillingController extends Controller
         $plan = $this->planResolver->getAccountPlan($account);
         $limits = $this->planResolver->getEffectiveLimits($account);
         $usage = $this->usageService->getCurrentUsage($account);
+        $usageMetaSnapshot = $this->currentMetaUsageSnapshot($account);
         $metaBilling = $this->buildMetaBillingSummary($usage, $account);
         $wallet = $this->walletService->getOrCreateWallet($account);
 
@@ -79,13 +80,13 @@ class BillingController extends Controller
                 'messages_sent' => $usage->messages_sent,
                 'template_sends' => $usage->template_sends,
                 'ai_credits_used' => $usage->ai_credits_used,
-                'meta_conversations_free_used' => $usage->meta_conversations_free_used ?? 0,
-                'meta_conversations_paid' => $usage->meta_conversations_paid ?? 0,
-                'meta_conversations_marketing' => $usage->meta_conversations_marketing ?? 0,
-                'meta_conversations_utility' => $usage->meta_conversations_utility ?? 0,
-                'meta_conversations_authentication' => $usage->meta_conversations_authentication ?? 0,
-                'meta_conversations_service' => $usage->meta_conversations_service ?? 0,
-                'meta_estimated_cost_minor' => $usage->meta_estimated_cost_minor ?? 0,
+                'meta_conversations_free_used' => $usageMetaSnapshot['meta_conversations_free_used'] ?? ($usage->meta_conversations_free_used ?? 0),
+                'meta_conversations_paid' => $usageMetaSnapshot['meta_conversations_paid'] ?? ($usage->meta_conversations_paid ?? 0),
+                'meta_conversations_marketing' => $usageMetaSnapshot['meta_conversations_marketing'] ?? ($usage->meta_conversations_marketing ?? 0),
+                'meta_conversations_utility' => $usageMetaSnapshot['meta_conversations_utility'] ?? ($usage->meta_conversations_utility ?? 0),
+                'meta_conversations_authentication' => $usageMetaSnapshot['meta_conversations_authentication'] ?? ($usage->meta_conversations_authentication ?? 0),
+                'meta_conversations_service' => $usageMetaSnapshot['meta_conversations_service'] ?? ($usage->meta_conversations_service ?? 0),
+                'meta_estimated_cost_minor' => $usageMetaSnapshot['meta_estimated_cost_minor'] ?? ($usage->meta_estimated_cost_minor ?? 0),
             ],
             'meta_billing' => $metaBilling,
             'wallet' => [
@@ -526,6 +527,7 @@ class BillingController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
         $usageHistory = $this->usageService->getUsageHistory($account, 3);
         $currentUsage = $this->usageService->getCurrentUsage($account);
+        $usageMetaSnapshot = $this->currentMetaUsageSnapshot($account);
         $limits = $this->planResolver->getEffectiveLimits($account);
         $metaBilling = $this->buildMetaBillingSummary($currentUsage, $account);
 
@@ -548,13 +550,13 @@ class BillingController extends Controller
                 'messages_sent' => $currentUsage->messages_sent,
                 'template_sends' => $currentUsage->template_sends,
                 'ai_credits_used' => $currentUsage->ai_credits_used,
-                'meta_conversations_free_used' => $currentUsage->meta_conversations_free_used ?? 0,
-                'meta_conversations_paid' => $currentUsage->meta_conversations_paid ?? 0,
-                'meta_conversations_marketing' => $currentUsage->meta_conversations_marketing ?? 0,
-                'meta_conversations_utility' => $currentUsage->meta_conversations_utility ?? 0,
-                'meta_conversations_authentication' => $currentUsage->meta_conversations_authentication ?? 0,
-                'meta_conversations_service' => $currentUsage->meta_conversations_service ?? 0,
-                'meta_estimated_cost_minor' => $currentUsage->meta_estimated_cost_minor ?? 0,
+                'meta_conversations_free_used' => $usageMetaSnapshot['meta_conversations_free_used'] ?? ($currentUsage->meta_conversations_free_used ?? 0),
+                'meta_conversations_paid' => $usageMetaSnapshot['meta_conversations_paid'] ?? ($currentUsage->meta_conversations_paid ?? 0),
+                'meta_conversations_marketing' => $usageMetaSnapshot['meta_conversations_marketing'] ?? ($currentUsage->meta_conversations_marketing ?? 0),
+                'meta_conversations_utility' => $usageMetaSnapshot['meta_conversations_utility'] ?? ($currentUsage->meta_conversations_utility ?? 0),
+                'meta_conversations_authentication' => $usageMetaSnapshot['meta_conversations_authentication'] ?? ($currentUsage->meta_conversations_authentication ?? 0),
+                'meta_conversations_service' => $usageMetaSnapshot['meta_conversations_service'] ?? ($currentUsage->meta_conversations_service ?? 0),
+                'meta_estimated_cost_minor' => $usageMetaSnapshot['meta_estimated_cost_minor'] ?? ($currentUsage->meta_estimated_cost_minor ?? 0),
             ],
             'meta_billing' => $metaBilling,
             'limits' => $limits,
@@ -845,6 +847,7 @@ class BillingController extends Controller
 
         $freeUsed = (int) ($usage->meta_conversations_free_used ?? 0);
         $breakdown = collect();
+        $monthEstimatedFromBillings = null;
         if ($account) {
             $periodStart = now()->startOfMonth();
             $periodEnd = now()->endOfMonth();
@@ -860,6 +863,13 @@ class BillingController extends Controller
                 )
                 ->groupBy('category', 'billable')
                 ->get();
+
+            $monthEstimatedFromBillings = (int) $rows
+                ->where('billable', true)
+                ->sum(fn ($r) => (int) ($r->estimated_cost_minor ?? 0));
+            $freeUsed = (int) $rows
+                ->where('billable', false)
+                ->sum(fn ($r) => (int) ($r->conversations_count ?? 0));
 
             $categories = ['marketing', 'utility', 'authentication', 'service', 'uncategorized'];
             $breakdown = collect($categories)->map(function (string $category) use ($rows, $pricePerConversationMinor) {
@@ -880,7 +890,10 @@ class BillingController extends Controller
             'free_tier_limit' => $freeTierLimit,
             'free_tier_used' => $freeUsed,
             'free_tier_remaining' => max(0, $freeTierLimit - $freeUsed),
-            'estimated_cost_minor' => (int) ($usage->meta_estimated_cost_minor ?? 0),
+            // Prefer current-month billing-row totals so versioned/recalculated pricing is reflected immediately.
+            'estimated_cost_minor' => $monthEstimatedFromBillings !== null
+                ? (int) $monthEstimatedFromBillings
+                : (int) ($usage->meta_estimated_cost_minor ?? 0),
             'currency' => $currency,
             'price_per_conversation_minor' => $pricePerConversationMinor,
             'pricing_source' => $resolvedPricing['source'] ?? 'legacy_settings',
@@ -897,6 +910,38 @@ class BillingController extends Controller
             'account_billing_currency' => $accountCurrency,
             'category_breakdown' => $breakdown->all(),
             'note' => 'Meta bills WhatsApp conversations separately. Values shown here are webhook-based estimates and can differ from your official Meta invoice.',
+        ];
+    }
+
+    protected function currentMetaUsageSnapshot(?\App\Models\Account $account): ?array
+    {
+        if (!$account || !\Illuminate\Support\Facades\Schema::hasTable('whatsapp_message_billings')) {
+            return null;
+        }
+
+        $periodStart = now()->startOfMonth();
+        $periodEnd = now()->endOfMonth();
+
+        $rows = WhatsAppMessageBilling::query()
+            ->where('account_id', $account->id)
+            ->whereBetween('created_at', [$periodStart, $periodEnd])
+            ->select(
+                DB::raw('COALESCE(NULLIF(category, \'\'), \'uncategorized\') as category'),
+                'billable',
+                DB::raw('COUNT(*) as conversations_count'),
+                DB::raw('SUM(COALESCE(estimated_cost_minor, 0)) as estimated_cost_minor')
+            )
+            ->groupBy('category', 'billable')
+            ->get();
+
+        return [
+            'meta_conversations_free_used' => (int) $rows->where('billable', false)->sum('conversations_count'),
+            'meta_conversations_paid' => (int) $rows->where('billable', true)->sum('conversations_count'),
+            'meta_conversations_marketing' => (int) $rows->where('category', 'marketing')->sum('conversations_count'),
+            'meta_conversations_utility' => (int) $rows->where('category', 'utility')->sum('conversations_count'),
+            'meta_conversations_authentication' => (int) $rows->where('category', 'authentication')->sum('conversations_count'),
+            'meta_conversations_service' => (int) $rows->where('category', 'service')->sum('conversations_count'),
+            'meta_estimated_cost_minor' => (int) $rows->where('billable', true)->sum('estimated_cost_minor'),
         ];
     }
 }
