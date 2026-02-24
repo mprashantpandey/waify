@@ -14,6 +14,8 @@ class Account extends Model
     protected $fillable = [
         'name',
         'slug',
+        'billing_country_code',
+        'billing_currency',
         'owner_id',
         'status',
         'disabled_reason',
@@ -88,6 +90,8 @@ class Account extends Model
     {
         return [
             'disabled_at' => 'datetime',
+            'billing_country_code' => 'string',
+            'billing_currency' => 'string',
             'auto_assign_enabled' => 'boolean'];
     }
 

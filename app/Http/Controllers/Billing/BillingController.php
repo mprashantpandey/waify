@@ -837,8 +837,10 @@ class BillingController extends Controller
     {
         $settingsService = app(PlatformSettingsService::class);
         $freeTierLimit = (int) $settingsService->get('whatsapp.meta_billing.free_tier_limit', 1000);
-        $resolvedPricing = $this->metaPricingResolver->resolve(now());
-        $currency = strtoupper((string) ($resolvedPricing['currency'] ?? $settingsService->get('payment.default_currency', 'INR')));
+        $accountCountry = $account?->billing_country_code;
+        $accountCurrency = $account?->billing_currency;
+        $resolvedPricing = $this->metaPricingResolver->resolve(now(), $accountCountry);
+        $currency = strtoupper((string) ($accountCurrency ?: ($resolvedPricing['currency'] ?? $settingsService->get('payment.default_currency', 'INR'))));
         $pricePerConversationMinor = $resolvedPricing['rates'] ?? [];
 
         $freeUsed = (int) ($usage->meta_conversations_free_used ?? 0);
@@ -882,7 +884,7 @@ class BillingController extends Controller
             'currency' => $currency,
             'price_per_conversation_minor' => $pricePerConversationMinor,
             'pricing_source' => $resolvedPricing['source'] ?? 'legacy_settings',
-            'pricing_country_code' => $resolvedPricing['country_code'] ?? null,
+            'pricing_country_code' => $resolvedPricing['country_code'] ?? $accountCountry,
             'pricing_version' => $resolvedPricing['version'] ? [
                 'id' => $resolvedPricing['version']->id,
                 'country_code' => $resolvedPricing['version']->country_code,
@@ -891,6 +893,8 @@ class BillingController extends Controller
                 'effective_to' => $resolvedPricing['version']->effective_to?->toIso8601String(),
                 'notes' => $resolvedPricing['version']->notes,
             ] : null,
+            'account_billing_country_code' => $accountCountry,
+            'account_billing_currency' => $accountCurrency,
             'category_breakdown' => $breakdown->all(),
             'note' => 'Meta bills WhatsApp conversations separately. Values shown here are webhook-based estimates and can differ from your official Meta invoice.',
         ];

@@ -399,10 +399,12 @@ class WebhookProcessor
         $billable = $this->toBoolean($pricing['billable'] ?? false);
         $category = strtolower((string) ($pricing['category'] ?? $conversation['category'] ?? ''));
         $pricingModel = (string) ($pricing['pricing_model'] ?? '');
+        $account = $connection->account ?: Account::find($connection->account_id);
         $pricingQuote = $this->metaPricingResolver->estimateCostMinor(
             billable: $billable,
             category: $category,
-            at: now()
+            at: now(),
+            countryCode: $account?->billing_country_code ?? null
         );
         $estimatedCostMinor = (int) ($pricingQuote['estimated_cost_minor'] ?? 0);
 
@@ -439,7 +441,6 @@ class WebhookProcessor
             return;
         }
 
-        $account = $connection->account ?: Account::find($connection->account_id);
         if (!$account) {
             return;
         }

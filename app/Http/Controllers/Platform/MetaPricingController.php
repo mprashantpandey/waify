@@ -6,8 +6,10 @@ use App\Core\Billing\MetaPricingResolver;
 use App\Http\Controllers\Controller;
 use App\Models\MetaPricingRate;
 use App\Models\MetaPricingVersion;
+use App\Modules\WhatsApp\Models\WhatsAppMessageBilling;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -44,6 +46,7 @@ class MetaPricingController extends Controller
             });
 
         $legacy = $this->metaPricingResolver->resolve(now());
+        $reconciliation = $this->buildReconciliationSnapshot();
 
         return Inertia::render('Platform/MetaPricing/Index', [
             'versions' => $versions,
@@ -53,6 +56,7 @@ class MetaPricingController extends Controller
                 'rates' => $legacy['rates'] ?? [],
                 'source' => $legacy['source'] ?? 'legacy_settings',
             ],
+            'reconciliation' => $reconciliation,
         ]);
     }
 
@@ -218,5 +222,89 @@ class MetaPricingController extends Controller
         $value = strtoupper(trim((string) $value));
         return $value !== '' ? $value : null;
     }
-}
 
+    protected function buildReconciliationSnapshot(): array
+    {
+        if (!Schema::hasTable('whatsapp_message_billings')) {
+            return [
+                'available' => false,
+                'summary' => [],
+                'recent_issues' => [],
+            ];
+        }
+
+        $base = WhatsAppMessageBilling::query();
+
+        $summary = [
+            'total_records' => (clone $base)->count(),
+            'billable_records' => (clone $base)->where('billable', true)->count(),
+            'missing_pricing_version' => (clone $base)->where('billable', true)->whereNull('meta_pricing_version_id')->count(),
+            'zero_rate_billable' => (clone $base)->where('billable', true)->where(function ($q) {
+                $q->whereNull('rate_minor')->orWhere('rate_minor', '<=', 0);
+            })->count(),
+            'zero_cost_billable' => (clone $base)->where('billable', true)->where(function ($q) {
+                $q->whereNull('estimated_cost_minor')->orWhere('estimated_cost_minor', '<=', 0);
+            })->count(),
+            'uncategorized' => (clone $base)->where(function ($q) {
+                $q->whereNull('category')->orWhere('category', '');
+            })->count(),
+        ];
+
+        $recentIssues = WhatsAppMessageBilling::query()
+            ->leftJoin('accounts', 'accounts.id', '=', 'whatsapp_message_billings.account_id')
+            ->select(
+                'whatsapp_message_billings.id',
+                'whatsapp_message_billings.account_id',
+                'accounts.name as account_name',
+                'whatsapp_message_billings.meta_message_id',
+                'whatsapp_message_billings.billable',
+                'whatsapp_message_billings.category',
+                'whatsapp_message_billings.meta_pricing_version_id',
+                'whatsapp_message_billings.pricing_country_code',
+                'whatsapp_message_billings.pricing_currency',
+                'whatsapp_message_billings.rate_minor',
+                'whatsapp_message_billings.estimated_cost_minor',
+                'whatsapp_message_billings.created_at'
+            )
+            ->where(function ($q) {
+                $q->where(function ($qq) {
+                    $qq->where('whatsapp_message_billings.billable', true)
+                        ->whereNull('whatsapp_message_billings.meta_pricing_version_id');
+                })->orWhere(function ($qq) {
+                    $qq->where('whatsapp_message_billings.billable', true)
+                        ->where(function ($q3) {
+                            $q3->whereNull('whatsapp_message_billings.rate_minor')
+                                ->orWhere('whatsapp_message_billings.rate_minor', '<=', 0);
+                        });
+                })->orWhere(function ($qq) {
+                    $qq->whereNull('whatsapp_message_billings.category')
+                        ->orWhere('whatsapp_message_billings.category', '');
+                });
+            })
+            ->orderByDesc('whatsapp_message_billings.created_at')
+            ->limit(50)
+            ->get()
+            ->map(fn ($row) => [
+                'id' => (int) $row->id,
+                'account_id' => (int) $row->account_id,
+                'account_name' => $row->account_name ?: 'Unknown',
+                'meta_message_id' => (string) $row->meta_message_id,
+                'billable' => (bool) $row->billable,
+                'category' => $row->category,
+                'meta_pricing_version_id' => $row->meta_pricing_version_id ? (int) $row->meta_pricing_version_id : null,
+                'pricing_country_code' => $row->pricing_country_code,
+                'pricing_currency' => $row->pricing_currency,
+                'rate_minor' => (int) ($row->rate_minor ?? 0),
+                'estimated_cost_minor' => (int) ($row->estimated_cost_minor ?? 0),
+                'created_at' => optional($row->created_at)?->toIso8601String() ?? (string) $row->created_at,
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'available' => true,
+            'summary' => $summary,
+            'recent_issues' => $recentIssues,
+        ];
+    }
+}

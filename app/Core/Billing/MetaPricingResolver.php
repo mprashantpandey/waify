@@ -64,6 +64,12 @@ class MetaPricingResolver
         ];
     }
 
+    public function normalizeCountryCode(?string $countryCode): ?string
+    {
+        $country = strtoupper(trim((string) $countryCode));
+        return $country !== '' ? $country : null;
+    }
+
     public function estimateCostMinor(bool $billable, ?string $category, ?CarbonInterface $at = null, ?string $countryCode = null): array
     {
         $resolved = $this->resolve($at, $countryCode);
@@ -89,4 +95,3 @@ class MetaPricingResolver
         ];
     }
 }
-

@@ -75,6 +75,7 @@ Route::middleware(['auth', 'super.admin'])->prefix('/platform')->name('platform.
     Route::get('/', [\App\Http\Controllers\Platform\DashboardController::class, 'index'])->name('dashboard');
     Route::get('/accounts', [\App\Http\Controllers\Platform\PlatformAccountController::class, 'index'])->name('accounts.index');
     Route::get('/accounts/{account}', [\App\Http\Controllers\Platform\PlatformAccountController::class, 'show'])->name('accounts.show');
+    Route::post('/accounts/{account}/billing-profile', [\App\Http\Controllers\Platform\PlatformAccountController::class, 'updateBillingProfile'])->name('accounts.billing-profile.update');
     Route::post('/accounts/{account}/impersonate', [ImpersonationController::class, 'start'])->name('accounts.impersonate');
     Route::post('/accounts/{account}/disable', [\App\Http\Controllers\Platform\PlatformAccountController::class, 'disable'])->name('accounts.disable');
     Route::post('/accounts/{account}/enable', [\App\Http\Controllers\Platform\PlatformAccountController::class, 'enable'])->name('accounts.enable');

@@ -90,6 +90,8 @@ class PlatformAccountController extends Controller
                 'id' => $account->id,
                 'name' => $account->name,
                 'slug' => $account->slug,
+                'billing_country_code' => $account->billing_country_code,
+                'billing_currency' => $account->billing_currency,
                 'status' => $account->status,
                 'disabled_reason' => $account->disabled_reason,
                 'disabled_at' => $account->disabled_at?->toIso8601String(),
@@ -106,6 +108,25 @@ class PlatformAccountController extends Controller
                     'currency' => $wallet->currency,
                 ],
                 'created_at' => $account->created_at->toIso8601String()]]);
+    }
+
+    public function updateBillingProfile(Request $request, Account $account)
+    {
+        $validated = $request->validate([
+            'billing_country_code' => 'nullable|string|size:2',
+            'billing_currency' => 'nullable|string|size:3',
+        ]);
+
+        $account->update([
+            'billing_country_code' => filled($validated['billing_country_code'] ?? null)
+                ? strtoupper((string) $validated['billing_country_code'])
+                : null,
+            'billing_currency' => filled($validated['billing_currency'] ?? null)
+                ? strtoupper((string) $validated['billing_currency'])
+                : null,
+        ]);
+
+        return redirect()->back()->with('success', 'Tenant billing profile updated.');
     }
 
     /**

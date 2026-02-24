@@ -10,6 +10,8 @@ interface Tenant {
     id: number;
     name: string;
     slug: string;
+    billing_country_code?: string | null;
+    billing_currency?: string | null;
     status: string;
     disabled_reason: string | null;
     disabled_at: string | null;
@@ -37,6 +39,8 @@ export default function PlatformTenantsShow({
     const [confirmDisable, setConfirmDisable] = useState(false);
     const [confirmEnable, setConfirmEnable] = useState(false);
     const [walletAmount, setWalletAmount] = useState('0');
+    const [billingCountryCode, setBillingCountryCode] = useState(account.billing_country_code || '');
+    const [billingCurrency, setBillingCurrency] = useState(account.billing_currency || '');
 
     const handleDisable = () => {
         router.post(route('platform.accounts.disable', { account: account.id }), {
@@ -142,6 +146,12 @@ export default function PlatformTenantsShow({
                                         {new Date(account.created_at).toLocaleString()}
                                     </dd>
                                 </div>
+                                <div>
+                                    <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Billing Country / Currency</dt>
+                                    <dd className="mt-1 text-sm text-gray-900 dark:text-gray-100">
+                                        {(account.billing_country_code || 'Default')} / {(account.billing_currency || 'Default')}
+                                    </dd>
+                                </div>
                             </dl>
                         </CardContent>
                     </Card>
@@ -197,6 +207,50 @@ export default function PlatformTenantsShow({
                             <Link href={route('platform.transactions.index')} className="mt-3 inline-block text-sm text-blue-600">
                                 View all transactions
                             </Link>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Billing Profile (Meta Pricing)</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-3">
+                                <div className="grid grid-cols-2 gap-2">
+                                    <input
+                                        type="text"
+                                        maxLength={2}
+                                        value={billingCountryCode}
+                                        onChange={(e) => setBillingCountryCode(e.target.value.toUpperCase())}
+                                        placeholder="Country (e.g. IN)"
+                                        className="px-3 py-2 border rounded-md bg-white dark:bg-gray-900 text-sm"
+                                    />
+                                    <input
+                                        type="text"
+                                        maxLength={3}
+                                        value={billingCurrency}
+                                        onChange={(e) => setBillingCurrency(e.target.value.toUpperCase())}
+                                        placeholder="Currency (e.g. INR)"
+                                        className="px-3 py-2 border rounded-md bg-white dark:bg-gray-900 text-sm"
+                                    />
+                                </div>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    Used to resolve versioned Meta pricing for tenant billing estimates. Leave blank to use platform defaults.
+                                </p>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="primary"
+                                        onClick={() =>
+                                            router.post(route('platform.accounts.billing-profile.update', { account: account.id }), {
+                                                billing_country_code: billingCountryCode || null,
+                                                billing_currency: billingCurrency || null,
+                                            })
+                                        }
+                                    >
+                                        Save Billing Profile
+                                    </Button>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
                 </div>

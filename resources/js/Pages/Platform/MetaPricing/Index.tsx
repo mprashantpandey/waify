@@ -49,9 +49,28 @@ type FormData = {
 export default function PlatformMetaPricingIndex({
     versions,
     legacy_default,
+    reconciliation,
 }: {
     versions: PricingVersion[];
     legacy_default: LegacyDefault;
+    reconciliation?: {
+        available: boolean;
+        summary: Record<string, number>;
+        recent_issues: Array<{
+            id: number;
+            account_id: number;
+            account_name: string;
+            meta_message_id: string;
+            billable: boolean;
+            category?: string | null;
+            meta_pricing_version_id?: number | null;
+            pricing_country_code?: string | null;
+            pricing_currency?: string | null;
+            rate_minor: number;
+            estimated_cost_minor: number;
+            created_at: string;
+        }>;
+    };
 }) {
     const { auth } = usePage().props as any;
     const { data, setData, post, processing, errors, reset } = useForm<FormData>({
@@ -246,6 +265,89 @@ export default function PlatformMetaPricingIndex({
                                 </div>
                             );
                         })}
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Reconciliation Snapshot</CardTitle>
+                        <CardDescription>
+                            Quick audit of Meta billing snapshots captured from webhooks
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        {!reconciliation?.available ? (
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                `whatsapp_message_billings` table is not available on this environment yet.
+                            </p>
+                        ) : (
+                            <>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                    {[
+                                        ['Total Records', reconciliation.summary.total_records ?? 0],
+                                        ['Billable', reconciliation.summary.billable_records ?? 0],
+                                        ['Missing Version', reconciliation.summary.missing_pricing_version ?? 0],
+                                        ['Zero Rate (Billable)', reconciliation.summary.zero_rate_billable ?? 0],
+                                        ['Zero Cost (Billable)', reconciliation.summary.zero_cost_billable ?? 0],
+                                        ['Uncategorized', reconciliation.summary.uncategorized ?? 0],
+                                    ].map(([label, value]) => (
+                                        <div key={String(label)} className="rounded-lg border border-gray-200 dark:border-gray-800 p-3">
+                                            <div className="text-xs text-gray-500 dark:text-gray-400">{label}</div>
+                                            <div className="text-lg font-bold text-gray-900 dark:text-gray-100">{Number(value).toLocaleString()}</div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-xs">
+                                        <thead>
+                                            <tr className="text-left border-b border-gray-200 dark:border-gray-800 text-gray-500 dark:text-gray-400">
+                                                <th className="py-2 pr-3">Time</th>
+                                                <th className="py-2 pr-3">Tenant</th>
+                                                <th className="py-2 pr-3">Category</th>
+                                                <th className="py-2 pr-3">Version</th>
+                                                <th className="py-2 pr-3">Rate</th>
+                                                <th className="py-2 pr-3">Cost</th>
+                                                <th className="py-2">Message</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {(reconciliation.recent_issues || []).length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={7} className="py-6 text-center text-gray-500 dark:text-gray-400">
+                                                        No current reconciliation issues detected in recent records.
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                reconciliation.recent_issues.map((row) => (
+                                                    <tr key={row.id} className="border-b border-gray-100 dark:border-gray-900">
+                                                        <td className="py-2 pr-3 text-gray-700 dark:text-gray-300">{new Date(row.created_at).toLocaleString()}</td>
+                                                        <td className="py-2 pr-3">
+                                                            <a href={route('platform.accounts.show', { account: row.account_id })} className="text-blue-600 dark:text-blue-400 hover:underline">
+                                                                {row.account_name}
+                                                            </a>
+                                                        </td>
+                                                        <td className="py-2 pr-3 text-gray-700 dark:text-gray-300">{row.category || 'uncategorized'}</td>
+                                                        <td className="py-2 pr-3 text-gray-700 dark:text-gray-300">
+                                                            {row.meta_pricing_version_id ? `#${row.meta_pricing_version_id}` : 'Missing'}
+                                                        </td>
+                                                        <td className="py-2 pr-3 text-gray-700 dark:text-gray-300">
+                                                            {money(row.rate_minor || 0, row.pricing_currency || 'INR')}
+                                                        </td>
+                                                        <td className="py-2 pr-3 text-gray-700 dark:text-gray-300">
+                                                            {money(row.estimated_cost_minor || 0, row.pricing_currency || 'INR')}
+                                                        </td>
+                                                        <td className="py-2 text-gray-500 dark:text-gray-400 font-mono">
+                                                            {(row.meta_message_id || '').slice(0, 24)}...
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </>
+                        )}
                     </CardContent>
                 </Card>
             </div>
