@@ -249,7 +249,8 @@ export default function ConnectionsCreate({
         }
 
         setEmbeddedStatus('Starting Meta Embedded Signup...');
-        embeddedForm.setData('redirect_uri', window.location.href);
+        // Use a stable canonical redirect URI (no query/hash) to match Meta allowlist exactly.
+        embeddedForm.setData('redirect_uri', `${window.location.origin}${window.location.pathname}`);
 
         window.FB.login(
             (response: any) => {
