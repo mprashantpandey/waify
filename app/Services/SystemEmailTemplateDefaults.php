@@ -54,7 +54,7 @@ class SystemEmailTemplateDefaults
             'support_notification' => [
                 'key' => 'support_notification',
                 'name' => 'Support ticket notification',
-                'subject' => '[{{platform_name}} Support] {{event_label}} · {{ticket_subject}}',
+                'subject' => '[{{platform_name}} Support] {{ticket_id}} · {{event_label}} · {{ticket_subject}}',
                 'body_html' => '<p>Hello {{recipient_name}},</p><p>Support ticket notification for <strong>{{ticket_subject}}</strong> ({{ticket_id}}).</p><p><strong>Tenant:</strong> {{tenant_name}}<br><strong>Status:</strong> {{ticket_status}}<br><strong>Priority:</strong> {{ticket_priority}}</p><p><strong>Recent Message:</strong></p><p>{{recent_ticket_message}}</p><p><a href="{{ticket_link}}">Open ticket</a></p>',
                 'body_text' => "Hello {{recipient_name}},\n\nSupport ticket notification for {{ticket_subject}} ({{ticket_id}}).\nTenant: {{tenant_name}}\nStatus: {{ticket_status}}\nPriority: {{ticket_priority}}\n\nRecent Message:\n{{recent_ticket_message}}\n\nOpen ticket: {{ticket_link}}",
                 'placeholders' => ['{{recipient_name}}', '{{event_label}}', '{{ticket_subject}}', '{{ticket_id}}', '{{ticket_link}}', '{{tenant_name}}', '{{ticket_status}}', '{{ticket_priority}}', '{{recent_ticket_message}}', '{{message_body}}', '{{platform_name}}'],

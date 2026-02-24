@@ -40,14 +40,14 @@ class SupportTicketEmailService
             recipient: (string) $recipient->email,
             dedupeKey: 'support:tenant:admin_reply:'.$thread->id.':'.$recipient->id,
             dedupeMinutes: $this->cooldownMinutes(),
-            subjectFallback: 'Support reply: '.$thread->subject,
+            subjectFallback: 'Support reply '.$this->ticketRef($thread).': '.$thread->subject,
             context: $this->context($thread, $message, [
                 'recipient_name' => $recipient->name ?? 'User',
                 'event_label' => 'reply',
                 'ticket_link' => route('app.support.show', ['thread' => $thread->slug]),
             ]),
-            bodyTextFallback: "Your support ticket has a new reply.\n\nTicket: {$thread->subject}\nTicket ID: #{$thread->slug}\n\nReply:\n{$message->body}",
-            bodyHtmlFallback: '<p>Your support ticket has a new reply.</p><p><strong>Ticket:</strong> '.e($thread->subject).' <br><strong>Ticket ID:</strong> #'.e($thread->slug).'</p><p><strong>Reply:</strong></p><p>'.nl2br(e($message->body)).'</p>'
+            bodyTextFallback: "Your support ticket has a new reply.\n\nTicket: {$thread->subject}\nTicket ID: #{$thread->slug}\nOpen ticket: ".$this->tenantTicketLink($thread)."\n\nReply:\n{$message->body}",
+            bodyHtmlFallback: '<p>Your support ticket has a new reply.</p><p><strong>Ticket:</strong> '.e($thread->subject).' <br><strong>Ticket ID:</strong> #'.e($thread->slug).'<br><strong>Open ticket:</strong> <a href="'.e($this->tenantTicketLink($thread)).'">'.e($this->tenantTicketLink($thread)).'</a></p><p><strong>Reply:</strong></p><p>'.nl2br(e($message->body)).'</p>'
         );
     }
 
@@ -75,7 +75,7 @@ class SupportTicketEmailService
             recipient: (string) $recipient->email,
             dedupeKey: 'support:tenant:update:'.$thread->id.':'.$recipient->id,
             dedupeMinutes: 15,
-            subjectFallback: 'Support ticket updated: '.$thread->subject,
+            subjectFallback: 'Support ticket updated '.$this->ticketRef($thread).': '.$thread->subject,
             context: $this->context($thread, null, [
                 'recipient_name' => $recipient->name ?? 'User',
                 'event_label' => 'status update',
@@ -106,7 +106,7 @@ class SupportTicketEmailService
                 recipient: $recipient,
                 dedupeKey: 'support:platform:update:'.$thread->id.':'.sha1($recipient),
                 dedupeMinutes: 10,
-                subjectFallback: 'Support ticket updated: '.$thread->subject,
+            subjectFallback: 'Support ticket updated '.$this->ticketRef($thread).': '.$thread->subject,
                 context: $this->context($thread, null, [
                     'recipient_name' => 'Support',
                     'event_label' => 'ticket update',
@@ -127,14 +127,14 @@ class SupportTicketEmailService
                 recipient: $recipient,
                 dedupeKey: 'support:platform:'.$eventKey.':'.$thread->id.':'.sha1($recipient),
                 dedupeMinutes: $this->cooldownMinutes(),
-                subjectFallback: $subjectPrefix.': '.$thread->subject,
+                subjectFallback: $subjectPrefix.' '.$this->ticketRef($thread).': '.$thread->subject,
                 context: $this->context($thread, $message, [
                     'recipient_name' => 'Support',
                     'event_label' => $eventKey,
                     'ticket_link' => route('platform.support.show', ['thread' => $thread->slug]),
                 ]),
-                bodyTextFallback: "Ticket: {$thread->subject}\nTicket ID: #{$thread->slug}\nTenant: {$thread->account?->name}\nFrom: {$thread->creator?->email}\n\nMessage:\n{$message->body}",
-                bodyHtmlFallback: '<p><strong>Ticket:</strong> '.e($thread->subject).' <br><strong>Ticket ID:</strong> #'.e($thread->slug).'<br><strong>Tenant:</strong> '.e((string) ($thread->account?->name ?? '-')).'<br><strong>From:</strong> '.e((string) ($thread->creator?->email ?? '-')).'</p><p><strong>Message:</strong></p><p>'.nl2br(e($message->body)).'</p>'
+                bodyTextFallback: "Ticket: {$thread->subject}\nTicket ID: #{$thread->slug}\nOpen ticket: ".$this->platformTicketLink($thread)."\nTenant: {$thread->account?->name}\nFrom: {$thread->creator?->email}\n\nMessage:\n{$message->body}",
+                bodyHtmlFallback: '<p><strong>Ticket:</strong> '.e($thread->subject).' <br><strong>Ticket ID:</strong> #'.e($thread->slug).'<br><strong>Open ticket:</strong> <a href="'.e($this->platformTicketLink($thread)).'">'.e($this->platformTicketLink($thread)).'</a><br><strong>Tenant:</strong> '.e((string) ($thread->account?->name ?? '-')).'<br><strong>From:</strong> '.e((string) ($thread->creator?->email ?? '-')).'</p><p><strong>Message:</strong></p><p>'.nl2br(e($message->body)).'</p>'
             );
         }
     }
@@ -270,5 +270,20 @@ class SupportTicketEmailService
             'subject' => (string) $thread->subject,
             'event_label' => 'notification',
         ], $extra);
+    }
+
+    protected function ticketRef(SupportThread $thread): string
+    {
+        return '#'.$thread->slug;
+    }
+
+    protected function tenantTicketLink(SupportThread $thread): string
+    {
+        return route('app.support.show', ['thread' => $thread->slug]);
+    }
+
+    protected function platformTicketLink(SupportThread $thread): string
+    {
+        return route('platform.support.show', ['thread' => $thread->slug]);
     }
 }
