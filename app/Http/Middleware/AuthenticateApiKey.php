@@ -33,6 +33,8 @@ class AuthenticateApiKey
             return response()->json(['error' => 'Account is disabled.'], 403);
         }
 
+        $apiKey->touchUsage($request->ip());
+
         $request->attributes->set('account', $account);
         $request->attributes->set('api_key', $apiKey);
         $request->setUserResolver(fn () => null);

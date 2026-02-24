@@ -14,7 +14,12 @@ interface ApiKeyRow {
     id: number;
     name: string;
     key_prefix: string;
+    is_active?: boolean;
+    scopes?: string[];
     last_used_at: string | null;
+    last_used_ip?: string | null;
+    expires_at?: string | null;
+    revoked_at?: string | null;
     created_at: string;
 }
 
@@ -22,10 +27,12 @@ export default function DeveloperIndex({
     account,
     api_keys,
     base_url,
+    available_scopes = [],
 }: {
     account: any;
     api_keys: ApiKeyRow[];
     base_url: string;
+    available_scopes?: string[];
 }) {
     const { addToast } = useToast();
     const confirm = useConfirm();
@@ -33,14 +40,18 @@ export default function DeveloperIndex({
     const flash = (page.props as any).flash || {};
     const newApiKey = flash.new_api_key as { name: string; key: string; key_prefix: string } | undefined;
 
-    const { data, setData, post, processing, errors, reset } = useForm({ name: '' });
+    const { data, setData, post, processing, errors, reset } = useForm({
+        name: '',
+        scopes: available_scopes,
+        expires_in_days: '',
+    });
     const [copied, setCopied] = useState(false);
 
     const handleCreateKey = (e: React.FormEvent) => {
         e.preventDefault();
         post(route('app.developer.api-keys.store'), {
             preserveScroll: true,
-            onSuccess: () => reset('name'),
+            onSuccess: () => reset(),
         });
     };
 
@@ -56,10 +67,21 @@ export default function DeveloperIndex({
 
     const copyKey = () => {
         if (!newApiKey?.key) return;
-        navigator.clipboard.writeText(newApiKey.key);
-        setCopied(true);
-        addToast({ title: 'Copied', description: 'API key copied to clipboard.', variant: 'success' });
-        setTimeout(() => setCopied(false), 2000);
+        navigator.clipboard.writeText(newApiKey.key)
+            .then(() => {
+                setCopied(true);
+                addToast({ title: 'Copied', description: 'API key copied to clipboard.', variant: 'success' });
+                setTimeout(() => setCopied(false), 2000);
+            })
+            .catch(() => {
+                addToast({ title: 'Copy failed', description: 'Clipboard access was blocked. Copy the key manually.', variant: 'warning' });
+            });
+    };
+
+    const toggleKey = (key: ApiKeyRow) => {
+        router.patch(route('app.developer.api-keys.update', { id: key.id }), {
+            is_active: !key.is_active,
+        }, { preserveScroll: true });
     };
 
     return (
@@ -144,6 +166,42 @@ export default function DeveloperIndex({
                                 />
                                 <InputError message={errors.name} />
                             </div>
+                            <div className="min-w-[220px]">
+                                <InputLabel htmlFor="expires_in_days" value="Expiry (days, optional)" />
+                                <TextInput
+                                    id="expires_in_days"
+                                    type="number"
+                                    min="1"
+                                    max="3650"
+                                    value={data.expires_in_days as any}
+                                    onChange={(e) => setData('expires_in_days', e.target.value)}
+                                    placeholder="Never expires"
+                                    className="mt-1"
+                                />
+                                <InputError message={errors.expires_in_days} />
+                            </div>
+                            <div className="w-full">
+                                <InputLabel value="Scopes" />
+                                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {available_scopes.map((scope) => (
+                                        <label key={scope} className="inline-flex items-center gap-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2">
+                                            <input
+                                                type="checkbox"
+                                                checked={Array.isArray(data.scopes) && (data.scopes as string[]).includes(scope)}
+                                                onChange={(e) => {
+                                                    const current = Array.isArray(data.scopes) ? [...(data.scopes as string[])] : [];
+                                                    const next = e.target.checked
+                                                        ? Array.from(new Set([...current, scope]))
+                                                        : current.filter((s) => s !== scope);
+                                                    setData('scopes', next as any);
+                                                }}
+                                            />
+                                            <code className="text-xs">{scope}</code>
+                                        </label>
+                                    ))}
+                                </div>
+                                <InputError message={errors.scopes as any} />
+                            </div>
                             <Button type="submit" disabled={processing} className="gap-2">
                                 <Plus className="h-4 w-4" />
                                 Create key
@@ -159,27 +217,53 @@ export default function DeveloperIndex({
                                 {api_keys.map((key) => (
                                     <li key={key.id} className="py-3 flex items-center justify-between gap-4">
                                         <div>
-                                            <p className="font-medium text-gray-900 dark:text-gray-100">{key.name}</p>
+                                            <p className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                                                {key.name}
+                                                <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] ${
+                                                    key.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                                                }`}>
+                                                    {key.is_active ? 'Active' : 'Disabled'}
+                                                </span>
+                                            </p>
                                             <p className="text-sm font-mono text-gray-500 dark:text-gray-400">
                                                 {key.key_prefix}
                                             </p>
+                                            <div className="mt-1 flex flex-wrap gap-1">
+                                                {(key.scopes || []).map((scope) => (
+                                                    <span key={scope} className="inline-flex rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-[11px]">
+                                                        {scope}
+                                                    </span>
+                                                ))}
+                                            </div>
                                             <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                                                 Created {new Date(key.created_at).toLocaleDateString()}
                                                 {key.last_used_at && (
                                                     <> · Last used {new Date(key.last_used_at).toLocaleString()}</>
                                                 )}
+                                                {key.last_used_ip && <> · IP {key.last_used_ip}</>}
+                                                {key.expires_at && <> · Expires {new Date(key.expires_at).toLocaleDateString()}</>}
                                             </p>
                                         </div>
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            className="text-red-600 hover:text-red-700 dark:text-red-400"
-                                            onClick={() => handleRevoke(key.id, key.name)}
-                                        >
-                                            <Trash2 className="h-4 w-4 mr-1" />
-                                            Revoke
-                                        </Button>
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                type="button"
+                                                variant="secondary"
+                                                size="sm"
+                                                onClick={() => toggleKey(key)}
+                                            >
+                                                {key.is_active ? 'Disable' : 'Enable'}
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                className="text-red-600 hover:text-red-700 dark:text-red-400"
+                                                onClick={() => handleRevoke(key.id, key.name)}
+                                            >
+                                                <Trash2 className="h-4 w-4 mr-1" />
+                                                Revoke
+                                            </Button>
+                                        </div>
                                     </li>
                                 ))}
                             </ul>

@@ -53,6 +53,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'restrict.chat.agent' => \App\Http\Middleware\RestrictChatAgentAccess::class,
             'tenant.phone.verified' => \App\Http\Middleware\EnsurePhoneVerifiedForTenant::class,
             'api.key' => \App\Http\Middleware\AuthenticateApiKey::class,
+            'api.scope' => \App\Http\Middleware\EnsureApiKeyScope::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

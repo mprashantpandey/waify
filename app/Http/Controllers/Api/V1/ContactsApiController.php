@@ -22,12 +22,27 @@ class ContactsApiController extends Controller
             return response()->json(['data' => []]);
         }
 
+        $limit = min(100, max(1, (int) $request->input('limit', 25)));
+        $status = trim((string) $request->input('status', ''));
+        $search = trim((string) $request->input('search', ''));
+
         $query = \App\Modules\WhatsApp\Models\WhatsAppContact::where('account_id', $account->id)
             ->orderBy('name');
+        if ($status !== '') {
+            $query->where('status', $status);
+        }
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('wa_id', 'like', "%{$search}%");
+            });
+        }
 
-        $contacts = $query->get(['id', 'wa_id', 'slug', 'name', 'phone', 'email', 'company', 'status', 'last_contacted_at', 'message_count']);
+        $contacts = $query->paginate($limit, ['id', 'wa_id', 'slug', 'name', 'phone', 'email', 'company', 'status', 'last_contacted_at', 'message_count']);
 
-        $data = $contacts->map(function ($c) {
+        $data = collect($contacts->items())->map(function ($c) {
             return [
                 'id' => $c->id,
                 'wa_id' => $c->wa_id,
@@ -42,6 +57,14 @@ class ContactsApiController extends Controller
             ];
         });
 
-        return response()->json(['data' => $data]);
+        return response()->json([
+            'data' => $data,
+            'meta' => [
+                'current_page' => $contacts->currentPage(),
+                'last_page' => $contacts->lastPage(),
+                'per_page' => $contacts->perPage(),
+                'total' => $contacts->total(),
+            ],
+        ]);
     }
 }

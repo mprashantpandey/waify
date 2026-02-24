@@ -22,13 +22,25 @@ class ConversationsApiController extends Controller
             return response()->json(['data' => []]);
         }
 
+        $limit = min(100, max(1, (int) $request->input('limit', 25)));
+        $statusFilter = trim((string) $request->input('status', ''));
+        $search = trim((string) $request->input('search', ''));
+
         $query = \App\Modules\WhatsApp\Models\WhatsAppConversation::where('account_id', $account->id)
             ->with(['contact:id,wa_id,slug,name,phone', 'connection:id,name,slug'])
             ->orderByDesc('last_message_at');
+        if ($statusFilter !== '') {
+            $query->where('status', $statusFilter);
+        }
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('last_message_preview', 'like', "%{$search}%");
+            });
+        }
 
-        $conversations = $query->get();
+        $conversations = $query->paginate($limit);
 
-        $data = $conversations->map(function ($c) {
+        $data = collect($conversations->items())->map(function ($c) {
             return [
                 'id' => $c->id,
                 'status' => $c->status ?? 'open',
@@ -54,6 +66,14 @@ class ConversationsApiController extends Controller
             ];
         });
 
-        return response()->json(['data' => $data]);
+        return response()->json([
+            'data' => $data,
+            'meta' => [
+                'current_page' => $conversations->currentPage(),
+                'last_page' => $conversations->lastPage(),
+                'per_page' => $conversations->perPage(),
+                'total' => $conversations->total(),
+            ],
+        ]);
     }
 }

@@ -9,6 +9,7 @@ interface Endpoint {
     summary: string;
     description: string;
     auth: boolean;
+    scope?: string;
     example: string;
 }
 
@@ -16,10 +17,12 @@ export default function DeveloperDocs({
     account,
     base_url,
     endpoints,
+    available_scopes = [],
 }: {
     account: any;
     base_url: string;
     endpoints: Endpoint[];
+    available_scopes?: string[];
 }) {
     const methodColors: Record<string, string> = {
         GET: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
@@ -100,6 +103,20 @@ export default function DeveloperDocs({
 
                 <Card>
                     <CardHeader>
+                        <CardTitle>Available Scopes</CardTitle>
+                        <CardDescription>Assign only the scopes each integration needs.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex flex-wrap gap-2">
+                        {available_scopes.map((scope) => (
+                            <code key={scope} className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs">
+                                {scope}
+                            </code>
+                        ))}
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
                         <CardTitle>Endpoints</CardTitle>
                         <CardDescription>
                             Available API endpoints for your account.
@@ -123,7 +140,9 @@ export default function DeveloperDocs({
                                 <p className="font-medium text-gray-900 dark:text-gray-100 mt-2">{ep.summary}</p>
                                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{ep.description}</p>
                                 {ep.auth && (
-                                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">Requires API key.</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                        Requires API key{ep.scope ? ` with scope: ${ep.scope}` : ''}.
+                                    </p>
                                 )}
                                 <pre className="mt-3 rounded-lg bg-gray-900 text-gray-100 dark:bg-gray-800 p-4 text-xs overflow-x-auto whitespace-pre-wrap">
                                     {ep.example}

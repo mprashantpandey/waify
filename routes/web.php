@@ -20,10 +20,10 @@ Route::get('/api/stats', [\App\Http\Controllers\LandingPageController::class, 's
 
 // Tenant external API (v1) – authenticated by API key
 Route::prefix('api/v1')->middleware(['api.key', 'throttle:60,1'])->group(function () {
-    Route::get('/account', [\App\Http\Controllers\Api\V1\AccountApiController::class, 'show']);
-    Route::get('/connections', [\App\Http\Controllers\Api\V1\ConnectionsApiController::class, 'index']);
-    Route::get('/contacts', [\App\Http\Controllers\Api\V1\ContactsApiController::class, 'index']);
-    Route::get('/conversations', [\App\Http\Controllers\Api\V1\ConversationsApiController::class, 'index']);
+    Route::get('/account', [\App\Http\Controllers\Api\V1\AccountApiController::class, 'show'])->middleware('api.scope:account.read');
+    Route::get('/connections', [\App\Http\Controllers\Api\V1\ConnectionsApiController::class, 'index'])->middleware('api.scope:connections.read');
+    Route::get('/contacts', [\App\Http\Controllers\Api\V1\ContactsApiController::class, 'index'])->middleware('api.scope:contacts.read');
+    Route::get('/conversations', [\App\Http\Controllers\Api\V1\ConversationsApiController::class, 'index'])->middleware('api.scope:conversations.read');
 });
 
 // Public pages
