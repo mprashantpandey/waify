@@ -15,6 +15,7 @@ import {
     Users,
     Activity,
     Megaphone,
+    Code2,
     LucideIcon,
     Menu,
     X
@@ -37,7 +38,9 @@ const iconMap: Record<string, LucideIcon> = {
     Settings,
     Users,
     Activity,
-    Megaphone};
+    Megaphone,
+    Code2,
+};
 
 interface NavItem {
     label: string;
@@ -74,7 +77,9 @@ export function Sidebar({ navigation, currentRoute, account, isOpen = false, onC
         automation: 'Automation',
         ai: 'AI',
         growth: 'Growth',
-        billing: 'Billing'};
+        billing: 'Billing',
+        developer: 'Developer',
+    };
 
     const tryRouteHref = (routeName: string): string | null => {
         try {
