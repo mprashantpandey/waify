@@ -96,7 +96,19 @@ class SystemEmailTemplateDefaults
         }
         $merged = [];
         foreach ($defaults as $sysKey => $default) {
-            $merged[] = $byKey[$sysKey] ?? $default;
+            if (!isset($byKey[$sysKey])) {
+                $merged[] = $default;
+                continue;
+            }
+
+            $savedTemplate = $byKey[$sysKey];
+            $defaultPlaceholders = array_values(array_map('strval', (array) ($default['placeholders'] ?? [])));
+            $savedPlaceholders = array_values(array_map('strval', (array) ($savedTemplate['placeholders'] ?? [])));
+
+            // Keep customized system templates but always expose newly added system placeholders in the editor.
+            $savedTemplate['placeholders'] = array_values(array_unique(array_merge($savedPlaceholders, $defaultPlaceholders)));
+
+            $merged[] = $savedTemplate;
         }
         foreach ($saved as $t) {
             $key = trim((string) ($t['key'] ?? ''));
