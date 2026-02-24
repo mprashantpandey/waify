@@ -24,8 +24,9 @@ class PlatformSettingsController extends Controller
     /**
      * Display platform settings.
      */
-    public function index(Request $request): Response
+    public function index(Request $request, ?string $section = null): Response
     {
+        $section = $this->normalizeSettingsSection($section);
         // Helper to get setting with fallback
         $get = fn($key, $default = null) => PlatformSetting::get($key, $default);
 
@@ -254,6 +255,7 @@ class PlatformSettingsController extends Controller
             'whatsapp' => $whatsappSettings,
             'support' => $supportSettings,
             'sms' => $smsSettings,
+            'settings_section' => $section,
             'cron' => $this->cronDiagnosticsService->platformSummary(),
             'delivery' => $this->cronDiagnosticsService->deliverySummary(),
             'misconfigured_settings' => array_values($misconfiguredSettings)]);
@@ -513,7 +515,7 @@ class PlatformSettingsController extends Controller
             }
         }
 
-        return redirect()->route('platform.settings')
+        return $this->redirectBackToSettingsContext($request)
             ->with('success', 'Settings updated successfully.');
     }
 
@@ -564,7 +566,7 @@ class PlatformSettingsController extends Controller
 
             PlatformSetting::set('mail.test.last_success_at', now()->toIso8601String(), 'string', 'mail');
 
-            return redirect()->route('platform.settings', ['tab' => 'mail'])
+            return $this->redirectBackToSettingsContext($request, 'mail')
                 ->with('success', "Test email sent to {$testEmail} using driver '" . config('mail.default') . "'.");
         } catch (Throwable $smtpError) {
             $error = mb_substr($smtpError->getMessage(), 0, 500);
@@ -585,7 +587,7 @@ class PlatformSettingsController extends Controller
                     'error' => $error,
                 ]);
 
-                return redirect()->route('platform.settings', ['tab' => 'mail'])
+                return $this->redirectBackToSettingsContext($request, 'mail')
                     ->with('warning', 'SMTP test failed. Fallback to log mailer was used. Check logs and delivery diagnostics.');
             } catch (Throwable $fallbackError) {
                 $fallbackErrorMessage = mb_substr($fallbackError->getMessage(), 0, 500);
@@ -600,7 +602,7 @@ class PlatformSettingsController extends Controller
                     'fallback_error' => $fallbackErrorMessage,
                 ]);
 
-                return redirect()->route('platform.settings', ['tab' => 'mail'])
+                return $this->redirectBackToSettingsContext($request, 'mail')
                     ->with('error', 'SMTP test failed and fallback could not be written. Check server logs.');
             }
         }
@@ -621,6 +623,54 @@ class PlatformSettingsController extends Controller
         ]);
 
         config(['mail.default' => $driver]);
+    }
+
+    private function normalizeSettingsSection(?string $section): string
+    {
+        $allowed = ['core', 'security', 'payments', 'integrations', 'operations', 'delivery'];
+
+        return in_array((string) $section, $allowed, true) ? (string) $section : 'core';
+    }
+
+    private function mapTabToSection(?string $tab): string
+    {
+        $tab = (string) $tab;
+        $map = [
+            'general' => 'core',
+            'support' => 'core',
+            'branding' => 'core',
+            'features' => 'core',
+            'compliance' => 'core',
+            'security' => 'security',
+            'mail' => 'security',
+            'email_templates' => 'security',
+            'pusher' => 'security',
+            'payment' => 'payments',
+            'integrations' => 'integrations',
+            'whatsapp' => 'integrations',
+            'storage' => 'integrations',
+            'analytics' => 'operations',
+            'performance' => 'operations',
+            'ai' => 'operations',
+            'cron' => 'delivery',
+            'delivery' => 'delivery',
+        ];
+
+        return $map[$tab] ?? 'core';
+    }
+
+    private function redirectBackToSettingsContext(Request $request, ?string $fallbackTab = null)
+    {
+        $tab = (string) ($request->input('_settings_tab') ?: $fallbackTab ?: '');
+        $sectionInput = (string) ($request->input('_settings_section') ?: '');
+        $section = $this->normalizeSettingsSection($sectionInput !== '' ? $sectionInput : $this->mapTabToSection($tab));
+
+        $params = [];
+        if ($tab !== '') {
+            $params['tab'] = $tab;
+        }
+
+        return redirect()->route('platform.settings.section', ['section' => $section] + $params);
     }
 
 }

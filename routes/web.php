@@ -84,6 +84,9 @@ Route::middleware(['auth', 'super.admin'])->prefix('/platform')->name('platform.
     Route::post('/users/{user}/make-super-admin', [\App\Http\Controllers\Platform\PlatformUserController::class, 'makeSuperAdmin'])->name('users.make-super-admin');
     Route::post('/users/{user}/remove-super-admin', [\App\Http\Controllers\Platform\PlatformUserController::class, 'removeSuperAdmin'])->name('users.remove-super-admin');
     Route::get('/settings', [\App\Http\Controllers\Platform\PlatformSettingsController::class, 'index'])->name('settings');
+    Route::get('/settings/{section}', [\App\Http\Controllers\Platform\PlatformSettingsController::class, 'index'])
+        ->where('section', 'core|security|payments|integrations|operations|delivery')
+        ->name('settings.section');
     Route::post('/settings', [\App\Http\Controllers\Platform\PlatformSettingsController::class, 'update'])->name('settings.update');
     Route::post('/settings/mail/test', [\App\Http\Controllers\Platform\PlatformSettingsController::class, 'testMail'])->name('settings.mail.test');
     Route::get('/cms', [\App\Http\Controllers\Platform\CmsPageController::class, 'index'])->name('cms.index');
@@ -194,7 +197,10 @@ Route::middleware(['auth', 'account.resolve', 'account.active', 'account.subscri
     if (file_exists(__DIR__.'/../app/Modules/Analytics/routes/web.php')) {
         require __DIR__.'/../app/Modules/Analytics/routes/web.php';
     }
-    
+    if (file_exists(__DIR__.'/../app/Modules/Developer/routes/web.php')) {
+        require __DIR__.'/../app/Modules/Developer/routes/web.php';
+    }
+
     // Team management
     Route::prefix('/team')->name('team.')->group(function () {
         Route::get('/', [\App\Http\Controllers\TeamController::class, 'index'])->name('index');

@@ -43,18 +43,46 @@ export default function PlatformSettings({
     whatsapp,
     support,
     sms,
+    settings_section,
     cron,
     delivery,
     misconfigured_settings}: any) {
     const { auth } = usePage().props as any;
     
-    // Get initial tab from URL query parameter or default to 'general'
+    const tabs = [
+        { id: 'general', label: 'General', icon: Globe, section: 'core' },
+        { id: 'support', label: 'Support', icon: LifeBuoy, section: 'core' },
+        { id: 'branding', label: 'Branding', icon: Palette, section: 'core' },
+        { id: 'features', label: 'Features', icon: ToggleLeft, section: 'core' },
+        { id: 'compliance', label: 'Compliance', icon: Scale, section: 'core' },
+        { id: 'security', label: 'Security', icon: Shield, section: 'security' },
+        { id: 'mail', label: 'Mail', icon: Mail, section: 'security' },
+        { id: 'email_templates', label: 'Email templates', icon: FileText, section: 'security' },
+        { id: 'sms', label: 'SMS (2FA & MSG91)', icon: MessageSquare, section: 'security' },
+        { id: 'pusher', label: 'Pusher', icon: Radio, section: 'security' },
+        { id: 'payment', label: 'Payment', icon: CreditCard, section: 'payments' },
+        { id: 'integrations', label: 'Integrations', icon: Webhook, section: 'integrations' },
+        { id: 'storage', label: 'Storage', icon: HardDrive, section: 'integrations' },
+        { id: 'analytics', label: 'Analytics', icon: BarChart3, section: 'operations' },
+        { id: 'performance', label: 'Performance', icon: Zap, section: 'operations' },
+        { id: 'ai', label: 'AI', icon: Bot, section: 'operations' },
+        { id: 'cron', label: 'Cron', icon: Clock3, section: 'delivery' },
+        { id: 'delivery', label: 'Delivery', icon: Activity, section: 'delivery' },
+    ];
+    const currentSection = ['core', 'security', 'payments', 'integrations', 'operations', 'delivery'].includes(settings_section)
+        ? settings_section
+        : 'core';
+    const sectionTabs = tabs.filter((t) => t.section === currentSection);
+    const fallbackTab = sectionTabs[0]?.id || 'general';
+
+    // Get initial tab from URL query parameter or default to section tab
     const getInitialTab = () => {
         if (typeof window !== 'undefined') {
             const urlParams = new URLSearchParams(window.location.search);
-            return urlParams.get('tab') || 'general';
+            const tab = urlParams.get('tab') || fallbackTab;
+            return sectionTabs.some((t) => t.id === tab) ? tab : fallbackTab;
         }
-        return 'general';
+        return fallbackTab;
     };
     
     const { value: activeTab, setValue: setActiveTab } = useTabs(getInitialTab());
@@ -64,11 +92,11 @@ export default function PlatformSettings({
         if (typeof window !== 'undefined') {
             const urlParams = new URLSearchParams(window.location.search);
             const tabFromUrl = urlParams.get('tab');
-            if (tabFromUrl && tabFromUrl !== activeTab) {
+            if (tabFromUrl && tabFromUrl !== activeTab && sectionTabs.some((t) => t.id === tabFromUrl)) {
                 setActiveTab(tabFromUrl);
             }
         }
-    }, [activeTab, setActiveTab]);
+    }, [activeTab, setActiveTab, sectionTabs]);
     const { addToast } = useToast();
     const { confirm } = useNotifications();
 
@@ -88,7 +116,14 @@ export default function PlatformSettings({
         ai: ai || {},
         whatsapp: whatsapp || {},
         support: support || {},
-        sms: sms || {}});
+        sms: sms || {},
+        _settings_section: currentSection,
+        _settings_tab: fallbackTab});
+
+    useEffect(() => {
+        setData('_settings_section' as any, currentSection);
+        setData('_settings_tab' as any, activeTab);
+    }, [currentSection, activeTab, setData]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -121,25 +156,13 @@ export default function PlatformSettings({
             }});
     };
 
-    const tabs = [
-        { id: 'general', label: 'General', icon: Globe },
-        { id: 'support', label: 'Support', icon: LifeBuoy },
-        { id: 'branding', label: 'Branding', icon: Palette },
-        { id: 'security', label: 'Security', icon: Shield },
-        { id: 'payment', label: 'Payment', icon: CreditCard },
-        { id: 'integrations', label: 'Integrations', icon: Webhook },
-        { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-        { id: 'compliance', label: 'Compliance', icon: Scale },
-        { id: 'performance', label: 'Performance', icon: Zap },
-        { id: 'cron', label: 'Cron', icon: Clock3 },
-        { id: 'delivery', label: 'Delivery', icon: Activity },
-        { id: 'features', label: 'Features', icon: ToggleLeft },
-        { id: 'ai', label: 'AI', icon: Bot },
-        { id: 'pusher', label: 'Pusher', icon: Radio },
-        { id: 'mail', label: 'Mail', icon: Mail },
-        { id: 'email_templates', label: 'Email templates', icon: FileText },
-        { id: 'sms', label: 'SMS (2FA & MSG91)', icon: MessageSquare },
-        { id: 'storage', label: 'Storage', icon: HardDrive },
+    const sections = [
+        { id: 'core', label: 'Core', description: 'General, support, branding, features, compliance' },
+        { id: 'security', label: 'Security & Mail', description: 'Security, mail, templates, SMS, pusher' },
+        { id: 'payments', label: 'Payments', description: 'Payment gateway and billing behavior' },
+        { id: 'integrations', label: 'Integrations', description: 'Integrations, WhatsApp, storage' },
+        { id: 'operations', label: 'Operations', description: 'Analytics, performance, AI' },
+        { id: 'delivery', label: 'Cron & Delivery', description: 'Cron diagnostics and delivery status' },
     ];
 
     return (
@@ -182,8 +205,25 @@ export default function PlatformSettings({
                 )}
 
                 <Tabs value={activeTab} onValueChange={setActiveTab}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 mb-4">
+                        {sections.map((section) => (
+                            <a
+                                key={section.id}
+                                href={route('platform.settings.section', { section: section.id })}
+                                className={`rounded-lg border p-3 transition ${
+                                    currentSection === section.id
+                                        ? 'border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-900/20'
+                                        : 'border-gray-200 bg-white hover:border-gray-300 dark:border-gray-700 dark:bg-gray-900'
+                                }`}
+                            >
+                                <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{section.label}</div>
+                                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{section.description}</div>
+                            </a>
+                        ))}
+                    </div>
+
                     <TabsList className="w-full justify-start mb-6 overflow-x-auto">
-                        {tabs.map((tab) => {
+                        {sectionTabs.map((tab) => {
                             const Icon = tab.icon;
                             return (
                                 <TabsTrigger key={tab.id} value={tab.id}>
@@ -195,6 +235,8 @@ export default function PlatformSettings({
                     </TabsList>
 
                     <form onSubmit={handleSubmit} className="space-y-6">
+                        <input type="hidden" name="_settings_section" value={currentSection} />
+                        <input type="hidden" name="_settings_tab" value={activeTab} />
                         <TabsContent value="general">
                             <GeneralTab data={data} setData={setData} errors={errors} />
                         </TabsContent>
