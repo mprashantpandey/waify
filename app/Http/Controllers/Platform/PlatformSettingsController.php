@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Platform;
 use App\Http\Controllers\Controller;
 use App\Models\PlatformSetting;
 use App\Services\NotificationOutboxService;
+use App\Services\SystemEmailTemplateDefaults;
 use App\Services\CronDiagnosticsService;
 use App\Services\PlatformSettingsValidationService;
 use Illuminate\Http\Request;
@@ -134,13 +135,15 @@ class PlatformSettingsController extends Controller
             'secret' => $get('pusher.secret', config('broadcasting.connections.pusher.secret')),
             'cluster' => $get('pusher.cluster', config('broadcasting.connections.pusher.options.cluster'))];
 
-        // Mail Settings
+        // Mail Settings: merge system defaults with saved templates (system templates cannot be deleted)
         $mailEmailTemplatesRaw = $get('mail.email_templates');
-        $mailEmailTemplates = is_array($mailEmailTemplatesRaw) ? $mailEmailTemplatesRaw : [];
+        $savedTemplates = is_array($mailEmailTemplatesRaw) ? $mailEmailTemplatesRaw : [];
         if (is_string($mailEmailTemplatesRaw)) {
             $decoded = json_decode($mailEmailTemplatesRaw, true);
-            $mailEmailTemplates = is_array($decoded) ? $decoded : [];
+            $savedTemplates = is_array($decoded) ? $decoded : [];
         }
+        $systemDefaults = SystemEmailTemplateDefaults::all();
+        $mailEmailTemplates = SystemEmailTemplateDefaults::mergeWithSaved($savedTemplates);
 
         $mailSettings = [
             'driver' => $get('mail.driver', config('mail.default')),
@@ -151,7 +154,8 @@ class PlatformSettingsController extends Controller
             'encryption' => $get('mail.encryption', config('mail.mailers.smtp.encryption', 'tls')),
             'from_address' => $get('mail.from_address', config('mail.from.address')),
             'from_name' => $get('mail.from_name', config('mail.from.name')),
-            'email_templates' => $mailEmailTemplates];
+            'email_templates' => $mailEmailTemplates,
+            'system_template_keys' => array_keys($systemDefaults)];
 
         // Storage Settings
         $storageSettings = [
@@ -479,19 +483,10 @@ class PlatformSettingsController extends Controller
                             $value = json_encode($value);
                         }
 
-                        // Email templates: store as JSON string
+                        // Email templates: store as JSON string; ensure system templates are never removed
                         if ($group === 'mail' && $key === 'email_templates' && is_array($value)) {
-                            $normalized = array_values(array_map(function ($t) {
-                                return [
-                                    'key' => trim((string) ($t['key'] ?? '')),
-                                    'name' => trim((string) ($t['name'] ?? '')),
-                                    'subject' => trim((string) ($t['subject'] ?? '')),
-                                    'body_html' => trim((string) ($t['body_html'] ?? '')),
-                                    'body_text' => trim((string) ($t['body_text'] ?? '')),
-                                    'placeholders' => array_values(array_filter(array_map('trim', (array) ($t['placeholders'] ?? [])))),
-                                ];
-                            }, $value));
-                            $value = json_encode($normalized);
+                            $normalized = SystemEmailTemplateDefaults::mergeWithSaved($value);
+                            $value = json_encode(array_values($normalized));
                             $type = 'string';
                         }
 
@@ -627,4 +622,5 @@ class PlatformSettingsController extends Controller
 
         config(['mail.default' => $driver]);
     }
+
 }

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\PlatformSetting;
+use App\Services\SystemEmailTemplateDefaults;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
@@ -174,25 +175,25 @@ class PlatformSettingsService
     }
 
     /**
-     * Get all email templates from platform settings.
+     * Get all email templates from platform settings (merged with system defaults).
      *
      * @return array<int, array{key: string, name: string, subject: string, body_html: string, body_text: string, placeholders: array<string>}>
      */
     public function getEmailTemplates(): array
     {
         $raw = $this->get('mail.email_templates');
+        $saved = [];
         if (is_array($raw)) {
-            return array_values($raw);
-        }
-        if (is_string($raw)) {
+            $saved = $raw;
+        } elseif (is_string($raw)) {
             $decoded = json_decode($raw, true);
-            return is_array($decoded) ? array_values($decoded) : [];
+            $saved = is_array($decoded) ? $decoded : [];
         }
-        return [];
+        return SystemEmailTemplateDefaults::mergeWithSaved($saved);
     }
 
     /**
-     * Get a single email template by key.
+     * Get a single email template by key (includes system defaults when nothing saved).
      *
      * @return array{key: string, name: string, subject: string, body_html: string, body_text: string, placeholders: array<string>}|null
      */

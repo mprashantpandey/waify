@@ -4,8 +4,9 @@ import TextInput from '@/Components/TextInput';
 import Button from '@/Components/UI/Button';
 import { Textarea } from '@/Components/UI/Textarea';
 import InputError from '@/Components/InputError';
-import { Plus, Trash2, FileText } from 'lucide-react';
+import { Plus, Trash2, FileText, Lock } from 'lucide-react';
 import { useState } from 'react';
+import { Badge } from '@/Components/UI/Badge';
 
 export interface EmailTemplateRow {
     key: string;
@@ -24,6 +25,8 @@ interface EmailTemplatesTabProps {
 
 const DEFAULT_PLACEHOLDERS = ['{{name}}', '{{email}}', '{{reset_link}}', '{{support_email}}', '{{platform_name}}'];
 
+const SYSTEM_KEYS_SET: Set<string> = new Set(['welcome', 'password_reset', 'email_verification', 'support_notification', 'phone_verification']);
+
 export default function EmailTemplatesTab({ data, setData, errors }: EmailTemplatesTabProps) {
     const templates: EmailTemplateRow[] = Array.isArray(data.mail?.email_templates)
         ? data.mail.email_templates.map((t: any) => ({
@@ -35,6 +38,10 @@ export default function EmailTemplatesTab({ data, setData, errors }: EmailTempla
             placeholders: Array.isArray(t.placeholders) ? t.placeholders : [],
         }))
         : [];
+    const systemTemplateKeys: Set<string> = new Set(
+        Array.isArray(data.mail?.system_template_keys) ? data.mail.system_template_keys : Array.from(SYSTEM_KEYS_SET)
+    );
+    const isSystemTemplate = (key: string) => key !== '' && systemTemplateKeys.has(key);
     const [expandedId, setExpandedId] = useState<number | null>(0);
 
     const updateTemplate = (index: number, field: keyof EmailTemplateRow, value: string | string[]) => {
@@ -60,6 +67,7 @@ export default function EmailTemplatesTab({ data, setData, errors }: EmailTempla
     };
 
     const removeTemplate = (index: number) => {
+        if (isSystemTemplate(templates[index]?.key ?? '')) return;
         const next = templates.filter((_, i) => i !== index);
         setData('mail', { ...data.mail, email_templates: next });
         if (expandedId === index) setExpandedId(null);
@@ -100,6 +108,12 @@ export default function EmailTemplatesTab({ data, setData, errors }: EmailTempla
                                     <span className="font-mono text-sm text-gray-500 dark:text-gray-400">
                                         {template.key || '(new template)'}
                                     </span>
+                                    {isSystemTemplate(template.key) && (
+                                        <Badge variant="secondary" className="shrink-0 gap-1 text-xs">
+                                            <Lock className="h-3 w-3" />
+                                            System
+                                        </Badge>
+                                    )}
                                     <span className="font-medium text-gray-900 dark:text-gray-100 truncate">
                                         {template.name || 'Untitled'}
                                     </span>
@@ -108,19 +122,21 @@ export default function EmailTemplatesTab({ data, setData, errors }: EmailTempla
                                     <span className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]">
                                         {template.subject || 'No subject'}
                                     </span>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            removeTemplate(index);
-                                        }}
-                                        aria-label="Remove template"
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
+                                    {!isSystemTemplate(template.key) && (
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                removeTemplate(index);
+                                            }}
+                                            aria-label="Remove template"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    )}
                                 </div>
                             </button>
                             {expandedId === index && (
@@ -131,10 +147,15 @@ export default function EmailTemplatesTab({ data, setData, errors }: EmailTempla
                                             <TextInput
                                                 id={`tpl-key-${index}`}
                                                 value={template.key}
-                                                onChange={(e) => updateTemplate(index, 'key', e.target.value.toLowerCase().replace(/[^a-z0-9_.]/g, '_'))}
+                                                onChange={(e) => !isSystemTemplate(template.key) && updateTemplate(index, 'key', e.target.value.toLowerCase().replace(/[^a-z0-9_.]/g, '_'))}
                                                 placeholder="welcome_email"
                                                 className="mt-1 font-mono text-sm"
+                                                readOnly={isSystemTemplate(template.key)}
+                                                disabled={isSystemTemplate(template.key)}
                                             />
+                                            {isSystemTemplate(template.key) && (
+                                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">System template key cannot be changed.</p>
+                                            )}
                                             <InputError message={errors[`mail.email_templates.${index}.key`]} />
                                         </div>
                                         <div>
