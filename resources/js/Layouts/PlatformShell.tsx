@@ -22,6 +22,7 @@ import {
     LifeBuoy
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getPlatformName, getLogoUrl } from '@/lib/branding';
 
 interface PlatformShellProps {
     children: ReactNode;
@@ -36,8 +37,8 @@ interface PlatformShellProps {
 
 export default function PlatformShell({ children, auth }: PlatformShellProps) {
     const { branding, ziggy } = usePage().props as any;
-    const platformName = branding?.platform_name || 'Platform';
-    const logoUrl = branding?.logo_url;
+    const platformName = getPlatformName(branding);
+    const logoUrl = getLogoUrl(branding);
     const currentRoute = window.location.pathname;
     const [sidebarOpen, setSidebarOpen] = useState(false);
 

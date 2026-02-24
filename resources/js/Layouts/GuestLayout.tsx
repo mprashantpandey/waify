@@ -1,11 +1,12 @@
 import { Link, usePage } from '@inertiajs/react';
 import { PropsWithChildren } from 'react';
 import { BrandingWrapper } from '@/Components/Branding/BrandingWrapper';
+import { getPlatformName, getLogoUrl } from '@/lib/branding';
 
 export default function Guest({ children }: PropsWithChildren) {
     const { branding } = usePage().props as any;
-    const platformName = branding?.platform_name || 'WACP';
-    const logoUrl = branding?.logo_url;
+    const platformName = getPlatformName(branding);
+    const logoUrl = getLogoUrl(branding);
 
     return (
         <BrandingWrapper>

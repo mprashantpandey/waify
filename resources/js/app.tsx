@@ -11,15 +11,10 @@ import { GlobalFlashHandler } from './Components/Notifications/GlobalFlashHandle
 
 createInertiaApp({
     title: (title) => {
-        // Try to get branding from the current page props
-        // Since title callback only receives the title string, we need to access branding differently
-        // BrandingWrapper will update the title dynamically, so this is just a fallback
-        const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
-        
-        // Try to get branding from window if available (set by BrandingWrapper)
+        // Fallback app name (must match DEFAULT_PLATFORM_NAME in lib/branding.ts)
+        const appName = import.meta.env.VITE_APP_NAME || 'Waify';
         const brandingName = (window as any).__brandingName;
         const finalAppName = brandingName || appName;
-        
         return title ? `${title} - ${finalAppName}` : finalAppName;
     },
     resolve: (name) =>

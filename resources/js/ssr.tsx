@@ -11,7 +11,8 @@ createServer((page) =>
         render: ReactDOMServer.renderToString,
         title: (title) => {
             const branding = (page.props as any)?.branding;
-            const appName = branding?.platform_name || import.meta.env.VITE_APP_NAME || 'Laravel';
+            const { getPlatformName } = await import('@/lib/branding');
+            const appName = getPlatformName(branding);
             return title ? `${title} - ${appName}` : appName;
         },
         resolve: (name) =>

@@ -1,14 +1,15 @@
 import { useEffect } from 'react';
 import { usePage } from '@inertiajs/react';
+import { getPlatformName } from '@/lib/branding';
 
 /**
  * BrandingWrapper Component
- * 
- * Wraps the app and applies branding (favicon, colors) dynamically.
- * This component is used inside the Inertia app tree so it can use usePage().
+ *
+ * Wraps the app and applies branding (favicon, colors) from platform settings.
  */
 export function BrandingWrapper({ children }: { children: React.ReactNode }) {
     const { branding } = usePage().props as any;
+    const platformName = getPlatformName(branding);
 
     useEffect(() => {
         if (!branding) {
@@ -16,34 +17,20 @@ export function BrandingWrapper({ children }: { children: React.ReactNode }) {
         }
 
         // Store branding name globally for title callback access
-        if (branding.platform_name) {
-            (window as any).__brandingName = branding.platform_name;
-        }
+        (window as any).__brandingName = platformName;
 
-        // Update document title
-        if (branding.platform_name) {
-            const currentTitle = document.title;
-            // Always update to ensure branding is reflected
-            if (currentTitle) {
-                // Check if there's a page title (from Head component)
-                const titleParts = currentTitle.split(' - ');
-                if (titleParts.length > 1 && titleParts[titleParts.length - 1] !== branding.platform_name) {
-                    // Replace the app name part with branding
-                    const pageTitle = titleParts.slice(0, -1).join(' - ');
-                    document.title = `${pageTitle} - ${branding.platform_name}`;
-                } else if (titleParts.length === 1 && currentTitle !== branding.platform_name) {
-                    // Single part title, append platform name if not already there
-                    if (!currentTitle.includes(branding.platform_name)) {
-                        document.title = `${currentTitle} - ${branding.platform_name}`;
-                    }
-                } else if (currentTitle === 'Laravel' || currentTitle === import.meta.env.VITE_APP_NAME) {
-                    // Default title, replace with platform name
-                    document.title = branding.platform_name;
-                }
-            } else {
-                // No title, use platform name
-                document.title = branding.platform_name;
+        // Update document title when it's still the default
+        const currentTitle = document.title;
+        if (currentTitle) {
+            const titleParts = currentTitle.split(' - ');
+            if (titleParts.length > 1 && titleParts[titleParts.length - 1] !== platformName) {
+                const pageTitle = titleParts.slice(0, -1).join(' - ');
+                document.title = `${pageTitle} - ${platformName}`;
+            } else if (titleParts.length === 1 && !currentTitle.includes(platformName)) {
+                document.title = currentTitle === 'Laravel' || currentTitle === (import.meta.env.VITE_APP_NAME || '') ? platformName : `${currentTitle} - ${platformName}`;
             }
+        } else {
+            document.title = platformName;
         }
 
         // Update favicon
@@ -67,7 +54,7 @@ export function BrandingWrapper({ children }: { children: React.ReactNode }) {
         if (branding.secondary_color) {
             document.documentElement.style.setProperty('--brand-secondary', branding.secondary_color);
         }
-    }, [branding]);
+    }, [branding, platformName]);
 
     return <>{children}</>;
 }

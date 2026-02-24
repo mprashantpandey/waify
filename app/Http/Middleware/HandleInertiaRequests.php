@@ -64,8 +64,6 @@ class HandleInertiaRequests extends Middleware
                             'app.whatsapp.conversations.index',
                             'app.ai.index',
                             'app.ai',
-                            'app.support.index',
-                            'app.support.hub',
                         ], true);
                     }));
                     if (empty($navigation)) {
@@ -73,18 +71,9 @@ class HandleInertiaRequests extends Middleware
                             ['label' => 'Inbox', 'href' => 'app.whatsapp.conversations.index', 'icon' => 'Inbox', 'group' => 'messaging'],
                         ];
                     }
-                    $hasSupportNav = collect($navigation)->contains(fn ($item) => ($item['href'] ?? null) === 'app.support.index');
-                    if (! $hasSupportNav) {
-                        $navigation[] = ['label' => 'Support', 'href' => 'app.support.index', 'icon' => 'LifeBuoy', 'group' => 'core'];
-                    }
                 } else {
                     // Add static navigation items for non-members (owner, admin, platform admin)
                     $staticNav = [
-                        [
-                            'label' => 'Support',
-                            'href' => 'app.support.index',
-                            'icon' => 'LifeBuoy',
-                            'group' => 'core'],
                         [
                             'label' => 'Team',
                             'href' => 'app.team.index',

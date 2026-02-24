@@ -1,6 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import { PropsWithChildren } from 'react';
 import { BrandingWrapper } from '@/Components/Branding/BrandingWrapper';
+import { getPlatformName, getLogoUrl, getFooterText } from '@/lib/branding';
 import { 
     HelpCircle, 
     FileText, 
@@ -20,8 +21,9 @@ import AnalyticsScripts from '@/Components/Analytics/AnalyticsScripts';
 export default function PublicLayout({ children }: PropsWithChildren) {
     const page = usePage();
     const { branding, auth, accounts, compliance } = page.props as any;
-    const platformName = branding?.platform_name || 'WACP';
-    const logoUrl = branding?.logo_url;
+    const platformName = getPlatformName(branding);
+    const logoUrl = getLogoUrl(branding);
+    const footerText = getFooterText(branding);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const currentPath = (page as any).url?.split('?')[0] || '';
     const canLogin = (window as any).route?.has?.('login') ?? true;
@@ -238,7 +240,7 @@ export default function PublicLayout({ children }: PropsWithChildren) {
                                     {!logoUrl && <span className="text-lg font-bold text-white">{platformName}</span>}
                                 </Link>
                                 <p className="text-sm text-gray-500 leading-relaxed max-w-xs">
-                                    WhatsApp Cloud Platform for modern businesses. Official Meta Tech Provider.
+                                    {footerText}
                                 </p>
                             </div>
 

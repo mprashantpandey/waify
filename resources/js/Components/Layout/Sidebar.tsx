@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { getPlatformName, getLogoUrl } from '@/lib/branding';
 
 const iconMap: Record<string, LucideIcon> = {
     LayoutDashboard,
@@ -59,8 +60,8 @@ interface SidebarProps {
 
 export function Sidebar({ navigation, currentRoute, account, isOpen = false, onClose }: SidebarProps) {
     const { branding } = usePage().props as any;
-    const platformName = branding?.platform_name || 'WACP';
-    const logoUrl = branding?.logo_url;
+    const platformName = getPlatformName(branding);
+    const logoUrl = getLogoUrl(branding);
 
     const groupedNav = navigation.reduce((acc, item) => {
         const group = item.group || 'other';

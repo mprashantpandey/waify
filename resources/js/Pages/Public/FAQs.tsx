@@ -1,6 +1,8 @@
 import PublicLayout from '@/Layouts/PublicLayout';
 import { HelpCircle, ChevronDown, ChevronUp, Sparkles, ArrowRight } from 'lucide-react';
 import { useState } from 'react';
+import { usePage } from '@inertiajs/react';
+import { getPlatformName } from '@/lib/branding';
 
 interface FAQ {
     question: string;
@@ -8,13 +10,15 @@ interface FAQ {
 }
 
 export default function FAQs({ faqs: initialFaqs }: { faqs: FAQ[] }) {
+    const { branding } = usePage().props as any;
+    const platformName = getPlatformName(branding);
     const [openIndex, setOpenIndex] = useState<number | null>(0);
 
-    // Default FAQs if none are configured
+    // Default FAQs if none are configured (use platform name for consistency)
     const defaultFaqs: FAQ[] = [
         {
-            question: 'What is WACP?',
-            answer: 'WACP (WhatsApp Cloud Platform) is a comprehensive platform for managing WhatsApp Business communications at scale. We are an official Meta Tech Provider. The platform provides tools for template management, chatbot automation, team collaboration, and more.'},
+            question: `What is ${platformName}?`,
+            answer: `${platformName} is a WhatsApp Cloud Platform for managing WhatsApp Business communications at scale. We are an official Meta Tech Provider. The platform provides tools for template management, chatbot automation, team collaboration, and more.`},
         {
             question: 'Are you a Meta Tech Provider?',
             answer: 'Yes. We are an official Meta Tech Provider, so you get a trusted, compliant connection to the Meta WhatsApp Cloud API with enterprise-grade support and reliability.'},
@@ -63,7 +67,7 @@ export default function FAQs({ faqs: initialFaqs }: { faqs: FAQ[] }) {
                     <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-r from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 mb-6">
                         <HelpCircle className="h-10 w-10 text-blue-600 dark:text-blue-400" />
                     </div>
-                    <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-gray-100 mb-4 bg-gradient-to-r from-gray-900 via-blue-600 to-purple-600 dark:from-gray-100 dark:via-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
+                    <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-gray-100 mb-4 gradient-text">
                         Frequently Asked Questions
                     </h1>
                     <p className="text-xl text-gray-600 dark:text-gray-400">
