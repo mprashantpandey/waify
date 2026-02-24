@@ -155,6 +155,7 @@ class PlatformSettingsController extends Controller
             'encryption' => $get('mail.encryption', config('mail.mailers.smtp.encryption', 'tls')),
             'from_address' => $get('mail.from_address', config('mail.from.address')),
             'from_name' => $get('mail.from_name', config('mail.from.name')),
+            'support_ticket_email_cooldown_minutes' => (int) $get('mail.support_ticket_email_cooldown_minutes', 60),
             'email_templates' => $mailEmailTemplates,
             'system_template_keys' => array_keys($systemDefaults)];
 
@@ -345,6 +346,7 @@ class PlatformSettingsController extends Controller
             'mail.encryption' => 'nullable|string|in:tls,ssl',
             'mail.from_address' => 'nullable|email',
             'mail.from_name' => 'nullable|string|max:255',
+            'mail.support_ticket_email_cooldown_minutes' => 'nullable|integer|min:1|max:1440',
             'mail.email_templates' => 'nullable|array',
             'mail.email_templates.*.key' => 'required|string|max:100|regex:/^[a-z0-9_\.]+$/',
             'mail.email_templates.*.name' => 'required|string|max:255',

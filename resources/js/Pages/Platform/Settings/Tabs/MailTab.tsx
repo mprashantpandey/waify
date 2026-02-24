@@ -163,6 +163,22 @@ export default function MailTab({ data, setData, errors }: MailTabProps) {
                         />
                         <InputError message={errors['mail.from_name']} />
                     </div>
+                    <div>
+                        <InputLabel htmlFor="mail.support_ticket_email_cooldown_minutes" value="Support Ticket Email Cooldown (minutes)" />
+                        <TextInput
+                            id="mail.support_ticket_email_cooldown_minutes"
+                            type="number"
+                            min={1}
+                            max={1440}
+                            value={data.mail?.support_ticket_email_cooldown_minutes || 60}
+                            onChange={(e) => setData('mail.support_ticket_email_cooldown_minutes', parseInt(e.target.value, 10) || 60)}
+                            className="mt-1"
+                        />
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Prevents repeated support ticket emails for the same ticket/direction within this cooldown window.
+                        </p>
+                        <InputError message={errors['mail.support_ticket_email_cooldown_minutes']} />
+                    </div>
                 </div>
                 <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto]">

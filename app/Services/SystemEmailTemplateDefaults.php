@@ -51,6 +51,14 @@ class SystemEmailTemplateDefaults
                 'body_text' => "Hello {{name}},\n\nYour verification code for {{phone}} is: {{code}}\n\nIt expires in 10 minutes.",
                 'placeholders' => ['{{name}}', '{{phone}}', '{{code}}', '{{platform_name}}'],
             ],
+            'support_notification' => [
+                'key' => 'support_notification',
+                'name' => 'Support ticket notification',
+                'subject' => '[{{platform_name}} Support] {{event_label}} · {{ticket_subject}}',
+                'body_html' => '<p>Hello {{recipient_name}},</p><p>Support ticket notification for <strong>{{ticket_subject}}</strong> ({{ticket_id}}).</p><p><strong>Tenant:</strong> {{tenant_name}}<br><strong>Status:</strong> {{ticket_status}}<br><strong>Priority:</strong> {{ticket_priority}}</p><p><strong>Message:</strong></p><p>{{message_body}}</p><p>You can continue in the app support ticket view.</p>',
+                'body_text' => "Hello {{recipient_name}},\n\nSupport ticket notification for {{ticket_subject}} ({{ticket_id}}).\nTenant: {{tenant_name}}\nStatus: {{ticket_status}}\nPriority: {{ticket_priority}}\n\nMessage:\n{{message_body}}\n\nContinue in the app support ticket view.",
+                'placeholders' => ['{{recipient_name}}', '{{event_label}}', '{{ticket_subject}}', '{{ticket_id}}', '{{tenant_name}}', '{{ticket_status}}', '{{ticket_priority}}', '{{message_body}}', '{{platform_name}}'],
+            ],
         ];
         return self::$defaults;
     }

@@ -110,6 +110,11 @@ Route::middleware(['auth', 'super.admin'])->prefix('/platform')->name('platform.
     Route::get('/subscriptions', [\App\Http\Controllers\Platform\PlanController::class, 'subscriptions'])->name('subscriptions.index');
     Route::get('/subscriptions/{subscription}', [\App\Http\Controllers\Platform\PlanController::class, 'showSubscription'])->name('subscriptions.show');
     Route::get('/transactions', [\App\Http\Controllers\Platform\TransactionController::class, 'index'])->name('transactions.index');
+    Route::get('/support/hub', [\App\Http\Controllers\Platform\SupportDeskController::class, 'hub'])->name('support.hub');
+    Route::get('/support', [\App\Http\Controllers\Platform\SupportDeskController::class, 'index'])->name('support.index');
+    Route::get('/support/{thread}', [\App\Http\Controllers\Platform\SupportDeskController::class, 'show'])->name('support.show');
+    Route::post('/support/{thread}/messages', [\App\Http\Controllers\Platform\SupportDeskController::class, 'message'])->name('support.message');
+    Route::post('/support/{thread}/update', [\App\Http\Controllers\Platform\SupportDeskController::class, 'update'])->name('support.update');
     Route::get('/meta-pricing', [\App\Http\Controllers\Platform\MetaPricingController::class, 'index'])->name('meta-pricing.index');
     Route::post('/meta-pricing', [\App\Http\Controllers\Platform\MetaPricingController::class, 'store'])->name('meta-pricing.store');
     Route::post('/meta-pricing/import-legacy', [\App\Http\Controllers\Platform\MetaPricingController::class, 'importLegacy'])->name('meta-pricing.import-legacy');

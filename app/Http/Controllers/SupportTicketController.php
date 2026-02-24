@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\SupportMessage;
 use App\Models\SupportThread;
+use App\Services\SupportTicketEmailService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -12,6 +13,11 @@ use Inertia\Response;
 
 class SupportTicketController extends Controller
 {
+    public function __construct(
+        protected SupportTicketEmailService $emailService
+    ) {
+    }
+
     public function index(Request $request): Response
     {
         $account = $request->attributes->get('account') ?? current_account();
@@ -60,7 +66,7 @@ class SupportTicketController extends Controller
             'category' => 'nullable|string|max:100',
         ]);
 
-        DB::transaction(function () use ($account, $user, $validated) {
+        [$thread, $message] = DB::transaction(function () use ($account, $user, $validated) {
             $thread = SupportThread::create([
                 'account_id' => $account->id,
                 'created_by' => $user->id,
@@ -71,13 +77,17 @@ class SupportTicketController extends Controller
                 'last_message_at' => now(),
             ]);
 
-            SupportMessage::create([
+            $message = SupportMessage::create([
                 'support_thread_id' => $thread->id,
                 'sender_type' => 'user',
                 'sender_id' => $user->id,
                 'body' => $validated['message'],
             ]);
+
+            return [$thread, $message];
         });
+
+        $this->emailService->notifyPlatformTicketCreated($thread, $message);
 
         return redirect()->route('app.support.index')->with('success', 'Support ticket created successfully.');
     }
@@ -132,7 +142,7 @@ class SupportTicketController extends Controller
             return redirect()->back()->with('error', 'This ticket is closed. Reopen it before replying.');
         }
 
-        SupportMessage::create([
+        $message = SupportMessage::create([
             'support_thread_id' => $supportThread->id,
             'sender_type' => 'user',
             'sender_id' => $user->id,
@@ -140,6 +150,7 @@ class SupportTicketController extends Controller
         ]);
 
         $supportThread->forceFill(['last_message_at' => now()])->save();
+        $this->emailService->notifyPlatformTenantReply($supportThread, $message);
 
         return redirect()->route('app.support.show', ['thread' => $supportThread->slug])->with('success', 'Reply sent.');
     }
@@ -148,7 +159,9 @@ class SupportTicketController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
         $supportThread = $this->resolveThread($thread, (int) $account->id);
+        $before = $supportThread->status;
         $supportThread->update(['status' => 'closed']);
+        $this->emailService->notifyPlatformTicketUpdated($supportThread->fresh(['creator', 'account']), ['status' => [$before, 'closed']], $request->user());
 
         return redirect()->back()->with('success', 'Ticket closed.');
     }
@@ -157,7 +170,9 @@ class SupportTicketController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
         $supportThread = $this->resolveThread($thread, (int) $account->id);
+        $before = $supportThread->status;
         $supportThread->update(['status' => 'open', 'last_message_at' => now()]);
+        $this->emailService->notifyPlatformTicketUpdated($supportThread->fresh(['creator', 'account']), ['status' => [$before, 'open']], $request->user());
 
         return redirect()->back()->with('success', 'Ticket reopened.');
     }
