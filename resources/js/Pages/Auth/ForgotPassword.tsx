@@ -4,7 +4,7 @@ import TextInput from '@/Components/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
-import { Mail, ArrowRight, ArrowLeft, CheckCircle } from 'lucide-react';
+import { Mail, ArrowRight, ArrowLeft } from 'lucide-react';
 import { Alert } from '@/Components/UI/Alert';
 
 export default function ForgotPassword({ status }: { status?: string }) {
@@ -32,7 +32,6 @@ export default function ForgotPassword({ status }: { status?: string }) {
 
             {status && (
                 <Alert variant="success" className="mb-6">
-                    <CheckCircle className="h-4 w-4" />
                     {status}
                 </Alert>
             )}
