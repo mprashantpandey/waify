@@ -174,6 +174,85 @@ class PlatformSettingsService
     }
 
     /**
+     * Get all email templates from platform settings.
+     *
+     * @return array<int, array{key: string, name: string, subject: string, body_html: string, body_text: string, placeholders: array<string>}>
+     */
+    public function getEmailTemplates(): array
+    {
+        $raw = $this->get('mail.email_templates');
+        if (is_array($raw)) {
+            return array_values($raw);
+        }
+        if (is_string($raw)) {
+            $decoded = json_decode($raw, true);
+            return is_array($decoded) ? array_values($decoded) : [];
+        }
+        return [];
+    }
+
+    /**
+     * Get a single email template by key.
+     *
+     * @return array{key: string, name: string, subject: string, body_html: string, body_text: string, placeholders: array<string>}|null
+     */
+    public function getEmailTemplate(string $key): ?array
+    {
+        $key = trim($key);
+        if ($key === '') {
+            return null;
+        }
+        foreach ($this->getEmailTemplates() as $template) {
+            if (isset($template['key']) && (string) $template['key'] === $key) {
+                return [
+                    'key' => (string) ($template['key'] ?? ''),
+                    'name' => (string) ($template['name'] ?? ''),
+                    'subject' => (string) ($template['subject'] ?? ''),
+                    'body_html' => (string) ($template['body_html'] ?? ''),
+                    'body_text' => (string) ($template['body_text'] ?? ''),
+                    'placeholders' => array_values(array_map('strval', (array) ($template['placeholders'] ?? []))),
+                ];
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Get SMS provider configuration for 2FA / OTP.
+     *
+     * @return array{provider: string, twilio_account_sid: string|null, twilio_auth_token: string|null, twilio_verify_service_sid: string|null, msg91_authkey: string|null, msg91_sender_id: string, msg91_otp_expiry_minutes: int, msg91_otp_length: int}
+     */
+    public function getSmsConfig(): array
+    {
+        $provider = trim((string) $this->get('sms.provider', ''));
+        return [
+            'provider' => $provider,
+            'twilio_account_sid' => $provider === 'twilio_verify' ? trim((string) $this->get('sms.twilio_account_sid', '')) : null,
+            'twilio_auth_token' => $provider === 'twilio_verify' ? trim((string) $this->get('sms.twilio_auth_token', '')) : null,
+            'twilio_verify_service_sid' => $provider === 'twilio_verify' ? trim((string) $this->get('sms.twilio_verify_service_sid', '')) : null,
+            'msg91_authkey' => $provider === 'msg91' ? trim((string) $this->get('sms.msg91_authkey', '')) : null,
+            'msg91_sender_id' => trim((string) $this->get('sms.msg91_sender_id', 'SMSIND')) ?: 'SMSIND',
+            'msg91_otp_expiry_minutes' => (int) $this->get('sms.msg91_otp_expiry_minutes', 10) ?: 10,
+            'msg91_otp_length' => (int) $this->get('sms.msg91_otp_length', 6) ?: 6,
+        ];
+    }
+
+    /**
+     * Check if an SMS provider is configured for OTP.
+     */
+    public function hasSmsProvider(): bool
+    {
+        $config = $this->getSmsConfig();
+        if ($config['provider'] === 'twilio_verify') {
+            return $config['twilio_account_sid'] !== '' && $config['twilio_auth_token'] !== '' && $config['twilio_verify_service_sid'] !== '';
+        }
+        if ($config['provider'] === 'msg91') {
+            return $config['msg91_authkey'] !== '';
+        }
+        return false;
+    }
+
+    /**
      * Apply Pusher configuration from platform settings.
      */
     public function applyPusherConfig(): void

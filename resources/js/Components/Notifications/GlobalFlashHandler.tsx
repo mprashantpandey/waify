@@ -49,15 +49,9 @@ export function GlobalFlashHandler() {
             if (flash.info) {
                 emit('Info', flash.info, 'info');
             }
-            if (flash.status) {
-                const statusMessages: Record<string, { title: string; variant: 'success' | 'error' | 'warning' | 'info' }> = {
-                    'verification-link-sent': { title: 'Verification Link Sent', variant: 'success' },
-                    'password-updated': { title: 'Password Updated', variant: 'success' },
-                    'profile-updated': { title: 'Profile Updated', variant: 'success' },
-                };
-                const config = statusMessages[flash.status] || { title: 'Status', variant: 'info' as const };
-                emit(config.title, flash.status, config.variant);
-            }
+            // Do not auto-toast generic `status` flashes.
+            // Many pages (especially auth/profile flows) already render inline status alerts,
+            // which creates a duplicate "flash alert + toast" experience.
         }
 
         // Validation/redirect errors (redirect()->withErrors([...]))

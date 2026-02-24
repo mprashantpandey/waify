@@ -23,8 +23,10 @@ function normalizeToastMessage(toast: Omit<Toast, 'id'>): string {
         .trim()
         .toLowerCase()
         .replace(/\b(successfully|successful|success)\b/g, '')
+        .replace(/\b(done|completed)\b/g, '')
         .replace(/\bfailed to\b/g, '')
         .replace(/\bunable to\b/g, '')
+        .replace(/\byour\b/g, '')
         .replace(/[.!?]+$/g, '')
         .replace(/\s+/g, ' ')
         .trim();
@@ -55,13 +57,30 @@ export function useToast() {
         const now = Date.now();
         const canonicalMessage = normalizeToastMessage(toast);
         const signature = canonicalMessage || `${toast.variant || 'info'}|${toast.title || ''}|${toast.description || ''}`;
-        const eventSignature = `${toast.variant || 'info'}|${signature}`;
+        // Variant-agnostic guard prevents duplicate flash/local notifications
+        // where one source emits "Success" and another emits "Info/Error"
+        // for the same semantic message.
+        const eventSignature = signature;
 
         // Global duplicate-toast guard middleware (event-level)
         // Prevents duplicate toasts from mixed sources (flash + local handlers).
         const eventSeenAt = recentEventSignatures.get(eventSignature);
         if (eventSeenAt && now - eventSeenAt < TOAST_EVENT_DEDUPE_WINDOW_MS) {
             return `guarded-${eventSignature}`;
+        }
+        for (const [seenSignature, seenAt] of recentEventSignatures.entries()) {
+            if (now - seenAt >= TOAST_EVENT_DEDUPE_WINDOW_MS) {
+                continue;
+            }
+            // Containment match catches near-duplicates like:
+            // "2fa setup started" vs "2fa setup started add the secret ..."
+            if (
+                seenSignature &&
+                eventSignature &&
+                (seenSignature.includes(eventSignature) || eventSignature.includes(seenSignature))
+            ) {
+                return `guarded-similar-${eventSignature}`;
+            }
         }
         recentEventSignatures.set(eventSignature, now);
 

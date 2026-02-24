@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import PlatformShell from '@/Layouts/PlatformShell';
 import Button from '@/Components/UI/Button';
 import { Tabs, TabsList, TabsTrigger, TabsContent, useTabs } from '@/Components/UI/Tabs';
-import { Save, Radio, Mail, HardDrive, Globe, Shield, CreditCard, Webhook, BarChart3, Scale, Zap, ToggleLeft, Palette, Bot, LifeBuoy, XCircle, Clock3, Activity } from 'lucide-react';
+import { Save, Radio, Mail, HardDrive, Globe, Shield, CreditCard, Webhook, BarChart3, Scale, Zap, ToggleLeft, Palette, Bot, LifeBuoy, XCircle, Clock3, Activity, FileText, MessageSquare } from 'lucide-react';
 import MisconfiguredSettingsAlert from '@/Components/Platform/MisconfiguredSettingsAlert';
 import { useToast } from '@/hooks/useToast';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -17,6 +17,8 @@ import PerformanceTab from './Settings/Tabs/PerformanceTab';
 import FeaturesTab from './Settings/Tabs/FeaturesTab';
 import PusherTab from './Settings/Tabs/PusherTab';
 import MailTab from './Settings/Tabs/MailTab';
+import EmailTemplatesTab from './Settings/Tabs/EmailTemplatesTab';
+import SmsTab from './Settings/Tabs/SmsTab';
 import StorageTab from './Settings/Tabs/StorageTab';
 import BrandingTab from './Settings/Tabs/BrandingTab';
 import AiTab from './Settings/Tabs/AiTab';
@@ -40,6 +42,7 @@ export default function PlatformSettings({
     ai,
     whatsapp,
     support,
+    sms,
     cron,
     delivery,
     misconfigured_settings}: any) {
@@ -84,7 +87,8 @@ export default function PlatformSettings({
         branding: branding || {},
         ai: ai || {},
         whatsapp: whatsapp || {},
-        support: support || {}});
+        support: support || {},
+        sms: sms || {}});
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -107,7 +111,7 @@ export default function PlatformSettings({
         post(route('platform.settings.update'), {
             preserveScroll: false,
             forceFormData: true, // Required for file uploads
-            only: ['general', 'security', 'payment', 'integrations', 'analytics', 'compliance', 'performance', 'features', 'pusher', 'mail', 'storage', 'branding', 'ai', 'whatsapp', 'support', 'flash'],
+            only: ['general', 'security', 'payment', 'integrations', 'analytics', 'compliance', 'performance', 'features', 'pusher', 'mail', 'storage', 'branding', 'ai', 'whatsapp', 'support', 'sms', 'flash'],
             onError: (errors) => {
                 const errorMessages = Object.values(errors).flat();
                 addToast({
@@ -133,6 +137,8 @@ export default function PlatformSettings({
         { id: 'ai', label: 'AI', icon: Bot },
         { id: 'pusher', label: 'Pusher', icon: Radio },
         { id: 'mail', label: 'Mail', icon: Mail },
+        { id: 'email_templates', label: 'Email templates', icon: FileText },
+        { id: 'sms', label: 'SMS (2FA & MSG91)', icon: MessageSquare },
         { id: 'storage', label: 'Storage', icon: HardDrive },
     ];
 
@@ -247,6 +253,14 @@ export default function PlatformSettings({
 
                         <TabsContent value="mail">
                             <MailTab data={data} setData={setData} errors={errors} />
+                        </TabsContent>
+
+                        <TabsContent value="email_templates">
+                            <EmailTemplatesTab data={data} setData={setData} errors={errors} />
+                        </TabsContent>
+
+                        <TabsContent value="sms">
+                            <SmsTab data={data} setData={setData} errors={errors} />
                         </TabsContent>
 
                         <TabsContent value="storage">

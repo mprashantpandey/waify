@@ -135,6 +135,13 @@ class PlatformSettingsController extends Controller
             'cluster' => $get('pusher.cluster', config('broadcasting.connections.pusher.options.cluster'))];
 
         // Mail Settings
+        $mailEmailTemplatesRaw = $get('mail.email_templates');
+        $mailEmailTemplates = is_array($mailEmailTemplatesRaw) ? $mailEmailTemplatesRaw : [];
+        if (is_string($mailEmailTemplatesRaw)) {
+            $decoded = json_decode($mailEmailTemplatesRaw, true);
+            $mailEmailTemplates = is_array($decoded) ? $decoded : [];
+        }
+
         $mailSettings = [
             'driver' => $get('mail.driver', config('mail.default')),
             'host' => $get('mail.host', config('mail.mailers.smtp.host')),
@@ -143,7 +150,8 @@ class PlatformSettingsController extends Controller
             'password' => $get('mail.password', config('mail.mailers.smtp.password')),
             'encryption' => $get('mail.encryption', config('mail.mailers.smtp.encryption', 'tls')),
             'from_address' => $get('mail.from_address', config('mail.from.address')),
-            'from_name' => $get('mail.from_name', config('mail.from.name'))];
+            'from_name' => $get('mail.from_name', config('mail.from.name')),
+            'email_templates' => $mailEmailTemplates];
 
         // Storage Settings
         $storageSettings = [
@@ -209,6 +217,18 @@ class PlatformSettingsController extends Controller
             'notify_customers' => (bool) $get('support.notify_customers', true),
             'email_thread_notify_gap_minutes' => (int) $get('support.email_thread_notify_gap_minutes', 60)];
 
+        // SMS provider settings (2FA / OTP: Twilio Verify or MSG91)
+        $smsSettings = [
+            'provider' => $get('sms.provider', ''),
+            'twilio_account_sid' => $get('sms.twilio_account_sid'),
+            'twilio_auth_token' => $get('sms.twilio_auth_token'),
+            'twilio_verify_service_sid' => $get('sms.twilio_verify_service_sid'),
+            'msg91_authkey' => $get('sms.msg91_authkey'),
+            'msg91_sender_id' => $get('sms.msg91_sender_id', 'SMSIND'),
+            'msg91_otp_expiry_minutes' => (int) $get('sms.msg91_otp_expiry_minutes', 10),
+            'msg91_otp_length' => (int) $get('sms.msg91_otp_length', 6),
+        ];
+
         // Check for misconfigured settings
         $validationService = app(PlatformSettingsValidationService::class);
         $misconfiguredSettings = $validationService->getMisconfiguredSettings();
@@ -229,6 +249,7 @@ class PlatformSettingsController extends Controller
             'ai' => $aiSettings,
             'whatsapp' => $whatsappSettings,
             'support' => $supportSettings,
+            'sms' => $smsSettings,
             'cron' => $this->cronDiagnosticsService->platformSummary(),
             'delivery' => $this->cronDiagnosticsService->deliverySummary(),
             'misconfigured_settings' => array_values($misconfiguredSettings)]);
@@ -337,6 +358,14 @@ class PlatformSettingsController extends Controller
             'mail.encryption' => 'nullable|string|in:tls,ssl',
             'mail.from_address' => 'nullable|email',
             'mail.from_name' => 'nullable|string|max:255',
+            'mail.email_templates' => 'nullable|array',
+            'mail.email_templates.*.key' => 'required|string|max:100|regex:/^[a-z0-9_\.]+$/',
+            'mail.email_templates.*.name' => 'required|string|max:255',
+            'mail.email_templates.*.subject' => 'required|string|max:500',
+            'mail.email_templates.*.body_html' => 'nullable|string|max:50000',
+            'mail.email_templates.*.body_text' => 'nullable|string|max:50000',
+            'mail.email_templates.*.placeholders' => 'nullable|array',
+            'mail.email_templates.*.placeholders.*' => 'nullable|string|max:100',
             // Storage
             'storage.default' => 'nullable|string|in:local,public,s3',
             'storage.s3_key' => 'nullable|string',
@@ -387,6 +416,15 @@ class PlatformSettingsController extends Controller
             'support.notify_admins' => 'nullable|boolean',
             'support.notify_customers' => 'nullable|boolean',
             'support.email_thread_notify_gap_minutes' => 'nullable|integer|min:1|max:1440',
+            // SMS (2FA / OTP)
+            'sms.provider' => 'nullable|string|in:twilio_verify,msg91,',
+            'sms.twilio_account_sid' => 'nullable|string|max:255',
+            'sms.twilio_auth_token' => 'nullable|string|max:255',
+            'sms.twilio_verify_service_sid' => 'nullable|string|max:255',
+            'sms.msg91_authkey' => 'nullable|string|max:255',
+            'sms.msg91_sender_id' => 'nullable|string|max:11',
+            'sms.msg91_otp_expiry_minutes' => 'nullable|integer|min:1|max:1440',
+            'sms.msg91_otp_length' => 'nullable|integer|min:4|max:9',
             'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
             'favicon' => 'nullable|image|mimes:ico,png|max:512']);
 
@@ -403,7 +441,7 @@ class PlatformSettingsController extends Controller
         }
 
         // Update all settings groups
-        $groups = ['general', 'security', 'payment', 'integrations', 'analytics', 'compliance', 'performance', 'features', 'pusher', 'mail', 'storage', 'branding', 'ai', 'whatsapp', 'support'];
+        $groups = ['general', 'security', 'payment', 'integrations', 'analytics', 'compliance', 'performance', 'features', 'pusher', 'mail', 'storage', 'branding', 'ai', 'whatsapp', 'support', 'sms'];
         
         // Define boolean fields that need explicit handling (for unchecked checkboxes)
         $booleanFields = [
@@ -440,11 +478,30 @@ class PlatformSettingsController extends Controller
                         if ($group === 'support' && $key === 'faqs' && is_array($value)) {
                             $value = json_encode($value);
                         }
-                        
+
+                        // Email templates: store as JSON string
+                        if ($group === 'mail' && $key === 'email_templates' && is_array($value)) {
+                            $normalized = array_values(array_map(function ($t) {
+                                return [
+                                    'key' => trim((string) ($t['key'] ?? '')),
+                                    'name' => trim((string) ($t['name'] ?? '')),
+                                    'subject' => trim((string) ($t['subject'] ?? '')),
+                                    'body_html' => trim((string) ($t['body_html'] ?? '')),
+                                    'body_text' => trim((string) ($t['body_text'] ?? '')),
+                                    'placeholders' => array_values(array_filter(array_map('trim', (array) ($t['placeholders'] ?? [])))),
+                                ];
+                            }, $value));
+                            $value = json_encode($normalized);
+                            $type = 'string';
+                        }
+
                         // Determine type - check if it's a known boolean field first
                         $isBooleanField = isset($booleanFields[$group]) && in_array($key, $booleanFields[$group]);
-                        
-                        if ($isBooleanField) {
+                        $skipTypeDetection = ($group === 'mail' && $key === 'email_templates');
+
+                        if ($skipTypeDetection) {
+                            // type already set above
+                        } elseif ($isBooleanField) {
                             // Convert to boolean if it's a known boolean field
                             $value = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
                             if ($value === null) {
