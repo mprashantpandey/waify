@@ -4,6 +4,7 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import ReactDOMServer from 'react-dom/server';
 import { RouteName } from 'ziggy-js';
 import { route } from '../../vendor/tightenco/ziggy';
+import { getPlatformName } from '@/lib/branding';
 
 createServer((page) =>
     createInertiaApp({
@@ -11,7 +12,6 @@ createServer((page) =>
         render: ReactDOMServer.renderToString,
         title: (title) => {
             const branding = (page.props as any)?.branding;
-            const { getPlatformName } = await import('@/lib/branding');
             const appName = getPlatformName(branding);
             return title ? `${title} - ${appName}` : appName;
         },
