@@ -100,6 +100,11 @@ Route::middleware(['auth', 'super.admin'])->prefix('/platform')->name('platform.
     Route::get('/subscriptions', [\App\Http\Controllers\Platform\PlanController::class, 'subscriptions'])->name('subscriptions.index');
     Route::get('/subscriptions/{subscription}', [\App\Http\Controllers\Platform\PlanController::class, 'showSubscription'])->name('subscriptions.show');
     Route::get('/transactions', [\App\Http\Controllers\Platform\TransactionController::class, 'index'])->name('transactions.index');
+    Route::get('/meta-pricing', [\App\Http\Controllers\Platform\MetaPricingController::class, 'index'])->name('meta-pricing.index');
+    Route::post('/meta-pricing', [\App\Http\Controllers\Platform\MetaPricingController::class, 'store'])->name('meta-pricing.store');
+    Route::post('/meta-pricing/import-legacy', [\App\Http\Controllers\Platform\MetaPricingController::class, 'importLegacy'])->name('meta-pricing.import-legacy');
+    Route::put('/meta-pricing/{version}', [\App\Http\Controllers\Platform\MetaPricingController::class, 'update'])->name('meta-pricing.update');
+    Route::post('/meta-pricing/{version}/toggle', [\App\Http\Controllers\Platform\MetaPricingController::class, 'toggle'])->name('meta-pricing.toggle');
     Route::post('/accounts/{account}/wallet/credit', [\App\Http\Controllers\Platform\TransactionController::class, 'credit'])->name('accounts.wallet.credit');
     Route::post('/accounts/{account}/wallet/debit', [\App\Http\Controllers\Platform\TransactionController::class, 'debit'])->name('accounts.wallet.debit');
     Route::get('/system-health', [\App\Http\Controllers\Platform\SystemHealthController::class, 'index'])->name('system-health');

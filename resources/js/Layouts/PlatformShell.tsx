@@ -94,6 +94,10 @@ export default function PlatformShell({ children, auth }: PlatformShellProps) {
             href: route('platform.transactions.index'),
             icon: Wallet},
         {
+            name: 'Meta Pricing',
+            href: route('platform.meta-pricing.index'),
+            icon: Wallet},
+        {
             name: 'Analytics',
             href: route('platform.analytics'),
             icon: BarChart3},
