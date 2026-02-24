@@ -80,7 +80,8 @@ class AccountApiKey extends Model
 
     public function isUsable(): bool
     {
-        if (property_exists($this, 'is_active') && !$this->is_active) {
+        // Use getAttribute so we respect DB columns when present (e.g. after lifecycle migration)
+        if (($this->getAttribute('is_active') ?? true) === false) {
             return false;
         }
 
@@ -103,10 +104,11 @@ class AccountApiKey extends Model
             return;
         }
 
-        $this->forceFill([
-            'last_used_at' => now(),
-            'last_used_ip' => $ip ?: $this->last_used_ip,
-        ])->save();
+        $payload = ['last_used_at' => now()];
+        if (\Illuminate\Support\Facades\Schema::hasColumn($this->getTable(), 'last_used_ip')) {
+            $payload['last_used_ip'] = $ip ?: $this->last_used_ip;
+        }
+        $this->forceFill($payload)->save();
     }
 
     public function hasScope(string $scope): bool
