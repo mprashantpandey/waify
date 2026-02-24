@@ -44,6 +44,7 @@ class SupportTicketEmailService
             context: $this->context($thread, $message, [
                 'recipient_name' => $recipient->name ?? 'User',
                 'event_label' => 'reply',
+                'ticket_link' => route('app.support.show', ['thread' => $thread->slug]),
             ]),
             bodyTextFallback: "Your support ticket has a new reply.\n\nTicket: {$thread->subject}\nTicket ID: #{$thread->slug}\n\nReply:\n{$message->body}",
             bodyHtmlFallback: '<p>Your support ticket has a new reply.</p><p><strong>Ticket:</strong> '.e($thread->subject).' <br><strong>Ticket ID:</strong> #'.e($thread->slug).'</p><p><strong>Reply:</strong></p><p>'.nl2br(e($message->body)).'</p>'
@@ -79,6 +80,8 @@ class SupportTicketEmailService
                 'recipient_name' => $recipient->name ?? 'User',
                 'event_label' => 'status update',
                 'message_body' => implode("\n", $lines),
+                'recent_ticket_message' => implode("\n", $lines),
+                'ticket_link' => route('app.support.show', ['thread' => $thread->slug]),
             ]),
             bodyTextFallback: $body,
             bodyHtmlFallback: '<p>Your support ticket was updated by platform support.</p><p><strong>Ticket:</strong> '.e($thread->subject).' <br><strong>Ticket ID:</strong> #'.e($thread->slug).'</p><pre style="white-space:pre-wrap;font-family:inherit;">'.e(implode("\n", $lines)).'</pre>'
@@ -108,6 +111,8 @@ class SupportTicketEmailService
                     'recipient_name' => 'Support',
                     'event_label' => 'ticket update',
                     'message_body' => implode("\n", $lines),
+                    'recent_ticket_message' => implode("\n", $lines),
+                    'ticket_link' => route('platform.support.show', ['thread' => $thread->slug]),
                 ]),
                 bodyTextFallback: "Ticket updated: {$thread->subject} ({$thread->slug})\n".implode("\n", $lines),
                 bodyHtmlFallback: '<p>Support ticket updated: <strong>'.e($thread->subject).'</strong> (#'.e($thread->slug).')</p><pre style="white-space:pre-wrap;font-family:inherit;">'.e(implode("\n", $lines)).'</pre>'
@@ -126,6 +131,7 @@ class SupportTicketEmailService
                 context: $this->context($thread, $message, [
                     'recipient_name' => 'Support',
                     'event_label' => $eventKey,
+                    'ticket_link' => route('platform.support.show', ['thread' => $thread->slug]),
                 ]),
                 bodyTextFallback: "Ticket: {$thread->subject}\nTicket ID: #{$thread->slug}\nTenant: {$thread->account?->name}\nFrom: {$thread->creator?->email}\n\nMessage:\n{$message->body}",
                 bodyHtmlFallback: '<p><strong>Ticket:</strong> '.e($thread->subject).' <br><strong>Ticket ID:</strong> #'.e($thread->slug).'<br><strong>Tenant:</strong> '.e((string) ($thread->account?->name ?? '-')).'<br><strong>From:</strong> '.e((string) ($thread->creator?->email ?? '-')).'</p><p><strong>Message:</strong></p><p>'.nl2br(e($message->body)).'</p>'
@@ -213,8 +219,10 @@ class SupportTicketEmailService
         // Backward-compatible aliases for older/customized template placeholders.
         $aliases = [
             'message_body' => ['message', 'body', 'reply_message', 'ticket_message'],
+            'recent_ticket_message' => ['recent_message', 'last_message', 'latest_message'],
             'ticket_subject' => ['subject', 'ticket', 'thread_subject'],
             'ticket_id' => ['thread_id', 'ticket_slug'],
+            'ticket_link' => ['link', 'ticket_url', 'thread_link'],
             'recipient_name' => ['user_name', 'customer_name'],
             'tenant_name' => ['account_name', 'workspace_name'],
             'ticket_status' => ['status'],
@@ -249,10 +257,14 @@ class SupportTicketEmailService
             'support_email' => (string) (PlatformSetting::get('branding.support_email') ?: PlatformSetting::get('general.support_email') ?: config('mail.from.address', '')),
             'ticket_subject' => $thread->subject,
             'ticket_id' => '#'.$thread->slug,
+            'ticket_link' => route('app.support.show', ['thread' => $thread->slug]),
+            'tenant_ticket_link' => route('app.support.show', ['thread' => $thread->slug]),
+            'platform_ticket_link' => route('platform.support.show', ['thread' => $thread->slug]),
             'ticket_status' => (string) $thread->status,
             'ticket_priority' => (string) ($thread->priority ?? 'normal'),
             'tenant_name' => (string) ($thread->account?->name ?? ''),
             'message_body' => (string) ($message?->body ?? ''),
+            'recent_ticket_message' => (string) ($message?->body ?? ''),
             // Backward-compatible aliases for existing customized templates
             'message' => (string) ($message?->body ?? ''),
             'subject' => (string) $thread->subject,
