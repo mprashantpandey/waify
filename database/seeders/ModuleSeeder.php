@@ -90,6 +90,13 @@ class ModuleSeeder extends Seeder
                 'is_core' => false,
                 'is_enabled' => true,
             ],
+            [
+                'key' => 'developer',
+                'name' => 'Developer / API',
+                'description' => 'API keys and external API documentation for integrating with Waify',
+                'is_core' => false,
+                'is_enabled' => true,
+            ],
         ];
 
         foreach ($modules as $module) {

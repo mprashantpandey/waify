@@ -18,6 +18,14 @@ Route::get('/api/stats', [\App\Http\Controllers\LandingPageController::class, 's
     ->middleware(['public-api.enabled', 'log.api'])
     ->name('api.stats');
 
+// Tenant external API (v1) – authenticated by API key
+Route::prefix('api/v1')->middleware(['api.key', 'throttle:60,1'])->group(function () {
+    Route::get('/account', [\App\Http\Controllers\Api\V1\AccountApiController::class, 'show']);
+    Route::get('/connections', [\App\Http\Controllers\Api\V1\ConnectionsApiController::class, 'index']);
+    Route::get('/contacts', [\App\Http\Controllers\Api\V1\ContactsApiController::class, 'index']);
+    Route::get('/conversations', [\App\Http\Controllers\Api\V1\ConversationsApiController::class, 'index']);
+});
+
 // Public pages
 Route::get('/pricing', [\App\Http\Controllers\PublicPagesController::class, 'pricing'])->name('pricing');
 Route::get('/privacy', [\App\Http\Controllers\PublicPagesController::class, 'privacy'])->name('privacy');

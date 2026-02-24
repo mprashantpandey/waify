@@ -34,6 +34,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'broadcasting/auth',
             'webhooks/*',
+            'api/v1/*',
         ]);
 
         $middleware->alias([
@@ -51,6 +52,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'log.api' => \App\Http\Middleware\LogApiRequests::class,
             'restrict.chat.agent' => \App\Http\Middleware\RestrictChatAgentAccess::class,
             'tenant.phone.verified' => \App\Http\Middleware\EnsurePhoneVerifiedForTenant::class,
+            'api.key' => \App\Http\Middleware\AuthenticateApiKey::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
