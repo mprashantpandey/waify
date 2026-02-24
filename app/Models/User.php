@@ -37,7 +37,10 @@ class User extends Authenticatable
      */
     protected $hidden = [
         'password',
-        'remember_token'];
+        'remember_token',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
+    ];
 
     /**
      * Get the attributes that should be cast.
@@ -49,6 +52,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'phone_verified_at' => 'datetime',
+            'two_factor_confirmed_at' => 'datetime',
             'password' => 'hashed',
             'is_platform_admin' => 'boolean',
             'notify_assignment_enabled' => 'boolean',

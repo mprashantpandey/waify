@@ -4,12 +4,14 @@ import Button from '@/Components/UI/Button';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
-import { Shield, Save, Trash2, Lock, CheckCircle2 } from 'lucide-react';
+import { Shield, Save, Trash2, Lock, CheckCircle2, KeyRound } from 'lucide-react';
 import { router } from '@inertiajs/react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { Transition } from '@headlessui/react';
 import { usePage } from '@inertiajs/react';
 import { Alert } from '@/Components/UI/Alert';
+import { useEffect, useState } from 'react';
+import QRCode from 'qrcode';
 
 type SecuritySession = {
     id: string;
@@ -25,12 +27,23 @@ export default function SecurityTab() {
     const mustVerifyEmail = Boolean(props.mustVerifyEmail);
     const emailVerified = Boolean(props.emailVerified);
     const securityPolicy = props.securityPolicy;
+    const twoFactor = props.twoFactor ?? {};
+    const twoFactorEnabled = Boolean(twoFactor.enabled);
+    const twoFactorPending = Boolean(twoFactor.pending_setup);
+    const recoveryCodes: string[] = Array.isArray(twoFactor.recovery_codes) ? twoFactor.recovery_codes : [];
     const sessions: SecuritySession[] = (props.sessions ?? []) as SecuritySession[];
+    const [twoFactorQrDataUrl, setTwoFactorQrDataUrl] = useState<string | null>(null);
     const { data, setData, put, processing, errors, reset, recentlySuccessful } = useForm({
         current_password: '',
         password: '',
         password_confirmation: ''});
     const sessionForm = useForm({
+        current_password: '',
+    });
+    const twoFactorConfirmForm = useForm({
+        otp_code: '',
+    });
+    const twoFactorDisableForm = useForm({
         current_password: '',
     });
 
@@ -99,6 +112,77 @@ export default function SecurityTab() {
         });
     };
 
+    useEffect(() => {
+        let active = true;
+
+        if (!twoFactorPending || !twoFactor.otpauth_uri) {
+            setTwoFactorQrDataUrl(null);
+            return () => {
+                active = false;
+            };
+        }
+
+        QRCode.toDataURL(twoFactor.otpauth_uri, {
+            width: 220,
+            margin: 1,
+        }).then((url: string) => {
+            if (active) setTwoFactorQrDataUrl(url);
+        }).catch(() => {
+            if (active) setTwoFactorQrDataUrl(null);
+        });
+
+        return () => {
+            active = false;
+        };
+    }, [twoFactorPending, twoFactor.otpauth_uri]);
+
+    const startTwoFactorSetup = () => {
+        router.post(route('app.settings.security.2fa.setup'), {}, {
+            preserveScroll: true,
+            onSuccess: () => toast.success('2FA setup started'),
+            onError: () => toast.error('Failed to start 2FA setup'),
+        });
+    };
+
+    const cancelTwoFactorSetup = () => {
+        router.post(route('app.settings.security.2fa.cancel'), {}, {
+            preserveScroll: true,
+            onSuccess: () => toast.info('2FA setup canceled'),
+        });
+    };
+
+    const confirmTwoFactorSetup = (e: React.FormEvent) => {
+        e.preventDefault();
+        twoFactorConfirmForm.post(route('app.settings.security.2fa.confirm'), {
+            preserveScroll: true,
+            onSuccess: () => {
+                toast.success('2FA enabled');
+                twoFactorConfirmForm.reset();
+            },
+            onError: () => toast.error('Failed to enable 2FA'),
+        });
+    };
+
+    const disableTwoFactor = (e: React.FormEvent) => {
+        e.preventDefault();
+        twoFactorDisableForm.post(route('app.settings.security.2fa.disable'), {
+            preserveScroll: true,
+            onSuccess: () => {
+                toast.success('2FA disabled');
+                twoFactorDisableForm.reset();
+            },
+            onError: () => toast.error('Failed to disable 2FA'),
+        });
+    };
+
+    const regenerateRecoveryCodes = () => {
+        router.post(route('app.settings.security.2fa.recovery-codes.regenerate'), {}, {
+            preserveScroll: true,
+            onSuccess: () => toast.success('Recovery codes regenerated'),
+            onError: () => toast.error('Failed to regenerate recovery codes'),
+        });
+    };
+
     return (
         <div className="space-y-6">
             <Card className="border-0 shadow-lg">
@@ -157,6 +241,129 @@ export default function SecurityTab() {
                             )}
                         </div>
                     </div>
+                </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-emerald-50 to-teal-100 dark:from-emerald-900/20 dark:to-teal-800/20">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-emerald-500 rounded-xl">
+                            <KeyRound className="h-5 w-5 text-white" />
+                        </div>
+                        <div>
+                            <CardTitle className="text-xl font-bold">Two-Factor Authentication (2FA)</CardTitle>
+                            <CardDescription>Use an authenticator app (TOTP) for stronger account protection</CardDescription>
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent className="p-6 space-y-4">
+                    <Alert variant={twoFactorEnabled ? 'success' : 'warning'}>
+                        {twoFactorEnabled ? '2FA is enabled on your account.' : '2FA is not enabled on your account.'}
+                    </Alert>
+
+                    {securityPolicy?.require_2fa && !twoFactorEnabled && (
+                        <Alert variant="warning">
+                            Platform policy requires 2FA. Set it up now to stay compliant.
+                        </Alert>
+                    )}
+
+                    {!twoFactorEnabled && !twoFactorPending && (
+                        <Button onClick={startTwoFactorSetup}>
+                            Start 2FA Setup
+                        </Button>
+                    )}
+
+                    {!twoFactorEnabled && twoFactorPending && (
+                        <div className="space-y-4 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                            <div className="space-y-2">
+                                <p className="text-sm font-semibold">Step 1: Add this secret to your authenticator app</p>
+                                {twoFactorQrDataUrl && (
+                                    <div className="flex justify-center">
+                                        <img
+                                            src={twoFactorQrDataUrl}
+                                            alt="2FA QR Code"
+                                            className="h-56 w-56 rounded-lg border border-gray-200 bg-white p-2"
+                                            loading="lazy"
+                                        />
+                                    </div>
+                                )}
+                                <div className="rounded-lg bg-gray-50 dark:bg-gray-900 p-3 text-sm font-mono break-all">
+                                    {twoFactor.pending_secret}
+                                </div>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    If your app supports manual entry, use the secret above. OTPAuth URI is shown below for compatibility.
+                                </p>
+                                <div className="rounded-lg bg-gray-50 dark:bg-gray-900 p-3 text-xs break-all">
+                                    {twoFactor.otpauth_uri}
+                                </div>
+                            </div>
+
+                            <form onSubmit={confirmTwoFactorSetup} className="space-y-3">
+                                <div>
+                                    <InputLabel htmlFor="two_factor_otp_code" value="Step 2: Enter 6-digit code from authenticator app" className="text-sm font-semibold mb-2" />
+                                    <TextInput
+                                        id="two_factor_otp_code"
+                                        value={twoFactorConfirmForm.data.otp_code}
+                                        onChange={(e) => twoFactorConfirmForm.setData('otp_code', e.target.value)}
+                                        className="block w-full rounded-xl"
+                                        placeholder="123456"
+                                    />
+                                    <InputError message={(twoFactorConfirmForm.errors as any).otp_code || (twoFactorConfirmForm.errors as any).two_factor_otp_code} className="mt-2" />
+                                </div>
+                                <div className="flex gap-3">
+                                    <Button type="submit" disabled={twoFactorConfirmForm.processing}>
+                                        {twoFactorConfirmForm.processing ? 'Confirming...' : 'Enable 2FA'}
+                                    </Button>
+                                    <Button type="button" variant="secondary" onClick={cancelTwoFactorSetup}>
+                                        Cancel Setup
+                                    </Button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+
+                    {twoFactorEnabled && (
+                        <div className="space-y-4">
+                            <div className="flex flex-wrap gap-3">
+                                <Button variant="secondary" onClick={regenerateRecoveryCodes}>
+                                    Regenerate Recovery Codes
+                                </Button>
+                            </div>
+
+                            {recoveryCodes.length > 0 && (
+                                <div className="rounded-xl border border-amber-200 dark:border-amber-800 p-4">
+                                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-2">
+                                        Save these recovery codes now (shown once after generation)
+                                    </p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        {recoveryCodes.map((code) => (
+                                            <div key={code} className="rounded bg-amber-50 dark:bg-amber-900/20 px-3 py-2 font-mono text-sm">
+                                                {code}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            <form onSubmit={disableTwoFactor} className="space-y-3 border-t border-gray-200 dark:border-gray-700 pt-4">
+                                <div>
+                                    <InputLabel htmlFor="disable_two_factor_password" value="Current Password (to disable 2FA)" className="text-sm font-semibold mb-2" />
+                                    <TextInput
+                                        id="disable_two_factor_password"
+                                        type="password"
+                                        value={twoFactorDisableForm.data.current_password}
+                                        onChange={(e) => twoFactorDisableForm.setData('current_password', e.target.value)}
+                                        className="block w-full rounded-xl"
+                                        placeholder="Enter current password"
+                                    />
+                                    <InputError message={(twoFactorDisableForm.errors as any).current_password || (twoFactorDisableForm.errors as any).disable_two_factor_password} className="mt-2" />
+                                </div>
+                                <Button type="submit" variant="danger" disabled={twoFactorDisableForm.processing}>
+                                    {twoFactorDisableForm.processing ? 'Disabling...' : 'Disable 2FA'}
+                                </Button>
+                            </form>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 

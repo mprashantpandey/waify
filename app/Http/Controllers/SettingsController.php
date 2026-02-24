@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\TwoFactorService;
 use App\Services\PhoneVerificationService;
 use App\Services\PlatformSettingsService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -48,6 +50,18 @@ class SettingsController extends Controller
             'mustVerifyEmail' => $user instanceof \Illuminate\Contracts\Auth\MustVerifyEmail,
             'emailVerified' => (bool) $user?->hasVerifiedEmail(),
             'phoneVerified' => !empty($user?->phone_verified_at),
+            'twoFactor' => [
+                'enabled' => !empty($user?->two_factor_confirmed_at),
+                'confirmed_at' => $user?->two_factor_confirmed_at?->toIso8601String(),
+                'pending_setup' => (bool) $request->session()->has('two_factor.pending_secret'),
+                'pending_secret' => $request->session()->has('two_factor.pending_secret')
+                    ? app(TwoFactorService::class)->formatSecret((string) $request->session()->get('two_factor.pending_secret'))
+                    : null,
+                'otpauth_uri' => $request->session()->has('two_factor.pending_secret')
+                    ? app(TwoFactorService::class)->makeOtpAuthUri($user, (string) $request->session()->get('two_factor.pending_secret'))
+                    : null,
+                'recovery_codes' => array_values((array) $request->session()->get('two_factor.new_recovery_codes', [])),
+            ],
             'securityPolicy' => [
                 'password_min_length' => (int) ($security['password_min_length'] ?? 8),
                 'password_require_uppercase' => (bool) ($security['password_require_uppercase'] ?? false),
@@ -193,5 +207,87 @@ class SettingsController extends Controller
         }
 
         return back()->with('success', $result['message']);
+    }
+
+    public function startTwoFactorSetup(Request $request, TwoFactorService $service)
+    {
+        $user = $request->user();
+
+        if (!empty($user->two_factor_confirmed_at)) {
+            return back()->with('info', 'Two-factor authentication is already enabled.');
+        }
+
+        $request->session()->put('two_factor.pending_secret', $service->generateSecret());
+
+        return back()->with('success', '2FA setup started. Add the secret to your authenticator app and confirm with a code.');
+    }
+
+    public function cancelTwoFactorSetup(Request $request)
+    {
+        $request->session()->forget('two_factor.pending_secret');
+
+        return back()->with('info', '2FA setup canceled.');
+    }
+
+    public function confirmTwoFactorSetup(Request $request, TwoFactorService $service)
+    {
+        $validated = $request->validate([
+            'otp_code' => 'required|string|min:6|max:10',
+        ]);
+
+        $user = $request->user();
+        $secret = (string) $request->session()->get('two_factor.pending_secret', '');
+
+        if ($secret === '') {
+            return back()->withErrors([
+                'two_factor_otp_code' => 'No pending 2FA setup found. Start setup again.',
+            ])->with('error', 'No pending 2FA setup found.');
+        }
+
+        if (!$service->verifyCode($secret, (string) $validated['otp_code'])) {
+            return back()->withErrors([
+                'two_factor_otp_code' => 'Invalid authenticator code.',
+            ])->with('error', 'Invalid authenticator code.');
+        }
+
+        $recoveryCodes = $service->enableForUser($user, $secret);
+        $request->session()->forget('two_factor.pending_secret');
+        $request->session()->flash('two_factor.new_recovery_codes', $recoveryCodes);
+
+        return back()->with('success', 'Two-factor authentication enabled.');
+    }
+
+    public function disableTwoFactor(Request $request, TwoFactorService $service)
+    {
+        $validated = $request->validate([
+            'current_password' => 'required|string',
+        ]);
+
+        $user = $request->user();
+
+        if (!Hash::check($validated['current_password'], $user->password)) {
+            return back()->withErrors([
+                'disable_two_factor_password' => 'Current password is incorrect.',
+            ])->with('error', 'Current password is incorrect.');
+        }
+
+        $service->disableForUser($user);
+        $request->session()->forget('two_factor.pending_secret');
+
+        return back()->with('success', 'Two-factor authentication disabled.');
+    }
+
+    public function regenerateTwoFactorRecoveryCodes(Request $request, TwoFactorService $service)
+    {
+        $user = $request->user();
+
+        if (empty($user->two_factor_confirmed_at)) {
+            return back()->with('error', 'Enable 2FA first.');
+        }
+
+        $codes = $service->regenerateRecoveryCodes($user);
+        $request->session()->flash('two_factor.new_recovery_codes', $codes);
+
+        return back()->with('success', 'Recovery codes regenerated.');
     }
 }

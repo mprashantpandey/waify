@@ -283,6 +283,11 @@ Route::middleware(['auth', 'account.resolve'])->prefix('/app')->name('app.')->gr
     Route::post('/settings/security/resend-verification', [\App\Http\Controllers\SettingsController::class, 'resendVerification'])->name('settings.security.resend-verification');
     Route::post('/settings/security/phone/send-code', [\App\Http\Controllers\SettingsController::class, 'sendPhoneVerificationCode'])->name('settings.security.phone.send-code');
     Route::post('/settings/security/phone/verify-code', [\App\Http\Controllers\SettingsController::class, 'verifyPhoneVerificationCode'])->name('settings.security.phone.verify-code');
+    Route::post('/settings/security/2fa/setup', [\App\Http\Controllers\SettingsController::class, 'startTwoFactorSetup'])->name('settings.security.2fa.setup');
+    Route::post('/settings/security/2fa/cancel', [\App\Http\Controllers\SettingsController::class, 'cancelTwoFactorSetup'])->name('settings.security.2fa.cancel');
+    Route::post('/settings/security/2fa/confirm', [\App\Http\Controllers\SettingsController::class, 'confirmTwoFactorSetup'])->name('settings.security.2fa.confirm');
+    Route::post('/settings/security/2fa/disable', [\App\Http\Controllers\SettingsController::class, 'disableTwoFactor'])->name('settings.security.2fa.disable');
+    Route::post('/settings/security/2fa/recovery-codes/regenerate', [\App\Http\Controllers\SettingsController::class, 'regenerateTwoFactorRecoveryCodes'])->name('settings.security.2fa.recovery-codes.regenerate');
 });
 
 // Webhook routes (public, no auth, but with security middleware)
