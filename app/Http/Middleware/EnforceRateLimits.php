@@ -17,6 +17,10 @@ class EnforceRateLimits
      */
     public function handle(Request $request, Closure $next): Response
     {
+        if ($this->isPublicCrawlerRequest($request)) {
+            return $next($request);
+        }
+
         // Skip rate limiting for health checks, static assets, and webhooks
         if ($request->is('up') 
             || $request->is('health') 
@@ -77,6 +81,32 @@ class EnforceRateLimits
     }
 
     /**
+     * Allow crawlers and public visitors to access marketing/legal pages
+     * even when IP whitelist is configured for the application/admin area.
+     */
+    private function isPublicCrawlerRequest(Request $request): bool
+    {
+        if (!in_array($request->method(), ['GET', 'HEAD'], true)) {
+            return false;
+        }
+
+        return $request->is('/')
+            || $request->is('pricing')
+            || $request->is('privacy')
+            || $request->is('terms')
+            || $request->is('cookie-policy')
+            || $request->is('refund-policy')
+            || $request->is('help')
+            || $request->is('faqs')
+            || $request->is('about')
+            || $request->is('contact')
+            || $request->is('robots.txt')
+            || $request->is('sitemap.xml')
+            || $request->is('storage/*')
+            || $request->is('widgets/*.js');
+    }
+
+    /**
      * Check if an IP matches a pattern (supports CIDR notation).
      */
     private function ipMatches(string $ip, string $pattern): bool
@@ -93,4 +123,3 @@ class EnforceRateLimits
         return $ip === $pattern;
     }
 }
-

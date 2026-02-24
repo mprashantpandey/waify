@@ -16,6 +16,7 @@ Route::get('/', [\App\Http\Controllers\LandingPageController::class, 'index'])->
 Route::get('/api/stats', [\App\Http\Controllers\LandingPageController::class, 'stats'])
     ->middleware(['throttle:60,1', 'log.api'])
     ->name('api.stats');
+Route::get('/sitemap.xml', [\App\Http\Controllers\LandingPageController::class, 'sitemap'])->name('sitemap');
 
 // Tenant external API (v1) – authenticated by API key
 Route::prefix('api/v1')->middleware(['api.key', 'throttle:60,1'])->group(function () {
