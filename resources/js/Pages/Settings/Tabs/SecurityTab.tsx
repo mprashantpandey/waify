@@ -8,13 +8,31 @@ import { Shield, Save, Trash2, Lock, CheckCircle2 } from 'lucide-react';
 import { router } from '@inertiajs/react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { Transition } from '@headlessui/react';
+import { usePage } from '@inertiajs/react';
+import { Alert } from '@/Components/UI/Alert';
+
+type SecuritySession = {
+    id: string;
+    ip_address?: string | null;
+    user_agent?: string | null;
+    last_activity_at: string;
+    is_current: boolean;
+};
 
 export default function SecurityTab() {
     const { confirm, toast } = useNotifications();
+    const { props } = usePage() as any;
+    const mustVerifyEmail = Boolean(props.mustVerifyEmail);
+    const emailVerified = Boolean(props.emailVerified);
+    const securityPolicy = props.securityPolicy;
+    const sessions: SecuritySession[] = (props.sessions ?? []) as SecuritySession[];
     const { data, setData, put, processing, errors, reset, recentlySuccessful } = useForm({
         current_password: '',
         password: '',
         password_confirmation: ''});
+    const sessionForm = useForm({
+        current_password: '',
+    });
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -51,8 +69,97 @@ export default function SecurityTab() {
             }});
     };
 
+    const revokeOtherSessions = (e: React.FormEvent) => {
+        e.preventDefault();
+        sessionForm.post(route('app.settings.security.revoke-other-sessions'), {
+            preserveScroll: true,
+            onSuccess: () => {
+                toast.success('Other sessions signed out');
+                sessionForm.reset();
+            },
+            onError: () => {
+                toast.error('Failed to sign out other sessions');
+            },
+        });
+    };
+
+    const revokeSession = async (sessionId: string) => {
+        const confirmed = await confirm({
+            title: 'Revoke Session',
+            message: 'This device session will be signed out immediately.',
+            variant: 'danger',
+            confirmText: 'Revoke',
+        });
+        if (!confirmed) return;
+
+        router.delete(route('app.settings.security.sessions.revoke', { sessionId }), {
+            preserveScroll: true,
+            onSuccess: () => toast.success('Session revoked'),
+            onError: () => toast.error('Failed to revoke session'),
+        });
+    };
+
     return (
         <div className="space-y-6">
+            <Card className="border-0 shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-100 dark:from-blue-900/20 dark:to-indigo-800/20">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-500 rounded-xl">
+                            <Shield className="h-5 w-5 text-white" />
+                        </div>
+                        <div>
+                            <CardTitle className="text-xl font-bold">Account Security Status</CardTitle>
+                            <CardDescription>Email verification, session controls, and enforced platform policy</CardDescription>
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent className="p-6 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                            <div className="text-sm font-semibold mb-2">Email Verification</div>
+                            {emailVerified ? (
+                                <Alert variant="success">Your email is verified.</Alert>
+                            ) : (
+                                <div className="space-y-3">
+                                    <Alert variant="warning">Your email is not verified.</Alert>
+                                    {mustVerifyEmail && (
+                                        <Button
+                                            variant="secondary"
+                                            onClick={() => router.post(route('app.settings.security.resend-verification'), {}, { preserveScroll: true })}
+                                        >
+                                            Resend Verification Email
+                                        </Button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                            <div className="text-sm font-semibold mb-2">Platform Security Policy</div>
+                            {securityPolicy ? (
+                                <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                                    <p>Password min length: <strong>{securityPolicy.password_min_length}</strong></p>
+                                    <p>
+                                        Password rules:
+                                        {' '}
+                                        {[
+                                            securityPolicy.password_require_uppercase && 'uppercase',
+                                            securityPolicy.password_require_lowercase && 'lowercase',
+                                            securityPolicy.password_require_numbers && 'numbers',
+                                            securityPolicy.password_require_symbols && 'symbols',
+                                        ].filter(Boolean).join(', ') || 'default'}
+                                    </p>
+                                    <p>2FA required: <strong>{securityPolicy.require_2fa ? 'Yes' : 'No'}</strong></p>
+                                    <p>Session timeout: <strong>{securityPolicy.session_timeout} min</strong></p>
+                                    <p>Login lockout: <strong>{securityPolicy.max_login_attempts} attempts / {securityPolicy.lockout_duration} min</strong></p>
+                                </div>
+                            ) : (
+                                <p className="text-sm text-gray-500 dark:text-gray-400">Policy data unavailable.</p>
+                            )}
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
             <Card className="border-0 shadow-lg">
                 <CardHeader className="bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20">
                     <div className="flex items-center gap-3">
@@ -145,6 +252,62 @@ export default function SecurityTab() {
                             </Transition>
                         </div>
                     </form>
+                </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg">
+                <CardHeader className="bg-gradient-to-r from-gray-50 to-slate-100 dark:from-gray-800 dark:to-slate-900">
+                    <CardTitle className="text-xl font-bold">Sessions & Devices</CardTitle>
+                    <CardDescription>Review active sessions and sign out devices you do not recognize</CardDescription>
+                </CardHeader>
+                <CardContent className="p-6 space-y-5">
+                    <form onSubmit={revokeOtherSessions} className="space-y-3">
+                        <div>
+                            <InputLabel htmlFor="revoke_other_sessions_password" value="Current Password (to sign out other devices)" className="text-sm font-semibold mb-2" />
+                            <TextInput
+                                id="revoke_other_sessions_password"
+                                type="password"
+                                value={sessionForm.data.current_password}
+                                onChange={(e) => sessionForm.setData('current_password', e.target.value)}
+                                className="block w-full rounded-xl"
+                                placeholder="Enter current password"
+                            />
+                            <InputError message={(sessionForm.errors as any).current_password || (sessionForm.errors as any).revoke_other_sessions_password} className="mt-2" />
+                        </div>
+                        <Button type="submit" variant="secondary" disabled={sessionForm.processing}>
+                            {sessionForm.processing ? 'Signing out...' : 'Sign Out Other Devices'}
+                        </Button>
+                    </form>
+
+                    <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                        <div className="text-sm font-semibold mb-3">Active / Recent Sessions</div>
+                        <div className="space-y-3">
+                            {sessions.length === 0 && (
+                                <p className="text-sm text-gray-500 dark:text-gray-400">No session records available.</p>
+                            )}
+                            {sessions.map((session) => (
+                                <div key={session.id} className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                                {session.is_current ? 'Current Device' : 'Device Session'}
+                                            </span>
+                                            {session.is_current && <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">Current</span>}
+                                        </div>
+                                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 break-all">{session.user_agent || 'Unknown browser/device'}</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                            IP: {session.ip_address || 'Unknown'} · Last active: {new Date(session.last_activity_at).toLocaleString()}
+                                        </p>
+                                    </div>
+                                    {!session.is_current && (
+                                        <Button variant="danger" onClick={() => revokeSession(session.id)}>
+                                            Revoke
+                                        </Button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
                 </CardContent>
             </Card>
 

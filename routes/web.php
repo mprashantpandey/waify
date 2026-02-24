@@ -278,6 +278,9 @@ Route::middleware(['auth', 'account.resolve'])->prefix('/app')->name('app.')->gr
     Route::get('/settings', [\App\Http\Controllers\SettingsController::class, 'index'])->name('settings');
     Route::post('/settings/inbox', [\App\Http\Controllers\SettingsController::class, 'updateInbox'])->name('settings.inbox');
     Route::post('/settings/notifications', [\App\Http\Controllers\SettingsController::class, 'updateNotifications'])->name('settings.notifications');
+    Route::post('/settings/security/revoke-other-sessions', [\App\Http\Controllers\SettingsController::class, 'revokeOtherSessions'])->name('settings.security.revoke-other-sessions');
+    Route::delete('/settings/security/sessions/{sessionId}', [\App\Http\Controllers\SettingsController::class, 'revokeSession'])->name('settings.security.sessions.revoke');
+    Route::post('/settings/security/resend-verification', [\App\Http\Controllers\SettingsController::class, 'resendVerification'])->name('settings.security.resend-verification');
 });
 
 // Webhook routes (public, no auth, but with security middleware)
