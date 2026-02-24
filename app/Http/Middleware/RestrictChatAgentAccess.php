@@ -16,6 +16,7 @@ class RestrictChatAgentAccess
         'app.whatsapp.conversations',
         'app.whatsapp.inbox',
         'app.ai',
+        'app.support',
         'app.accounts.switch',
     ];
 

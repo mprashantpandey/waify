@@ -205,6 +205,17 @@ Route::middleware(['auth', 'account.resolve', 'account.active', 'account.subscri
     
     // Activity Logs
     Route::get('/activity-logs', [\App\Http\Controllers\ActivityLogController::class, 'index'])->name('activity-logs');
+
+    // Core Support Tickets (tenant-facing)
+    Route::prefix('/support')->name('support.')->group(function () {
+        Route::get('/hub', [\App\Http\Controllers\SupportTicketController::class, 'hub'])->name('hub');
+        Route::get('/', [\App\Http\Controllers\SupportTicketController::class, 'index'])->name('index');
+        Route::post('/', [\App\Http\Controllers\SupportTicketController::class, 'store'])->name('store');
+        Route::get('/{thread}', [\App\Http\Controllers\SupportTicketController::class, 'show'])->name('show');
+        Route::post('/{thread}/messages', [\App\Http\Controllers\SupportTicketController::class, 'message'])->name('message');
+        Route::post('/{thread}/close', [\App\Http\Controllers\SupportTicketController::class, 'close'])->name('close');
+        Route::post('/{thread}/reopen', [\App\Http\Controllers\SupportTicketController::class, 'reopen'])->name('reopen');
+    });
 });
 
 // Account switching
