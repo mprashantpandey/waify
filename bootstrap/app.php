@@ -80,6 +80,12 @@ return Application::configure(basePath: dirname(__DIR__))
                 return \Inertia\Inertia::render('Error/Forbidden')->toResponse($request)->setStatusCode(403);
             }
 
+            // Let Laravel/Inertia handle validation errors normally (422 + error bags).
+            // If we treat these as 500s, login/register/auth validation failures appear as server crashes.
+            if ($e instanceof \Illuminate\Validation\ValidationException) {
+                return null;
+            }
+
             // Return Inertia 500 page for Inertia requests so users see a friendly message
             $statusCode = method_exists($e, 'getStatusCode') ? $e->getStatusCode() : 500;
             $is500 = $statusCode >= 500 || !method_exists($e, 'getStatusCode');
