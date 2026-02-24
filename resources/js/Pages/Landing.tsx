@@ -1,4 +1,4 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { 
     MessageSquare, 
@@ -13,7 +13,10 @@ import {
     Shield,
     Globe,
     Sparkles,
-    BadgeCheck
+    BadgeCheck,
+    Rocket,
+    Gem,
+    Target
 } from 'lucide-react';
 import Button from '@/Components/UI/Button';
 import axios from 'axios';
@@ -36,6 +39,8 @@ export default function Landing({
     canLogin: boolean;
     canRegister: boolean;
 }) {
+    const { branding } = usePage().props as any;
+    const platformName = branding?.platform_name || 'WACP';
     const [stats, setStats] = useState<Stats>(initialStats);
     const [isLoading, setIsLoading] = useState(false);
 
@@ -57,7 +62,7 @@ export default function Landing({
     }, []);
 
     const StatCard = ({ icon: Icon, label, value, trend }: { icon: any; label: string; value: number; trend?: string }) => (
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-2xl transition-all">
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 card-hover">
             <div className="flex items-center justify-between">
                 <div>
                     <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{label}</p>
@@ -96,10 +101,10 @@ export default function Landing({
                             </span>
                         </div>
                     </div>
-                    <h1 className="text-5xl md:text-7xl font-bold text-gray-900 dark:text-gray-100 mb-6 bg-gradient-to-r from-gray-900 via-blue-600 to-purple-600 dark:from-gray-100 dark:via-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
+                    <h1 className="text-5xl md:text-7xl font-bold text-gray-900 dark:text-gray-100 mb-6 gradient-text leading-tight">
                         WhatsApp Cloud Platform
                         <br />
-                        <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 dark:from-blue-400 dark:via-purple-400 dark:to-pink-400 bg-clip-text text-transparent">
+                        <span className="gradient-text-accent">
                             Built for Scale
                         </span>
                     </h1>
@@ -133,7 +138,7 @@ export default function Landing({
             {/* Real-time Stats */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
                 <div className="text-center mb-12">
-                    <h2 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-2 bg-gradient-to-r from-gray-900 via-blue-600 to-purple-600 dark:from-gray-100 dark:via-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
+                    <h2 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-2 gradient-text">
                         Platform Activity
                     </h2>
                     <p className="text-gray-600 dark:text-gray-400 text-lg">Real-time statistics from our platform</p>
@@ -192,7 +197,7 @@ export default function Landing({
                                 Powerful Features
                             </span>
                         </div>
-                        <h2 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-gray-100 mb-4 bg-gradient-to-r from-gray-900 via-blue-600 to-purple-600 dark:from-gray-100 dark:via-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
+                        <h2 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-gray-100 mb-4 gradient-text">
                             Everything You Need
                         </h2>
                         <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
@@ -245,27 +250,33 @@ export default function Landing({
                                 Start Free Trial • No Credit Card Required
                             </span>
                         </div>
-                        <h2 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-                            Why Choose WACP?
+                        <h2 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-4 gradient-text">
+                            Why Choose {platformName}?
                         </h2>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 text-center">
-                            <div className="text-4xl mb-4">🚀</div>
+                        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 text-center card-hover">
+                            <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white mb-4">
+                                <Rocket className="h-7 w-7" />
+                            </div>
                             <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">Quick Setup</h3>
                             <p className="text-sm text-gray-600 dark:text-gray-400">
                                 Get started in minutes with our guided setup wizard
                             </p>
                         </div>
-                        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 text-center">
-                            <div className="text-4xl mb-4">💎</div>
+                        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 text-center card-hover">
+                            <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 text-white mb-4">
+                                <Gem className="h-7 w-7" />
+                            </div>
                             <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">Full Access</h3>
                             <p className="text-sm text-gray-600 dark:text-gray-400">
                                 Try all features during your free trial period
                             </p>
                         </div>
-                        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 text-center">
-                            <div className="text-4xl mb-4">🎯</div>
+                        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 text-center card-hover">
+                            <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white mb-4">
+                                <Target className="h-7 w-7" />
+                            </div>
                             <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">Cancel Anytime</h3>
                             <p className="text-sm text-gray-600 dark:text-gray-400">
                                 No commitments, cancel your subscription anytime
@@ -277,15 +288,16 @@ export default function Landing({
 
             {/* CTA Section */}
             <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 py-20 relative overflow-hidden">
-                <div className="absolute inset-0 bg-black/10"></div>
+                <div className="absolute inset-0 bg-black/10" aria-hidden="true" />
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.08)_100%)]" aria-hidden="true" />
                 <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
-                    <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
+                    <h2 className="text-4xl md:text-5xl font-bold text-white mb-4 text-balance">
                         Ready to Transform Your Business Communication?
                     </h2>
                     <p className="text-xl text-blue-100 mb-8">
                         As an official Meta Tech Provider, we help thousands of businesses scale their WhatsApp communication.
                         <br />
-                        <span className="font-semibold">Start your free trial today - no credit card required!</span>
+                        <span className="font-semibold text-white/95">Start your free trial today — no credit card required.</span>
                     </p>
                     <div className="flex items-center justify-center gap-4 flex-wrap">
                         {canRegister && (
@@ -316,8 +328,8 @@ export default function Landing({
 
 function FeatureCard({ icon: Icon, title, description }: { icon: any; title: string; description: string }) {
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border-2 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-xl transition-all">
-            <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 w-12 h-12 rounded-lg flex items-center justify-center mb-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 card-hover">
+            <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 w-12 h-12 rounded-xl flex items-center justify-center mb-4">
                 <Icon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
             </div>
             <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">{title}</h3>

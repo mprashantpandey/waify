@@ -88,7 +88,7 @@ export default function Pricing({ plans, canRegister }: { plans: Plan[]; canRegi
                             No Credit Card Required • Start Free Trial
                         </span>
                     </div>
-                    <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-gray-100 mb-4 bg-gradient-to-r from-gray-900 via-blue-600 to-purple-600 dark:from-gray-100 dark:via-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
+                    <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-gray-100 mb-4 gradient-text">
                         Simple, Transparent Pricing
                     </h1>
                     <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto mb-8">

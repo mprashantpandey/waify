@@ -18,10 +18,12 @@ import CookieConsentBanner from '@/Components/Compliance/CookieConsentBanner';
 import AnalyticsScripts from '@/Components/Analytics/AnalyticsScripts';
 
 export default function PublicLayout({ children }: PropsWithChildren) {
-    const { branding, auth, accounts, compliance } = usePage().props as any;
+    const page = usePage();
+    const { branding, auth, accounts, compliance } = page.props as any;
     const platformName = branding?.platform_name || 'WACP';
     const logoUrl = branding?.logo_url;
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const currentPath = (page as any).url?.split('?')[0] || '';
     const canLogin = (window as any).route?.has?.('login') ?? true;
     const canRegister = (window as any).route?.has?.('register') ?? true;
     const termsUrl = compliance?.terms_url || route('terms');
@@ -83,16 +85,31 @@ export default function PublicLayout({ children }: PropsWithChildren) {
                             </div>
 
                             {/* Desktop Navigation */}
-                            <div className="hidden md:flex items-center space-x-1">
-                                {navigation.map((item) => (
-                                    <Link
-                                        key={item.name}
-                                        href={item.href}
-                                        className="px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors rounded-md"
-                                    >
-                                        {item.name}
-                                    </Link>
-                                ))}
+                            <div className="hidden md:flex items-center gap-1">
+                                {navigation.map((item) => {
+                                    try {
+                                        const hrefPath = (() => {
+                                            const u = item.href.startsWith('http') ? new URL(item.href) : new URL(item.href, 'http://localhost');
+                                            return u.pathname || '/';
+                                        })();
+                                        const isActive = currentPath === hrefPath || (hrefPath !== '/' && currentPath.startsWith(hrefPath));
+                                        return (
+                                            <Link
+                                                key={item.name}
+                                                href={item.href}
+                                                className={`nav-link ${isActive ? 'nav-link-active' : ''}`}
+                                            >
+                                                {item.name}
+                                            </Link>
+                                        );
+                                    } catch {
+                                        return (
+                                            <Link key={item.name} href={item.href} className="nav-link">
+                                                {item.name}
+                                            </Link>
+                                        );
+                                    }
+                                })}
                             </div>
 
                             {/* Auth Buttons */}
@@ -142,16 +159,36 @@ export default function PublicLayout({ children }: PropsWithChildren) {
                     {mobileMenuOpen && (
                         <div className="md:hidden border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
                             <div className="px-2 pt-2 pb-3 space-y-1">
-                                {navigation.map((item) => (
-                                    <Link
-                                        key={item.name}
-                                        href={item.href}
-                                        className="block px-3 py-2 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md"
-                                        onClick={() => setMobileMenuOpen(false)}
-                                    >
-                                        {item.name}
-                                    </Link>
-                                ))}
+                                {navigation.map((item) => {
+                                    try {
+                                        const hrefPath = (() => {
+                                            const u = item.href.startsWith('http') ? new URL(item.href) : new URL(item.href, 'http://localhost');
+                                            return u.pathname || '/';
+                                        })();
+                                        const isActive = currentPath === hrefPath || (hrefPath !== '/' && currentPath.startsWith(hrefPath));
+                                        return (
+                                            <Link
+                                                key={item.name}
+                                                href={item.href}
+                                                className={`block px-3 py-2.5 text-base font-medium rounded-lg ${isActive ? 'nav-link-active' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+                                                onClick={() => setMobileMenuOpen(false)}
+                                            >
+                                                {item.name}
+                                            </Link>
+                                        );
+                                    } catch {
+                                        return (
+                                            <Link
+                                                key={item.name}
+                                                href={item.href}
+                                                className="block px-3 py-2.5 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
+                                                onClick={() => setMobileMenuOpen(false)}
+                                            >
+                                                {item.name}
+                                            </Link>
+                                        );
+                                    }
+                                })}
                                 {!auth?.user && (
                                     <div className="pt-4 space-y-2">
                                         {canLogin && (
@@ -186,34 +223,34 @@ export default function PublicLayout({ children }: PropsWithChildren) {
 
                 {/* Footer */}
                 <footer className="bg-gray-900 text-gray-400 border-t border-gray-800">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
                             {/* Brand */}
                             <div className="col-span-1 md:col-span-1">
-                                <Link href={route('landing')} className="flex items-center space-x-2 mb-4">
+                                <Link href={route('landing')} className="inline-flex items-center gap-2 mb-4 group">
                                     {logoUrl ? (
-                                        <img src={logoUrl} alt={platformName} className="h-8 w-auto" />
+                                        <img src={logoUrl} alt={platformName} className="h-9 w-auto" />
                                     ) : (
-                                        <div className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600">
+                                        <div className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/30 transition-shadow">
                                             <span className="text-sm font-bold text-white">{platformName.charAt(0)}</span>
                                         </div>
                                     )}
                                     {!logoUrl && <span className="text-lg font-bold text-white">{platformName}</span>}
                                 </Link>
-                                <p className="text-sm text-gray-500">
+                                <p className="text-sm text-gray-500 leading-relaxed max-w-xs">
                                     WhatsApp Cloud Platform for modern businesses. Official Meta Tech Provider.
                                 </p>
                             </div>
 
                             {/* Product */}
                             <div>
-                                <h3 className="text-sm font-semibold text-white mb-4">Product</h3>
-                                <ul className="space-y-2">
+                                <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-4">Product</h3>
+                                <ul className="space-y-3">
                                     {footerLinks.product.map((link) => (
                                         <li key={link.name}>
                                             <Link
                                                 href={link.href}
-                                                className="text-sm hover:text-white transition-colors"
+                                                className="text-sm text-gray-400 hover:text-white transition-colors"
                                             >
                                                 {link.name}
                                             </Link>
@@ -224,13 +261,13 @@ export default function PublicLayout({ children }: PropsWithChildren) {
 
                             {/* Company */}
                             <div>
-                                <h3 className="text-sm font-semibold text-white mb-4">Company</h3>
-                                <ul className="space-y-2">
+                                <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-4">Company</h3>
+                                <ul className="space-y-3">
                                     {footerLinks.company.map((link) => (
                                         <li key={link.name}>
                                             <Link
                                                 href={link.href}
-                                                className="text-sm hover:text-white transition-colors"
+                                                className="text-sm text-gray-400 hover:text-white transition-colors"
                                             >
                                                 {link.name}
                                             </Link>
@@ -241,7 +278,7 @@ export default function PublicLayout({ children }: PropsWithChildren) {
 
                             {/* Legal */}
                             <div>
-                                <h3 className="text-sm font-semibold text-white mb-4">Legal</h3>
+                                <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-4">Legal</h3>
                                 <ul className="space-y-2">
                                     {footerLinks.legal.map((link) => (
                                         <li key={link.name}>
@@ -268,7 +305,7 @@ export default function PublicLayout({ children }: PropsWithChildren) {
                             </div>
                         </div>
 
-                        <div className="mt-8 pt-8 border-t border-gray-800">
+                        <div className="mt-12 pt-8 border-t border-gray-800">
                             <p className="text-sm text-center text-gray-500">
                                 © {new Date().getFullYear()} {platformName}. All rights reserved.
                             </p>

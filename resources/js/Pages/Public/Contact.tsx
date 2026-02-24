@@ -47,10 +47,10 @@ export default function Contact() {
                     <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-full mb-6">
                         <MessageSquare className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-                            We're Here to Help
+                            We&apos;re Here to Help
                         </span>
                     </div>
-                    <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-gray-100 mb-4 bg-gradient-to-r from-gray-900 via-blue-600 to-purple-600 dark:from-gray-100 dark:via-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
+                    <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-gray-100 mb-4 gradient-text">
                         Get in Touch
                     </h1>
                     <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
@@ -61,7 +61,7 @@ export default function Contact() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Contact Form */}
                     <div className="lg:col-span-2">
-                        <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-xl border-2 border-gray-200 dark:border-gray-700 hover:shadow-2xl transition-shadow">
+                        <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-gray-700 card-hover">
                             {recentlySuccessful && (
                                 <div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-2 border-green-200 dark:border-green-800 rounded-xl">
                                     <p className="text-green-800 dark:text-green-200 font-medium">
