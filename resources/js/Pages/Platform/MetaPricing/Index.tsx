@@ -8,6 +8,33 @@ import { Input } from '@/Components/UI/Input';
 import InputError from '@/Components/InputError';
 import { Badge } from '@/Components/UI/Badge';
 
+const COUNTRY_OPTIONS: Array<{ code: string; label: string; currency: string }> = [
+    { code: 'IN', label: 'India', currency: 'INR' },
+    { code: 'US', label: 'United States', currency: 'USD' },
+    { code: 'AE', label: 'United Arab Emirates', currency: 'AED' },
+    { code: 'AU', label: 'Australia', currency: 'AUD' },
+    { code: 'BR', label: 'Brazil', currency: 'BRL' },
+    { code: 'CA', label: 'Canada', currency: 'CAD' },
+    { code: 'DE', label: 'Germany', currency: 'EUR' },
+    { code: 'ES', label: 'Spain', currency: 'EUR' },
+    { code: 'FR', label: 'France', currency: 'EUR' },
+    { code: 'GB', label: 'United Kingdom', currency: 'GBP' },
+    { code: 'ID', label: 'Indonesia', currency: 'IDR' },
+    { code: 'IT', label: 'Italy', currency: 'EUR' },
+    { code: 'MX', label: 'Mexico', currency: 'MXN' },
+    { code: 'NG', label: 'Nigeria', currency: 'NGN' },
+    { code: 'PH', label: 'Philippines', currency: 'PHP' },
+    { code: 'SA', label: 'Saudi Arabia', currency: 'SAR' },
+    { code: 'SG', label: 'Singapore', currency: 'SGD' },
+    { code: 'TH', label: 'Thailand', currency: 'THB' },
+    { code: 'TR', label: 'Turkey', currency: 'TRY' },
+    { code: 'ZA', label: 'South Africa', currency: 'ZAR' },
+];
+
+const COMMON_CURRENCY_OPTIONS = [
+    'INR', 'USD', 'EUR', 'GBP', 'AED', 'AUD', 'BRL', 'CAD', 'IDR', 'MXN', 'NGN', 'PHP', 'SAR', 'SGD', 'THB', 'TRY', 'ZAR',
+];
+
 type PricingVersion = {
     id: number;
     provider: string;
@@ -74,6 +101,12 @@ export default function PlatformMetaPricingIndex({
     };
 }) {
     const { auth } = usePage().props as any;
+    const countryCurrencyMap = Object.fromEntries(COUNTRY_OPTIONS.map((c) => [c.code, c.currency]));
+    const currencyOptions = Array.from(new Set([
+        legacy_default?.currency || 'INR',
+        ...COMMON_CURRENCY_OPTIONS,
+        ...COUNTRY_OPTIONS.map((c) => c.currency),
+    ])).filter(Boolean);
     const [bulkIssueType, setBulkIssueType] = useState<'all_issues' | 'missing_pricing_version' | 'zero_rate_billable' | 'zero_cost_billable' | 'uncategorized'>('all_issues');
     const [bulkLimit, setBulkLimit] = useState<number>(200);
     const { data, setData, post, processing, errors, reset } = useForm<FormData>({
@@ -113,6 +146,15 @@ export default function PlatformMetaPricingIndex({
         });
     };
 
+    const handleCountryChange = (value: string) => {
+        const nextCountry = value.toUpperCase();
+        setData('country_code', nextCountry);
+        const suggestedCurrency = countryCurrencyMap[nextCountry];
+        if (suggestedCurrency) {
+            setData('currency', suggestedCurrency);
+        }
+    };
+
     return (
         <PlatformShell auth={auth}>
             <Head title="Meta Pricing" />
@@ -145,12 +187,38 @@ export default function PlatformMetaPricingIndex({
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                 <div>
                                     <Label htmlFor="country_code">Country Code</Label>
-                                    <Input id="country_code" value={data.country_code} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setData('country_code', e.target.value.toUpperCase())} maxLength={2} />
+                                    <select
+                                        id="country_code"
+                                        value={data.country_code}
+                                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleCountryChange(e.target.value)}
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+                                    >
+                                        <option value="">Global / Default</option>
+                                        {COUNTRY_OPTIONS.map((country) => (
+                                            <option key={country.code} value={country.code}>
+                                                {country.label} ({country.code})
+                                            </option>
+                                        ))}
+                                        {!COUNTRY_OPTIONS.some((country) => country.code === data.country_code) && data.country_code ? (
+                                            <option value={data.country_code}>{data.country_code} (custom)</option>
+                                        ) : null}
+                                    </select>
                                     <InputError message={(errors as any).country_code} className="mt-1" />
                                 </div>
                                 <div>
                                     <Label htmlFor="currency">Currency</Label>
-                                    <Input id="currency" value={data.currency} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setData('currency', e.target.value.toUpperCase())} maxLength={3} />
+                                    <select
+                                        id="currency"
+                                        value={data.currency}
+                                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setData('currency', e.target.value.toUpperCase())}
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+                                    >
+                                        {currencyOptions.map((code) => (
+                                            <option key={code} value={code}>
+                                                {code}
+                                            </option>
+                                        ))}
+                                    </select>
                                     <InputError message={(errors as any).currency} className="mt-1" />
                                 </div>
                                 <div>
