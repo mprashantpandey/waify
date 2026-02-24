@@ -2,7 +2,7 @@ import Button from '@/Components/UI/Button';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
-import { Mail, CheckCircle, LogOut, Send } from 'lucide-react';
+import { Mail, LogOut, Send } from 'lucide-react';
 import { Alert } from '@/Components/UI/Alert';
 
 export default function VerifyEmail({ status }: { status?: string }) {
@@ -32,7 +32,6 @@ export default function VerifyEmail({ status }: { status?: string }) {
 
             {status === 'verification-link-sent' && (
                 <Alert variant="success" className="mb-6">
-                    <CheckCircle className="h-4 w-4" />
                     <div>
                         <p className="font-medium">Verification link sent!</p>
                         <p className="text-sm mt-1">

@@ -6,7 +6,7 @@ import TextInput from '@/Components/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
-import { Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
+import { Mail, Lock, ArrowRight } from 'lucide-react';
 import { Alert } from '@/Components/UI/Alert';
 
 export default function Login({
@@ -42,7 +42,6 @@ export default function Login({
 
             {status && (
                 <Alert variant="success" className="mb-6">
-                    <AlertCircle className="h-4 w-4" />
                     {status}
                 </Alert>
             )}
