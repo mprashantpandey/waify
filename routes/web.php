@@ -14,7 +14,7 @@ use Inertia\Inertia;
 // Landing page
 Route::get('/', [\App\Http\Controllers\LandingPageController::class, 'index'])->name('landing');
 Route::get('/api/stats', [\App\Http\Controllers\LandingPageController::class, 'stats'])
-    ->middleware(['public-api.enabled', 'log.api'])
+    ->middleware(['throttle:60,1', 'log.api'])
     ->name('api.stats');
 
 // Tenant external API (v1) – authenticated by API key

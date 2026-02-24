@@ -90,6 +90,8 @@ export default function ConnectionsCreate({
         code: '',
         pin: '',
         redirect_uri: ''});
+    const hasEmbeddedAuthData = Boolean(embeddedForm.data.code || embeddedForm.data.access_token);
+    const hasEmbeddedResolvedIds = Boolean(embeddedForm.data.waba_id && embeddedForm.data.phone_number_id);
 
     useEffect(() => {
         if (!embeddedEnabled) {
@@ -260,7 +262,13 @@ export default function ConnectionsCreate({
                     if (accessToken) {
                         embeddedForm.setData('access_token', accessToken);
                     }
-                    setEmbeddedStatus('Authorization complete. Waiting for Meta signup details...');
+                    setEmbeddedStatus((prev) => {
+                        if (prev && (prev.includes('Embedded signup data received') || prev.includes('Meta IDs not returned'))) {
+                            return prev;
+                        }
+
+                        return 'Authorization complete. Waiting for Meta signup details from browser callback. If IDs are not auto-filled, continue and we will resolve them during setup.';
+                    });
                 } else {
                     setEmbeddedStatus('Login was cancelled or did not fully authorize.');
                 }
@@ -345,6 +353,14 @@ export default function ConnectionsCreate({
                                 </div>
                             )}
 
+                            {hasEmbeddedAuthData && !hasEmbeddedResolvedIds && (
+                                <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                                    <p className="text-xs text-amber-800 dark:text-amber-200">
+                                        Meta authorization is complete. If WABA ID / Phone Number ID stay empty, click <strong>Create Connection</strong> and the server will auto-resolve them using your Meta authorization.
+                                    </p>
+                                </div>
+                            )}
+
                             <form onSubmit={submitEmbedded} className="space-y-4">
                                 <div>
                                     <InputLabel htmlFor="embedded_name" value="Connection Name (Optional)" className="text-sm font-semibold mb-2" />
@@ -419,7 +435,9 @@ export default function ConnectionsCreate({
                                         disabled={embeddedForm.processing}
                                         className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 shadow-lg shadow-emerald-500/40 rounded-xl"
                                     >
-                                        {embeddedForm.processing ? 'Connecting...' : 'Create Connection'}
+                                        {embeddedForm.processing
+                                            ? 'Connecting...'
+                                            : (hasEmbeddedAuthData && !hasEmbeddedResolvedIds ? 'Create Connection (Auto-resolve IDs)' : 'Create Connection')}
                                     </Button>
                                 </div>
                             </form>

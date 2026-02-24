@@ -1,4 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
+import { getPlatformName } from '@/lib/branding';
 import { useEffect, useState } from 'react';
 import { 
     MessageSquare, 
@@ -40,7 +41,7 @@ export default function Landing({
     canRegister: boolean;
 }) {
     const { branding } = usePage().props as any;
-    const platformName = branding?.platform_name || 'WACP';
+    const platformName = getPlatformName(branding);
     const [stats, setStats] = useState<Stats>(initialStats);
     const [isLoading, setIsLoading] = useState(false);
 
@@ -52,7 +53,10 @@ export default function Landing({
                 const response = await axios.get(route('api.stats'));
                 setStats(response.data.stats);
             } catch (error) {
-                console.error('Failed to fetch stats:', error);
+                const status = (error as any)?.response?.status;
+                if (status !== 403) {
+                    console.error('Failed to fetch stats:', error);
+                }
             } finally {
                 setIsLoading(false);
             }
