@@ -129,8 +129,39 @@ export default function ConnectionsCreate({
             return;
         }
 
+        const allowedOrigins = [
+            'facebook.com',
+            'web.facebook.com',
+            'business.facebook.com',
+        ];
+
+        const findNestedValue = (input: any, keys: string[], depth = 0): any => {
+            if (!input || depth > 4) {
+                return undefined;
+            }
+
+            if (typeof input !== 'object') {
+                return undefined;
+            }
+
+            for (const key of keys) {
+                if (input[key] != null && input[key] !== '') {
+                    return input[key];
+                }
+            }
+
+            for (const value of Object.values(input)) {
+                const nested = findNestedValue(value, keys, depth + 1);
+                if (nested != null && nested !== '') {
+                    return nested;
+                }
+            }
+
+            return undefined;
+        };
+
         const handler = (event: MessageEvent) => {
-            if (!event.origin.includes('facebook.com')) {
+            if (!allowedOrigins.some((origin) => event.origin.includes(origin))) {
                 return;
             }
 
@@ -139,25 +170,70 @@ export default function ConnectionsCreate({
                 try {
                     payload = JSON.parse(payload);
                 } catch {
-                    return;
+                    if (payload.includes('waba_id') || payload.includes('phone_number_id')) {
+                        try {
+                            const match = payload.match(/\{.*\}/);
+                            if (match) {
+                                payload = JSON.parse(match[0]);
+                            } else {
+                                return;
+                            }
+                        } catch {
+                            return;
+                        }
+                    } else {
+                        return;
+                    }
                 }
             }
 
-            const action = payload?.event || payload?.type || payload?.action;
-            const data = payload?.data || payload?.payload || payload;
+            const action = payload?.event || payload?.type || payload?.action || payload?.status;
+            const data = payload?.data || payload?.payload || payload?.result || payload;
 
-            if (action === 'FINISH' || action === 'COMPLETE' || data?.waba_id || data?.phone_number_id) {
-                if (data?.waba_id) {
-                    embeddedForm.setData('waba_id', data.waba_id);
-                }
-                if (data?.phone_number_id) {
-                    embeddedForm.setData('phone_number_id', data.phone_number_id);
-                }
-                if (data?.business_phone || data?.display_phone_number) {
-                    embeddedForm.setData('business_phone', data.business_phone || data.display_phone_number);
-                }
+            const extracted = {
+                waba_id: findNestedValue(data, ['waba_id', 'wabaId', 'business_account_id', 'businessAccountId'])
+                    ?? findNestedValue(payload, ['waba_id', 'wabaId', 'business_account_id', 'businessAccountId']),
+                phone_number_id: findNestedValue(data, ['phone_number_id', 'phoneNumberId'])
+                    ?? findNestedValue(payload, ['phone_number_id', 'phoneNumberId']),
+                business_phone: findNestedValue(data, ['business_phone', 'display_phone_number', 'businessPhone', 'displayPhoneNumber'])
+                    ?? findNestedValue(payload, ['business_phone', 'display_phone_number', 'businessPhone', 'displayPhoneNumber']),
+                code: findNestedValue(data, ['code']) ?? findNestedValue(payload, ['code']),
+                access_token: findNestedValue(data, ['accessToken', 'access_token']) ?? findNestedValue(payload, ['accessToken', 'access_token']),
+            };
 
-                setEmbeddedStatus('Embedded signup finished. Ready to create connection.');
+            if (extracted.code) {
+                embeddedForm.setData('code', String(extracted.code));
+            }
+            if (extracted.access_token) {
+                embeddedForm.setData('access_token', String(extracted.access_token));
+            }
+            if (extracted.waba_id) {
+                embeddedForm.setData('waba_id', String(extracted.waba_id));
+            }
+            if (extracted.phone_number_id) {
+                embeddedForm.setData('phone_number_id', String(extracted.phone_number_id));
+            }
+            if (extracted.business_phone) {
+                embeddedForm.setData('business_phone', String(extracted.business_phone));
+            }
+
+            const hasSignupData = Boolean(extracted.waba_id || extracted.phone_number_id);
+            const hasAuthData = Boolean(extracted.code || extracted.access_token);
+
+            if (
+                action === 'FINISH' ||
+                action === 'COMPLETE' ||
+                action === 'SUCCESS' ||
+                hasSignupData ||
+                hasAuthData
+            ) {
+                setEmbeddedStatus(
+                    hasSignupData
+                        ? 'Embedded signup data received from Meta. Review and create connection.'
+                        : hasAuthData
+                          ? 'Authorization complete. Meta IDs not returned in browser event; you can continue and we will resolve them during setup.'
+                          : 'Embedded signup finished. Ready to create connection.'
+                );
             }
         };
 
@@ -176,13 +252,15 @@ export default function ConnectionsCreate({
         window.FB.login(
             (response: any) => {
                 if (response?.authResponse) {
-                    if (response.authResponse.code) {
-                        embeddedForm.setData('code', response.authResponse.code);
+                    const code = response?.code || response?.authResponse?.code;
+                    const accessToken = response?.accessToken || response?.authResponse?.accessToken;
+                    if (code) {
+                        embeddedForm.setData('code', code);
                     }
-                    if (response.authResponse.accessToken) {
-                        embeddedForm.setData('access_token', response.authResponse.accessToken);
+                    if (accessToken) {
+                        embeddedForm.setData('access_token', accessToken);
                     }
-                    setEmbeddedStatus('Authorization complete. Finish setup to create the connection.');
+                    setEmbeddedStatus('Authorization complete. Waiting for Meta signup details...');
                 } else {
                     setEmbeddedStatus('Login was cancelled or did not fully authorize.');
                 }
