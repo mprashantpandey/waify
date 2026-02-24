@@ -21,6 +21,13 @@ class ResolveAccount
             return $next($request);
         }
 
+        // Super admins should use platform panel directly unless they are in an active impersonation session.
+        if ($user->isSuperAdmin() && !$request->session()->has('impersonator_id')) {
+            return redirect()
+                ->route('platform.dashboard')
+                ->with('info', 'Platform admins must use the Platform Panel. Use impersonation to access a tenant workspace.');
+        }
+
         $account = null;
         $accountId = session('current_account_id');
         if ($accountId) {
