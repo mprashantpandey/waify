@@ -21,7 +21,9 @@ type ThreadRow = {
 };
 
 export default function SupportIndex({ threads, filters }: { threads: any; filters: { status?: string; search?: string } }) {
-    const createForm = useForm({ subject: '', message: '', priority: 'normal', category: '' });
+    const createForm = useForm<{ subject: string; message: string; priority: string; category: string; attachments: File[] }>({
+        subject: '', message: '', priority: 'normal', category: '', attachments: [],
+    });
     const status = filters?.status || '';
     const search = filters?.search || '';
 
@@ -108,7 +110,7 @@ export default function SupportIndex({ threads, filters }: { threads: any; filte
                             <CardDescription>Open a new support request</CardDescription>
                         </CardHeader>
                         <CardContent>
-                            <form onSubmit={(e) => { e.preventDefault(); createForm.post(route('app.support.store')); }} className="space-y-4">
+                            <form onSubmit={(e) => { e.preventDefault(); createForm.post(route('app.support.store'), { forceFormData: true }); }} className="space-y-4">
                                 <div>
                                     <InputLabel htmlFor="subject" value="Subject" />
                                     <TextInput id="subject" value={createForm.data.subject} onChange={(e) => createForm.setData('subject', e.target.value)} className="mt-1 w-full" />
@@ -138,6 +140,23 @@ export default function SupportIndex({ threads, filters }: { threads: any; filte
                                     <InputLabel htmlFor="message" value="Message" />
                                     <Textarea id="message" value={createForm.data.message} onChange={(e) => createForm.setData('message', e.target.value)} className="mt-1 min-h-[140px]" />
                                     <InputError message={createForm.errors.message} className="mt-1" />
+                                </div>
+                                <div>
+                                    <InputLabel htmlFor="attachments" value="Attachments (Optional)" />
+                                    <input
+                                        id="attachments"
+                                        type="file"
+                                        multiple
+                                        onChange={(e) => createForm.setData('attachments', Array.from(e.target.files || []))}
+                                        className="mt-1 block w-full text-sm text-gray-700 dark:text-gray-300 file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-2 dark:file:bg-gray-800"
+                                    />
+                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Up to 5 files, 10MB each.</p>
+                                    <InputError message={createForm.errors.attachments as any} className="mt-1" />
+                                    {createForm.data.attachments.length > 0 && (
+                                        <ul className="mt-2 space-y-1 text-xs text-gray-600 dark:text-gray-400">
+                                            {createForm.data.attachments.map((f, i) => <li key={`${f.name}-${i}`}>{f.name}</li>)}
+                                        </ul>
+                                    )}
                                 </div>
                                 <Button type="submit" disabled={createForm.processing} className="w-full">
                                     {createForm.processing ? 'Creating...' : 'Create Ticket'}

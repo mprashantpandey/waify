@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\SupportMessage;
 use App\Models\SupportThread;
+use App\Services\SupportTicketAttachmentService;
 use App\Services\SupportTicketEmailService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,7 +15,8 @@ use Inertia\Response;
 class SupportTicketController extends Controller
 {
     public function __construct(
-        protected SupportTicketEmailService $emailService
+        protected SupportTicketEmailService $emailService,
+        protected SupportTicketAttachmentService $attachmentService
     ) {
     }
 
@@ -64,6 +66,8 @@ class SupportTicketController extends Controller
             'message' => 'required|string|min:2|max:10000',
             'priority' => 'nullable|in:low,normal,high,urgent',
             'category' => 'nullable|string|max:100',
+            'attachments' => 'nullable|array|max:5',
+            'attachments.*' => 'file|max:10240',
         ]);
 
         [$thread, $message] = DB::transaction(function () use ($account, $user, $validated) {
@@ -87,6 +91,8 @@ class SupportTicketController extends Controller
             return [$thread, $message];
         });
 
+        $this->attachmentService->attachFiles($thread, $message, (array) $request->file('attachments', []));
+
         $this->emailService->notifyPlatformTicketCreated($thread, $message);
 
         return redirect()->route('app.support.index')->with('success', 'Support ticket created successfully.');
@@ -101,6 +107,7 @@ class SupportTicketController extends Controller
             'creator:id,name,email',
             'assignee:id,name,email',
             'messages.sender:id,name,email',
+            'messages.attachments',
         ]);
 
         return Inertia::render('Support/Show', [
@@ -123,6 +130,13 @@ class SupportTicketController extends Controller
                     'sender_name' => $message->sender?->name ?? ($message->sender_type === 'admin' ? 'Platform Support' : 'User'),
                     'body' => $message->body,
                     'created_at' => optional($message->created_at)->toIso8601String(),
+                    'attachments' => $message->attachments->map(fn ($a) => [
+                        'id' => $a->id,
+                        'file_name' => $a->file_name,
+                        'mime_type' => $a->mime_type,
+                        'file_size' => (int) $a->file_size,
+                        'download_url' => route('support.attachments.show', ['attachment' => $a->id]),
+                    ])->values(),
                 ])->values(),
             ],
         ]);
@@ -136,6 +150,8 @@ class SupportTicketController extends Controller
 
         $validated = $request->validate([
             'message' => 'required|string|min:1|max:10000',
+            'attachments' => 'nullable|array|max:5',
+            'attachments.*' => 'file|max:10240',
         ]);
 
         if ($supportThread->status === 'closed') {
@@ -150,6 +166,7 @@ class SupportTicketController extends Controller
         ]);
 
         $supportThread->forceFill(['last_message_at' => now()])->save();
+        $this->attachmentService->attachFiles($supportThread, $message, (array) $request->file('attachments', []));
         $this->emailService->notifyPlatformTenantReply($supportThread, $message);
 
         return redirect()->route('app.support.show', ['thread' => $supportThread->slug])->with('success', 'Reply sent.');

@@ -6,13 +6,21 @@ import { Textarea } from '@/Components/UI/Textarea';
 import TextInput from '@/Components/TextInput';
 
 export default function PlatformSupportShow({ auth, thread, admins }: any) {
-  const replyForm = useForm({ message: '' });
+  const replyForm = useForm<{ message: string; attachments: File[] }>({ message: '', attachments: [] });
   const metaForm = useForm({
     status: thread.status || 'open',
     priority: thread.priority || 'normal',
     category: thread.category || '',
     assigned_to: thread.assignee?.id ? String(thread.assignee.id) : '',
   });
+  const fmtBytes = (bytes: number) => {
+    if (!bytes) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let value = bytes;
+    let i = 0;
+    while (value >= 1024 && i < units.length - 1) { value /= 1024; i += 1; }
+    return `${value.toFixed(value >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
+  };
 
   return (
     <PlatformShell auth={auth}>
@@ -41,6 +49,15 @@ export default function PlatformSupportShow({ auth, thread, admins }: any) {
                       <span className="text-xs text-gray-500">{m.created_at ? new Date(m.created_at).toLocaleString() : ''}</span>
                     </div>
                     <p className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300">{m.body}</p>
+                    {(m.attachments?.length || 0) > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {m.attachments.map((a: any) => (
+                          <a key={a.id} href={a.download_url} target="_blank" rel="noreferrer" className="rounded-md border border-gray-300 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50 dark:border-gray-700 dark:text-blue-300 dark:hover:bg-blue-900/20">
+                            {a.file_name} ({fmtBytes(a.file_size)})
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
                 {(!thread.messages || thread.messages.length === 0) && <p className="text-sm text-gray-500">No messages yet.</p>}
@@ -53,8 +70,22 @@ export default function PlatformSupportShow({ auth, thread, admins }: any) {
                 <CardDescription>Response is visible to tenant in their support ticket.</CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={(e) => { e.preventDefault(); replyForm.post(route('platform.support.message', { thread: thread.slug }), { onSuccess: () => replyForm.reset('message') }); }} className="space-y-3">
+                <form onSubmit={(e) => { e.preventDefault(); replyForm.post(route('platform.support.message', { thread: thread.slug }), { forceFormData: true, onSuccess: () => replyForm.reset() }); }} className="space-y-3">
                   <Textarea value={replyForm.data.message} onChange={(e) => replyForm.setData('message', e.target.value)} className="min-h-[140px]" placeholder="Write a clear response with next steps..." />
+                  <div>
+                    <input
+                      type="file"
+                      multiple
+                      onChange={(e) => replyForm.setData('attachments', Array.from(e.target.files || []))}
+                      className="block w-full text-sm text-gray-700 dark:text-gray-300 file:mr-3 file:rounded-md file:border-0 file:bg-gray-100 file:px-3 file:py-2 dark:file:bg-gray-800"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">Up to 5 files, 10MB each.</p>
+                    {replyForm.data.attachments.length > 0 && (
+                      <ul className="mt-2 space-y-1 text-xs text-gray-500">
+                        {replyForm.data.attachments.map((f, i) => <li key={`${f.name}-${i}`}>{f.name}</li>)}
+                      </ul>
+                    )}
+                  </div>
                   {replyForm.errors.message && <p className="text-sm text-red-600">{replyForm.errors.message}</p>}
                   <div className="flex justify-end">
                     <Button type="submit" disabled={replyForm.processing}>{replyForm.processing ? 'Sending...' : 'Send Reply'}</Button>

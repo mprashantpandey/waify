@@ -6,17 +6,20 @@ use App\Http\Controllers\Controller;
 use App\Models\SupportMessage;
 use App\Models\SupportThread;
 use App\Models\User;
+use App\Services\SupportTicketAttachmentService;
 use App\Services\SupportTicketEmailService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class SupportDeskController extends Controller
 {
     public function __construct(
-        protected SupportTicketEmailService $emailService
+        protected SupportTicketEmailService $emailService,
+        protected SupportTicketAttachmentService $attachmentService
     ) {
     }
 
@@ -78,7 +81,7 @@ class SupportDeskController extends Controller
                 ];
             });
 
-        $admins = User::query()->where('is_super_admin', true)->orderBy('name')->get(['id', 'name', 'email']);
+        $admins = $this->platformAdmins();
 
         return Inertia::render('Platform/Support/Index', [
             'threads' => $threads,
@@ -100,9 +103,10 @@ class SupportDeskController extends Controller
             'creator:id,name,email',
             'assignee:id,name,email',
             'messages.sender:id,name,email',
+            'messages.attachments',
         ]);
 
-        $admins = User::query()->where('is_super_admin', true)->orderBy('name')->get(['id', 'name', 'email']);
+        $admins = $this->platformAdmins();
 
         return Inertia::render('Platform/Support/Show', [
             'thread' => [
@@ -124,6 +128,13 @@ class SupportDeskController extends Controller
                     'sender_email' => $message->sender?->email,
                     'body' => $message->body,
                     'created_at' => $message->created_at?->toIso8601String(),
+                    'attachments' => $message->attachments->map(fn ($a) => [
+                        'id' => $a->id,
+                        'file_name' => $a->file_name,
+                        'mime_type' => $a->mime_type,
+                        'file_size' => (int) $a->file_size,
+                        'download_url' => route('support.attachments.show', ['attachment' => $a->id]),
+                    ])->values(),
                 ])->values(),
             ],
             'admins' => $admins,
@@ -133,7 +144,11 @@ class SupportDeskController extends Controller
     public function message(Request $request, string $thread): RedirectResponse
     {
         $supportThread = $this->resolveThread($thread);
-        $validated = $request->validate(['message' => 'required|string|min:1|max:10000']);
+        $validated = $request->validate([
+            'message' => 'required|string|min:1|max:10000',
+            'attachments' => 'nullable|array|max:5',
+            'attachments.*' => 'file|max:10240',
+        ]);
 
         $message = SupportMessage::create([
             'support_thread_id' => $supportThread->id,
@@ -150,6 +165,7 @@ class SupportDeskController extends Controller
             $supportThread->assigned_to = $request->user()->id;
         }
         $supportThread->save();
+        $this->attachmentService->attachFiles($supportThread, $message, (array) $request->file('attachments', []));
         $this->emailService->notifyTenantAdminReply($supportThread, $message);
 
         return back()->with('success', 'Reply sent to tenant ticket.');
@@ -182,7 +198,7 @@ class SupportDeskController extends Controller
                 $payload['assigned_to'] = null;
             } else {
                 $adminId = (int) $assignedTo;
-                $exists = User::where('id', $adminId)->where('is_super_admin', true)->exists();
+                $exists = $this->platformAdminsQuery()->where('id', $adminId)->exists();
                 if (! $exists) {
                     return back()->with('error', 'Assignee must be a platform admin.');
                 }
@@ -222,5 +238,26 @@ class SupportDeskController extends Controller
                 }
             })
             ->firstOrFail();
+    }
+
+    private function platformAdmins()
+    {
+        return $this->platformAdminsQuery()->orderBy('name')->get(['id', 'name', 'email']);
+    }
+
+    private function platformAdminsQuery()
+    {
+        $query = User::query();
+
+        if (Schema::hasColumn('users', 'is_platform_admin')) {
+            return $query->where('is_platform_admin', true);
+        }
+
+        if (Schema::hasColumn('users', 'is_super_admin')) {
+            return $query->where('is_super_admin', true);
+        }
+
+        // Last-resort fallback for mixed/legacy schemas.
+        return $query->whereRaw('1 = 0');
     }
 }

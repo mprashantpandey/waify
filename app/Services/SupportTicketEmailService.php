@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 
 class SupportTicketEmailService
 {
@@ -142,8 +143,7 @@ class SupportTicketEmailService
             $emails[] = strtolower($supportEmail);
         }
 
-        $adminEmails = User::query()
-            ->where('is_super_admin', true)
+        $adminEmails = $this->platformAdminQuery()
             ->whereNotNull('email')
             ->pluck('email')
             ->map(fn ($email) => strtolower(trim((string) $email)))
@@ -160,6 +160,21 @@ class SupportTicketEmailService
             $minutes = PlatformSetting::get('support.ticket_email_cooldown_minutes', 60);
         }
         return max(1, (int) $minutes);
+    }
+
+    protected function platformAdminQuery()
+    {
+        $query = User::query();
+
+        if (Schema::hasColumn('users', 'is_platform_admin')) {
+            return $query->where('is_platform_admin', true);
+        }
+
+        if (Schema::hasColumn('users', 'is_super_admin')) {
+            return $query->where('is_super_admin', true);
+        }
+
+        return $query->whereRaw('1 = 0');
     }
 
     protected function sendTemplatedEmail(string $recipient, string $dedupeKey, int $dedupeMinutes, string $subjectFallback, array $context, string $bodyTextFallback, string $bodyHtmlFallback): void

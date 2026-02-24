@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SupportMessage extends Model
 {
@@ -30,5 +31,10 @@ class SupportMessage extends Model
     public function sender(): BelongsTo
     {
         return $this->belongsTo(User::class, 'sender_id');
+    }
+
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(SupportMessageAttachment::class)->orderBy('id');
     }
 }

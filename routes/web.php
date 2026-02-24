@@ -71,6 +71,7 @@ Route::get('/csrf-token/refresh', [\App\Http\Controllers\CsrfTokenController::cl
 
 // Onboarding (requires auth, no account)
 Route::middleware(['auth'])->group(function () {
+    Route::get('/support/attachments/{attachment}', [\App\Http\Controllers\SupportAttachmentController::class, 'show'])->name('support.attachments.show');
     Route::post('/impersonate/leave', [ImpersonationController::class, 'leave'])->name('impersonate.leave');
     Route::get('/onboarding', [OnboardingController::class, 'create'])->name('onboarding');
     Route::post('/onboarding', [OnboardingController::class, 'store'])->name('onboarding.store');
