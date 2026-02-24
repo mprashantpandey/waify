@@ -42,15 +42,15 @@ interface Filters {
 export default function PlatformTransactionsIndex({
     transactions,
     filters,
-    accounts = [],
 }: {
     transactions: PaginatedTransactions;
     filters: Filters;
-    accounts: Array<{ id: number; name: string; slug: string | null }>;
 }) {
     const { auth } = usePage().props as any;
     const [localFilters, setLocalFilters] = useState<Filters>({
-        account_id: filters?.account_id ?? undefined,
+        // Platform transactions page now defaults to platform-wide listing.
+        // Keep account_id out of the local filter UI to avoid "tenant switch" confusion.
+        account_id: undefined,
         status: filters?.status ?? '',
         source: filters?.source ?? '',
         search: filters?.search ?? '',
@@ -77,7 +77,8 @@ export default function PlatformTransactionsIndex({
     }, [transactions?.data]);
 
     const runQuery = (next: Filters) => {
-        router.get(route('platform.transactions.index'), next as any, {
+        const { account_id: _ignoredAccountId, ...query } = next;
+        router.get(route('platform.transactions.index'), query as any, {
             preserveState: true,
             preserveScroll: true,
         });
@@ -114,9 +115,12 @@ export default function PlatformTransactionsIndex({
                             <Filter className="h-5 w-5" />
                             DataTable Filters
                         </CardTitle>
+                        <CardDescription>
+                            Showing platform-wide transactions across all tenants. Use search, status, and source filters to narrow results.
+                        </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div>
                                 <Label htmlFor="tx-search">Search</Label>
                                 <div className="relative">
@@ -130,27 +134,6 @@ export default function PlatformTransactionsIndex({
                                         onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
                                     />
                                 </div>
-                            </div>
-                            <div>
-                                <Label htmlFor="tx-account">Tenant</Label>
-                                <select
-                                    id="tx-account"
-                                    value={localFilters.account_id ?? ''}
-                                    onChange={(e) =>
-                                        setLocalFilters({
-                                            ...localFilters,
-                                            account_id: e.target.value ? Number(e.target.value) : undefined,
-                                        })
-                                    }
-                                    className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
-                                >
-                                    <option value="">All Tenants</option>
-                                    {accounts.map((account) => (
-                                        <option key={account.id} value={account.id}>
-                                            {account.name} (#{account.id})
-                                        </option>
-                                    ))}
-                                </select>
                             </div>
                             <div>
                                 <Label htmlFor="tx-status">Status</Label>
@@ -199,6 +182,11 @@ export default function PlatformTransactionsIndex({
                                 </select>
                             </div>
                         </div>
+                        {!!filters?.account_id && (
+                            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                                A tenant filter was present in the URL and has been removed from the UI. Click <strong>Clear</strong> to return to all transactions.
+                            </div>
+                        )}
                         <div className="mt-4 flex items-center gap-2">
                             <button
                                 type="button"
@@ -319,4 +307,3 @@ export default function PlatformTransactionsIndex({
         </PlatformShell>
     );
 }
-
