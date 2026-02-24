@@ -7,10 +7,12 @@ import InputError from '@/Components/InputError';
 import { User, Save, Mail, CheckCircle2, Phone } from 'lucide-react';
 import { usePage } from '@inertiajs/react';
 import { Transition } from '@headlessui/react';
+import { Alert } from '@/Components/UI/Alert';
 
 export default function ProfileTab() {
-    const { auth, mustVerifyEmail } = usePage().props as any;
+    const { auth, account } = usePage().props as any;
     const user = auth?.user;
+    const phoneVerificationRequired = Boolean(account?.phone_verification_required);
 
     const { data, setData, patch, processing, errors, reset, recentlySuccessful } = useForm({
         name: user?.name || '',
@@ -39,6 +41,12 @@ export default function ProfileTab() {
                     </div>
                 </CardHeader>
                 <CardContent className="p-6">
+                    {phoneVerificationRequired && (
+                        <Alert variant="warning" className="mb-5">
+                            Your tenant requires a phone number on your profile. OTP verification flow can be enabled in a future update.
+                        </Alert>
+                    )}
+
                     <form onSubmit={submit} className="space-y-5">
                         <div>
                             <InputLabel htmlFor="name" value="Full Name" className="text-sm font-semibold mb-2" />
@@ -82,7 +90,7 @@ export default function ProfileTab() {
                                     value={data.phone}
                                     onChange={(e) => setData('phone', e.target.value)}
                                     className="mt-1 block w-full pl-10 rounded-xl"
-                                    required
+                                    required={phoneVerificationRequired}
                                     placeholder="+1234567890"
                                 />
                             </div>

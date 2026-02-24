@@ -12,6 +12,7 @@ interface Tenant {
     slug: string;
     billing_country_code?: string | null;
     billing_currency?: string | null;
+    phone_verification_required?: boolean;
     status: string;
     disabled_reason: string | null;
     disabled_at: string | null;
@@ -41,6 +42,7 @@ export default function PlatformTenantsShow({
     const [walletAmount, setWalletAmount] = useState('0');
     const [billingCountryCode, setBillingCountryCode] = useState(account.billing_country_code || '');
     const [billingCurrency, setBillingCurrency] = useState(account.billing_currency || '');
+    const [phoneVerificationRequired, setPhoneVerificationRequired] = useState(Boolean(account.phone_verification_required));
 
     const handleDisable = () => {
         router.post(route('platform.accounts.disable', { account: account.id }), {
@@ -244,12 +246,22 @@ export default function PlatformTenantsShow({
                                             router.post(route('platform.accounts.billing-profile.update', { account: account.id }), {
                                                 billing_country_code: billingCountryCode || null,
                                                 billing_currency: billingCurrency || null,
+                                                phone_verification_required: phoneVerificationRequired,
                                             })
                                         }
                                     >
                                         Save Billing Profile
                                     </Button>
                                 </div>
+                                <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                                    <input
+                                        type="checkbox"
+                                        checked={phoneVerificationRequired}
+                                        onChange={(e) => setPhoneVerificationRequired(e.target.checked)}
+                                        className="rounded border-gray-300"
+                                    />
+                                    Phone verification required (currently enforces phone on profile)
+                                </label>
                             </div>
                         </CardContent>
                     </Card>

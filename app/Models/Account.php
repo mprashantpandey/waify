@@ -16,6 +16,7 @@ class Account extends Model
         'slug',
         'billing_country_code',
         'billing_currency',
+        'phone_verification_required',
         'owner_id',
         'status',
         'disabled_reason',
@@ -92,6 +93,7 @@ class Account extends Model
             'disabled_at' => 'datetime',
             'billing_country_code' => 'string',
             'billing_currency' => 'string',
+            'phone_verification_required' => 'boolean',
             'auto_assign_enabled' => 'boolean'];
     }
 

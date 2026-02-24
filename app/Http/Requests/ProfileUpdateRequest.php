@@ -15,6 +15,9 @@ class ProfileUpdateRequest extends FormRequest
      */
     public function rules(): array
     {
+        $currentAccount = current_account();
+        $phoneRequired = (bool) ($currentAccount?->phone_verification_required ?? false);
+
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => [
@@ -24,6 +27,13 @@ class ProfileUpdateRequest extends FormRequest
                 'email',
                 'max:255',
                 Rule::unique(User::class)->ignore($this->user()->id)],
-            'phone' => ['nullable', 'string', 'max:20']];
+            'phone' => [$phoneRequired ? 'required' : 'nullable', 'string', 'max:20']];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'phone.required' => 'Phone number is required by your tenant security policy.',
+        ];
     }
 }
