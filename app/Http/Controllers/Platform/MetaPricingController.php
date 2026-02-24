@@ -214,10 +214,102 @@ class MetaPricingController extends Controller
             'meta_pricing_version_id' => 'nullable|integer|exists:meta_pricing_versions,id',
         ]);
 
+        $explicitVersionId = isset($validated['meta_pricing_version_id']) ? (int) $validated['meta_pricing_version_id'] : null;
+        $this->recalculateBillingRecord(
+            billing: $billing,
+            explicitVersionId: $explicitVersionId,
+            actorUserId: $request->user()?->id
+        );
+
+        return redirect()->route('platform.meta-pricing.index')
+            ->with('success', "Billing snapshot #{$billing->id} recalculated.");
+    }
+
+    public function bulkRecalculateBillingSnapshots(Request $request)
+    {
+        $validated = $request->validate([
+            'issue_type' => 'required|string|in:all_issues,missing_pricing_version,zero_rate_billable,zero_cost_billable,uncategorized',
+            'account_id' => 'nullable|integer|exists:accounts,id',
+            'date_from' => 'nullable|date',
+            'date_to' => 'nullable|date|after_or_equal:date_from',
+            'limit' => 'nullable|integer|min:1|max:500',
+        ]);
+
+        if (!Schema::hasTable('whatsapp_message_billings')) {
+            return redirect()->route('platform.meta-pricing.index')
+                ->with('error', 'whatsapp_message_billings table is not available on this environment.');
+        }
+
+        $limit = (int) ($validated['limit'] ?? 200);
+        $query = WhatsAppMessageBilling::query()->orderBy('id');
+
+        if (!empty($validated['account_id'])) {
+            $query->where('account_id', (int) $validated['account_id']);
+        }
+        if (!empty($validated['date_from'])) {
+            $query->where('created_at', '>=', $validated['date_from']);
+        }
+        if (!empty($validated['date_to'])) {
+            $query->where('created_at', '<=', $validated['date_to']);
+        }
+
+        $issueType = (string) $validated['issue_type'];
+        $query->where(function ($q) use ($issueType) {
+            if ($issueType === 'all_issues' || $issueType === 'missing_pricing_version') {
+                $q->orWhere(function ($qq) {
+                    $qq->where('billable', true)->whereNull('meta_pricing_version_id');
+                });
+            }
+            if ($issueType === 'all_issues' || $issueType === 'zero_rate_billable') {
+                $q->orWhere(function ($qq) {
+                    $qq->where('billable', true)->where(function ($q3) {
+                        $q3->whereNull('rate_minor')->orWhere('rate_minor', '<=', 0);
+                    });
+                });
+            }
+            if ($issueType === 'all_issues' || $issueType === 'zero_cost_billable') {
+                $q->orWhere(function ($qq) {
+                    $qq->where('billable', true)->where(function ($q3) {
+                        $q3->whereNull('estimated_cost_minor')->orWhere('estimated_cost_minor', '<=', 0);
+                    });
+                });
+            }
+            if ($issueType === 'all_issues' || $issueType === 'uncategorized') {
+                $q->orWhere(function ($qq) {
+                    $qq->whereNull('category')->orWhere('category', '');
+                });
+            }
+        });
+
+        $records = $query->limit($limit)->get();
+        $processed = 0;
+        $failed = 0;
+
+        foreach ($records as $billing) {
+            try {
+                $this->recalculateBillingRecord(
+                    billing: $billing,
+                    explicitVersionId: null,
+                    actorUserId: $request->user()?->id
+                );
+                $processed++;
+            } catch (\Throwable $e) {
+                $failed++;
+            }
+        }
+
+        return redirect()->route('platform.meta-pricing.index')
+            ->with('success', "Bulk recalculation complete. Processed: {$processed}, Failed: {$failed}, Selected: {$records->count()}.");
+    }
+
+    protected function recalculateBillingRecord(
+        WhatsAppMessageBilling $billing,
+        ?int $explicitVersionId = null,
+        ?int $actorUserId = null
+    ): void {
         $account = Account::find($billing->account_id);
         $category = strtolower(trim((string) $billing->category));
         $countedAt = $billing->counted_at ?? $billing->created_at ?? now();
-        $explicitVersionId = isset($validated['meta_pricing_version_id']) ? (int) $validated['meta_pricing_version_id'] : null;
 
         if ($explicitVersionId) {
             $version = MetaPricingVersion::with('rates')->findOrFail($explicitVersionId);
@@ -267,7 +359,7 @@ class MetaPricingController extends Controller
                 'reconciliation' => array_values(array_slice(array_merge($reconciliationLog, [[
                     'action' => 'recalculate',
                     'at' => now()->toIso8601String(),
-                    'by_user_id' => $request->user()?->id,
+                    'by_user_id' => $actorUserId,
                     'source' => $quote['source'] ?? null,
                     'selected_version_id' => $explicitVersionId,
                     'before' => $before,
@@ -281,9 +373,6 @@ class MetaPricingController extends Controller
                 ]]), -20)),
             ]),
         ]);
-
-        return redirect()->route('platform.meta-pricing.index')
-            ->with('success', "Billing snapshot #{$billing->id} recalculated.");
     }
 
     protected function deactivateCountryVersions(?string $countryCode, ?int $exceptId = null): void

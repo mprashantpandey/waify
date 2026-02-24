@@ -107,6 +107,7 @@ Route::middleware(['auth', 'super.admin'])->prefix('/platform')->name('platform.
     Route::put('/meta-pricing/{version}', [\App\Http\Controllers\Platform\MetaPricingController::class, 'update'])->name('meta-pricing.update');
     Route::post('/meta-pricing/{version}/toggle', [\App\Http\Controllers\Platform\MetaPricingController::class, 'toggle'])->name('meta-pricing.toggle');
     Route::post('/meta-pricing/billing/{billing}/recalculate', [\App\Http\Controllers\Platform\MetaPricingController::class, 'recalculateBillingSnapshot'])->name('meta-pricing.billing.recalculate');
+    Route::post('/meta-pricing/billing/recalculate-bulk', [\App\Http\Controllers\Platform\MetaPricingController::class, 'bulkRecalculateBillingSnapshots'])->name('meta-pricing.billing.recalculate-bulk');
     Route::post('/accounts/{account}/wallet/credit', [\App\Http\Controllers\Platform\TransactionController::class, 'credit'])->name('accounts.wallet.credit');
     Route::post('/accounts/{account}/wallet/debit', [\App\Http\Controllers\Platform\TransactionController::class, 'debit'])->name('accounts.wallet.debit');
     Route::get('/system-health', [\App\Http\Controllers\Platform\SystemHealthController::class, 'index'])->name('system-health');

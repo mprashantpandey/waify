@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import PlatformShell from '@/Layouts/PlatformShell';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Components/UI/Card';
@@ -73,6 +74,8 @@ export default function PlatformMetaPricingIndex({
     };
 }) {
     const { auth } = usePage().props as any;
+    const [bulkIssueType, setBulkIssueType] = useState<'all_issues' | 'missing_pricing_version' | 'zero_rate_billable' | 'zero_cost_billable' | 'uncategorized'>('all_issues');
+    const [bulkLimit, setBulkLimit] = useState<number>(200);
     const { data, setData, post, processing, errors, reset } = useForm<FormData>({
         country_code: legacy_default?.country_code || 'IN',
         currency: legacy_default?.currency || 'INR',
@@ -90,6 +93,14 @@ export default function PlatformMetaPricingIndex({
 
     const money = (minor: number, currency: string) =>
         new Intl.NumberFormat('en-IN', { style: 'currency', currency, minimumFractionDigits: 2 }).format((minor || 0) / 100);
+
+    const runBulkRecalc = () => {
+        router.post(
+            route('platform.meta-pricing.billing.recalculate-bulk'),
+            { issue_type: bulkIssueType, limit: bulkLimit },
+            { preserveScroll: true }
+        );
+    };
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -282,6 +293,40 @@ export default function PlatformMetaPricingIndex({
                             </p>
                         ) : (
                             <>
+                                <div className="flex flex-col gap-3 rounded-lg border border-gray-200 dark:border-gray-800 p-3 md:flex-row md:items-end">
+                                    <div className="flex-1">
+                                        <Label htmlFor="bulk_issue_type">Bulk Repair Scope</Label>
+                                        <select
+                                            id="bulk_issue_type"
+                                            value={bulkIssueType}
+                                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setBulkIssueType(e.target.value as any)}
+                                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+                                        >
+                                            <option value="all_issues">All issue types</option>
+                                            <option value="missing_pricing_version">Missing pricing version</option>
+                                            <option value="zero_rate_billable">Zero rate on billable</option>
+                                            <option value="zero_cost_billable">Zero cost on billable</option>
+                                            <option value="uncategorized">Uncategorized</option>
+                                        </select>
+                                    </div>
+                                    <div className="w-full md:w-40">
+                                        <Label htmlFor="bulk_limit">Limit</Label>
+                                        <Input
+                                            id="bulk_limit"
+                                            type="number"
+                                            min={1}
+                                            max={500}
+                                            value={bulkLimit}
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBulkLimit(Number(e.target.value || 1))}
+                                        />
+                                    </div>
+                                    <div>
+                                        <Button type="button" variant="secondary" onClick={runBulkRecalc}>
+                                            Bulk Recalculate
+                                        </Button>
+                                    </div>
+                                </div>
+
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                                     {[
                                         ['Total Records', reconciliation.summary.total_records ?? 0],
