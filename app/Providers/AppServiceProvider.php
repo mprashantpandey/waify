@@ -19,6 +19,7 @@ use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 
@@ -67,33 +68,35 @@ class AppServiceProvider extends ServiceProvider
 
         // Queue workers do not run HTTP middleware, so load runtime platform settings
         // for console/queue processes to keep broadcasting, mail, and integrations consistent.
-        if (app()->runningInConsole()) {
-            try {
-                /** @var PlatformSettingsService $settingsService */
-                $settingsService = app(PlatformSettingsService::class);
-                $settingsService->applyGeneralConfig();
-                $settingsService->applyLocalization();
-                $settingsService->applyMailConfig();
-                $settingsService->applyPusherConfig();
-                $settingsService->applyWhatsAppConfig();
-            } catch (\Throwable $exception) {
-                \Log::warning('Failed to apply platform settings during console bootstrap', [
-                    'error' => $exception->getMessage(),
-                ]);
-            }
-
-            Queue::before(function (JobProcessing $event) {
+        if (app()->runningInConsole() && !$this->app->runningUnitTests()) {
+            if ($this->canBootstrapPlatformSettings()) {
                 try {
-                    $settings = app(PlatformSettingsService::class);
-                    $settings->applyMailConfig();
-                    $settings->applyPusherConfig();
+                    /** @var PlatformSettingsService $settingsService */
+                    $settingsService = app(PlatformSettingsService::class);
+                    $settingsService->applyGeneralConfig();
+                    $settingsService->applyLocalization();
+                    $settingsService->applyMailConfig();
+                    $settingsService->applyPusherConfig();
+                    $settingsService->applyWhatsAppConfig();
                 } catch (\Throwable $exception) {
-                    \Log::warning('Failed to apply platform config before queued job', [
-                        'job' => $event->job?->resolveName(),
+                    \Log::warning('Failed to apply platform settings during console bootstrap', [
                         'error' => $exception->getMessage(),
                     ]);
                 }
-            });
+
+                Queue::before(function (JobProcessing $event) {
+                    try {
+                        $settings = app(PlatformSettingsService::class);
+                        $settings->applyMailConfig();
+                        $settings->applyPusherConfig();
+                    } catch (\Throwable $exception) {
+                        \Log::warning('Failed to apply platform config before queued job', [
+                            'job' => $event->job?->resolveName(),
+                            'error' => $exception->getMessage(),
+                        ]);
+                    }
+                });
+            }
         }
 
         // Register policies
@@ -331,5 +334,14 @@ class AppServiceProvider extends ServiceProvider
             }
             return $conversation;
         });
+    }
+
+    protected function canBootstrapPlatformSettings(): bool
+    {
+        try {
+            return Schema::hasTable('platform_settings');
+        } catch (\Throwable) {
+            return false;
+        }
     }
 }

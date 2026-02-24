@@ -29,6 +29,7 @@ class AiController extends Controller
             'account' => $account,
             'ai_suggestions_enabled' => (bool) ($user->ai_suggestions_enabled ?? false),
             'ai_prompts' => is_array($user->ai_prompts) ? $user->ai_prompts : [],
+            'prompt_library' => $this->promptLibrary(),
             'platform_ai_enabled' => $this->toBoolean(PlatformSetting::get('ai.enabled', false)),
             'platform_ai_provider' => PlatformSetting::get('ai.provider', 'openai'),
             'usage' => $usage,
@@ -48,6 +49,8 @@ class AiController extends Controller
             'ai_prompts.*.purpose' => 'nullable|string|max:100',
             'ai_prompts.*.label' => 'nullable|string|max:255',
             'ai_prompts.*.prompt' => 'nullable|string|max:10000',
+            'ai_prompts.*.scope' => 'nullable|string|in:all,owner,admin,member',
+            'ai_prompts.*.enabled' => 'nullable|boolean',
         ]);
 
         $normalizedPrompts = collect($validated['ai_prompts'] ?? [])
@@ -56,6 +59,10 @@ class AiController extends Controller
                     'purpose' => trim((string) ($prompt['purpose'] ?? '')),
                     'label' => trim((string) ($prompt['label'] ?? '')),
                     'prompt' => trim((string) ($prompt['prompt'] ?? '')),
+                    'scope' => in_array(($prompt['scope'] ?? 'all'), ['all', 'owner', 'admin', 'member'], true)
+                        ? $prompt['scope']
+                        : 'all',
+                    'enabled' => (bool) ($prompt['enabled'] ?? true),
                 ];
             })
             ->filter(fn ($prompt) => $prompt['purpose'] !== '' && $prompt['label'] !== '' && $prompt['prompt'] !== '')
@@ -149,5 +156,29 @@ class AiController extends Controller
         }
 
         return (bool) $value;
+    }
+
+    protected function promptLibrary(): array
+    {
+        return [
+            [
+                'purpose' => 'conversation_suggest',
+                'label' => 'Sales-friendly reply',
+                'scope' => 'member',
+                'prompt' => 'Reply in 1-2 short lines. Be warm, clear, and include one concrete next step.',
+            ],
+            [
+                'purpose' => 'conversation_suggest',
+                'label' => 'Escalation-safe reply',
+                'scope' => 'all',
+                'prompt' => 'If policy/approval is needed, acknowledge and ask for required details before promising outcomes.',
+            ],
+            [
+                'purpose' => 'support_reply',
+                'label' => 'Structured support response',
+                'scope' => 'admin',
+                'prompt' => 'Use format: What happened, Why it happened, What to do next. Keep it concise and actionable.',
+            ],
+        ];
     }
 }

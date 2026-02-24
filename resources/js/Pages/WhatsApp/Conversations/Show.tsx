@@ -5,7 +5,7 @@ import Button from '@/Components/UI/Button';
 import TextInput from '@/Components/TextInput';
 import { Textarea } from '@/Components/UI/Textarea';
 import { Badge } from '@/Components/UI/Badge';
-import { ArrowLeft, Send, Check, CheckCheck, Clock, Menu, Phone, Wifi, WifiOff, X, Smile, Paperclip, Image as ImageIcon, MapPin, FileText, Zap, List, Square, Plus, Sparkles } from 'lucide-react';
+import { ArrowLeft, Send, Check, CheckCheck, Clock, Menu, Phone, Wifi, WifiOff, X, Smile, Paperclip, Image as ImageIcon, MapPin, FileText, Zap, List, Square, Plus, Sparkles, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRealtime } from '@/Providers/RealtimeProvider';
 import { MessageSkeleton } from '@/Components/UI/Skeleton';
@@ -256,6 +256,9 @@ export default function ConversationsShow({
     const [aiSuggestLoading, setAiSuggestLoading] = useState(false);
     const [showButtons, setShowButtons] = useState(false);
     const [showLocation, setShowLocation] = useState(false);
+    const [lastAiSuggestion, setLastAiSuggestion] = useState<string | null>(null);
+    const [aiFeedbackSending, setAiFeedbackSending] = useState<null | 'up' | 'down'>(null);
+    const [aiFeedbackSent, setAiFeedbackSent] = useState<null | 'up' | 'down'>(null);
     const [selectedList, setSelectedList] = useState<ListItem | null>(null);
     const [interactiveButtons, setInteractiveButtons] = useState<Array<{ id: string; text: string }>>([
         { id: '', text: '' },
@@ -1077,7 +1080,10 @@ export default function ConversationsShow({
             .then((res) => {
                 const suggestion = res.data?.suggestion;
                 if (typeof suggestion === 'string' && suggestion.trim()) {
-                    setData('message', suggestion.trim());
+                    const normalized = suggestion.trim();
+                    setData('message', normalized);
+                    setLastAiSuggestion(normalized);
+                    setAiFeedbackSent(null);
                     addToast({ title: 'AI suggestion added', description: 'Edit or send as is.', variant: 'info', duration: 2000 });
                 }
             })
@@ -1087,6 +1093,25 @@ export default function ConversationsShow({
             })
             .finally(() => setAiSuggestLoading(false));
     }, [showAiSuggest, aiSuggestLoading, conversation.id, setData, addToast]);
+
+    const handleAiFeedback = useCallback((verdict: 'up' | 'down') => {
+        if (!lastAiSuggestion || aiFeedbackSending) return;
+        setAiFeedbackSending(verdict);
+        axios
+            .post(route('app.whatsapp.conversations.ai-feedback', { conversation: conversation.id }), {
+                suggestion: lastAiSuggestion,
+                verdict,
+                reason: null,
+            })
+            .then(() => {
+                setAiFeedbackSent(verdict);
+                addToast({ title: 'Feedback saved', variant: 'success', duration: 1500 });
+            })
+            .catch(() => {
+                addToast({ title: 'Failed to save feedback', variant: 'error' });
+            })
+            .finally(() => setAiFeedbackSending(null));
+    }, [lastAiSuggestion, aiFeedbackSending, conversation.id, addToast]);
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -2127,27 +2152,61 @@ export default function ConversationsShow({
                                 aria-label="Message input"
                             />
                             {showAiSuggest && (
-                                <Button
-                                    type="button"
-                                    onClick={handleAiSuggest}
-                                    disabled={processing || aiSuggestLoading || !canUseAiSuggest}
-                                    aria-label="Get AI reply suggestion"
-                                    title={
-                                        !aiSuggestionsEnabled
-                                            ? 'Enable AI suggestions in AI settings'
-                                            : !platformAiEnabled
-                                            ? 'AI is disabled in platform settings'
-                                            : 'Suggest reply with AI'
-                                    }
-                                    variant="secondary"
-                                    className="shrink-0 rounded-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800"
-                                >
-                                    {aiSuggestLoading ? (
-                                        <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" aria-hidden />
-                                    ) : (
-                                        <Sparkles className="h-4 w-4 text-amber-500" />
+                                <div className="flex items-center gap-1">
+                                    <Button
+                                        type="button"
+                                        onClick={handleAiSuggest}
+                                        disabled={processing || aiSuggestLoading || !canUseAiSuggest}
+                                        aria-label="Get AI reply suggestion"
+                                        title={
+                                            !aiSuggestionsEnabled
+                                                ? 'Enable AI suggestions in AI settings'
+                                                : !platformAiEnabled
+                                                ? 'AI is disabled in platform settings'
+                                                : 'Suggest reply with AI'
+                                        }
+                                        variant="secondary"
+                                        className="shrink-0 rounded-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800"
+                                    >
+                                        {aiSuggestLoading ? (
+                                            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" aria-hidden />
+                                        ) : (
+                                            <Sparkles className="h-4 w-4 text-amber-500" />
+                                        )}
+                                    </Button>
+                                    {lastAiSuggestion && (
+                                        <>
+                                            <button
+                                                type="button"
+                                                className={cn(
+                                                    'rounded-full border p-2',
+                                                    aiFeedbackSent === 'up'
+                                                        ? 'border-green-600 text-green-600'
+                                                        : 'border-gray-300 text-gray-500'
+                                                )}
+                                                onClick={() => handleAiFeedback('up')}
+                                                disabled={Boolean(aiFeedbackSending)}
+                                                aria-label="Mark AI suggestion helpful"
+                                            >
+                                                <ThumbsUp className="h-3.5 w-3.5" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className={cn(
+                                                    'rounded-full border p-2',
+                                                    aiFeedbackSent === 'down'
+                                                        ? 'border-red-600 text-red-600'
+                                                        : 'border-gray-300 text-gray-500'
+                                                )}
+                                                onClick={() => handleAiFeedback('down')}
+                                                disabled={Boolean(aiFeedbackSending)}
+                                                aria-label="Mark AI suggestion not helpful"
+                                            >
+                                                <ThumbsDown className="h-3.5 w-3.5" />
+                                            </button>
+                                        </>
                                     )}
-                                </Button>
+                                </div>
                             )}
                             <Button
                                 type="submit"

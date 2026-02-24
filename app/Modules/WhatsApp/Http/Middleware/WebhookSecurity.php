@@ -16,23 +16,32 @@ class WebhookSecurity
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // Verify request signature if app secret configured
+        // Verify request signature (required when Meta Verified Tech Provider mode is on)
         $appSecret = config('whatsapp.meta.app_secret');
         $signatureHeader = $request->header('X-Hub-Signature-256');
-        if (!empty($appSecret) && $request->isMethod('post')) {
-            if (!$signatureHeader) {
-                Log::warning('[Meta-WhatsApp-Webhook] POST rejected: missing X-Hub-Signature-256 (app_secret is set)');
-                Log::channel('whatsapp')->warning('Webhook POST rejected: missing X-Hub-Signature-256 (app_secret is set)');
-                abort(401, 'Missing signature');
+        $requireSignature = config('whatsapp.tech_provider.verified_mode', false);
+
+        if ($request->isMethod('post')) {
+            if ($requireSignature && empty($appSecret)) {
+                Log::channel('whatsapp')->error('Webhook POST rejected: META_VERIFIED_TECH_PROVIDER is on but META_APP_SECRET is not set');
+                abort(401, 'Webhook signature verification is required');
             }
 
-            $rawBody = $request->getContent();
-            $expected = 'sha256=' . hash_hmac('sha256', $rawBody, $appSecret);
+            if (!empty($appSecret)) {
+                if (!$signatureHeader) {
+                    Log::warning('[Meta-WhatsApp-Webhook] POST rejected: missing X-Hub-Signature-256 (app_secret is set)');
+                    Log::channel('whatsapp')->warning('Webhook POST rejected: missing X-Hub-Signature-256 (app_secret is set)');
+                    abort(401, 'Missing signature');
+                }
 
-            if (!hash_equals($expected, $signatureHeader)) {
-                Log::warning('[Meta-WhatsApp-Webhook] POST rejected: invalid signature (check META_APP_SECRET matches Meta App Secret)');
-                Log::channel('whatsapp')->warning('Webhook POST rejected: invalid signature (check META_APP_SECRET matches Meta App Secret)');
-                abort(401, 'Invalid signature');
+                $rawBody = $request->getContent();
+                $expected = 'sha256=' . hash_hmac('sha256', $rawBody, $appSecret);
+
+                if (!hash_equals($expected, $signatureHeader)) {
+                    Log::warning('[Meta-WhatsApp-Webhook] POST rejected: invalid signature (check META_APP_SECRET matches Meta App Secret)');
+                    Log::channel('whatsapp')->warning('Webhook POST rejected: invalid signature (check META_APP_SECRET matches Meta App Secret)');
+                    abort(401, 'Invalid signature');
+                }
             }
         }
 

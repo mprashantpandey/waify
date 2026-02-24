@@ -132,7 +132,7 @@ Route::middleware(['auth', 'super.admin'])->prefix('/platform')->name('platform.
 
 // App routes (requires auth + account + account active + account subscribed)
 // restrict.chat.agent: chat agents (role member) only see Inbox; others have full access
-Route::middleware(['auth', 'account.resolve', 'account.active', 'account.subscribed', 'restrict.chat.agent'])->prefix('/app')->name('app.')->group(function () {
+Route::middleware(['auth', 'account.resolve', 'account.active', 'account.subscribed', 'tenant.phone.verified', 'restrict.chat.agent'])->prefix('/app')->name('app.')->group(function () {
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     
@@ -281,6 +281,8 @@ Route::middleware(['auth', 'account.resolve'])->prefix('/app')->name('app.')->gr
     Route::post('/settings/security/revoke-other-sessions', [\App\Http\Controllers\SettingsController::class, 'revokeOtherSessions'])->name('settings.security.revoke-other-sessions');
     Route::delete('/settings/security/sessions/{sessionId}', [\App\Http\Controllers\SettingsController::class, 'revokeSession'])->name('settings.security.sessions.revoke');
     Route::post('/settings/security/resend-verification', [\App\Http\Controllers\SettingsController::class, 'resendVerification'])->name('settings.security.resend-verification');
+    Route::post('/settings/security/phone/send-code', [\App\Http\Controllers\SettingsController::class, 'sendPhoneVerificationCode'])->name('settings.security.phone.send-code');
+    Route::post('/settings/security/phone/verify-code', [\App\Http\Controllers\SettingsController::class, 'verifyPhoneVerificationCode'])->name('settings.security.phone.verify-code');
 });
 
 // Webhook routes (public, no auth, but with security middleware)

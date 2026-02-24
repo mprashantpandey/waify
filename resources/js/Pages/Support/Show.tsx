@@ -5,6 +5,7 @@ import Button from '@/Components/UI/Button';
 import { Head } from '@inertiajs/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRealtime } from '@/Providers/RealtimeProvider';
+import { useNotifications } from '@/hooks/useNotifications';
 
 interface Message {
     id: number;
@@ -89,6 +90,7 @@ export default function SupportShow({
     };
     messages: Message[];
 }) {
+    const { toast } = useNotifications();
     const { data, setData, post, processing, reset } = useForm({
         message: '',
         attachments: [] as File[]});
@@ -183,6 +185,24 @@ export default function SupportShow({
 
     const closeThread = () => {
         post(route('app.support.close', { thread: thread.slug ?? thread.id }) as string);
+    };
+
+    const suggestReply = async () => {
+        try {
+            const res = await window.axios.post(
+                route('app.support.assistant', { thread: thread.slug ?? thread.id }) as string,
+                { action: 'reply' },
+                { headers: { Accept: 'application/json' } }
+            );
+            const suggestion = String(res?.data?.suggestion || '').trim();
+            if (!suggestion) {
+                toast.warning('No suggestion', 'AI did not return a response.');
+                return;
+            }
+            setData('message', suggestion);
+        } catch (error: any) {
+            toast.error('AI suggestion failed', error?.response?.data?.error || 'Unable to generate AI suggestion.');
+        }
     };
 
     return (
@@ -295,6 +315,9 @@ export default function SupportShow({
                                 className="block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-gray-700 hover:file:bg-gray-200 dark:file:bg-gray-800 dark:file:text-gray-200 dark:hover:file:bg-gray-700"
                             />
                             <div className="flex justify-end">
+                                <Button type="button" variant="secondary" onClick={suggestReply} className="mr-2">
+                                    AI Suggest Reply
+                                </Button>
                                 {thread.status === 'open' && (
                                     <Button type="button" variant="secondary" onClick={closeThread} className="mr-2">
                                         Close Chat

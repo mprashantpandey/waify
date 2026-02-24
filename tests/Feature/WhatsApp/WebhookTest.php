@@ -3,9 +3,12 @@
 namespace Tests\Feature\WhatsApp;
 
 use App\Models\Account;
+use App\Models\AccountUsage;
+use App\Models\PlatformSetting;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
+use App\Modules\WhatsApp\Models\WhatsAppMessageBilling;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -165,5 +168,78 @@ class WebhookTest extends TestCase
             'whatsapp_connection_id' => $this->connection->id,
             'whatsapp_contact_id' => $contact->id,
         ]);
+    }
+
+    public function test_webhook_status_tracks_meta_billing_usage_once_per_message(): void
+    {
+        PlatformSetting::set('whatsapp.meta_billing.rate.marketing_minor', 80, 'integer', 'whatsapp');
+
+        $inboundPayload = [
+            'entry' => [[
+                'changes' => [[
+                    'field' => 'messages',
+                    'value' => [
+                        'messages' => [[
+                            'id' => 'wamid.bill123',
+                            'from' => '1112223333',
+                            'type' => 'text',
+                            'text' => ['body' => 'Hello'],
+                        ]],
+                        'contacts' => [[
+                            'profile' => ['name' => 'Billing Contact'],
+                        ]],
+                    ],
+                ]],
+            ]],
+        ];
+
+        $this->postJson(route('webhooks.whatsapp.receive', ['connection' => $this->connection->slug]), $inboundPayload)
+            ->assertStatus(200);
+
+        $statusPayload = [
+            'entry' => [[
+                'changes' => [[
+                    'field' => 'messages',
+                    'value' => [
+                        'statuses' => [[
+                            'id' => 'wamid.bill123',
+                            'status' => 'delivered',
+                            'timestamp' => (string) now()->timestamp,
+                            'pricing' => [
+                                'billable' => true,
+                                'pricing_model' => 'CBP',
+                                'category' => 'marketing',
+                            ],
+                            'conversation' => [
+                                'id' => 'conv_1',
+                                'category' => 'marketing',
+                            ],
+                        ]],
+                    ],
+                ]],
+            ]],
+        ];
+
+        $this->postJson(route('webhooks.whatsapp.receive', ['connection' => $this->connection->slug]), $statusPayload)
+            ->assertStatus(200);
+        // Duplicate status should not double count
+        $this->postJson(route('webhooks.whatsapp.receive', ['connection' => $this->connection->slug]), $statusPayload)
+            ->assertStatus(200);
+
+        $usage = AccountUsage::where('account_id', $this->account->id)
+            ->where('period', now()->format('Y-m'))
+            ->first();
+
+        $this->assertNotNull($usage);
+        $this->assertSame(1, (int) $usage->meta_conversations_paid);
+        $this->assertSame(1, (int) $usage->meta_conversations_marketing);
+        $this->assertSame(80, (int) $usage->meta_estimated_cost_minor);
+        $this->assertDatabaseHas('whatsapp_message_billings', [
+            'account_id' => $this->account->id,
+            'meta_message_id' => 'wamid.bill123',
+            'billable' => 1,
+            'category' => 'marketing',
+        ]);
+        $this->assertSame(1, WhatsAppMessageBilling::where('meta_message_id', 'wamid.bill123')->count());
     }
 }

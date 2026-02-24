@@ -518,7 +518,7 @@ export default function SupportTab({ data, setData, errors }: SupportTabProps) {
                             </div>
                         </div>
                     </div>
-                    <div className="grid gap-4 md:grid-cols-2">
+                    <div className="grid gap-4 md:grid-cols-3">
                         <div>
                             <Label htmlFor="support.sla_hours">SLA Hours</Label>
                             <TextInput
@@ -547,6 +547,28 @@ export default function SupportTab({ data, setData, errors }: SupportTabProps) {
                             />
                             {errors?.['support.first_response_hours'] && (
                                 <p className="text-sm text-red-600 mt-1">{errors['support.first_response_hours']}</p>
+                            )}
+                        </div>
+                        <div>
+                            <Label htmlFor="support.email_thread_notify_gap_minutes">Email Gap (minutes)</Label>
+                            <TextInput
+                                id="support.email_thread_notify_gap_minutes"
+                                type="number"
+                                min="1"
+                                value={data.support?.email_thread_notify_gap_minutes ?? 60}
+                                onChange={(e) =>
+                                    setData('support', {
+                                        ...data.support,
+                                        email_thread_notify_gap_minutes: Number(e.target.value),
+                                    })
+                                }
+                                className="mt-1 block w-full"
+                            />
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                Minimum gap before sending another support email for the same thread.
+                            </p>
+                            {errors?.['support.email_thread_notify_gap_minutes'] && (
+                                <p className="text-sm text-red-600 mt-1">{errors['support.email_thread_notify_gap_minutes']}</p>
                             )}
                         </div>
                     </div>

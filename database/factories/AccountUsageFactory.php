@@ -26,6 +26,13 @@ class AccountUsageFactory extends Factory
             'messages_sent' => 0,
             'template_sends' => 0,
             'ai_credits_used' => 0,
+            'meta_conversations_free_used' => 0,
+            'meta_conversations_paid' => 0,
+            'meta_conversations_marketing' => 0,
+            'meta_conversations_utility' => 0,
+            'meta_conversations_authentication' => 0,
+            'meta_conversations_service' => 0,
+            'meta_estimated_cost_minor' => 0,
             'storage_bytes' => 0,
         ];
     }

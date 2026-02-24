@@ -50,6 +50,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'public-api.enabled' => \App\Http\Middleware\EnsurePublicApiEnabled::class,
             'log.api' => \App\Http\Middleware\LogApiRequests::class,
             'restrict.chat.agent' => \App\Http\Middleware\RestrictChatAgentAccess::class,
+            'tenant.phone.verified' => \App\Http\Middleware\EnsurePhoneVerifiedForTenant::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

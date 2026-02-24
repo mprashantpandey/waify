@@ -40,7 +40,13 @@ class TemplateSyncController extends Controller
                 $result['total'],
                 $result['created'],
                 $result['updated']
-            ));
+            ))->with('sync_report', [
+                'total' => $result['total'],
+                'created' => $result['created'],
+                'updated' => $result['updated'],
+                'errors_count' => count($result['errors'] ?? []),
+                'errors' => array_slice($result['errors'] ?? [], 0, 5),
+            ]);
         } catch (AuthorizationException $e) {
             throw $e;
         } catch (\Exception $e) {

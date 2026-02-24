@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -81,14 +82,31 @@ class TemplateController extends Controller
                     'last_synced_at' => $template->last_synced_at?->toIso8601String()];
             });
 
+        $connectionColumns = ['id', 'name'];
+        if (Schema::hasColumn('whatsapp_connections', 'last_synced_at')) {
+            $connectionColumns[] = 'last_synced_at';
+        }
+        if (Schema::hasColumn('whatsapp_connections', 'last_meta_error')) {
+            $connectionColumns[] = 'last_meta_error';
+        }
+
         $connections = WhatsAppConnection::where('account_id', $account->id)
             ->where('is_active', true)
-            ->get(['id', 'name']);
+            ->get($connectionColumns)
+            ->map(function ($connection) {
+                return [
+                    'id' => $connection->id,
+                    'name' => $connection->name,
+                    'last_synced_at' => $connection->last_synced_at?->toIso8601String(),
+                    'last_sync_error' => $connection->last_meta_error,
+                ];
+            });
 
         return Inertia::render('WhatsApp/Templates/Index', [
             'account' => $account,
             'templates' => $templates,
             'connections' => $connections,
+            'sync_report' => session('sync_report'),
             'filters' => [
                 'connection' => $request->connection,
                 'status' => $request->status,

@@ -101,10 +101,12 @@ class HandleInertiaRequests extends Middleware
         $impersonator = $impersonatorId ? User::find($impersonatorId) : null;
 
         // Check if profile is complete
+        $phoneVerificationRequired = (bool) ($account?->phone_verification_required ?? false);
         $isProfileComplete = $user ? (
-            !empty($user->name) && 
-            !empty($user->email) && 
-            !empty($user->phone)
+            !empty($user->name) &&
+            !empty($user->email) &&
+            !empty($user->phone) &&
+            (!$phoneVerificationRequired || !empty($user->phone_verified_at))
         ) : true;
 
         return [
@@ -122,6 +124,7 @@ class HandleInertiaRequests extends Middleware
                     'name' => $user->name,
                     'email' => $user->email,
                     'phone' => $user->phone,
+                    'phone_verified_at' => $user->phone_verified_at?->toIso8601String(),
                     'is_super_admin' => $user->isSuperAdmin(),
                     'notify_assignment_enabled' => $user->notify_assignment_enabled ?? true,
                     'notify_mention_enabled' => $user->notify_mention_enabled ?? true,
@@ -141,7 +144,7 @@ class HandleInertiaRequests extends Middleware
                     'name' => $impersonator->name,
                     'email' => $impersonator->email] : null],
             'ai' => [
-                'enabled' => PlatformSetting::get('ai.enabled', false),
+                'enabled' => $this->toBoolean(PlatformSetting::get('ai.enabled', false)),
                 'provider' => PlatformSetting::get('ai.provider', 'openai')],
             'analyticsSettings' => [
                 'google_analytics_enabled' => PlatformSetting::get('analytics.google_analytics_enabled', false),
@@ -160,13 +163,13 @@ class HandleInertiaRequests extends Middleware
                 'cookie_consent_required' => PlatformSetting::get('compliance.cookie_consent_required', false),
             ],
             'supportSettings' => [
-                'live_chat_enabled' => PlatformSetting::get('support.live_chat_enabled', true),
-                'ticket_support_enabled' => PlatformSetting::get('support.ticket_support_enabled', true),
+                'live_chat_enabled' => $this->toBoolean(PlatformSetting::get('support.live_chat_enabled', true)),
+                'ticket_support_enabled' => $this->toBoolean(PlatformSetting::get('support.ticket_support_enabled', true)),
             ],
             'features' => [
-                'analytics' => PlatformSetting::get('features.analytics', true),
-                'public_api' => PlatformSetting::get('features.public_api', false),
-                'webhooks' => PlatformSetting::get('features.webhooks', true),
+                'analytics' => $this->toBoolean(PlatformSetting::get('features.analytics', true)),
+                'public_api' => $this->toBoolean(PlatformSetting::get('features.public_api', false)),
+                'webhooks' => $this->toBoolean(PlatformSetting::get('features.webhooks', true)),
             ],
             'pusherConfig' => (function () {
                 $settingsService = app(\App\Services\PlatformSettingsService::class);
@@ -177,5 +180,28 @@ class HandleInertiaRequests extends Middleware
             'ziggy' => fn () => [
                 ...(new Ziggy)->toArray(),
                 'location' => $request->url()]];
+    }
+
+    protected function toBoolean(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_numeric($value)) {
+            return (int) $value === 1;
+        }
+
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+            if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+                return true;
+            }
+            if (in_array($normalized, ['0', 'false', 'no', 'off', ''], true)) {
+                return false;
+            }
+        }
+
+        return (bool) $value;
     }
 }

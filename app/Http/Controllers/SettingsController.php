@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\PhoneVerificationService;
 use App\Services\PlatformSettingsService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
@@ -46,6 +47,7 @@ class SettingsController extends Controller
             ],
             'mustVerifyEmail' => $user instanceof \Illuminate\Contracts\Auth\MustVerifyEmail,
             'emailVerified' => (bool) $user?->hasVerifiedEmail(),
+            'phoneVerified' => !empty($user?->phone_verified_at),
             'securityPolicy' => [
                 'password_min_length' => (int) ($security['password_min_length'] ?? 8),
                 'password_require_uppercase' => (bool) ($security['password_require_uppercase'] ?? false),
@@ -156,5 +158,40 @@ class SettingsController extends Controller
         $user->sendEmailVerificationNotification();
 
         return back()->with('success', 'Verification email sent.');
+    }
+
+    public function sendPhoneVerificationCode(Request $request, PhoneVerificationService $service)
+    {
+        $user = $request->user();
+
+        $result = $service->sendCode($user);
+
+        if (!$result['ok']) {
+            return back()->with('error', $result['message']);
+        }
+
+        $channel = $result['delivery_channel'] ?? 'unknown';
+        $message = $channel === 'email_fallback'
+            ? 'Verification code sent (email fallback delivery is active for now).'
+            : 'Verification code sent.';
+
+        return back()->with('success', $message);
+    }
+
+    public function verifyPhoneVerificationCode(Request $request, PhoneVerificationService $service)
+    {
+        $validated = $request->validate([
+            'otp_code' => 'required|string|min:4|max:10',
+        ]);
+
+        $result = $service->verifyCode($request->user(), (string) $validated['otp_code']);
+
+        if (!$result['ok']) {
+            return back()->withErrors([
+                'otp_code' => $result['message'],
+            ])->with('error', $result['message']);
+        }
+
+        return back()->with('success', $result['message']);
     }
 }

@@ -18,6 +18,13 @@ class AccountUsage extends Model
         'messages_sent',
         'template_sends',
         'ai_credits_used',
+        'meta_conversations_free_used',
+        'meta_conversations_paid',
+        'meta_conversations_marketing',
+        'meta_conversations_utility',
+        'meta_conversations_authentication',
+        'meta_conversations_service',
+        'meta_estimated_cost_minor',
         'storage_bytes'];
 
     protected function casts(): array
@@ -26,6 +33,13 @@ class AccountUsage extends Model
             'messages_sent' => 'integer',
             'template_sends' => 'integer',
             'ai_credits_used' => 'integer',
+            'meta_conversations_free_used' => 'integer',
+            'meta_conversations_paid' => 'integer',
+            'meta_conversations_marketing' => 'integer',
+            'meta_conversations_utility' => 'integer',
+            'meta_conversations_authentication' => 'integer',
+            'meta_conversations_service' => 'integer',
+            'meta_estimated_cost_minor' => 'integer',
             'storage_bytes' => 'integer'];
     }
 

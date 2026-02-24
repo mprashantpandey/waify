@@ -5,7 +5,7 @@ import { Badge } from '@/Components/UI/Badge';
 import Button from '@/Components/UI/Button';
 import { ArrowLeft, FileText, Plus, Trash2, AlertCircle, Info, Sparkles, CheckCircle2, Upload, X, Image as ImageIcon, Video, File, XCircle } from 'lucide-react';
 import { Head, Link } from '@inertiajs/react';
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import TextInput from '@/Components/TextInput';
 import { Label } from '@/Components/UI/Label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/UI/Select';
@@ -80,6 +80,31 @@ export default function TemplatesCreate({
         body_examples: [],
         footer_text: '',
         buttons: []});
+
+    const approvalChecklist = useMemo(() => {
+        const bodyVariables = Array.from((data.body_text || '').matchAll(/\{\{(\d+)\}\}/g)).map((m) => Number(m[1]));
+        const variableSequenceValid =
+            bodyVariables.length === 0 ||
+            bodyVariables.every((value, index) => value === index + 1);
+        const urlButtons = (data.buttons || []).filter((b) => b.type === 'URL');
+        const dynamicUrlMissingExample = urlButtons.some(
+            (b) => !!b.url && /\{\{\d+\}\}/.test(b.url) && !b.url_example
+        );
+
+        return [
+            { label: 'Connection selected', ok: Boolean(data.whatsapp_connection_id) },
+            { label: 'Template name format valid', ok: /^[a-zA-Z0-9_]+$/.test(data.name || '') },
+            { label: 'Body text added', ok: Boolean((data.body_text || '').trim()) },
+            { label: 'Variables are sequential ({{1}}, {{2}}...)', ok: variableSequenceValid },
+            {
+                label: 'Media header includes uploaded sample',
+                ok:
+                    !['IMAGE', 'VIDEO', 'DOCUMENT'].includes(data.header_type) ||
+                    Boolean((data.header_media_url || '').trim()),
+            },
+            { label: 'Dynamic URL buttons have URL example', ok: !dynamicUrlMissingExample },
+        ];
+    }, [data]);
 
     // Calculate variables in body text
     const updateVariableCount = (text: string) => {
@@ -431,6 +456,29 @@ export default function TemplatesCreate({
                         </ul>
                     </div>
                 </Alert>
+
+                <Card className="border-0 shadow-lg">
+                    <CardHeader>
+                        <CardTitle>Local Approval Checklist</CardTitle>
+                        <CardDescription>Preflight checks before submitting to Meta</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                        {approvalChecklist.map((item, index) => (
+                            <div key={index} className="flex items-center justify-between text-sm">
+                                <span>{item.label}</span>
+                                {item.ok ? (
+                                    <span className="inline-flex items-center gap-1 text-emerald-600">
+                                        <CheckCircle2 className="h-4 w-4" /> OK
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center gap-1 text-amber-600">
+                                        <AlertCircle className="h-4 w-4" /> Review
+                                    </span>
+                                )}
+                            </div>
+                        ))}
+                    </CardContent>
+                </Card>
 
                 {/* Global Error Display */}
                 {(errors as any).create && (

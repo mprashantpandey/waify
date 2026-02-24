@@ -206,7 +206,8 @@ class PlatformSettingsController extends Controller
             'first_response_hours' => (int) $get('support.first_response_hours', 4),
             'email_notifications_enabled' => (bool) $get('support.email_notifications_enabled', true),
             'notify_admins' => (bool) $get('support.notify_admins', true),
-            'notify_customers' => (bool) $get('support.notify_customers', true)];
+            'notify_customers' => (bool) $get('support.notify_customers', true),
+            'email_thread_notify_gap_minutes' => (int) $get('support.email_thread_notify_gap_minutes', 60)];
 
         // Check for misconfigured settings
         $validationService = app(PlatformSettingsValidationService::class);
@@ -385,6 +386,7 @@ class PlatformSettingsController extends Controller
             'support.email_notifications_enabled' => 'nullable|boolean',
             'support.notify_admins' => 'nullable|boolean',
             'support.notify_customers' => 'nullable|boolean',
+            'support.email_thread_notify_gap_minutes' => 'nullable|integer|min:1|max:1440',
             'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
             'favicon' => 'nullable|image|mimes:ico,png|max:512']);
 

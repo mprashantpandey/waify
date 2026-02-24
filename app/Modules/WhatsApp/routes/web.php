@@ -48,6 +48,7 @@ Route::middleware(['module.entitled:whatsapp.cloud'])->group(function () {
     Route::post('/conversations/{conversation}/notes', [ConversationController::class, 'addInternalNote'])->name('whatsapp.conversations.notes.store');
     Route::post('/conversations/{conversation}/update', [ConversationController::class, 'updateMeta'])->name('whatsapp.conversations.update');
     Route::post('/conversations/{conversation}/ai-suggest', [ConversationController::class, 'aiSuggest'])->name('whatsapp.conversations.ai-suggest');
+    Route::post('/conversations/{conversation}/ai-feedback', [ConversationController::class, 'aiFeedback'])->name('whatsapp.conversations.ai-feedback');
 
     // Lists (requires whatsapp.cloud entitlement)
     Route::get('/lists', [\App\Modules\WhatsApp\Http\Controllers\ListController::class, 'index'])->name('whatsapp.lists.index');

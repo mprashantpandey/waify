@@ -1,29 +1,57 @@
-import { useForm } from '@inertiajs/react';
+import { useForm, router } from '@inertiajs/react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
 import Button from '@/Components/UI/Button';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
-import { User, Save, Mail, CheckCircle2, Phone } from 'lucide-react';
+import { User, Save, Mail, CheckCircle2, Phone, ShieldCheck } from 'lucide-react';
 import { usePage } from '@inertiajs/react';
 import { Transition } from '@headlessui/react';
 import { Alert } from '@/Components/UI/Alert';
+import { useNotifications } from '@/hooks/useNotifications';
 
 export default function ProfileTab() {
+    const { toast } = useNotifications();
     const { auth, account } = usePage().props as any;
     const user = auth?.user;
     const phoneVerificationRequired = Boolean(account?.phone_verification_required);
+    const phoneVerified = Boolean(user?.phone_verified_at);
 
     const { data, setData, patch, processing, errors, reset, recentlySuccessful } = useForm({
         name: user?.name || '',
         email: user?.email || '',
-        phone: user?.phone || ''});
+        phone: user?.phone || '',
+    });
+    const otpForm = useForm({
+        otp_code: '',
+    });
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
         patch(route('profile.update'), {
             preserveScroll: true,
-            onSuccess: () => reset()});
+            onSuccess: () => reset(),
+        });
+    };
+
+    const sendOtp = () => {
+        router.post(route('app.settings.security.phone.send-code'), {}, {
+            preserveScroll: true,
+            onError: () => toast.error('Failed to send verification code'),
+        });
+    };
+
+    const verifyOtp = (e: React.FormEvent) => {
+        e.preventDefault();
+        otpForm.post(route('app.settings.security.phone.verify-code'), {
+            preserveScroll: true,
+            onSuccess: () => {
+                otpForm.reset('otp_code');
+            },
+            onError: () => {
+                toast.error('Failed to verify code');
+            },
+        });
     };
 
     return (
@@ -43,9 +71,61 @@ export default function ProfileTab() {
                 <CardContent className="p-6">
                     {phoneVerificationRequired && (
                         <Alert variant="warning" className="mb-5">
-                            Your tenant requires a phone number on your profile. OTP verification flow can be enabled in a future update.
+                            Your tenant requires a verified phone number to access app features.
                         </Alert>
                     )}
+
+                    <div className="mb-5 rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                            <div>
+                                <div className="text-sm font-semibold">Phone Verification</div>
+                                <div className="text-xs text-gray-600 dark:text-gray-400">
+                                    Verification codes are currently delivered via email fallback until SMS provider setup is enabled.
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm">
+                                <ShieldCheck className={`h-4 w-4 ${phoneVerified ? 'text-green-600' : 'text-amber-600'}`} />
+                                <span className={phoneVerified ? 'text-green-700 dark:text-green-400' : 'text-amber-700 dark:text-amber-400'}>
+                                    {phoneVerified ? 'Verified' : 'Not verified'}
+                                </span>
+                            </div>
+                        </div>
+
+                        {!phoneVerified && (
+                            <form onSubmit={verifyOtp} className="space-y-3">
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                    <Button
+                                        type="button"
+                                        variant="secondary"
+                                        onClick={sendOtp}
+                                        disabled={processing || !String(data.phone || '').trim()}
+                                    >
+                                        Send Verification Code
+                                    </Button>
+                                    <div className="flex-1">
+                                        <TextInput
+                                            value={otpForm.data.otp_code}
+                                            onChange={(e) => otpForm.setData('otp_code', e.target.value)}
+                                            placeholder="Enter OTP code"
+                                            className="w-full rounded-xl"
+                                        />
+                                        <InputError message={otpForm.errors.otp_code} className="mt-2" />
+                                    </div>
+                                    <Button
+                                        type="submit"
+                                        disabled={otpForm.processing || !String(otpForm.data.otp_code || '').trim()}
+                                    >
+                                        {otpForm.processing ? 'Verifying...' : 'Verify Code'}
+                                    </Button>
+                                </div>
+                                {!String(data.phone || '').trim() && (
+                                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                                        Save a phone number first, then request a verification code.
+                                    </p>
+                                )}
+                            </form>
+                        )}
+                    </div>
 
                     <form onSubmit={submit} className="space-y-5">
                         <div>

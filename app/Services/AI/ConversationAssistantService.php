@@ -11,10 +11,15 @@ class ConversationAssistantService
     /**
      * Generate a suggested reply for the agent based on recent conversation messages.
      */
-    public function suggestReply(WhatsAppConversation $conversation, int $lastMessagesLimit = 25): string
+    public function suggestReply(
+        WhatsAppConversation $conversation,
+        int $lastMessagesLimit = 25,
+        ?string $customInstruction = null
+    ): string
     {
         $provider = AiProviderFactory::fromPlatformSettings();
         $systemPrompt = \App\Models\PlatformSetting::get('ai.system_prompt', $this->defaultSystemPrompt());
+        $systemPrompt = $this->applyCustomInstruction($systemPrompt, $customInstruction);
         $temperature = (float) \App\Models\PlatformSetting::get('ai.temperature', 0.3);
         $maxTokens = (int) \App\Models\PlatformSetting::get('ai.max_tokens', 250);
 
@@ -32,6 +37,16 @@ class ConversationAssistantService
         $userPrompt = $this->buildUserPrompt($contactName, $conversationText);
 
         return $provider->generate($systemPrompt, $userPrompt, $temperature, $maxTokens);
+    }
+
+    protected function applyCustomInstruction(string $systemPrompt, ?string $customInstruction): string
+    {
+        $customInstruction = trim((string) $customInstruction);
+        if ($customInstruction === '') {
+            return $systemPrompt;
+        }
+
+        return $systemPrompt . "\n\nAdditional agent instruction:\n" . $customInstruction;
     }
 
     protected function formatMessagesForPrompt(Collection $messages): string

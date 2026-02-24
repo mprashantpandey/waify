@@ -24,6 +24,7 @@ use App\Modules\WhatsApp\Services\WhatsAppClient;
 use App\Services\AI\ConversationAssistantService;
 use App\Core\Billing\PlanResolver;
 use App\Models\AiUsageLog;
+use App\Models\AiSuggestionFeedback;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
@@ -608,8 +609,10 @@ class ConversationController extends Controller
         }
 
         try {
-            $suggestion = $this->conversationAssistant->suggestReply($conversation);
+            $customInstruction = $this->resolveScopedPromptInstruction($request);
+            $suggestion = $this->conversationAssistant->suggestReply($conversation, 25, $customInstruction);
             $suggestion = trim($suggestion);
+            $suggestion = $this->applySuggestionGuardrails($suggestion);
 
             if ($suggestion === '') {
                 return response()->json(['error' => 'AI returned an empty suggestion. Please try again.'], 422);
@@ -650,6 +653,38 @@ class ConversationController extends Controller
         }
     }
 
+    public function aiFeedback(Request $request, WhatsAppConversation $conversation)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if (!account_ids_match($conversation->account_id, $account->id)) {
+            return response()->json(['error' => 'Conversation not found.'], 404);
+        }
+
+        $validated = $request->validate([
+            'suggestion' => 'required|string|max:8000',
+            'verdict' => 'required|string|in:up,down',
+            'reason' => 'nullable|string|max:1000',
+        ]);
+
+        if (Schema::hasTable('ai_suggestion_feedback')) {
+            AiSuggestionFeedback::create([
+                'account_id' => $account->id,
+                'user_id' => $request->user()?->id,
+                'whatsapp_conversation_id' => $conversation->id,
+                'suggestion' => $validated['suggestion'],
+                'verdict' => $validated['verdict'],
+                'reason' => $validated['reason'] ?? null,
+                'metadata' => [
+                    'contact_id' => $conversation->whatsapp_contact_id,
+                    'connection_id' => $conversation->whatsapp_connection_id,
+                ],
+            ]);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
     protected function mapAiSuggestionError(\Throwable $e): array
     {
         $message = trim((string) $e->getMessage());
@@ -676,6 +711,62 @@ class ConversationController extends Controller
         }
 
         return ['AI suggestion failed. Please try again.', 503];
+    }
+
+    protected function resolveScopedPromptInstruction(Request $request): ?string
+    {
+        $user = $request->user();
+        $account = $request->attributes->get('account') ?? current_account();
+        if (!$user || !$account) {
+            return null;
+        }
+
+        $prompts = collect(is_array($user->ai_prompts) ? $user->ai_prompts : []);
+        if ($prompts->isEmpty()) {
+            return null;
+        }
+
+        $role = $this->resolveAccountRole($account, $user);
+        $instruction = $prompts
+            ->filter(fn ($prompt) => ($prompt['enabled'] ?? true) !== false)
+            ->filter(fn ($prompt) => in_array(($prompt['purpose'] ?? ''), ['conversation_suggest', 'reply_suggestion'], true))
+            ->filter(function ($prompt) use ($role) {
+                $scope = $prompt['scope'] ?? 'all';
+                return $scope === 'all' || $scope === $role;
+            })
+            ->pluck('prompt')
+            ->map(fn ($prompt) => trim((string) $prompt))
+            ->filter()
+            ->implode("\n\n");
+
+        return $instruction !== '' ? $instruction : null;
+    }
+
+    protected function resolveAccountRole($account, User $user): string
+    {
+        if ((int) $account->owner_id === (int) $user->id) {
+            return 'owner';
+        }
+
+        $membership = $account->users()
+            ->where('users.id', $user->id)
+            ->first();
+
+        return $membership?->pivot?->role ?? 'member';
+    }
+
+    protected function applySuggestionGuardrails(string $suggestion): string
+    {
+        $normalized = preg_replace('/\s+/', ' ', trim($suggestion)) ?? '';
+        if ($normalized === '') {
+            return '';
+        }
+
+        // Basic PII guardrails: redact long numeric strings and card-like patterns.
+        $normalized = preg_replace('/\b\d{10,19}\b/', '[REDACTED-NUMBER]', $normalized) ?? $normalized;
+        $normalized = preg_replace('/\b(?:\d[ -]*?){13,16}\b/', '[REDACTED-CARD]', $normalized) ?? $normalized;
+
+        return trim($normalized);
     }
 
     /**

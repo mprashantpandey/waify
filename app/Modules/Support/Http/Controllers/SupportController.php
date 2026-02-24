@@ -703,7 +703,13 @@ class SupportController extends Controller
             return;
         }
 
-        app(NotificationDispatchService::class)->send($admins, $notification, 45);
+        app(NotificationDispatchService::class)->send($admins, $notification, $this->supportEmailCooldownSeconds());
+    }
+
+    protected function supportEmailCooldownSeconds(): int
+    {
+        $minutes = (int) PlatformSetting::get('support.email_thread_notify_gap_minutes', 60);
+        return max(60, $minutes * 60);
     }
 
     protected function storeAttachments(SupportMessage $message, array $files): void

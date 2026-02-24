@@ -17,6 +17,8 @@ interface PromptRow {
     purpose: string;
     label: string;
     prompt: string;
+    scope?: 'all' | 'owner' | 'admin' | 'member';
+    enabled?: boolean;
 }
 
 interface UsageStats {
@@ -28,12 +30,14 @@ interface UsageStats {
 export default function AiIndex({
     ai_suggestions_enabled = false,
     ai_prompts = [],
+    prompt_library = [],
     platform_ai_enabled = false,
     platform_ai_provider = 'openai',
     usage = { this_month: 0, by_feature: {}, period_start: '' },
 }: {
     ai_suggestions_enabled: boolean;
     ai_prompts: PromptRow[];
+    prompt_library?: PromptRow[];
     platform_ai_enabled?: boolean;
     platform_ai_provider?: string;
     usage: UsageStats;
@@ -46,11 +50,30 @@ export default function AiIndex({
     });
 
     const addPrompt = () => {
-        const next = [...data.ai_prompts, { purpose: `custom_${Date.now()}`, label: '', prompt: '' }];
+        const next = [
+            ...data.ai_prompts,
+            { purpose: `custom_${Date.now()}`, label: '', prompt: '', scope: 'all' as const, enabled: true } as PromptRow,
+        ];
         setData('ai_prompts', next);
     };
 
-    const updatePrompt = (index: number, field: keyof PromptRow, value: string) => {
+    const addFromLibrary = (libraryPrompt: PromptRow) => {
+        const scope: PromptRow['scope'] = libraryPrompt.scope ?? 'all';
+        const next = [
+            ...data.ai_prompts,
+            {
+                purpose: libraryPrompt.purpose,
+                label: libraryPrompt.label,
+                prompt: libraryPrompt.prompt,
+                scope,
+                enabled: true,
+            } as PromptRow,
+        ];
+        setData('ai_prompts', next);
+        toast.success('Prompt added from library');
+    };
+
+    const updatePrompt = (index: number, field: keyof PromptRow, value: PromptRow[keyof PromptRow]) => {
         const next = data.ai_prompts.map((p, i) => (i === index ? { ...p, [field]: value } : p));
         setData('ai_prompts', next);
     };
@@ -67,6 +90,8 @@ export default function AiIndex({
                 purpose: (row.purpose || '').trim(),
                 label: (row.label || '').trim(),
                 prompt: (row.prompt || '').trim(),
+                scope: row.scope || 'all',
+                enabled: row.enabled !== false,
             }))
             .filter((row) => row.purpose || row.label || row.prompt);
 
@@ -164,6 +189,20 @@ export default function AiIndex({
                                             onChange={(e) => updatePrompt(index, 'label', e.target.value)}
                                             className="flex-1 max-w-[180px]"
                                         />
+                                        <select
+                                            value={row.scope || 'all'}
+                                            onChange={(e) => updatePrompt(index, 'scope', e.target.value)}
+                                            className="rounded-lg border-gray-300 text-sm dark:bg-gray-800 dark:border-gray-700"
+                                        >
+                                            <option value="all">All roles</option>
+                                            <option value="owner">Owner</option>
+                                            <option value="admin">Admin</option>
+                                            <option value="member">Member</option>
+                                        </select>
+                                        <Switch
+                                            checked={row.enabled !== false}
+                                            onCheckedChange={(checked) => updatePrompt(index, 'enabled', checked)}
+                                        />
                                         <button
                                             type="button"
                                             onClick={() => removePrompt(index)}
@@ -186,6 +225,23 @@ export default function AiIndex({
                                 <Plus className="h-4 w-4" />
                                 Add prompt
                             </Button>
+                            {Array.isArray(prompt_library) && prompt_library.length > 0 && (
+                                <div className="space-y-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 p-3">
+                                    <p className="text-xs font-medium text-gray-600 dark:text-gray-300">Prompt library</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {prompt_library.map((preset, idx) => (
+                                            <button
+                                                key={`${preset.purpose}-${idx}`}
+                                                type="button"
+                                                className="rounded-full border border-gray-300 dark:border-gray-700 px-3 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-800"
+                                                onClick={() => addFromLibrary(preset)}
+                                            >
+                                                {preset.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                             <InputError message={errors?.ai_prompts} className="mt-2" />
                         </CardContent>
                     </Card>

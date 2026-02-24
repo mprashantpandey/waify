@@ -40,15 +40,23 @@ export default function TemplatesIndex({
     account,
     templates,
     connections,
-    filters}: {
+    filters,
+    sync_report}: {
     account: any;
     templates: {
         data: Template[];
         links: any;
         meta: any;
     };
-    connections: Array<{ id: number; name: string }>;
+    connections: Array<{ id: number; name: string; last_synced_at?: string | null; last_sync_error?: string | null }>;
     filters: Filters;
+    sync_report?: {
+        total: number;
+        created: number;
+        updated: number;
+        errors_count: number;
+        errors?: Array<{ template: string; error: string }>;
+    } | null;
 }) {
     const { toast } = useToast();
     const confirm = useConfirm();
@@ -289,6 +297,46 @@ export default function TemplatesIndex({
                         </CardContent>
                     )}
                 </Card>
+
+                {(sync_report || connections.some((c) => c.last_synced_at || c.last_sync_error)) && (
+                    <Card className="border-0 shadow-lg">
+                        <CardHeader>
+                            <CardTitle>Sync Status Report</CardTitle>
+                            <CardDescription>Latest sync summary and per-connection status</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-3 text-sm">
+                            {sync_report && (
+                                <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                                    <p>
+                                        Last run: {sync_report.total} total, {sync_report.created} created, {sync_report.updated} updated, {sync_report.errors_count} errors.
+                                    </p>
+                                    {Array.isArray(sync_report.errors) && sync_report.errors.length > 0 && (
+                                        <ul className="mt-2 space-y-1 text-red-600 dark:text-red-400">
+                                            {sync_report.errors.map((err, idx) => (
+                                                <li key={idx}>{err.template}: {err.error}</li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
+                            )}
+                            <div className="grid gap-2 md:grid-cols-2">
+                                {connections.map((connection) => (
+                                    <div key={connection.id} className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                                        <p className="font-medium">{connection.name}</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            Last sync: {connection.last_synced_at ? new Date(connection.last_synced_at).toLocaleString() : 'Never'}
+                                        </p>
+                                        {connection.last_sync_error && (
+                                            <p className="mt-1 text-xs text-red-600 dark:text-red-400 truncate">
+                                                Last error: {connection.last_sync_error}
+                                            </p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
                 {/* Templates List */}
                 {templates.data.length === 0 ? (
