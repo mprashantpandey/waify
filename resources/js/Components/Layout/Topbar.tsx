@@ -14,10 +14,13 @@ interface TopbarProps {
 }
 
 export function Topbar({ user, onMenuClick }: TopbarProps) {
-    const { impersonation, accounts, account } = usePage().props as any;
+    const page = usePage() as any;
+    const { impersonation, accounts, account } = page.props as any;
+    const componentName = page.component as string | undefined;
     const [darkMode, setDarkMode] = useState(false);
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [showAccountMenu, setShowAccountMenu] = useState(false);
+    const hideAccountSwitch = componentName === 'Platform/Transactions/Index';
 
     useEffect(() => {
         const isDark = localStorage.getItem('darkMode') === 'true' || 
@@ -53,7 +56,7 @@ export function Topbar({ user, onMenuClick }: TopbarProps) {
                             <Menu className="h-5 w-5" aria-hidden />
                         </button>
                     )}
-                    {account && accounts?.length > 1 && (
+                    {account && accounts?.length > 1 && !hideAccountSwitch && (
                         <div className="relative hidden sm:block">
                             <button
                                 onClick={() => setShowAccountMenu(!showAccountMenu)}
