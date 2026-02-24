@@ -70,11 +70,16 @@ class RegisteredUserController extends Controller
     public function store(\App\Http\Requests\RegisterRequest $request): RedirectResponse
     {
         $validated = $request->validated();
+        $settingsService = app(\App\Services\PlatformSettingsService::class);
+        $emailVerificationEnabled = $settingsService->isFeatureEnabled('email_verification');
 
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'password' => Hash::make($validated['password'])]);
+            'password' => Hash::make($validated['password']),
+            // If email verification is disabled at platform level, mark email verified immediately.
+            'email_verified_at' => $emailVerificationEnabled ? null : now(),
+        ]);
 
         event(new Registered($user));
 

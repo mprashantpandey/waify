@@ -12,8 +12,11 @@ import { useNotifications } from '@/hooks/useNotifications';
 
 export default function ProfileTab() {
     const { toast } = useNotifications();
-    const { auth, account } = usePage().props as any;
+    const pageProps = usePage().props as any;
+    const { auth, account } = pageProps;
     const user = auth?.user;
+    const mustVerifyEmail = Boolean(pageProps.mustVerifyEmail);
+    const emailVerified = Boolean(pageProps.emailVerified);
     const phoneVerificationRequired = Boolean(account?.phone_verification_required);
     const phoneVerified = Boolean(user?.phone_verified_at);
     const originalPhone = String(user?.phone || '');
@@ -55,6 +58,13 @@ export default function ProfileTab() {
         });
     };
 
+    const resendEmailVerification = () => {
+        router.post(route('app.settings.security.resend-verification'), {}, {
+            preserveScroll: true,
+            onError: () => toast.error('Failed to send verification email'),
+        });
+    };
+
     const phoneChanged = String(data.phone || '').trim() !== originalPhone.trim();
     const canRequestOtp = !phoneChanged && !!String(data.phone || '').trim();
 
@@ -78,6 +88,30 @@ export default function ProfileTab() {
                             Your tenant requires a verified phone number to access app features.
                         </Alert>
                     )}
+
+                    <div className="mb-5 rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                            <div>
+                                <div className="text-sm font-semibold">Email Verification</div>
+                                <div className="text-xs text-gray-600 dark:text-gray-400">
+                                    Required for account security and password recovery trust.
+                                </div>
+                            </div>
+                            <span className={`text-sm font-medium ${emailVerified ? 'text-green-700 dark:text-green-400' : 'text-amber-700 dark:text-amber-400'}`}>
+                                {emailVerified ? 'Verified' : (mustVerifyEmail ? 'Not verified' : 'Optional')}
+                            </span>
+                        </div>
+                        {!emailVerified && mustVerifyEmail && (
+                            <div className="flex flex-wrap gap-3">
+                                <Button type="button" variant="secondary" onClick={resendEmailVerification}>
+                                    Resend Verification Email
+                                </Button>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 self-center">
+                                    Check inbox/spam for the verification link.
+                                </p>
+                            </div>
+                        )}
+                    </div>
 
                     <div className="mb-5 rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
                         <div className="flex items-center justify-between gap-3">

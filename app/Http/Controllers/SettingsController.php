@@ -21,6 +21,7 @@ class SettingsController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
         $user = $request->user();
         $security = app(PlatformSettingsService::class)->getSecurity();
+        $emailVerificationEnabled = app(PlatformSettingsService::class)->isFeatureEnabled('email_verification');
 
         $sessionRows = collect();
         if (DB::getSchemaBuilder()->hasTable('sessions')) {
@@ -47,7 +48,7 @@ class SettingsController extends Controller
             'auth' => [
                 'user' => $user,
             ],
-            'mustVerifyEmail' => $user instanceof \Illuminate\Contracts\Auth\MustVerifyEmail,
+            'mustVerifyEmail' => $emailVerificationEnabled && $user instanceof \Illuminate\Contracts\Auth\MustVerifyEmail,
             'emailVerified' => (bool) $user?->hasVerifiedEmail(),
             'phoneVerified' => !empty($user?->phone_verified_at),
             'twoFactor' => [
@@ -160,6 +161,11 @@ class SettingsController extends Controller
     public function resendVerification(Request $request)
     {
         $user = $request->user();
+        $emailVerificationEnabled = app(PlatformSettingsService::class)->isFeatureEnabled('email_verification');
+
+        if (!$emailVerificationEnabled) {
+            return back()->with('info', 'Email verification is disabled in platform settings.');
+        }
 
         if (!($user instanceof \Illuminate\Contracts\Auth\MustVerifyEmail)) {
             return back()->with('info', 'Email verification is not required for this account.');
