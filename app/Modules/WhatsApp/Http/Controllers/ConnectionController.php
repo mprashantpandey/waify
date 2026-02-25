@@ -203,7 +203,7 @@ class ConnectionController extends Controller
         try {
             $accessToken = $validated['access_token'] ?? null;
             if (!$accessToken && !empty($validated['code'])) {
-                $redirectUri = $validated['redirect_uri'] ?? config('app.url');
+                $redirectUri = $this->resolveEmbeddedRedirectUri($validated['redirect_uri'] ?? null);
                 $tokenData = $this->metaGraphService->exchangeCodeForToken($validated['code'], $redirectUri);
                 $accessToken = $tokenData['access_token'] ?? null;
             }
@@ -308,6 +308,35 @@ class ConnectionController extends Controller
             'appId' => $enabled ? $appId : null,
             'configId' => $enabled ? $configId : null,
             'apiVersion' => $apiVersion ?: 'v21.0'];
+    }
+
+    /**
+     * Meta requires the token exchange redirect_uri to exactly match the OAuth dialog redirect_uri.
+     * Normalize client-provided values to a stable allowlisted URI (strip query/hash, allow only known paths).
+     */
+    private function resolveEmbeddedRedirectUri(?string $requestedRedirectUri): string
+    {
+        $allowed = [
+            route('app.whatsapp.connections.create'),
+            route('app.whatsapp.connections.wizard'),
+        ];
+
+        if ($requestedRedirectUri) {
+            $parts = parse_url($requestedRedirectUri);
+            if ($parts !== false && !empty($parts['scheme']) && !empty($parts['host']) && !empty($parts['path'])) {
+                $normalized = $parts['scheme'].'://'.$parts['host']
+                    .(isset($parts['port']) ? ':'.$parts['port'] : '')
+                    .$parts['path'];
+
+                foreach ($allowed as $uri) {
+                    if (rtrim($normalized, '/') === rtrim($uri, '/')) {
+                        return $uri;
+                    }
+                }
+            }
+        }
+
+        return route('app.whatsapp.connections.create');
     }
 
     /**
