@@ -7,6 +7,7 @@ use App\Models\Plan;
 use App\Core\Billing\SubscriptionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -67,26 +68,13 @@ class OnboardingController extends Controller
         
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'plan_key' => 'nullable|string|exists:plans,key']);
+            'plan_key' => 'nullable|string|exists:plans,key'], [
+                'name.required' => 'Workspace name is required.',
+                'plan_key.exists' => 'The selected plan is no longer available. Please choose another plan.',
+            ]);
 
         $user = Auth::user();
-
-        $account = Account::create([
-            'name' => $validated['name'],
-            'slug' => Account::generateSlug($validated['name']),
-            'owner_id' => $user->id]);
-
-        // Note: Owner is not added to account_users table - they're identified by owner_id
-        // Only non-owner members are added to account_users table
-
-        // Enable core modules by default
-        $coreModules = \App\Models\Module::where('is_core', true)->get();
-        foreach ($coreModules as $module) {
-            \App\Models\AccountModule::create([
-                'account_id' => $account->id,
-                'module_key' => $module->key,
-                'enabled' => true]);
-        }
+        $workspaceName = trim((string) $validated['name']);
 
         // Auto-subscribe to selected plan or default plan
         $selectedPlanKey = $validated['plan_key'] 
@@ -169,12 +157,32 @@ class OnboardingController extends Controller
         
         // Always assign a plan
         $subscriptionService = app(SubscriptionService::class);
-        
-        if ($selectedPlan->trial_days > 0) {
-            $subscriptionService->startTrial($account, $selectedPlan, $user);
-        } else {
-            $subscriptionService->changePlan($account, $selectedPlan, $user);
-        }
+        $account = DB::transaction(function () use ($workspaceName, $user, $selectedPlan, $subscriptionService) {
+            $account = Account::create([
+                'name' => $workspaceName,
+                'slug' => Account::generateSlug($workspaceName),
+                'owner_id' => $user->id]);
+
+            // Note: Owner is not added to account_users table - they're identified by owner_id
+            // Only non-owner members are added to account_users table
+
+            // Enable core modules by default
+            $coreModules = \App\Models\Module::where('is_core', true)->get();
+            foreach ($coreModules as $module) {
+                \App\Models\AccountModule::create([
+                    'account_id' => $account->id,
+                    'module_key' => $module->key,
+                    'enabled' => true]);
+            }
+
+            if ($selectedPlan->trial_days > 0) {
+                $subscriptionService->startTrial($account, $selectedPlan, $user);
+            } else {
+                $subscriptionService->changePlan($account, $selectedPlan, $user);
+            }
+
+            return $account;
+        });
         
         // Clear selected plan from session
         session()->forget('selected_plan_key');
