@@ -91,6 +91,7 @@ class DashboardController extends Controller
         // Usage Statistics (from billing)
         $usageService = app(UsageService::class);
         $currentUsage = $usageService->getCurrentUsage($account);
+        $onboardingChecklist = $this->buildOnboardingChecklist($account, $user);
         
         // Recent Activity (last 7 days message trends)
         $messageTrends = WhatsAppMessage::select(
@@ -147,7 +148,81 @@ class DashboardController extends Controller
                     'total_members' => $totalMembers,
                     'admins' => $admins],
                 'usage' => $currentUsage],
+            'onboarding_checklist' => $onboardingChecklist,
             'message_trends' => $messageTrends,
             'recent_conversations' => $recentConversations]);
+    }
+
+    protected function buildOnboardingChecklist($account, $user): array
+    {
+        $isPhoneVerifiedRequired = (bool) ($account->phone_verification_required ?? false);
+        $isProfileComplete = !empty($user?->name) && !empty($user?->email) && !empty($user?->phone)
+            && (!$isPhoneVerifiedRequired || !empty($user?->phone_verified_at));
+
+        $hasConnection = WhatsAppConnection::where('account_id', $account->id)->exists();
+        $hasTeamMember = AccountUser::where('account_id', $account->id)
+            ->when($account->owner_id, fn ($q) => $q->where('user_id', '!=', $account->owner_id))
+            ->exists();
+        $hasTemplate = WhatsAppTemplate::where('account_id', $account->id)->exists();
+        $hasConversation = WhatsAppConversation::where('account_id', $account->id)->exists();
+
+        $items = [
+            [
+                'key' => 'profile',
+                'label' => 'Complete your profile',
+                'description' => 'Add required contact details so your workspace is fully operational.',
+                'done' => $isProfileComplete,
+                'href' => route('profile.edit'),
+                'cta' => 'Complete profile',
+                'priority' => 1,
+            ],
+            [
+                'key' => 'connection',
+                'label' => 'Connect WhatsApp',
+                'description' => 'Add your WhatsApp Cloud connection using Meta Embedded Signup.',
+                'done' => $hasConnection,
+                'href' => route('app.whatsapp.connections.create'),
+                'cta' => 'Add connection',
+                'priority' => 2,
+            ],
+            [
+                'key' => 'team',
+                'label' => 'Invite a teammate',
+                'description' => 'Bring in an agent/admin to collaborate on inbox and operations.',
+                'done' => $hasTeamMember,
+                'href' => route('app.team.index'),
+                'cta' => 'Invite teammate',
+                'priority' => 3,
+            ],
+            [
+                'key' => 'template',
+                'label' => 'Create your first template',
+                'description' => 'Set up an approved template for campaigns and outbound messaging.',
+                'done' => $hasTemplate,
+                'href' => route('app.whatsapp.templates.create'),
+                'cta' => 'Create template',
+                'priority' => 4,
+            ],
+            [
+                'key' => 'test_message',
+                'label' => 'Send a test message',
+                'description' => 'Verify your end-to-end setup by sending/receiving a real message.',
+                'done' => $hasConversation,
+                'href' => route('app.whatsapp.conversations.index'),
+                'cta' => 'Open inbox',
+                'priority' => 5,
+            ],
+        ];
+
+        $completed = collect($items)->where('done', true)->count();
+
+        return [
+            'show' => $completed < count($items),
+            'completed' => $completed,
+            'total' => count($items),
+            'progress_percent' => (int) floor(($completed / max(1, count($items))) * 100),
+            'next_item' => collect($items)->sortBy('priority')->firstWhere('done', false),
+            'items' => $items,
+        ];
     }
 }

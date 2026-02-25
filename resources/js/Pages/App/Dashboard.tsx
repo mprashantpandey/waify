@@ -60,14 +60,37 @@ interface RecentConversation {
     last_activity_at: string | null;
 }
 
+interface OnboardingChecklist {
+    show: boolean;
+    completed: number;
+    total: number;
+    progress_percent: number;
+    next_item?: {
+        key: string;
+        label: string;
+        href: string;
+        cta: string;
+    } | null;
+    items: Array<{
+        key: string;
+        label: string;
+        description: string;
+        done: boolean;
+        href: string;
+        cta: string;
+    }>;
+}
+
 export default function Dashboard({ 
     account, 
     stats, 
+    onboarding_checklist,
     message_trends, 
     recent_conversations 
 }: { 
     account: any;
     stats: Stats;
+    onboarding_checklist?: OnboardingChecklist;
     message_trends: MessageTrend[];
     recent_conversations: RecentConversation[];
 }) {
@@ -164,6 +187,83 @@ export default function Dashboard({
                         );
                     })}
                 </div>
+
+                {onboarding_checklist?.show && (
+                    <Card className="border-0 shadow-lg overflow-hidden">
+                        <CardHeader className="bg-gradient-to-r from-indigo-50 to-blue-100 dark:from-indigo-900/20 dark:to-blue-900/20">
+                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                <div>
+                                    <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                                        <Sparkles className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                                        Getting Started Checklist
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Complete the setup steps to get your workspace production-ready.
+                                    </CardDescription>
+                                </div>
+                                <div className="text-sm text-gray-700 dark:text-gray-300">
+                                    {onboarding_checklist.completed}/{onboarding_checklist.total} completed
+                                </div>
+                            </div>
+                            <div className="mt-3">
+                                <div className="h-2 w-full rounded-full bg-white/60 dark:bg-gray-800/60 overflow-hidden">
+                                    <div
+                                        className="h-full bg-gradient-to-r from-indigo-500 to-blue-600 transition-all duration-500"
+                                        style={{ width: `${onboarding_checklist.progress_percent}%` }}
+                                    />
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="p-6 space-y-4">
+                            {onboarding_checklist.next_item && (
+                                <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-900/10 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                    <div>
+                                        <p className="text-xs uppercase tracking-wide text-indigo-600 dark:text-indigo-400 font-semibold">Next Recommended Step</p>
+                                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{onboarding_checklist.next_item.label}</p>
+                                    </div>
+                                    <Link href={onboarding_checklist.next_item.href}>
+                                        <Button size="sm">
+                                            {onboarding_checklist.next_item.cta}
+                                            <ArrowRight className="h-4 w-4 ml-2" />
+                                        </Button>
+                                    </Link>
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {onboarding_checklist.items.map((item) => (
+                                    <Link
+                                        key={item.key}
+                                        href={item.href}
+                                        className={`rounded-xl border p-4 transition ${
+                                            item.done
+                                                ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-900/10'
+                                                : 'border-gray-200 dark:border-gray-800 hover:border-blue-300 dark:hover:border-blue-700'
+                                        }`}
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <div className={`mt-0.5 flex h-6 w-6 items-center justify-center rounded-full ${item.done ? 'bg-emerald-600' : 'bg-gray-300 dark:bg-gray-700'}`}>
+                                                <CheckCircle className="h-3.5 w-3.5 text-white" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{item.label}</p>
+                                                    <Badge variant={item.done ? 'success' : 'default'} className="text-[10px]">
+                                                        {item.done ? 'Done' : 'Pending'}
+                                                    </Badge>
+                                                </div>
+                                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{item.description}</p>
+                                                {!item.done && (
+                                                    <p className="mt-2 text-xs font-semibold text-blue-600 dark:text-blue-400">{item.cta} →</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </Link>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
                 {/* Message Breakdown & Trends */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
