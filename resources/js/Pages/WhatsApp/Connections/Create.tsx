@@ -29,6 +29,8 @@ export default function ConnectionsCreate({
     const [showToken, setShowToken] = useState(false);
     const [embeddedReady, setEmbeddedReady] = useState(false);
     const [embeddedStatus, setEmbeddedStatus] = useState<string | null>(null);
+    const [embeddedAutoSubmitRequested, setEmbeddedAutoSubmitRequested] = useState(false);
+    const [embeddedAutoSubmitAttempted, setEmbeddedAutoSubmitAttempted] = useState(false);
     const [testing, setTesting] = useState(false);
     const [testResult, setTestResult] = useState<null | { ok: boolean; message: string }>(null);
     const [webhookSetup, setWebhookSetup] = useState<'now' | 'later'>('later');
@@ -92,6 +94,29 @@ export default function ConnectionsCreate({
         redirect_uri: ''});
     const hasEmbeddedAuthData = Boolean(embeddedForm.data.code || embeddedForm.data.access_token);
     const hasEmbeddedResolvedIds = Boolean(embeddedForm.data.waba_id && embeddedForm.data.phone_number_id);
+
+    useEffect(() => {
+        if (!embeddedEnabled || !embeddedAutoSubmitRequested || embeddedAutoSubmitAttempted || !hasEmbeddedAuthData || embeddedForm.processing) {
+            return;
+        }
+
+        setEmbeddedAutoSubmitAttempted(true);
+        setEmbeddedStatus('Finalizing connection setup with Meta...');
+
+        embeddedForm.post(route('app.whatsapp.connections.store-embedded', {}), {
+            preserveScroll: true,
+            onError: () => {
+                setEmbeddedStatus('Auto-setup needs your review. Fix the error below and click Create Connection.');
+            },
+        });
+    }, [
+        embeddedEnabled,
+        embeddedAutoSubmitRequested,
+        embeddedAutoSubmitAttempted,
+        hasEmbeddedAuthData,
+        embeddedForm,
+        embeddedForm.processing,
+    ]);
 
     useEffect(() => {
         if (!embeddedEnabled) {
@@ -236,6 +261,10 @@ export default function ConnectionsCreate({
                           ? 'Authorization complete. Meta IDs not returned in browser event; you can continue and we will resolve them during setup.'
                           : 'Embedded signup finished. Ready to create connection.'
                 );
+
+                if ((action === 'FINISH' || action === 'COMPLETE' || action === 'SUCCESS') && hasAuthData) {
+                    setEmbeddedAutoSubmitRequested(true);
+                }
             }
         };
 
@@ -249,6 +278,8 @@ export default function ConnectionsCreate({
         }
 
         setEmbeddedStatus('Starting Meta Embedded Signup...');
+        setEmbeddedAutoSubmitRequested(false);
+        setEmbeddedAutoSubmitAttempted(false);
         // Use a stable canonical redirect URI (no query/hash) to match Meta allowlist exactly.
         embeddedForm.setData('redirect_uri', `${window.location.origin}${window.location.pathname}`);
 
