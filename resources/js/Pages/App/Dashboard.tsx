@@ -1,7 +1,8 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
+import Modal from '@/Components/Modal';
 import { 
     MessageSquare, 
     Send, 
@@ -17,6 +18,9 @@ import {
     Zap
 } from 'lucide-react';
 import { usePage } from '@inertiajs/react';
+import { useState } from 'react';
+import { Input } from '@/Components/UI/Input';
+import { Label } from '@/Components/UI/Label';
 
 interface Stats {
     messages: {
@@ -95,6 +99,12 @@ export default function Dashboard({
     recent_conversations: RecentConversation[];
 }) {
     const { navigation } = usePage().props as any;
+    const [setupWizardOpen, setSetupWizardOpen] = useState(false);
+    const [wizardStepKey, setWizardStepKey] = useState<string | null>(null);
+    const inviteForm = useForm({
+        email: '',
+        role: 'member',
+    });
     
     // Helper to check if a route exists in navigation (module enabled)
     const hasRoute = (routeName: string) => {
@@ -110,6 +120,24 @@ export default function Dashboard({
     const getMaxValue = (data: MessageTrend[]) => {
         if (data.length === 0) return 100;
         return Math.max(...data.map(d => d.count || 0), 1);
+    };
+
+    const openSetupWizard = (stepKey?: string | null) => {
+        setWizardStepKey(stepKey ?? null);
+        setSetupWizardOpen(true);
+    };
+
+    const launchInNewTab = (href: string) => {
+        window.open(href, '_blank', 'noopener,noreferrer');
+    };
+
+    const submitQuickInvite = () => {
+        inviteForm.post(route('app.team.invite', {}), {
+            preserveScroll: true,
+            onSuccess: () => {
+                inviteForm.reset('email');
+            },
+        });
     };
 
     const statCards = [
@@ -215,26 +243,25 @@ export default function Dashboard({
                             </div>
                         </CardHeader>
                         <CardContent className="p-6 space-y-4">
-                            {onboarding_checklist.next_item && (
+                                    {onboarding_checklist.next_item && (
                                 <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-900/10 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                                     <div>
                                         <p className="text-xs uppercase tracking-wide text-indigo-600 dark:text-indigo-400 font-semibold">Next Recommended Step</p>
                                         <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{onboarding_checklist.next_item.label}</p>
                                     </div>
-                                    <Link href={onboarding_checklist.next_item.href}>
-                                        <Button size="sm">
+                                    <Button size="sm" onClick={() => openSetupWizard(onboarding_checklist.next_item?.key)}>
                                             {onboarding_checklist.next_item.cta}
                                             <ArrowRight className="h-4 w-4 ml-2" />
-                                        </Button>
-                                    </Link>
+                                    </Button>
                                 </div>
                             )}
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 {onboarding_checklist.items.map((item) => (
-                                    <Link
+                                    <button
                                         key={item.key}
-                                        href={item.href}
+                                        type="button"
+                                        onClick={() => openSetupWizard(item.key)}
                                         className={`rounded-xl border p-4 transition ${
                                             item.done
                                                 ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-900/10'
@@ -258,7 +285,7 @@ export default function Dashboard({
                                                 )}
                                             </div>
                                         </div>
-                                    </Link>
+                                    </button>
                                 ))}
                             </div>
                         </CardContent>
@@ -499,6 +526,152 @@ export default function Dashboard({
                     </Card>
                 </div>
             </div>
+
+            <Modal show={setupWizardOpen} onClose={() => setSetupWizardOpen(false)} maxWidth="2xl">
+                <div className="p-6 space-y-6">
+                    <div className="flex items-start justify-between gap-4">
+                        <div>
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">First-Run Setup Wizard</h3>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Complete your initial workspace setup without losing dashboard context.
+                            </p>
+                        </div>
+                        <Button variant="secondary" size="sm" onClick={() => setSetupWizardOpen(false)}>Close</Button>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {(onboarding_checklist?.items ?? []).map((item) => (
+                            <button
+                                key={item.key}
+                                type="button"
+                                onClick={() => setWizardStepKey(item.key)}
+                                className={`text-left rounded-xl border p-4 ${
+                                    wizardStepKey === item.key ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-800'
+                                }`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <Badge variant={item.done ? 'success' : 'default'} className="text-[10px]">{item.done ? 'Done' : 'Pending'}</Badge>
+                                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{item.label}</p>
+                                </div>
+                                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{item.description}</p>
+                            </button>
+                        ))}
+                    </div>
+
+                    {wizardStepKey === 'connection' && (
+                        <Card className="border border-emerald-200 dark:border-emerald-800">
+                            <CardContent className="p-5 space-y-4">
+                                <div>
+                                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Connect WhatsApp via Meta Embedded Signup</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                        Open the connection page in a new tab, complete Meta Embedded Signup, then return here.
+                                    </p>
+                                </div>
+                                <div className="flex flex-wrap gap-3">
+                                    <Button onClick={() => launchInNewTab(route('app.whatsapp.connections.create', {}))}>
+                                        Open Connection Setup
+                                    </Button>
+                                    <Button variant="secondary" onClick={() => launchInNewTab(route('app.whatsapp.connections.wizard', {}))}>
+                                        Open Guided Wizard
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {wizardStepKey === 'team' && (
+                        <Card className="border border-blue-200 dark:border-blue-800">
+                            <CardContent className="p-5 space-y-4">
+                                <div>
+                                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Invite a teammate (Chat Agent)</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                        Send an invite directly from the dashboard. New invites are chat-agent only.
+                                    </p>
+                                </div>
+                                <div>
+                                    <Label htmlFor="quick_invite_email">Email</Label>
+                                    <Input
+                                        id="quick_invite_email"
+                                        type="email"
+                                        value={inviteForm.data.email}
+                                        onChange={(e) => inviteForm.setData('email', e.target.value)}
+                                        placeholder="agent@example.com"
+                                        className="mt-1"
+                                    />
+                                    {(inviteForm.errors as any)?.email && (
+                                        <p className="mt-1 text-xs text-red-600">{(inviteForm.errors as any).email}</p>
+                                    )}
+                                </div>
+                                <div className="flex flex-wrap gap-3">
+                                    <Button onClick={submitQuickInvite} disabled={inviteForm.processing || !inviteForm.data.email}>
+                                        {inviteForm.processing ? 'Sending...' : 'Send Invite'}
+                                    </Button>
+                                    <Button variant="secondary" onClick={() => launchInNewTab(route('app.team.index', {}))}>
+                                        Open Team Page
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {wizardStepKey === 'template' && (
+                        <Card className="border border-purple-200 dark:border-purple-800">
+                            <CardContent className="p-5 space-y-4">
+                                <div>
+                                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Create your first WhatsApp template</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                        Open template builder in a new tab, save your template, then return to continue setup.
+                                    </p>
+                                </div>
+                                <div className="flex flex-wrap gap-3">
+                                    <Button onClick={() => launchInNewTab(route('app.whatsapp.templates.create', {}))}>
+                                        Open Template Builder
+                                    </Button>
+                                    <Button variant="secondary" onClick={() => launchInNewTab(route('app.whatsapp.templates.index', {}))}>
+                                        View Templates
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {wizardStepKey === 'profile' && (
+                        <Card className="border border-amber-200 dark:border-amber-800">
+                            <CardContent className="p-5 space-y-4">
+                                <div>
+                                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Complete your profile</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                        Profile completion is required for notifications, security, and team operations.
+                                    </p>
+                                </div>
+                                <div className="flex flex-wrap gap-3">
+                                    <Link href={route('profile.edit')}>
+                                        <Button>Open Profile Settings</Button>
+                                    </Link>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {wizardStepKey === 'test_message' && (
+                        <Card className="border border-indigo-200 dark:border-indigo-800">
+                            <CardContent className="p-5 space-y-4">
+                                <div>
+                                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Send a test message</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                        Open inbox in a new tab and verify inbound/outbound messaging on your connected number.
+                                    </p>
+                                </div>
+                                <div className="flex flex-wrap gap-3">
+                                    <Button onClick={() => launchInNewTab(route('app.whatsapp.conversations.index', {}))}>
+                                        Open Inbox
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+                </div>
+            </Modal>
         </AppShell>
     );
 }
