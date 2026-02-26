@@ -44,6 +44,8 @@ class PlatformAccountController extends Controller
         $accounts = $query->orderBy('created_at', 'desc')
             ->paginate(20)
             ->through(function ($account) {
+                $owner = $account->owner;
+
                 return [
                     'id' => $account->id,
                     'name' => $account->name,
@@ -51,10 +53,10 @@ class PlatformAccountController extends Controller
                     'status' => $account->status,
                     'disabled_reason' => $account->disabled_reason,
                     'disabled_at' => $account->disabled_at?->toIso8601String(),
-                    'owner' => [
-                        'id' => $account->owner->id,
-                        'name' => $account->owner->name,
-                        'email' => $account->owner->email],
+                    'owner' => $owner ? [
+                        'id' => $owner->id,
+                        'name' => $owner->name,
+                        'email' => $owner->email] : null,
                     'created_at' => $account->created_at->toIso8601String()];
             });
 
@@ -96,10 +98,10 @@ class PlatformAccountController extends Controller
                 'status' => $account->status,
                 'disabled_reason' => $account->disabled_reason,
                 'disabled_at' => $account->disabled_at?->toIso8601String(),
-                'owner' => [
+                'owner' => $account->owner ? [
                     'id' => $account->owner->id,
                     'name' => $account->owner->name,
-                    'email' => $account->owner->email],
+                    'email' => $account->owner->email] : null,
                 'members_count' => $account->users->count(),
                 'modules_enabled' => $account->modules->where('enabled', true)->count(),
                 'whatsapp_connections_count' => $whatsappConnectionsCount,
@@ -108,7 +110,7 @@ class PlatformAccountController extends Controller
                     'balance_minor' => (int) $wallet->balance_minor,
                     'currency' => $wallet->currency,
                 ],
-                'created_at' => $account->created_at->toIso8601String()]]);
+                'created_at' => $account->created_at->toIso8601String()]]); 
     }
 
     public function updateBillingProfile(Request $request, Account $account)

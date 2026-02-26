@@ -67,13 +67,13 @@ class PlatformUserController extends Controller
     public function makeSuperAdmin(User $user)
     {
         // Prevent removing the last super admin
-        $superAdminCount = User::where('is_platform_admin', true)->count();
+        $superAdminCount = User::query()->platformAdmins()->count();
         if ($user->isSuperAdmin() && $superAdminCount <= 1) {
             return redirect()->back()->withErrors([
                 'error' => 'Cannot remove the last super admin.']);
         }
 
-        $user->update(['is_platform_admin' => true]);
+        $user->setPlatformAdminFlag(true);
 
         return redirect()->back()->with('success', 'User is now a super admin.');
     }
@@ -84,13 +84,13 @@ class PlatformUserController extends Controller
     public function removeSuperAdmin(User $user)
     {
         // Prevent removing the last super admin
-        $superAdminCount = User::where('is_platform_admin', true)->count();
+        $superAdminCount = User::query()->platformAdmins()->count();
         if ($superAdminCount <= 1) {
             return redirect()->back()->withErrors([
                 'error' => 'Cannot remove the last super admin.']);
         }
 
-        $user->update(['is_platform_admin' => false]);
+        $user->setPlatformAdminFlag(false);
 
         return redirect()->back()->with('success', 'Super admin status removed.');
     }

@@ -110,6 +110,7 @@ class TeamController extends Controller
         }
         
         $accountUsers = $accountUsersQuery->get()
+            ->filter(fn ($accountUser) => $accountUser->user !== null)
             ->map(function ($accountUser) {
                 return [
                     'id' => $accountUser->user->id,

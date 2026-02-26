@@ -11,7 +11,6 @@ use App\Services\SupportTicketEmailService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -247,17 +246,6 @@ class SupportDeskController extends Controller
 
     private function platformAdminsQuery()
     {
-        $query = User::query();
-
-        if (Schema::hasColumn('users', 'is_platform_admin')) {
-            return $query->where('is_platform_admin', true);
-        }
-
-        if (Schema::hasColumn('users', 'is_super_admin')) {
-            return $query->where('is_super_admin', true);
-        }
-
-        // Last-resort fallback for mixed/legacy schemas.
-        return $query->whereRaw('1 = 0');
+        return User::query()->platformAdmins();
     }
 }

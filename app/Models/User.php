@@ -3,14 +3,18 @@
 namespace App\Models;
 
 use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Schema;
 
 class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable;
+
+    protected static ?string $platformAdminColumnCache = null;
 
     /**
      * The attributes that are mass assignable.
@@ -55,6 +59,7 @@ class User extends Authenticatable implements MustVerifyEmail
             'two_factor_confirmed_at' => 'datetime',
             'password' => 'hashed',
             'is_platform_admin' => 'boolean',
+            'is_super_admin' => 'boolean',
             'notify_assignment_enabled' => 'boolean',
             'notify_mention_enabled' => 'boolean',
             'notify_sound_enabled' => 'boolean',
@@ -85,7 +90,13 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function isSuperAdmin(): bool
     {
-        return $this->is_platform_admin === true;
+        $column = static::platformAdminColumn();
+
+        if (!$column) {
+            return false;
+        }
+
+        return (bool) $this->getAttribute($column);
     }
 
     /**
@@ -94,6 +105,45 @@ class User extends Authenticatable implements MustVerifyEmail
     public function isPlatformAdmin(): bool
     {
         return $this->isSuperAdmin();
+    }
+
+    public static function platformAdminColumn(): ?string
+    {
+        if (static::$platformAdminColumnCache !== null) {
+            return static::$platformAdminColumnCache;
+        }
+
+        if (Schema::hasColumn('users', 'is_platform_admin')) {
+            return static::$platformAdminColumnCache = 'is_platform_admin';
+        }
+
+        if (Schema::hasColumn('users', 'is_super_admin')) {
+            return static::$platformAdminColumnCache = 'is_super_admin';
+        }
+
+        return static::$platformAdminColumnCache = '';
+    }
+
+    public function scopePlatformAdmins(Builder $query): Builder
+    {
+        $column = static::platformAdminColumn();
+
+        if (!$column) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->where($column, true);
+    }
+
+    public function setPlatformAdminFlag(bool $value): void
+    {
+        $column = static::platformAdminColumn();
+
+        if (!$column) {
+            return;
+        }
+
+        $this->update([$column => $value]);
     }
 
     /**

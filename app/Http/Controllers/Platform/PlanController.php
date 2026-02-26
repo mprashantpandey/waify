@@ -257,25 +257,31 @@ class PlanController extends Controller
             ->paginate(20)
             ->through(function ($subscription) {
                 $account = $subscription->account;
+                $plan = $subscription->plan;
                 $usageService = app(\App\Core\Billing\UsageService::class);
-                $currentUsage = $usageService->getCurrentUsage($account);
+                $currentUsage = $account ? $usageService->getCurrentUsage($account) : null;
 
                 return [
                     'id' => $subscription->id,
                     'slug' => $subscription->slug,
-                    'account' => [
+                    'account' => $account ? [
                         'id' => $account->id,
                         'name' => $account->name,
-                        'slug' => $account->slug],
-                    'plan' => [
-                        'key' => $subscription->plan->key,
-                        'name' => $subscription->plan->name],
+                        'slug' => $account->slug] : [
+                        'id' => null,
+                        'name' => 'Missing account',
+                        'slug' => null],
+                    'plan' => $plan ? [
+                        'key' => $plan->key,
+                        'name' => $plan->name] : [
+                        'key' => 'missing',
+                        'name' => 'Missing plan'],
                     'status' => $subscription->status,
                     'trial_ends_at' => $subscription->trial_ends_at?->toIso8601String(),
                     'current_period_end' => $subscription->current_period_end?->toIso8601String(),
                     'usage' => [
-                        'messages_sent' => $currentUsage->messages_sent,
-                        'template_sends' => $currentUsage->template_sends],
+                        'messages_sent' => (int) ($currentUsage->messages_sent ?? 0),
+                        'template_sends' => (int) ($currentUsage->template_sends ?? 0)],
                     'started_at' => $subscription->started_at->toIso8601String()];
             });
 
@@ -292,6 +298,10 @@ class PlanController extends Controller
     {
         $subscription->load(['account', 'plan']);
         $account = $subscription->account;
+        $plan = $subscription->plan;
+        if (! $account) {
+            abort(404, 'Subscription account not found.');
+        }
         
         $usageService = app(\App\Core\Billing\UsageService::class);
         $currentUsage = $usageService->getCurrentUsage($account);
@@ -307,9 +317,9 @@ class PlanController extends Controller
                     'id' => $account->id,
                     'name' => $account->name,
                     'slug' => $account->slug],
-                'plan' => [
-                    'key' => $subscription->plan->key,
-                    'name' => $subscription->plan->name],
+                'plan' => $plan ? [
+                    'key' => $plan->key,
+                    'name' => $plan->name] : null,
                 'status' => $subscription->status,
                 'trial_ends_at' => $subscription->trial_ends_at?->toIso8601String(),
                 'current_period_start' => $subscription->current_period_start?->toIso8601String(),

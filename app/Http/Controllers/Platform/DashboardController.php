@@ -27,7 +27,7 @@ class DashboardController extends Controller
         $suspendedAccounts = Account::where('status', 'suspended')->count();
         $disabledAccounts = Account::where('status', 'disabled')->count();
         $totalUsers = User::count();
-        $superAdmins = User::where('is_platform_admin', true)->count();
+        $superAdmins = User::query()->platformAdmins()->count();
 
         // Message Statistics
         $totalMessages = WhatsAppMessage::count();
@@ -106,14 +106,16 @@ class DashboardController extends Controller
             ->limit(10)
             ->get()
             ->map(function ($account) {
+                $owner = $account->owner;
+
                 return [
                     'id' => $account->id,
                     'name' => $account->name,
                     'slug' => $account->slug,
                     'status' => $account->status,
-                    'owner' => [
-                        'name' => $account->owner->name,
-                        'email' => $account->owner->email],
+                    'owner' => $owner ? [
+                        'name' => $owner->name,
+                        'email' => $owner->email] : null,
                     'created_at' => $account->created_at->toIso8601String()];
             });
 
