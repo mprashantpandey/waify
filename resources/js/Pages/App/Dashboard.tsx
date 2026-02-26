@@ -2,6 +2,7 @@ import { Head, Link, useForm } from '@inertiajs/react';
 import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
+import Button from '@/Components/UI/Button';
 import Modal from '@/Components/Modal';
 import { 
     MessageSquare, 
