@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { PropsWithChildren } from 'react';
+import { PropsWithChildren, useEffect } from 'react';
 import { BrandingWrapper } from '@/Components/Branding/BrandingWrapper';
 import { getPlatformName, getLogoUrl, getFooterText } from '@/lib/branding';
 import { 
@@ -53,20 +53,25 @@ export default function PublicLayout({ children }: PropsWithChildren) {
         company: [
             { name: 'About Us', href: route('about') },
             { name: 'Contact', href: route('contact') },
-            { name: 'Blog', href: '#' },
+            { name: 'Support', href: route('help') },
         ],
         legal: [
             { name: 'Privacy Policy', href: privacyUrl },
             { name: 'Terms of Service', href: termsUrl },
             { name: 'Refund Policy', href: route('refund-policy') },
             ...(cookiePolicyUrl ? [{ name: 'Cookie Policy', href: cookiePolicyUrl }] : []),
+            { name: 'Sitemap', href: route('sitemap') },
         ]};
+
+    useEffect(() => {
+        setMobileMenuOpen(false);
+    }, [currentPath]);
 
     return (
         <BrandingWrapper>
             <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 flex flex-col">
                 {/* Navigation */}
-                <nav className="border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm sticky top-0 z-50">
+                <nav className="border-b border-gray-200/80 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div className="flex justify-between items-center h-16">
                             <div className="flex items-center">

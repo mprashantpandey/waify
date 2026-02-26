@@ -1,4 +1,4 @@
-import { Link, usePage } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { getPlatformName } from '@/lib/branding';
 import { useEffect, useState } from 'react';
 import { 
@@ -87,6 +87,7 @@ export default function Landing({
 
     return (
         <PublicLayout>
+            <Head title={`${platformName} | WhatsApp Cloud Platform`} />
 
             {/* Hero Section */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
