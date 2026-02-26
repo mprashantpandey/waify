@@ -1,8 +1,9 @@
-import { Link } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import PublicLayout from '@/Layouts/PublicLayout';
 import { Check, ArrowRight, Zap, Users, Building2, Crown, X, Mail, Sparkles, ChevronDown, ChevronUp, Star } from 'lucide-react';
 import Button from '@/Components/UI/Button';
 import { useState } from 'react';
+import PublicPageHero from '@/Components/Public/PublicPageHero';
 
 interface Plan {
     id: number;
@@ -79,22 +80,14 @@ export default function Pricing({ plans, canRegister }: { plans: Plan[]; canRegi
 
     return (
         <PublicLayout>
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-                {/* Header with attractive design */}
-                <div className="text-center mb-16">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-full mb-6">
-                        <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                        <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-                            No Credit Card Required • Start Free Trial
-                        </span>
-                    </div>
-                    <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-gray-100 mb-4 gradient-text">
-                        Simple, Transparent Pricing
-                    </h1>
-                    <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto mb-8">
-                        Choose the perfect plan for your business. Start with a free trial, no credit card required.
-                    </p>
-                    <div className="flex items-center justify-center gap-4">
+            <Head title="Pricing" />
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+                <PublicPageHero
+                    eyebrow="Pricing"
+                    icon={<Sparkles className="h-4 w-4" />}
+                    title="Simple, Transparent Pricing"
+                    description="Choose the plan that fits your business stage. Start with a free trial and scale as your messaging volume grows."
+                    actions={
                         <Button
                             variant={showCompare ? 'primary' : 'secondary'}
                             onClick={() => setShowCompare(!showCompare)}
@@ -102,8 +95,8 @@ export default function Pricing({ plans, canRegister }: { plans: Plan[]; canRegi
                         >
                             {showCompare ? 'Hide Comparison' : 'Compare Plans'}
                         </Button>
-                    </div>
-                </div>
+                    }
+                />
 
                 {/* Comparison Table */}
                 {showCompare && (
@@ -312,7 +305,7 @@ export default function Pricing({ plans, canRegister }: { plans: Plan[]; canRegi
                 </div>
 
                 {/* Trust Badges */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-12 sm:mb-16">
                     <div className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl p-6 text-center border border-blue-200 dark:border-blue-800">
                         <div className="text-3xl mb-2">🔒</div>
                         <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Secure & Reliable</h3>
@@ -331,7 +324,7 @@ export default function Pricing({ plans, canRegister }: { plans: Plan[]; canRegi
                 </div>
 
                 {/* FAQ Section */}
-                <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-gray-700">
+                <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 sm:p-8 shadow-sm border border-gray-200 dark:border-gray-800">
                     <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">
                         Frequently Asked Questions
                     </h2>

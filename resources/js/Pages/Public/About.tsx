@@ -1,7 +1,8 @@
 import PublicLayout from '@/Layouts/PublicLayout';
 import { Target, Users, Award, Zap, Sparkles, ArrowRight } from 'lucide-react';
-import { Link } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import Button from '@/Components/UI/Button';
+import PublicPageHero from '@/Components/Public/PublicPageHero';
 
 export default function About() {
     const values = [
@@ -36,39 +37,31 @@ export default function About() {
 
     return (
         <PublicLayout>
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-                {/* Header with attractive design */}
-                <div className="text-center mb-16">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-full mb-6">
-                        <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                        <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-                            Our Story
-                        </span>
-                    </div>
-                    <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-gray-100 mb-4 bg-gradient-to-r from-gray-900 via-blue-600 to-purple-600 dark:from-gray-100 dark:via-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
-                        About Us
-                    </h1>
-                    <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
-                        We're building the future of business communication, one message at a time.
-                    </p>
-                </div>
+            <Head title="About" />
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+                <PublicPageHero
+                    eyebrow="About"
+                    icon={<Sparkles className="h-4 w-4" />}
+                    title="Built for modern WhatsApp operations"
+                    description="We build workflow, automation, and billing infrastructure for businesses that run customer communication on WhatsApp at scale."
+                />
 
                 {/* Story Section */}
                 <div className="mb-16">
-                    <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 md:p-12 shadow-xl border-2 border-gray-200 dark:border-gray-700 hover:shadow-2xl transition-shadow">
+                    <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 md:p-10 shadow-sm border border-gray-200 dark:border-gray-800">
                         <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-6">
                             Our Story
                         </h2>
                         <div className="prose prose-lg dark:prose-invert max-w-none">
                             <p className="text-gray-700 dark:text-gray-300 mb-4 text-lg leading-relaxed">
-                                WACP was born from a simple observation: businesses were struggling to scale their WhatsApp communication. 
+                                Zyptos was born from a simple observation: businesses were struggling to scale their WhatsApp communication. 
                                 While WhatsApp is one of the most popular messaging platforms globally, managing it at scale required 
                                 complex integrations, custom development, and significant technical expertise.
                             </p>
                             <p className="text-gray-700 dark:text-gray-300 mb-4 text-lg leading-relaxed">
                                 We set out to change that. Our platform makes it easy for businesses of all sizes to leverage the power 
                                 of WhatsApp Cloud API without the complexity. Whether you're a startup sending your first message or an 
-                                enterprise managing millions of conversations, WACP provides the tools you need.
+                                enterprise managing millions of conversations, Zyptos provides the tools you need.
                             </p>
                             <p className="text-gray-700 dark:text-gray-300 text-lg leading-relaxed">
                                 As an official Meta Tech Provider, we're proud to serve hundreds of businesses, helping them connect with their customers in more 
@@ -84,7 +77,7 @@ export default function About() {
                     {stats.map((stat, index) => (
                         <div
                             key={index}
-                            className="bg-white dark:bg-gray-800 rounded-xl p-6 text-center border-2 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-xl transition-all"
+                            className="bg-white dark:bg-gray-900 rounded-xl p-6 text-center border border-gray-200 dark:border-gray-800 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-sm transition-all"
                         >
                             <div className="text-4xl mb-3">{stat.icon}</div>
                             <div className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent mb-2">
@@ -108,7 +101,7 @@ export default function About() {
                             return (
                                 <div
                                     key={index}
-                                    className="bg-white dark:bg-gray-800 rounded-xl p-6 border-2 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-xl transition-all"
+                                    className="bg-white dark:bg-gray-900 rounded-xl p-6 border border-gray-200 dark:border-gray-800 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-sm transition-all"
                                 >
                                     <div className="flex items-start space-x-4">
                                         <div className={`bg-gradient-to-r ${value.gradient} p-3 rounded-lg shadow-lg`}>

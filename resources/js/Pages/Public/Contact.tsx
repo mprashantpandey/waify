@@ -1,10 +1,11 @@
 import PublicLayout from '@/Layouts/PublicLayout';
-import { useForm } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 import { Mail, MessageSquare, Phone, MapPin, Send, Sparkles } from 'lucide-react';
 import Button from '@/Components/UI/Button';
 import { Input } from '@/Components/UI/Input';
 import { Label } from '@/Components/UI/Label';
 import { Link } from '@inertiajs/react';
+import PublicPageHero from '@/Components/Public/PublicPageHero';
 
 export default function Contact() {
     const { data, setData, post, processing, errors, recentlySuccessful } = useForm({
@@ -41,29 +42,21 @@ export default function Contact() {
 
     return (
         <PublicLayout>
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-                {/* Header with attractive design */}
-                <div className="text-center mb-12">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-full mb-6">
-                        <MessageSquare className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                        <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-                            We&apos;re Here to Help
-                        </span>
-                    </div>
-                    <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-gray-100 mb-4 gradient-text">
-                        Get in Touch
-                    </h1>
-                    <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-                        Have a question or need help? We're here to assist you. Send us a message and we'll respond as soon as possible.
-                    </p>
-                </div>
+            <Head title="Contact" />
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+                <PublicPageHero
+                    eyebrow="Contact"
+                    icon={<MessageSquare className="h-4 w-4" />}
+                    title="Get in Touch"
+                    description="Have a question about setup, pricing, or Meta onboarding? Send us a message and our team will reply as soon as possible."
+                />
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Contact Form */}
                     <div className="lg:col-span-2">
-                        <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-gray-700 card-hover">
+                        <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 sm:p-8 shadow-sm border border-gray-200 dark:border-gray-800">
                             {recentlySuccessful && (
-                                <div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-2 border-green-200 dark:border-green-800 rounded-xl">
+                                <div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-800 rounded-xl">
                                     <p className="text-green-800 dark:text-green-200 font-medium">
                                         ✓ Thank you for contacting us! We'll get back to you soon.
                                     </p>
@@ -156,7 +149,7 @@ export default function Contact() {
 
                     {/* Contact Info */}
                     <div className="space-y-6">
-                        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-xl border-2 border-gray-200 dark:border-gray-700">
+                        <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-800">
                             <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-6">
                                 Contact Information
                             </h3>

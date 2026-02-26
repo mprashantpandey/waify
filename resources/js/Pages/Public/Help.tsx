@@ -1,5 +1,5 @@
 import PublicLayout from '@/Layouts/PublicLayout';
-import { Link } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { 
     BookOpen, 
     Video, 
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import Button from '@/Components/UI/Button';
 import { useState } from 'react';
+import PublicPageHero from '@/Components/Public/PublicPageHero';
 
 export default function Help() {
     const [searchQuery, setSearchQuery] = useState('');
@@ -65,27 +66,30 @@ export default function Help() {
         { title: 'Video Tutorials', href: '#', icon: Video },
         { title: 'Contact Support', href: route('contact'), icon: MessageSquare },
     ];
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const filteredCategories = helpCategories
+        .map((category) => ({
+            ...category,
+            articles: category.articles.filter((article) => (
+                normalizedQuery === '' ||
+                category.title.toLowerCase().includes(normalizedQuery) ||
+                category.description.toLowerCase().includes(normalizedQuery) ||
+                article.toLowerCase().includes(normalizedQuery)
+            )),
+        }))
+        .filter((category) => normalizedQuery === '' || category.articles.length > 0 || category.title.toLowerCase().includes(normalizedQuery));
 
     return (
         <PublicLayout>
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-                {/* Header with attractive design */}
-                <div className="text-center mb-12">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-full mb-6">
-                        <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                        <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-                            Help & Support Center
-                        </span>
-                    </div>
-                    <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-gray-100 mb-4 bg-gradient-to-r from-gray-900 via-blue-600 to-purple-600 dark:from-gray-100 dark:via-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
-                        How can we help you?
-                    </h1>
-                    <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto mb-8">
-                        Find answers, guides, and tutorials to get the most out of our platform.
-                    </p>
-
-                    {/* Search Bar */}
-                    <div className="max-w-2xl mx-auto">
+            <Head title="Help Center" />
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+                <PublicPageHero
+                    eyebrow="Help Center"
+                    icon={<Sparkles className="h-4 w-4" />}
+                    title="How can we help you?"
+                    description="Find setup guides, billing help, and operational best practices for WhatsApp messaging."
+                >
+                    <div className="max-w-2xl">
                         <div className="relative">
                             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                             <input
@@ -97,7 +101,7 @@ export default function Help() {
                             />
                         </div>
                     </div>
-                </div>
+                </PublicPageHero>
 
                 {/* Quick Links */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
@@ -130,7 +134,7 @@ export default function Help() {
                         Browse by Category
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {helpCategories.map((category) => {
+                        {filteredCategories.map((category) => {
                             const Icon = category.icon;
                             return (
                                 <div
@@ -167,6 +171,11 @@ export default function Help() {
                             );
                         })}
                     </div>
+                    {normalizedQuery !== '' && filteredCategories.length === 0 && (
+                        <div className="mt-6 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-6 text-sm text-gray-600 dark:text-gray-400">
+                            No help content matched <span className="font-medium text-gray-900 dark:text-gray-100">&quot;{searchQuery}&quot;</span>. Try a broader keyword or use Contact Support.
+                        </div>
+                    )}
                 </div>
 
                 {/* Contact Support CTA */}

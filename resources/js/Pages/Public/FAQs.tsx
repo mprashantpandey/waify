@@ -1,8 +1,9 @@
 import PublicLayout from '@/Layouts/PublicLayout';
 import { HelpCircle, ChevronDown, ChevronUp, Sparkles, ArrowRight } from 'lucide-react';
 import { useState } from 'react';
-import { usePage } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 import { getPlatformName } from '@/lib/branding';
+import PublicPageHero from '@/Components/Public/PublicPageHero';
 
 interface FAQ {
     question: string;
@@ -55,25 +56,14 @@ export default function FAQs({ faqs: initialFaqs }: { faqs: FAQ[] }) {
 
     return (
         <PublicLayout>
-            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-                {/* Header with attractive design */}
-                <div className="text-center mb-12">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-full mb-6">
-                        <HelpCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                        <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-                            Common Questions
-                        </span>
-                    </div>
-                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-r from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 mb-6">
-                        <HelpCircle className="h-10 w-10 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-gray-100 mb-4 gradient-text">
-                        Frequently Asked Questions
-                    </h1>
-                    <p className="text-xl text-gray-600 dark:text-gray-400">
-                        Find answers to common questions about our platform
-                    </p>
-                </div>
+            <Head title="FAQs" />
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+                <PublicPageHero
+                    eyebrow="FAQs"
+                    icon={<HelpCircle className="h-4 w-4" />}
+                    title="Frequently Asked Questions"
+                    description={`Find quick answers about ${platformName}, setup, billing, plans, and support.`}
+                />
 
                 {/* FAQs */}
                 <div className="space-y-4 mb-12">
@@ -82,7 +72,7 @@ export default function FAQs({ faqs: initialFaqs }: { faqs: FAQ[] }) {
                         return (
                             <div
                                 key={index}
-                                className="bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-xl transition-all overflow-hidden"
+                                className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-sm transition-all overflow-hidden"
                             >
                                 <button
                                     onClick={() => setOpenIndex(isOpen ? null : index)}
@@ -112,7 +102,7 @@ export default function FAQs({ faqs: initialFaqs }: { faqs: FAQ[] }) {
                 </div>
 
                 {/* Contact CTA */}
-                <div className="bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 dark:from-blue-900/20 dark:via-purple-900/20 dark:to-pink-900/20 rounded-2xl p-8 text-center border-2 border-blue-200 dark:border-blue-800">
+                <div className="bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 dark:from-blue-900/20 dark:via-purple-900/20 dark:to-pink-900/20 rounded-2xl p-6 sm:p-8 text-center border border-blue-200 dark:border-blue-800">
                     <div className="inline-flex items-center gap-2 mb-4">
                         <Sparkles className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                         <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
