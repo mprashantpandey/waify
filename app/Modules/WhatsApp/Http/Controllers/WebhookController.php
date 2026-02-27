@@ -7,6 +7,7 @@ use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppWebhookEvent;
 use App\Modules\WhatsApp\Services\WebhookProcessor;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -243,6 +244,48 @@ class WebhookController extends Controller
                 'size_bytes' => $payloadSize]);
         }
 
+        $payloadFingerprint = sha1(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        $dedupeTtlSeconds = max(30, (int) config('whatsapp.webhook.dedupe_ttl', 120));
+        $dedupeKey = "wa:webhook:processed:{$connection->id}:{$payloadFingerprint}";
+        $dedupeLock = Cache::lock("wa:webhook:lock:{$connection->id}:{$payloadFingerprint}", 30);
+
+        if (Cache::has($dedupeKey)) {
+            if (Schema::hasTable('whatsapp_webhook_events')) {
+                WhatsAppWebhookEvent::create([
+                    'account_id' => $connection->account_id,
+                    'whatsapp_connection_id' => $connection->id,
+                    'correlation_id' => $correlationId,
+                    'status' => 'duplicate',
+                    'payload' => $payload,
+                    'payload_size' => (int) $payloadSize,
+                    'ip' => $request->ip(),
+                    'user_agent' => (string) $request->userAgent(),
+                    'processed_at' => now(),
+                    'error_message' => 'Duplicate payload ignored (dedupe cache hit).',
+                ]);
+            }
+
+            Log::channel('whatsapp')->info('Duplicate webhook payload ignored', [
+                'correlation_id' => $correlationId,
+                'connection_id' => $connection->id,
+                'fingerprint' => $payloadFingerprint,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'duplicate' => true,
+                'correlation_id' => $correlationId,
+            ], 200);
+        }
+
+        if (! $dedupeLock->get()) {
+            return response()->json([
+                'success' => true,
+                'duplicate' => true,
+                'correlation_id' => $correlationId,
+            ], 200);
+        }
+
         $webhookEvent = null;
         if (Schema::hasTable('whatsapp_webhook_events')) {
             $webhookEvent = WhatsAppWebhookEvent::create([
@@ -268,6 +311,8 @@ class WebhookController extends Controller
                     'error_message' => null,
                 ]);
             }
+
+            Cache::put($dedupeKey, now()->timestamp, now()->addSeconds($dedupeTtlSeconds));
 
             Log::info('[Meta-WhatsApp-Webhook] POST processed OK', ['connection_id' => $connection->id]);
             return response()->json([
@@ -299,6 +344,8 @@ class WebhookController extends Controller
                 'success' => false,
                 'error' => 'Processing failed',
                 'correlation_id' => $correlationId], 200);
+        } finally {
+            optional($dedupeLock)->release();
         }
     }
 
