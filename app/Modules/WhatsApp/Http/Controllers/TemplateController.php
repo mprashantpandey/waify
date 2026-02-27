@@ -237,7 +237,8 @@ class TemplateController extends Controller
             'category' => 'required|in:MARKETING,UTILITY,AUTHENTICATION',
             'header_type' => 'nullable|in:NONE,TEXT,IMAGE,VIDEO,DOCUMENT',
             'header_text' => 'nullable|string|max:60|required_if:header_type,TEXT',
-            'header_media_url' => 'nullable|url|required_if:header_type,IMAGE,VIDEO,DOCUMENT',
+            'header_media_url' => 'nullable|url',
+            'header_media_handle' => 'nullable|string|max:1024',
             'body_text' => 'required|string|max:1024',
             'body_examples' => 'nullable|array',
             'body_examples.*' => 'string|max:100',
@@ -248,6 +249,16 @@ class TemplateController extends Controller
             'buttons.*.url' => 'nullable|url|required_if:buttons.*.type,URL',
             'buttons.*.url_example' => 'nullable|string|max:200',
             'buttons.*.phone_number' => 'nullable|string|required_if:buttons.*.type,PHONE_NUMBER']);
+
+        if (
+            in_array(($validated['header_type'] ?? 'NONE'), ['IMAGE', 'VIDEO', 'DOCUMENT'], true)
+            && empty($validated['header_media_url'])
+            && empty($validated['header_media_handle'])
+        ) {
+            return back()->withErrors([
+                'header_media_url' => 'Media header templates require an uploaded sample (URL or Meta handle).',
+            ])->withInput();
+        }
 
         $connection = WhatsAppConnection::where('account_id', $account->id)
             ->findOrFail($validated['whatsapp_connection_id']);
@@ -346,6 +357,7 @@ class TemplateController extends Controller
                 'header_type' => $template->header_type ?? 'NONE',
                 'header_text' => $template->header_text,
                 'header_media_url' => $template->header_media_url ?? null,
+                'header_media_handle' => $this->extractHeaderHandle($template->components ?? []),
                 'body_text' => $template->body_text,
                 'footer_text' => $template->footer_text,
                 'buttons' => $template->buttons ?? [],
@@ -373,7 +385,8 @@ class TemplateController extends Controller
             'category' => 'required|in:MARKETING,UTILITY,AUTHENTICATION',
             'header_type' => 'nullable|in:NONE,TEXT,IMAGE,VIDEO,DOCUMENT',
             'header_text' => 'nullable|string|max:60|required_if:header_type,TEXT',
-            'header_media_url' => 'nullable|url|required_if:header_type,IMAGE,VIDEO,DOCUMENT',
+            'header_media_url' => 'nullable|url',
+            'header_media_handle' => 'nullable|string|max:1024',
             'body_text' => 'required|string|max:1024',
             'body_examples' => 'nullable|array',
             'body_examples.*' => 'string|max:100',
@@ -384,6 +397,16 @@ class TemplateController extends Controller
             'buttons.*.url' => 'nullable|url|required_if:buttons.*.type,URL',
             'buttons.*.url_example' => 'nullable|string|max:200',
             'buttons.*.phone_number' => 'nullable|string|required_if:buttons.*.type,PHONE_NUMBER']);
+
+        if (
+            in_array(($validated['header_type'] ?? 'NONE'), ['IMAGE', 'VIDEO', 'DOCUMENT'], true)
+            && empty($validated['header_media_url'])
+            && empty($validated['header_media_handle'])
+        ) {
+            return back()->withErrors([
+                'header_media_url' => 'Media header templates require an uploaded sample (URL or Meta handle).',
+            ])->withInput();
+        }
 
         $connection = $template->connection;
         Gate::authorize('update', $connection);
@@ -480,5 +503,21 @@ class TemplateController extends Controller
 
             return back()->with('error', 'Failed to check template status: ' . $e->getMessage());
         }
+    }
+
+    protected function extractHeaderHandle(array $components): ?string
+    {
+        foreach ($components as $component) {
+            if (strtoupper((string) ($component['type'] ?? '')) !== 'HEADER') {
+                continue;
+            }
+
+            $handle = trim((string) ($component['example']['header_handle'][0] ?? ''));
+            if ($handle !== '') {
+                return $handle;
+            }
+        }
+
+        return null;
     }
 }

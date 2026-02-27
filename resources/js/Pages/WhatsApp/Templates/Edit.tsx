@@ -30,6 +30,7 @@ interface TemplateFormData {
     header_type: 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT';
     header_text?: string;
     header_media_url?: string;
+    header_media_handle?: string;
     body_text: string;
     body_examples?: string[];
     footer_text?: string;
@@ -69,6 +70,7 @@ export default function TemplatesEdit({
         header_type: string;
         header_text?: string | null;
         header_media_url?: string | null;
+        header_media_handle?: string | null;
         body_text: string;
         footer_text?: string | null;
         buttons?: Button[];
@@ -112,6 +114,7 @@ export default function TemplatesEdit({
             );
 
             setData('header_media_url', response.data.url);
+            setData('header_media_handle', '');
             setMediaPreview(response.data.url);
             toast.success('File uploaded', 'Media file uploaded successfully.');
         } catch (error: any) {
@@ -141,6 +144,7 @@ export default function TemplatesEdit({
         header_type: (template.header_type || 'NONE') as 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT',
         header_text: template.header_text || '',
         header_media_url: template.header_media_url || '',
+        header_media_handle: template.header_media_handle || '',
         body_text: template.body_text || '',
         body_examples: [],
         footer_text: template.footer_text || '',
@@ -544,7 +548,7 @@ export default function TemplatesEdit({
                                                 )}
                                             </div>
 
-                                            {(mediaPreview || data.header_media_url) && (
+                                            {(mediaPreview || data.header_media_url || data.header_media_handle) && (
                                                 <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800">
                                                     <div className="flex items-center justify-between mb-2">
                                                         <div className="flex items-center gap-2">
@@ -561,6 +565,7 @@ export default function TemplatesEdit({
                                                             size="sm"
                                                             onClick={() => {
                                                                 setData('header_media_url', '');
+                                                                setData('header_media_handle', '');
                                                                 setMediaPreview(null);
                                                             }}
                                                         >
@@ -574,9 +579,14 @@ export default function TemplatesEdit({
                                                             className="max-w-full h-auto max-h-48 rounded-lg"
                                                         />
                                                     )}
-                                                    {(data.header_type === 'VIDEO' || data.header_type === 'DOCUMENT') && (
+                                                    {(data.header_type === 'VIDEO' || data.header_type === 'DOCUMENT') && (mediaPreview || data.header_media_url) && (
                                                         <div className="text-sm text-gray-600 dark:text-gray-400 break-all">
                                                             {mediaPreview || data.header_media_url}
+                                                        </div>
+                                                    )}
+                                                    {!mediaPreview && !data.header_media_url && data.header_media_handle && (
+                                                        <div className="text-sm text-gray-600 dark:text-gray-400 break-all">
+                                                            Meta media sample attached: {data.header_media_handle}
                                                         </div>
                                                     )}
                                                 </div>
@@ -822,4 +832,3 @@ export default function TemplatesEdit({
         </AppShell>
     );
 }
-
