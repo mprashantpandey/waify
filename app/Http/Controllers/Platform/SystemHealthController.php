@@ -9,6 +9,7 @@ use App\Modules\WhatsApp\Services\WebhookProcessor;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -234,20 +235,44 @@ class SystemHealthController extends Controller
             return back()->withErrors(['error' => 'Webhook events table is not available.']);
         }
 
+        $lock = Cache::lock('webhook-event-replay:'.$id, 30);
+        if (! $lock->get()) {
+            return back()->withErrors(['error' => 'Replay already in progress for this event.']);
+        }
+
         /** @var WhatsAppWebhookEvent|null $event */
         $event = WhatsAppWebhookEvent::query()->find($id);
         if (!$event) {
+            optional($lock)->release();
             return back()->withErrors(['error' => 'Webhook event not found.']);
         }
 
         $connection = WhatsAppConnection::query()->find($event->whatsapp_connection_id);
         if (!$connection) {
+            optional($lock)->release();
             return back()->withErrors(['error' => 'Webhook connection not found for replay.']);
         }
 
         $payload = $event->payload;
         if (!is_array($payload) || empty($payload)) {
+            optional($lock)->release();
             return back()->withErrors(['error' => 'Webhook payload is missing or invalid.']);
+        }
+
+        if ((int) $event->payload_size > (2 * 1024 * 1024)) {
+            optional($lock)->release();
+            return back()->withErrors(['error' => 'Webhook payload is too large to replay safely.']);
+        }
+
+        if ((int) $event->replay_count >= 10) {
+            optional($lock)->release();
+            return back()->withErrors(['error' => 'Replay limit reached for this webhook event.']);
+        }
+
+        $force = $request->boolean('force', false);
+        if (!$force && $event->status === 'processed') {
+            optional($lock)->release();
+            return back()->withErrors(['error' => 'This event is already processed. Use force replay if required.']);
         }
 
         $replayCorrelationId = ($event->correlation_id ?: 'wh_replay_'.$event->id).'-replay-'.now()->timestamp;
@@ -261,6 +286,7 @@ class SystemHealthController extends Controller
                 'last_replayed_at' => now(),
             ]);
 
+            optional($lock)->release();
             return back()->with('success', 'Webhook event replayed successfully.');
         } catch (\Throwable $e) {
             $event->update([
@@ -271,6 +297,7 @@ class SystemHealthController extends Controller
                 'last_replayed_at' => now(),
             ]);
 
+            optional($lock)->release();
             return back()->withErrors(['error' => 'Webhook replay failed: '.$e->getMessage()]);
         }
     }
