@@ -10,6 +10,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class SendCampaignMessageJob implements ShouldQueue
@@ -44,9 +45,10 @@ class SendCampaignMessageJob implements ShouldQueue
      */
     public function handle(CampaignService $campaignService): void
     {
+        $dispatchGuardKey = "campaign_send:next_scheduled:{$this->campaignId}";
         // Use lock to prevent concurrent processing of the same campaign
         $lockKey = "campaign_send:{$this->campaignId}";
-        $lock = \Illuminate\Support\Facades\Cache::lock($lockKey, 120); // lock while a batch is processed
+        $lock = Cache::lock($lockKey, 120); // lock while a batch is processed
 
         if (!$lock->get()) {
             // Another job is processing this campaign, retry later
@@ -55,10 +57,14 @@ class SendCampaignMessageJob implements ShouldQueue
         }
 
         try {
+            // This job is actively running now; allow scheduling another follow-up if needed.
+            Cache::forget($dispatchGuardKey);
+
             $campaign = Campaign::find($this->campaignId);
 
             if (!$campaign || !$campaign->isActive()) {
                 Log::info('Campaign not found or not active', ['campaign_id' => $this->campaignId]);
+                Cache::forget($dispatchGuardKey);
                 return;
             }
 
@@ -72,6 +78,7 @@ class SendCampaignMessageJob implements ShouldQueue
                     'campaign_id' => $this->campaignId,
                     'errors' => $preflight['errors'] ?? [],
                 ]);
+                Cache::forget($dispatchGuardKey);
                 return;
             }
 
@@ -103,6 +110,7 @@ class SendCampaignMessageJob implements ShouldQueue
 
             if ($processed === 0) {
                 $campaignService->checkCampaignCompletion($campaign);
+                Cache::forget($dispatchGuardKey);
                 return;
             }
 
@@ -111,12 +119,18 @@ class SendCampaignMessageJob implements ShouldQueue
                 ->exists();
 
             if ($hasPending) {
-                $next = (new SendCampaignMessageJob($this->campaignId))->onQueue('campaigns');
                 $delaySeconds = $campaignService->getDispatchDelaySeconds($campaign);
-                if ($delaySeconds > 0) {
-                    $next->delay(now()->addSeconds($delaySeconds));
+                // Prevent fan-out from duplicate follow-up dispatches while queue is under load.
+                $guardTtl = max(15, min(300, $delaySeconds + 20));
+                if (Cache::add($dispatchGuardKey, 1, now()->addSeconds($guardTtl))) {
+                    $next = (new SendCampaignMessageJob($this->campaignId))->onQueue('campaigns');
+                    if ($delaySeconds > 0) {
+                        $next->delay(now()->addSeconds($delaySeconds));
+                    }
+                    dispatch($next);
                 }
-                dispatch($next);
+            } else {
+                Cache::forget($dispatchGuardKey);
             }
         } finally {
             $lock->release();
