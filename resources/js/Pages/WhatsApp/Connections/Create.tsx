@@ -23,7 +23,7 @@ export default function ConnectionsCreate({
     embeddedSignup,
     defaultApiVersion}: {
     account: any;
-    embeddedSignup: { enabled?: boolean; appId?: string; configId?: string; apiVersion?: string };
+    embeddedSignup: { enabled?: boolean; appId?: string; configId?: string; apiVersion?: string; oauthRedirectUri?: string | null };
     defaultApiVersion: string;
 }) {
     const [showToken, setShowToken] = useState(false);
@@ -280,8 +280,9 @@ export default function ConnectionsCreate({
         setEmbeddedStatus('Starting Meta Embedded Signup...');
         setEmbeddedAutoSubmitRequested(false);
         setEmbeddedAutoSubmitAttempted(false);
+        const oauthRedirectUri = embeddedSignup?.oauthRedirectUri || `${window.location.origin}${window.location.pathname}`;
         // Use a stable canonical redirect URI (no query/hash) to match Meta allowlist exactly.
-        embeddedForm.setData('redirect_uri', `${window.location.origin}${window.location.pathname}`);
+        embeddedForm.setData('redirect_uri', oauthRedirectUri);
 
         window.FB.login(
             (response: any) => {
@@ -307,6 +308,7 @@ export default function ConnectionsCreate({
             },
             {
                 config_id: embeddedSignup.configId,
+                redirect_uri: oauthRedirectUri,
                 response_type: 'code',
                 override_default_response_type: true,
                 scope: 'whatsapp_business_management,whatsapp_business_messaging,business_management'}

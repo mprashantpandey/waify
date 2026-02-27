@@ -41,7 +41,7 @@ export default function EmbeddedWizard({
     embeddedSignup,
     defaultApiVersion}: {
     account: any;
-    embeddedSignup: { enabled?: boolean; appId?: string; configId?: string; apiVersion?: string };
+    embeddedSignup: { enabled?: boolean; appId?: string; configId?: string; apiVersion?: string; oauthRedirectUri?: string | null };
     defaultApiVersion: string;
 }) {
     const { toast } = useToast();
@@ -242,13 +242,15 @@ export default function EmbeddedWizard({
             return;
         }
 
+        const oauthRedirectUri = embeddedSignup?.oauthRedirectUri || window.location.origin + window.location.pathname;
+
         setWizardState({
             step: 'auth',
             progress: 10,
             message: 'Starting Meta authorization...',
             data: {}});
 
-        embeddedForm.setData('redirect_uri', window.location.href);
+        embeddedForm.setData('redirect_uri', oauthRedirectUri);
 
         window.FB.login(
             (response: any) => {
@@ -298,6 +300,7 @@ export default function EmbeddedWizard({
             },
             {
                 config_id: embeddedSignup.configId,
+                redirect_uri: oauthRedirectUri,
                 response_type: 'code',
                 override_default_response_type: true,
                 scope: 'whatsapp_business_management,whatsapp_business_messaging,business_management'}

@@ -16,6 +16,8 @@ interface Template {
     name: string;
     language: string;
     body_text: string | null;
+    header_type: string | null;
+    header_media_url: string | null;
     header_text: string | null;
     footer_text: string | null;
     buttons: Array<{
@@ -67,6 +69,7 @@ export default function TemplatesSend({
 
     const { data, setData, post, processing, errors } = useForm({
         to_wa_id: '',
+        header_media_url: template.header_media_url || '',
         variables: Array(template.required_variables.total).fill('')});
 
     const handleRecipientChange = (type: 'contact' | 'conversation' | 'manual') => {
@@ -277,6 +280,27 @@ export default function TemplatesSend({
                                             })}
                                         </div>
                                         <InputError message={errors.variables} className="mt-2" />
+                                    </div>
+                                )}
+
+                                {['IMAGE', 'VIDEO', 'DOCUMENT'].includes((template.header_type || '').toUpperCase()) && (
+                                    <div>
+                                        <InputLabel
+                                            value="Header Media URL"
+                                            className="text-sm font-semibold mb-2"
+                                        />
+                                        <TextInput
+                                            type="url"
+                                            value={data.header_media_url}
+                                            onChange={(e) => setData('header_media_url', e.target.value)}
+                                            placeholder="https://example.com/media.jpg"
+                                            className="rounded-xl"
+                                            required
+                                        />
+                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                            This template requires a media header. Provide a public URL accessible by Meta.
+                                        </p>
+                                        <InputError message={errors.header_media_url} className="mt-2" />
                                     </div>
                                 )}
 

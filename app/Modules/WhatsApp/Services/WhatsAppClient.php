@@ -166,12 +166,14 @@ class WhatsAppClient
             'template' => [
                 'name' => $templateName,
                 'language' => [
+                    'policy' => 'deterministic',
                     'code' => $language],
                 'components' => $components]];
 
         try {
             $this->assertConnectionReady($connection);
             $components = $this->normalizeTemplateComponentsMedia($connection, $components);
+            $payload['template']['components'] = $components;
             // Check rate limit before making API call
             $this->checkRateLimit($connection);
 

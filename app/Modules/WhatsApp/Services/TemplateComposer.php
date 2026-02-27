@@ -12,7 +12,8 @@ class TemplateComposer
     public function preparePayload(
         WhatsAppTemplate $template,
         string $toWaId,
-        array $variables = []
+        array $variables = [],
+        array $options = []
     ): array {
         // Validate variable count
         $requiredVariables = $this->extractRequiredVariables($template);
@@ -44,7 +45,7 @@ class TemplateComposer
 
         // Header media (IMAGE/VIDEO/DOCUMENT templates need a media parameter on send)
         if (in_array($template->header_type, ['IMAGE', 'VIDEO', 'DOCUMENT'], true)) {
-            $mediaUrl = $this->resolveHeaderMediaUrl($template);
+            $mediaUrl = $this->resolveHeaderMediaUrl($template, $options);
             if ($mediaUrl === '') {
                 throw new \Exception("Template '{$template->name}' requires header media URL before sending");
             }
@@ -81,13 +82,13 @@ class TemplateComposer
 
         // Button variables (for URL buttons with dynamic suffix)
         if ($template->has_buttons) {
-            $buttonIndex = 0;
+            $dynamicUrlOrdinal = 0;
 
-            foreach ($template->buttons as $button) {
+            foreach ($template->buttons as $buttonIndex => $button) {
                 if ($button['type'] === 'URL' && isset($button['url'])) {
                     // Check if URL has variable placeholder
                     if (strpos($button['url'], '{{1}}') !== false) {
-                        $varOffset = $requiredVariables['header_count'] + $requiredVariables['body_count'] + $buttonIndex;
+                        $varOffset = $requiredVariables['header_count'] + $requiredVariables['body_count'] + $dynamicUrlOrdinal;
                         $varValue = $variables[$varOffset] ?? '';
                         $components[] = [
                             'type' => 'button',
@@ -98,7 +99,7 @@ class TemplateComposer
                                 'text' => $varValue,
                             ]],
                         ];
-                        $buttonIndex++;
+                        $dynamicUrlOrdinal++;
                     }
                 }
             }
@@ -221,8 +222,13 @@ class TemplateComposer
         }, $text);
     }
 
-    protected function resolveHeaderMediaUrl(WhatsAppTemplate $template): string
+    protected function resolveHeaderMediaUrl(WhatsAppTemplate $template, array $options = []): string
     {
+        $overrideUrl = trim((string) ($options['header_media_url'] ?? ''));
+        if ($overrideUrl !== '') {
+            return $overrideUrl;
+        }
+
         return trim((string) ($template->header_media_url ?? ''));
     }
 

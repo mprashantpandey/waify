@@ -300,6 +300,10 @@ class ConnectionController extends Controller
         $appId = PlatformSetting::get('whatsapp.meta_app_id', config('whatsapp.meta.app_id'));
         $configId = PlatformSetting::get('whatsapp.embedded_signup_config_id', config('whatsapp.meta.embedded_signup_config_id'));
         $apiVersion = PlatformSetting::get('whatsapp.api_version', config('whatsapp.meta.api_version', 'v21.0'));
+        $oauthRedirectUri = PlatformSetting::get(
+            'whatsapp.embedded_oauth_redirect_uri',
+            route('app.whatsapp.connections.create')
+        );
         $enabledSetting = PlatformSetting::get('whatsapp.embedded_enabled', null);
         $enabled = $enabledSetting !== null ? (bool) $enabledSetting : (bool) ($appId && $configId);
 
@@ -307,7 +311,8 @@ class ConnectionController extends Controller
             'enabled' => $enabled,
             'appId' => $enabled ? $appId : null,
             'configId' => $enabled ? $configId : null,
-            'apiVersion' => $apiVersion ?: 'v21.0'];
+            'apiVersion' => $apiVersion ?: 'v21.0',
+            'oauthRedirectUri' => $enabled ? $oauthRedirectUri : null];
     }
 
     /**
@@ -316,7 +321,13 @@ class ConnectionController extends Controller
      */
     private function resolveEmbeddedRedirectUri(?string $requestedRedirectUri): string
     {
+        $platformConfigured = (string) PlatformSetting::get(
+            'whatsapp.embedded_oauth_redirect_uri',
+            route('app.whatsapp.connections.create')
+        );
+
         $allowed = [
+            $platformConfigured,
             route('app.whatsapp.connections.create'),
             route('app.whatsapp.connections.wizard'),
         ];

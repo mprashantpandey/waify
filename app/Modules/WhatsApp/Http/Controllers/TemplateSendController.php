@@ -83,6 +83,8 @@ class TemplateSendController extends Controller
                 'slug' => $template->slug,
                 'name' => $template->name,
                 'language' => $template->language,
+                'header_type' => $template->header_type,
+                'header_media_url' => $template->header_media_url,
                 'body_text' => $template->body_text,
                 'header_text' => $template->header_text,
                 'footer_text' => $template->footer_text,
@@ -204,6 +206,7 @@ class TemplateSendController extends Controller
             'to_wa_id' => 'required|string',
             'variables' => 'sometimes|array',
             'variables.*' => 'nullable|string|max:1024',
+            'header_media_url' => 'nullable|url|max:2048',
         ]);
 
         // Validate variables count
@@ -227,7 +230,8 @@ class TemplateSendController extends Controller
             $payload = $this->composer->preparePayload(
                 $template,
                 $validated['to_wa_id'],
-                $variables
+                $variables,
+                ['header_media_url' => $validated['header_media_url'] ?? null]
             );
 
             // Get or create conversation (with lock to prevent duplicates)
