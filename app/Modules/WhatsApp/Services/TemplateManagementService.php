@@ -198,39 +198,48 @@ class TemplateManagementService
         }
 
         $url = sprintf(
-            '%s/%s/%s/message_templates?name=%s',
+            '%s/%s/%s/message_templates',
             $this->baseUrl,
             $connection->api_version ?: config('whatsapp.meta.api_version', 'v21.0'),
-            $wabaId,
-            urlencode($metaTemplateId)
+            $wabaId
         );
 
         try {
             $this->rateLimitCheck($connection->id);
 
-            $response = Http::withToken($connection->access_token)
-                ->get($url, ['limit' => 1000]); // Get all templates
+            $after = null;
+            for ($page = 0; $page < 20; $page++) {
+                $params = ['limit' => 100];
+                if ($after) {
+                    $params['after'] = $after;
+                }
 
-            $responseData = $response->json();
+                $response = Http::withToken($connection->access_token)->get($url, $params);
+                $responseData = $response->json();
 
-            if (!$response->successful()) {
-                $errorMessage = $responseData['error']['message'] ?? 'Unknown error from WhatsApp API';
-                throw new WhatsAppApiException(
-                    "Failed to get template status: {$errorMessage}",
-                    $responseData,
-                    $response->status()
-                );
-            }
+                if (!$response->successful()) {
+                    $errorMessage = $responseData['error']['message'] ?? 'Unknown error from WhatsApp API';
+                    throw new WhatsAppApiException(
+                        "Failed to get template status: {$errorMessage}",
+                        $responseData,
+                        $response->status()
+                    );
+                }
 
-            // Find the specific template by ID
-            $templates = $responseData['data'] ?? [];
-            foreach ($templates as $template) {
-                if (($template['id'] ?? '') === $metaTemplateId) {
-                    return $template;
+                $templates = $responseData['data'] ?? [];
+                foreach ($templates as $template) {
+                    if ((string) ($template['id'] ?? '') === (string) $metaTemplateId) {
+                        return $template;
+                    }
+                }
+
+                $after = $responseData['paging']['cursors']['after'] ?? null;
+                if (!$after) {
+                    break;
                 }
             }
 
-            throw new \Exception('Template not found in Meta');
+            throw new \Exception('Template not found in Meta by ID');
         } catch (WhatsAppApiException $e) {
             throw $e;
         } catch (\Exception $e) {

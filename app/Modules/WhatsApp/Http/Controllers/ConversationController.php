@@ -20,6 +20,7 @@ use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use App\Modules\WhatsApp\Models\WhatsAppTemplateSend;
 use App\Modules\WhatsApp\Services\TemplateComposer;
+use App\Modules\WhatsApp\Services\TemplateManagementService;
 use App\Modules\WhatsApp\Services\WhatsAppClient;
 use App\Services\AI\ConversationAssistantService;
 use App\Core\Billing\PlanResolver;
@@ -39,6 +40,7 @@ class ConversationController extends Controller
     public function __construct(
         protected WhatsAppClient $whatsappClient,
         protected TemplateComposer $templateComposer,
+        protected TemplateManagementService $templateManagementService,
         protected EntitlementService $entitlementService,
         protected UsageService $usageService,
         protected ConversationAssistantService $conversationAssistant,
@@ -895,6 +897,31 @@ class ConversationController extends Controller
                     ->orWhereNull('is_archived');
             })
             ->findOrFail($validated['template_id']);
+
+        // Re-validate live status from Meta to avoid stale local status sending outdated versions.
+        if ($template->meta_template_id) {
+            try {
+                $statusData = $this->templateManagementService->getTemplateStatus($conversation->connection, (string) $template->meta_template_id);
+                $liveStatus = strtolower(trim((string) ($statusData['status'] ?? $template->status ?? '')));
+                $template->update([
+                    'status' => $liveStatus ?: $template->status,
+                    'last_synced_at' => now(),
+                    'last_meta_error' => $statusData['rejected_reason'] ?? $statusData['rejection_reason'] ?? null,
+                ]);
+
+                if (!in_array($liveStatus, ['approved', 'active'], true)) {
+                    return redirect()->back()->withErrors([
+                        'template' => 'Template is not approved on Meta yet (current status: '.$liveStatus.').',
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::channel('whatsapp')->warning('Template live status verification failed before conversation send', [
+                    'template_id' => $template->id,
+                    'meta_template_id' => $template->meta_template_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
         $requiredVars = $this->templateComposer->extractRequiredVariables($template);
         $variables = $this->normalizeTemplateVariables($validated['variables'] ?? []);
