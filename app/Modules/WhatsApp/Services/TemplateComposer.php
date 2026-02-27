@@ -42,6 +42,25 @@ class TemplateComposer
             }
         }
 
+        // Header media (IMAGE/VIDEO/DOCUMENT templates need a media parameter on send)
+        if (in_array($template->header_type, ['IMAGE', 'VIDEO', 'DOCUMENT'], true)) {
+            $mediaUrl = trim((string) ($template->header_media_url ?? ''));
+            if ($mediaUrl === '') {
+                throw new \Exception("Template '{$template->name}' requires header media URL before sending");
+            }
+
+            $mediaKey = strtolower($template->header_type);
+            $components[] = [
+                'type' => 'header',
+                'parameters' => [[
+                    'type' => $mediaKey,
+                    $mediaKey => [
+                        'link' => $mediaUrl,
+                    ],
+                ]],
+            ];
+        }
+
         // Body variables
         if ($template->body_text) {
             $bodyVars = $this->extractVariables($template->body_text);
