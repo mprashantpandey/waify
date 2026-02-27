@@ -522,30 +522,90 @@ class CampaignService
                 return;
             }
 
-            $updateData = ['status' => $status];
-            $recipientUpdate = ['status' => $status];
+            $normalizedStatus = strtolower(trim($status));
+            $eventAt = $timestamp ?? now();
+            $updateData = [];
+            $recipientUpdate = [];
+            $campaignIncrements = [];
 
-            switch ($status) {
+            switch ($normalizedStatus) {
                 case 'delivered':
-                    $updateData['delivered_at'] = $timestamp ?? now();
-                    $recipientUpdate['delivered_at'] = $timestamp ?? now();
-                    Campaign::whereKey($message->campaign_id)->increment('delivered_count');
+                    if (!$message->delivered_at) {
+                        $updateData['delivered_at'] = $eventAt;
+                        $campaignIncrements['delivered_count'] = ($campaignIncrements['delivered_count'] ?? 0) + 1;
+                    }
+                    if ($message->status !== 'read') {
+                        $updateData['status'] = 'delivered';
+                        $recipientUpdate['status'] = 'delivered';
+                    }
+                    $recipientUpdate['delivered_at'] = $eventAt;
                     break;
                 case 'read':
-                    $updateData['read_at'] = $timestamp ?? now();
-                    $recipientUpdate['read_at'] = $timestamp ?? now();
-                    Campaign::whereKey($message->campaign_id)->increment('read_count');
+                    if (!$message->delivered_at) {
+                        $updateData['delivered_at'] = $eventAt;
+                        $campaignIncrements['delivered_count'] = ($campaignIncrements['delivered_count'] ?? 0) + 1;
+                    }
+                    if (!$message->read_at) {
+                        $updateData['read_at'] = $eventAt;
+                        $campaignIncrements['read_count'] = ($campaignIncrements['read_count'] ?? 0) + 1;
+                    }
+                    $updateData['status'] = 'read';
+                    $recipientUpdate['status'] = 'read';
+                    $recipientUpdate['delivered_at'] = $eventAt;
+                    $recipientUpdate['read_at'] = $eventAt;
                     break;
                 case 'failed':
-                    $updateData['failed_at'] = $timestamp ?? now();
-                    $recipientUpdate['failed_at'] = $timestamp ?? now();
-                    Campaign::whereKey($message->campaign_id)->increment('failed_count');
+                    if (!$message->failed_at) {
+                        $updateData['failed_at'] = $eventAt;
+                        $campaignIncrements['failed_count'] = ($campaignIncrements['failed_count'] ?? 0) + 1;
+                    }
+                    if ($message->status !== 'read') {
+                        $updateData['status'] = 'failed';
+                        $recipientUpdate['status'] = 'failed';
+                    }
+                    $recipientUpdate['failed_at'] = $eventAt;
+                    break;
+                default:
+                    // Keep unknown statuses for debugging visibility.
+                    $updateData['status'] = $normalizedStatus;
+                    $recipientUpdate['status'] = $normalizedStatus;
                     break;
             }
 
-            $message->update($updateData);
+            if (!empty($updateData)) {
+                $message->update($updateData);
+            }
             if ($message->campaign_recipient_id) {
-                CampaignRecipient::whereKey($message->campaign_recipient_id)->lockForUpdate()->update($recipientUpdate);
+                $recipient = CampaignRecipient::whereKey($message->campaign_recipient_id)->lockForUpdate()->first();
+                if ($recipient && !empty($recipientUpdate)) {
+                    if (
+                        isset($recipientUpdate['delivered_at']) &&
+                        $recipient->delivered_at
+                    ) {
+                        unset($recipientUpdate['delivered_at']);
+                    }
+                    if (
+                        isset($recipientUpdate['read_at']) &&
+                        $recipient->read_at
+                    ) {
+                        unset($recipientUpdate['read_at']);
+                    }
+                    if (
+                        isset($recipientUpdate['failed_at']) &&
+                        $recipient->failed_at
+                    ) {
+                        unset($recipientUpdate['failed_at']);
+                    }
+                    if (!empty($recipientUpdate)) {
+                        $recipient->update($recipientUpdate);
+                    }
+                }
+            }
+
+            foreach ($campaignIncrements as $column => $amount) {
+                if ($amount > 0) {
+                    Campaign::whereKey($message->campaign_id)->increment($column, $amount);
+                }
             }
         } finally {
             $lock->release();
