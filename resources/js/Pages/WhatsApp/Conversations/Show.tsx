@@ -300,6 +300,7 @@ export default function ConversationsShow({
     const assignedToRef = useRef<number | null>(resolvedConversation.assigned_to ?? null);
     const hydratedConversationIdRef = useRef<number | null>(null);
     const historyBootstrapAttemptedRef = useRef<boolean>(normalizedMessages.length > 0);
+    const forcedHistoryResyncRef = useRef<boolean>(false);
 
     const { data, setData, post, processing, errors, reset } = useForm({
         message: ''});
@@ -316,6 +317,7 @@ export default function ConversationsShow({
             setAuditEvents(normalizedAuditEvents);
             setLoading(normalizedMessages.length === 0 && initialTotalMessages > 0);
             setInitialSyncPending(normalizedMessages.length === 0 && initialTotalMessages > 0);
+            forcedHistoryResyncRef.current = false;
             hydratedConversationIdRef.current = resolvedConversation.id;
             assignedToRef.current = resolvedConversation.assigned_to ?? null;
             historyBootstrapAttemptedRef.current = normalizedMessages.length > 0;
@@ -972,6 +974,17 @@ export default function ConversationsShow({
                     setConversation((prev) => ({ ...prev, ...response.data.conversation }));
                 }
 
+                if (
+                    initialSyncPending &&
+                    initialTotalMessages > 0 &&
+                    lastMessageIdRef.current === 0 &&
+                    newMessagesFromServer.length === 0 &&
+                    !forcedHistoryResyncRef.current
+                ) {
+                    forcedHistoryResyncRef.current = true;
+                    await recoverHistory();
+                }
+
                 if (initialSyncPending && initialTotalMessages > 0) {
                     setInitialSyncPending(false);
                 }
@@ -1013,7 +1026,7 @@ export default function ConversationsShow({
                 pollTimerRef.current = null;
             }
         };
-    }, [connected, account?.id, conversation?.id, addToast, initialSyncPending, initialTotalMessages]);
+    }, [connected, account?.id, conversation?.id, addToast, initialSyncPending, initialTotalMessages, recoverHistory]);
 
     const handleSend = useCallback(async () => {
         if (processing) return;
