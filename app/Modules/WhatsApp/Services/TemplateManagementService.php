@@ -262,17 +262,13 @@ class TemplateManagementService
                 'is_archived' => false,
             ]);
 
-            if ($created->versions()->exists()) {
-                DB::table('whatsapp_template_versions')
-                    ->where('whatsapp_template_id', $created->id)
-                    ->update(['whatsapp_template_id' => $currentTemplate->id]);
-            }
+            DB::table('whatsapp_template_versions')
+                ->where('whatsapp_template_id', $created->id)
+                ->update(['whatsapp_template_id' => $currentTemplate->id]);
 
-            if ($created->sends()->exists()) {
-                DB::table('whatsapp_template_sends')
-                    ->where('whatsapp_template_id', $created->id)
-                    ->update(['whatsapp_template_id' => $currentTemplate->id]);
-            }
+            DB::table('whatsapp_template_sends')
+                ->where('whatsapp_template_id', $created->id)
+                ->update(['whatsapp_template_id' => $currentTemplate->id]);
 
             $created->update(['is_archived' => true]);
         });
