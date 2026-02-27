@@ -258,6 +258,85 @@ class TemplateManagementService
     }
 
     /**
+     * Find currently deliverable (approved/active) template version for a given name + language.
+     * Meta send API resolves by name/language, not template ID, so we use this to detect version drift.
+     */
+    public function getDeliverableTemplateByNameLanguage(
+        WhatsAppConnection $connection,
+        string $name,
+        string $language
+    ): ?array {
+        $wabaId = $connection->waba_id;
+        if (!$wabaId) {
+            throw new \Exception('WABA ID is required to resolve deliverable template');
+        }
+
+        $url = sprintf(
+            '%s/%s/%s/message_templates',
+            $this->baseUrl,
+            $connection->api_version ?: config('whatsapp.meta.api_version', 'v21.0'),
+            $wabaId
+        );
+
+        $targetName = strtolower(trim($name));
+        $targetLang = strtolower(str_replace('-', '_', trim($language)));
+        $candidate = null;
+
+        $this->rateLimitCheck($connection->id);
+        $after = null;
+
+        for ($page = 0; $page < 20; $page++) {
+            $params = ['limit' => 100];
+            if ($after) {
+                $params['after'] = $after;
+            }
+
+            $response = Http::withToken($connection->access_token)->get($url, $params);
+            $responseData = $response->json();
+
+            if (!$response->successful()) {
+                $errorMessage = $responseData['error']['message'] ?? 'Unknown error from WhatsApp API';
+                throw new WhatsAppApiException(
+                    "Failed to resolve deliverable template: {$errorMessage}",
+                    $responseData,
+                    $response->status()
+                );
+            }
+
+            $templates = $responseData['data'] ?? [];
+            foreach ($templates as $template) {
+                $tplName = strtolower(trim((string) ($template['name'] ?? '')));
+                $tplLang = strtolower(str_replace('-', '_', trim((string) ($template['language'] ?? ''))));
+                $tplStatus = strtolower(trim((string) ($template['status'] ?? '')));
+
+                if ($tplName !== $targetName || $tplLang !== $targetLang) {
+                    continue;
+                }
+
+                if (in_array($tplStatus, ['approved', 'active'], true)) {
+                    // Prefer most recently updated approved/active version if available.
+                    if ($candidate === null) {
+                        $candidate = $template;
+                    } else {
+                        $existingUpdated = strtotime((string) ($candidate['updated_time'] ?? $candidate['created_time'] ?? '1970-01-01'));
+                        $incomingUpdated = strtotime((string) ($template['updated_time'] ?? $template['created_time'] ?? '1970-01-01'));
+                        if ($incomingUpdated >= $existingUpdated) {
+                            $candidate = $template;
+                        }
+                    }
+                }
+            }
+
+            $after = $responseData['paging']['cursors']['after'] ?? null;
+            if (!$after) {
+                break;
+            }
+        }
+
+        return $candidate;
+    }
+
+    /**
      * Build template payload according to Meta's latest API format.
      * See: https://developers.facebook.com/docs/whatsapp/business-management-api/message-templates/components
      */

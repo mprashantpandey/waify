@@ -930,6 +930,20 @@ class ConversationController extends Controller
                         'template' => 'Template is not approved on Meta yet (current status: '.$liveStatus.').',
                     ]);
                 }
+
+                // Meta delivery resolves template by name + language.
+                // Ensure currently deliverable version is exactly this local template version.
+                $deliverable = $this->templateManagementService->getDeliverableTemplateByNameLanguage(
+                    $conversation->connection,
+                    (string) $template->name,
+                    (string) $template->language
+                );
+
+                if ($deliverable && (string) ($deliverable['id'] ?? '') !== (string) $template->meta_template_id) {
+                    return redirect()->back()->withErrors([
+                        'template' => 'A different approved version of this template is currently deliverable on Meta. Wait for this new version approval, then sync templates.',
+                    ]);
+                }
             } catch (\Throwable $e) {
                 \Illuminate\Support\Facades\Log::channel('whatsapp')->warning('Template live status verification failed before conversation send', [
                     'template_id' => $template->id,
