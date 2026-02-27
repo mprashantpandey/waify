@@ -45,16 +45,13 @@ export default function SegmentsShow({
     const { toast } = useToast();
 
     const handleRecalculate = () => {
-        router.post(route('app.contacts.segments.recalculate', { segment: segment.id }), {}, {
-            onSuccess: () => toast.success('Count recalculated'),
-        });
+        router.post(route('app.contacts.segments.recalculate', { segment: segment.id }), {});
     };
 
     const handleDelete = () => {
         if (!confirm(`Delete segment "${segment.name}"?`)) return;
         router.delete(route('app.contacts.segments.destroy', { segment: segment.id }), {
             onSuccess: () => {
-                toast.success('Segment deleted');
                 router.visit(route('app.contacts.segments.index'));
             },
         });

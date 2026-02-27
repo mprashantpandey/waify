@@ -45,7 +45,6 @@ export default function ListsIndex({
             await router.post(route('app.whatsapp.lists.toggle', { list: list.id }), {}, {
                 preserveScroll: true,
                 onSuccess: () => {
-                    toast.success(`List ${list.is_active ? 'deactivated' : 'activated'}`);
                 },
                 onError: () => {
                     toast.error('Failed to update list status');
@@ -72,7 +71,6 @@ export default function ListsIndex({
             await router.delete(route('app.whatsapp.lists.destroy', { list: list.id }), {
                 preserveScroll: true,
                 onSuccess: () => {
-                    toast.success('List deleted successfully');
                 },
                 onError: () => {
                     toast.error('Failed to delete list');

@@ -53,7 +53,6 @@ export default function ListsEdit({
         e.preventDefault();
         put(route('app.whatsapp.lists.update', { list: list.id }), {
             onSuccess: () => {
-                toast.success('List updated successfully');
             },
             onError: (errors) => {
                 toast.error('Failed to update list', Object.values(errors).flat().join(', '));

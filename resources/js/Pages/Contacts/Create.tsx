@@ -38,7 +38,6 @@ export default function ContactsCreate({
         e.preventDefault();
         post(route('app.contacts.store', {}), {
             onSuccess: () => {
-                toast.success('Contact created successfully');
             },
             onError: () => {
                 toast.error('Failed to create contact');

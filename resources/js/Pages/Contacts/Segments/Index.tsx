@@ -29,15 +29,12 @@ export default function SegmentsIndex({
     const handleDelete = (segment: Segment) => {
         if (!confirm(`Delete segment "${segment.name}"?`)) return;
         router.delete(route('app.contacts.segments.destroy', { segment: segment.id }), {
-            onSuccess: () => toast.success('Segment deleted'),
             onError: () => toast.error('Failed to delete segment'),
         });
     };
 
     const handleRecalculate = (segmentId: number) => {
-        router.post(route('app.contacts.segments.recalculate', { segment: segmentId }), {}, {
-            onSuccess: () => toast.success('Count recalculated'),
-        });
+        router.post(route('app.contacts.segments.recalculate', { segment: segmentId }), {});
     };
 
     return (

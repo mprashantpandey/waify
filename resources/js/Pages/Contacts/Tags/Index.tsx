@@ -42,7 +42,6 @@ export default function TagsIndex({
         e.preventDefault();
         postCreate(route('app.contacts.tags.store'), {
             onSuccess: () => {
-                toast.success('Tag created');
                 setShowCreate(false);
                 resetCreate();
             },
@@ -53,7 +52,6 @@ export default function TagsIndex({
     const handleDelete = (tag: TagRow) => {
         if (!confirm(`Delete tag "${tag.name}"? Contacts will keep their data but this tag will be removed.`)) return;
         router.delete(route('app.contacts.tags.destroy', { tag: tag.id }), {
-            onSuccess: () => toast.success('Tag deleted'),
             onError: () => toast.error('Failed to delete tag'),
         });
     };
@@ -67,7 +65,7 @@ export default function TagsIndex({
         const handleSubmit = (e: React.FormEvent) => {
             e.preventDefault();
             put(route('app.contacts.tags.update', { tag: tag.id }), {
-                onSuccess: () => { setEditingId(null); toast.success('Tag updated'); },
+                onSuccess: () => { setEditingId(null); },
                 onError: () => toast.error('Failed to update tag'),
             });
         };

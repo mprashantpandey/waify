@@ -214,7 +214,6 @@ export default function ChatbotsShow({
             },
             {
                 preserveScroll: true,
-                onSuccess: () => toast.success('Graph saved'),
                 onError: () => toast.error('Failed to save graph'),
             }
         );
@@ -224,7 +223,6 @@ export default function ChatbotsShow({
         e.preventDefault();
         patch(route('app.chatbots.update', { bot: bot.id }), {
             onSuccess: () => {
-                toast.success('Bot updated successfully');
             },
             onError: () => {
                 toast.error('Failed to update bot');
@@ -237,7 +235,6 @@ export default function ChatbotsShow({
             return;
         }
         router.post(route('app.chatbots.destroy.post', { bot: bot.id }), { _method: 'delete' }, {
-            onSuccess: () => toast.success('Bot deleted'),
             onError: () => toast.error('Failed to delete bot'),
         });
     };
@@ -342,7 +339,6 @@ export default function ChatbotsShow({
             router.patch(route('app.chatbots.flows.update', { flow: editingFlowId }), payload, {
                 preserveScroll: true,
                 onSuccess: () => {
-                    toast.success('Flow updated successfully');
                     resetFlowForm();
                 },
                 onError: () => {
@@ -353,7 +349,6 @@ export default function ChatbotsShow({
             router.post(route('app.chatbots.flows.store', { bot: bot.id }), payload, {
                 preserveScroll: true,
                 onSuccess: () => {
-                    toast.success('Flow created successfully');
                     resetFlowForm();
                 },
                 onError: () => {
@@ -369,7 +364,6 @@ export default function ChatbotsShow({
         }
         router.delete(route('app.chatbots.flows.destroy', { flow: flowId }), {
             preserveScroll: true,
-            onSuccess: () => toast.success('Flow deleted'),
             onError: () => toast.error('Failed to delete flow'),
         });
     };
@@ -583,7 +577,6 @@ export default function ChatbotsShow({
             router.patch(route('app.chatbots.nodes.update', { node: editingNodeId }), payload, {
                 preserveScroll: true,
                 onSuccess: () => {
-                    toast.success('Node updated successfully');
                     closeNodeForm();
                 },
                 onError: () => toast.error('Failed to update node'),
@@ -592,7 +585,6 @@ export default function ChatbotsShow({
             router.post(route('app.chatbots.nodes.store', { flow: nodeFormFlowId }), payload, {
                 preserveScroll: true,
                 onSuccess: () => {
-                    toast.success('Node added successfully');
                     closeNodeForm();
                 },
                 onError: () => toast.error('Failed to add node'),
@@ -606,7 +598,6 @@ export default function ChatbotsShow({
         }
         router.delete(route('app.chatbots.nodes.destroy', { node: nodeId }), {
             preserveScroll: true,
-            onSuccess: () => toast.success('Node deleted'),
             onError: () => toast.error('Failed to delete node'),
         });
     };
@@ -668,7 +659,6 @@ export default function ChatbotsShow({
             {
                 preserveScroll: true,
                 onSuccess: () => {
-                    toast.success('Edge saved');
                     closeEdgeForm();
                 },
                 onError: () => toast.error('Failed to save edge'),

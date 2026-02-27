@@ -68,7 +68,6 @@ export default function SegmentsEdit({
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
         put(route('app.contacts.segments.update', { segment: segment.id }), {
-            onSuccess: () => toast.success('Segment updated'),
             onError: () => toast.error('Failed to update segment'),
         });
     };

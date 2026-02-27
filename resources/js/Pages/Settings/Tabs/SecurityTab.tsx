@@ -59,7 +59,6 @@ export default function SecurityTab() {
         put(route('password.update'), {
             preserveScroll: true,
             onSuccess: () => {
-                toast.success('Password updated successfully');
                 reset();
             },
             onError: () => {
@@ -100,7 +99,6 @@ export default function SecurityTab() {
         router.delete(route('profile.destroy'), {
             data: { password: deleteAccountForm.data.password },
             onSuccess: () => {
-                toast.success('Account deleted successfully');
             },
             onError: () => {
                 toast.error('Failed to delete account');
@@ -113,7 +111,6 @@ export default function SecurityTab() {
         sessionForm.post(route('app.settings.security.revoke-other-sessions'), {
             preserveScroll: true,
             onSuccess: () => {
-                toast.success('Other sessions signed out');
                 sessionForm.reset();
             },
             onError: () => {
@@ -133,7 +130,6 @@ export default function SecurityTab() {
 
         router.delete(route('app.settings.security.sessions.revoke', { sessionId }), {
             preserveScroll: true,
-            onSuccess: () => toast.success('Session revoked'),
             onError: () => toast.error('Failed to revoke session'),
         });
     };
@@ -165,7 +161,6 @@ export default function SecurityTab() {
     const startTwoFactorSetup = () => {
         router.post(route('app.settings.security.2fa.setup'), {}, {
             preserveScroll: true,
-            onSuccess: () => toast.success('2FA setup started'),
             onError: () => toast.error('Failed to start 2FA setup'),
         });
     };
@@ -182,7 +177,6 @@ export default function SecurityTab() {
         twoFactorConfirmForm.post(route('app.settings.security.2fa.confirm'), {
             preserveScroll: true,
             onSuccess: () => {
-                toast.success('2FA enabled');
                 twoFactorConfirmForm.reset();
             },
             onError: () => toast.error('Failed to enable 2FA'),
@@ -194,7 +188,6 @@ export default function SecurityTab() {
         twoFactorDisableForm.post(route('app.settings.security.2fa.disable'), {
             preserveScroll: true,
             onSuccess: () => {
-                toast.success('2FA disabled');
                 twoFactorDisableForm.reset();
             },
             onError: () => toast.error('Failed to disable 2FA'),
@@ -204,7 +197,6 @@ export default function SecurityTab() {
     const regenerateRecoveryCodes = () => {
         router.post(route('app.settings.security.2fa.recovery-codes.regenerate'), {}, {
             preserveScroll: true,
-            onSuccess: () => toast.success('Recovery codes regenerated'),
             onError: () => toast.error('Failed to regenerate recovery codes'),
         });
     };

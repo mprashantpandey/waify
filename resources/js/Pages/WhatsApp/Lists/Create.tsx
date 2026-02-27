@@ -116,7 +116,6 @@ export default function ListsCreate({
         e.preventDefault();
         post(route('app.whatsapp.lists.store', {}), {
             onSuccess: () => {
-                toast.success('List created successfully');
             },
             onError: (errors) => {
                 toast.error('Failed to create list', Object.values(errors).flat().join(', '));

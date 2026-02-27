@@ -72,7 +72,6 @@ export default function ChatbotsCreate({
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         post(route('app.chatbots.store', {}), {
-            onSuccess: () => toast.success('Bot created successfully'),
             onError: () => toast.error('Please fix the highlighted fields'),
         });
     };

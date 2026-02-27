@@ -79,7 +79,6 @@ export default function FloatersEdit({
         if (!confirmed) return;
 
         router.delete(route('app.floaters.destroy', { widget: widgetKey }), {
-            onSuccess: () => toast.success('Widget deleted'),
             onError: () => toast.error('Failed to delete widget')});
     };
 

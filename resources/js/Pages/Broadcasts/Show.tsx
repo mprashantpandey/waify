@@ -89,7 +89,6 @@ export default function BroadcastsShow({
     const handleStart = () => {
         router.post(route('app.broadcasts.start', { campaign: campaign.slug }), {}, {
             onSuccess: () => {
-                toast.success('Campaign started');
             },
             onError: () => {
                 toast.error('Failed to start campaign');
@@ -99,7 +98,6 @@ export default function BroadcastsShow({
     const handlePause = () => {
         router.post(route('app.broadcasts.pause', { campaign: campaign.slug }), {}, {
             onSuccess: () => {
-                toast.success('Campaign paused');
             },
             onError: () => {
                 toast.error('Failed to pause campaign');
@@ -111,7 +109,6 @@ export default function BroadcastsShow({
 
         router.post(route('app.broadcasts.cancel', { campaign: campaign.slug }), {}, {
             onSuccess: () => {
-                toast.success('Campaign cancelled');
             },
             onError: () => {
                 toast.error('Failed to cancel campaign');
@@ -120,14 +117,12 @@ export default function BroadcastsShow({
 
     const handleDuplicate = () => {
         router.post(route('app.broadcasts.duplicate', { campaign: campaign.slug }), {}, {
-            onSuccess: () => toast.success('Campaign duplicated'),
             onError: () => toast.error('Failed to duplicate campaign'),
         });
     };
 
     const handleRetryFailed = () => {
         router.post(route('app.broadcasts.retry-failed', { campaign: campaign.slug }), {}, {
-            onSuccess: () => toast.success('Retry queued for failed recipients'),
             onError: () => toast.error('Failed to retry failed recipients'),
         });
     };
@@ -135,7 +130,6 @@ export default function BroadcastsShow({
     const handleDelete = () => {
         if (!confirm('Delete this campaign permanently?')) return;
         router.delete(route('app.broadcasts.destroy', { campaign: campaign.slug }), {
-            onSuccess: () => toast.success('Campaign deleted'),
             onError: () => toast.error('Failed to delete campaign'),
         });
     };
@@ -144,7 +138,6 @@ export default function BroadcastsShow({
         router.post(route('app.broadcasts.send-test', { campaign: campaign.slug }), {
             phone: testPhone,
         }, {
-            onSuccess: () => toast.success('Test message sent'),
             onError: () => toast.error('Failed to send test message'),
         });
     };

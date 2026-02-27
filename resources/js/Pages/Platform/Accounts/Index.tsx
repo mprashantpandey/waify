@@ -60,7 +60,6 @@ export default function PlatformTenantsIndex({
                 { reason: 'Disabled by platform admin' },
                 {
                     onSuccess: () => {
-                        toast.success('Tenant disabled successfully');
                     },
                     onError: () => {
                         toast.error('Failed to disable tenant');
@@ -83,7 +82,6 @@ export default function PlatformTenantsIndex({
                 {},
                 {
                     onSuccess: () => {
-                        toast.success('Tenant enabled successfully');
                     },
                     onError: () => {
                         toast.error('Failed to enable tenant');

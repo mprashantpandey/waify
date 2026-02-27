@@ -57,7 +57,6 @@ export default function SegmentsCreate({
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
         post(route('app.contacts.segments.store'), {
-            onSuccess: () => toast.success('Segment created'),
             onError: () => toast.error('Failed to create segment'),
         });
     };
