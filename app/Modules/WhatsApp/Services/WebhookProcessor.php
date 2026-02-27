@@ -11,6 +11,7 @@ use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use App\Modules\WhatsApp\Models\WhatsAppConversationAuditEvent;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use App\Modules\WhatsApp\Models\WhatsAppMessageBilling;
+use App\Modules\WhatsApp\Models\WhatsAppTemplateSend;
 use App\Models\Account;
 use App\Core\Billing\MetaPricingResolver;
 use App\Core\Billing\UsageService;
@@ -361,6 +362,7 @@ class WebhookProcessor
 
                 $message->update($updates);
                 $message->refresh();
+                $this->syncTemplateSendStatusFromMessage($message, $statusData, $statusAt);
 
                 event(new \App\Modules\WhatsApp\Events\Inbox\MessageUpdated($message));
             } elseif ($campaignMessage) {
@@ -379,6 +381,40 @@ class WebhookProcessor
         } finally {
             $statusLock->release();
         }
+    }
+
+    protected function syncTemplateSendStatusFromMessage(WhatsAppMessage $message, array $statusData, \Carbon\Carbon $statusAt): void
+    {
+        if ($message->type !== 'template') {
+            return;
+        }
+
+        $status = strtolower((string) ($statusData['status'] ?? ''));
+        if ($status === '') {
+            return;
+        }
+
+        $templateSend = WhatsAppTemplateSend::where('whatsapp_message_id', $message->id)
+            ->lockForUpdate()
+            ->first();
+
+        if (!$templateSend) {
+            return;
+        }
+
+        $updates = ['status' => $status];
+        if (in_array($status, ['sent', 'delivered', 'read'], true) && !$templateSend->sent_at) {
+            $updates['sent_at'] = $statusAt;
+        }
+
+        if ($status === 'failed') {
+            $errors = $statusData['errors'][0] ?? null;
+            $updates['error_message'] = $errors['title'] ?? $errors['message'] ?? 'Delivery failed';
+        } elseif ($templateSend->error_message !== null) {
+            $updates['error_message'] = null;
+        }
+
+        $templateSend->update($updates);
     }
 
     protected function recordMetaBillingUsage(
