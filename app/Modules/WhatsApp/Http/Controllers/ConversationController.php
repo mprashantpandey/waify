@@ -896,6 +896,15 @@ class ConversationController extends Controller
             })
             ->findOrFail($validated['template_id']);
 
+        $requiredVars = $this->templateComposer->extractRequiredVariables($template);
+        $variables = $this->normalizeTemplateVariables($validated['variables'] ?? []);
+        $nonEmptyCount = count(array_filter($variables, static fn (string $value) => $value !== ''));
+        if ($nonEmptyCount < (int) ($requiredVars['total'] ?? 0)) {
+            return redirect()->back()->withErrors([
+                'template' => "Template requires {$requiredVars['total']} variable(s), but only {$nonEmptyCount} non-empty value(s) were provided.",
+            ]);
+        }
+
         $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
 
         $conversation->load(['connection', 'contact']);
@@ -906,10 +915,10 @@ class ConversationController extends Controller
             $payload = $this->templateComposer->preparePayload(
                 $template,
                 $conversation->contact->wa_id,
-                $validated['variables'] ?? []
+                $variables
             );
 
-            $preview = $this->templateComposer->renderPreview($template, $validated['variables'] ?? []);
+            $preview = $this->templateComposer->renderPreview($template, $variables);
 
             $message = WhatsAppMessage::lockForUpdate()->create([
                 'account_id' => $account->id,
@@ -925,7 +934,7 @@ class ConversationController extends Controller
                 'whatsapp_template_id' => $template->id,
                 'whatsapp_message_id' => $message->id,
                 'to_wa_id' => $conversation->contact->wa_id,
-                'variables' => $validated['variables'] ?? [],
+                'variables' => $variables,
                 'status' => 'queued']);
 
             $message->load('conversation.contact');
@@ -1315,6 +1324,18 @@ class ConversationController extends Controller
             return redirect()->back()->withErrors([
                 'buttons' => 'Failed to send interactive buttons: ' . $e->getMessage()]);
         }
+    }
+
+    private function normalizeTemplateVariables(mixed $variables): array
+    {
+        if (!is_array($variables)) {
+            return [];
+        }
+
+        return array_values(array_map(
+            static fn ($value) => is_scalar($value) ? trim((string) $value) : '',
+            $variables
+        ));
     }
 
     protected function touchContactAfterOutbound(WhatsAppConversation $conversation): void

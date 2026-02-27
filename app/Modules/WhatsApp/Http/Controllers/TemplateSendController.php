@@ -143,18 +143,12 @@ class TemplateSendController extends Controller
 
         // Validate variables count
         $requiredVars = $this->composer->extractRequiredVariables($template);
-        $variables = $validated['variables'] ?? [];
-        if (!is_array($variables)) {
-            $variables = [];
-        }
-        $variables = array_values(array_map(
-            static fn ($value) => is_scalar($value) ? (string) $value : '',
-            $variables
-        ));
+        $variables = $this->normalizeTemplateVariables($validated['variables'] ?? []);
 
-        if (count($variables) < $requiredVars['total']) {
+        $nonEmptyCount = count(array_filter($variables, static fn (string $value) => $value !== ''));
+        if ($nonEmptyCount < $requiredVars['total']) {
             return redirect()->back()->withErrors([
-                'variables' => "Template requires {$requiredVars['total']} variables"]);
+                'variables' => "Template requires {$requiredVars['total']} variable(s), but only {$nonEmptyCount} non-empty value(s) were provided."]);
         }
 
         // Check limits before sending
@@ -290,5 +284,17 @@ class TemplateSendController extends Controller
                         'status' => 'open']
                 );
         });
+    }
+
+    private function normalizeTemplateVariables(mixed $variables): array
+    {
+        if (!is_array($variables)) {
+            return [];
+        }
+
+        return array_values(array_map(
+            static fn ($value) => is_scalar($value) ? trim((string) $value) : '',
+            $variables
+        ));
     }
 }
