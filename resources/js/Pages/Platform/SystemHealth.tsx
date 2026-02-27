@@ -1,7 +1,8 @@
-import { Head } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import PlatformShell from '@/Layouts/PlatformShell';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
+import Button from '@/Components/UI/Button';
 import { 
     CheckCircle, 
     XCircle, 
@@ -13,7 +14,7 @@ import {
     Clock,
     AlertTriangle
 } from 'lucide-react';
-import { usePage, Link } from '@inertiajs/react';
+import { usePage } from '@inertiajs/react';
 
 interface WebhookHealth {
     total: number;
@@ -78,6 +79,22 @@ export default function SystemHealth({
     recent_errors: RecentError[];
 }) {
     const { auth } = usePage().props as any;
+
+    const retryFailedJob = (id: number) => {
+        router.post(route('platform.system-health.failed-jobs.retry', { id }));
+    };
+
+    const forgetFailedJob = (id: number) => {
+        router.delete(route('platform.system-health.failed-jobs.forget', { id }));
+    };
+
+    const retryAllFailedJobs = () => {
+        router.post(route('platform.system-health.failed-jobs.retry-all', {}));
+    };
+
+    const clearWebhookError = (connectionId: number) => {
+        router.post(route('platform.system-health.connections.clear-webhook-error', { connection: connectionId }));
+    };
 
     const formatBytes = (bytes: number | null) => {
         if (bytes === null || bytes === 0) return '0 B';
@@ -172,6 +189,15 @@ export default function SystemHealth({
                                                 </div>
                                             )}
                                             {getHealthStatus(conn.is_healthy)}
+                                            {conn.has_error && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="secondary"
+                                                    onClick={() => clearWebhookError(conn.id)}
+                                                >
+                                                    Clear Error
+                                                </Button>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
@@ -303,6 +329,11 @@ export default function SystemHealth({
                                 Recent Errors
                             </CardTitle>
                             <CardDescription>Failed jobs and system errors</CardDescription>
+                            <div className="mt-3">
+                                <Button size="sm" onClick={retryAllFailedJobs}>
+                                    Retry All Failed Jobs
+                                </Button>
+                            </div>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-3">
@@ -332,6 +363,14 @@ export default function SystemHealth({
                                                 {error.exception}
                                             </pre>
                                         </details>
+                                        <div className="mt-3 flex items-center gap-2">
+                                            <Button size="sm" onClick={() => retryFailedJob(error.id)}>
+                                                Retry
+                                            </Button>
+                                            <Button size="sm" variant="secondary" onClick={() => forgetFailedJob(error.id)}>
+                                                Remove
+                                            </Button>
+                                        </div>
                                     </div>
                                 ))}
                             </div>
@@ -342,4 +381,3 @@ export default function SystemHealth({
         </PlatformShell>
     );
 }
-

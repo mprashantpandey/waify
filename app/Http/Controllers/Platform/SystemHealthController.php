@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Platform;
 use App\Http\Controllers\Controller;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -115,6 +117,61 @@ class SystemHealthController extends Controller
             'recent_errors' => $recentErrors]);
     }
 
+    public function retryFailedJob(Request $request, string $id): RedirectResponse
+    {
+        if (!DB::getSchemaBuilder()->hasTable('failed_jobs')) {
+            return back()->withErrors(['error' => 'Failed jobs table is not available.']);
+        }
+
+        $exists = DB::table('failed_jobs')->where('id', $id)->exists();
+        if (!$exists) {
+            return back()->withErrors(['error' => 'Failed job not found.']);
+        }
+
+        Artisan::call('queue:retry', ['id' => [$id]]);
+
+        return back()->with('success', 'Failed job queued for retry.');
+    }
+
+    public function retryAllFailedJobs(Request $request): RedirectResponse
+    {
+        if (!DB::getSchemaBuilder()->hasTable('failed_jobs')) {
+            return back()->withErrors(['error' => 'Failed jobs table is not available.']);
+        }
+
+        $count = (int) DB::table('failed_jobs')->count();
+        if ($count === 0) {
+            return back()->with('success', 'No failed jobs to retry.');
+        }
+
+        Artisan::call('queue:retry', ['id' => ['all']]);
+
+        return back()->with('success', "Queued {$count} failed job(s) for retry.");
+    }
+
+    public function forgetFailedJob(Request $request, string $id): RedirectResponse
+    {
+        if (!DB::getSchemaBuilder()->hasTable('failed_jobs')) {
+            return back()->withErrors(['error' => 'Failed jobs table is not available.']);
+        }
+
+        $deleted = DB::table('failed_jobs')->where('id', $id)->delete();
+        if ($deleted === 0) {
+            return back()->withErrors(['error' => 'Failed job not found.']);
+        }
+
+        return back()->with('success', 'Failed job removed.');
+    }
+
+    public function clearWebhookError(Request $request, WhatsAppConnection $connection): RedirectResponse
+    {
+        $connection->update([
+            'webhook_last_error' => null,
+        ]);
+
+        return back()->with('success', 'Webhook error cleared for connection.');
+    }
+
     /**
      * Get directory size in bytes.
      */
@@ -129,4 +186,3 @@ class SystemHealthController extends Controller
         return $size;
     }
 }
-

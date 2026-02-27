@@ -127,6 +127,10 @@ Route::middleware(['auth', 'super.admin'])->prefix('/platform')->name('platform.
     Route::post('/accounts/{account}/wallet/credit', [\App\Http\Controllers\Platform\TransactionController::class, 'credit'])->name('accounts.wallet.credit');
     Route::post('/accounts/{account}/wallet/debit', [\App\Http\Controllers\Platform\TransactionController::class, 'debit'])->name('accounts.wallet.debit');
     Route::get('/system-health', [\App\Http\Controllers\Platform\SystemHealthController::class, 'index'])->name('system-health');
+    Route::post('/system-health/failed-jobs/retry-all', [\App\Http\Controllers\Platform\SystemHealthController::class, 'retryAllFailedJobs'])->name('system-health.failed-jobs.retry-all');
+    Route::post('/system-health/failed-jobs/{id}/retry', [\App\Http\Controllers\Platform\SystemHealthController::class, 'retryFailedJob'])->name('system-health.failed-jobs.retry');
+    Route::delete('/system-health/failed-jobs/{id}', [\App\Http\Controllers\Platform\SystemHealthController::class, 'forgetFailedJob'])->name('system-health.failed-jobs.forget');
+    Route::post('/system-health/connections/{connection}/clear-webhook-error', [\App\Http\Controllers\Platform\SystemHealthController::class, 'clearWebhookError'])->name('system-health.connections.clear-webhook-error');
     Route::get('/analytics', [\App\Http\Controllers\Platform\AnalyticsController::class, 'index'])
         ->middleware('feature.enabled:analytics')
         ->name('analytics');
