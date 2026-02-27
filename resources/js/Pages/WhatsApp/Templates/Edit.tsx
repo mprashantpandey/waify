@@ -218,7 +218,7 @@ export default function TemplatesEdit({
         
         put(route('app.whatsapp.templates.update', { template: template.slug }), {
             onSuccess: () => {
-                toast.success('Template updated successfully! A new version has been submitted to Meta for approval.');
+                // Success toast comes from server flash via GlobalFlashHandler.
             },
             onError: (errors) => {
                 if (errors.update) {

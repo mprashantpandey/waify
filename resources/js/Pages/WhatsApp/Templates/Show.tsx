@@ -55,7 +55,6 @@ export default function TemplatesShow({
             {},
             {
                 onSuccess: () => {
-                    toast.success('Template status updated from Meta');
                     router.reload({ only: ['template'] });
                 },
                 onError: (errors) => {
@@ -78,7 +77,6 @@ export default function TemplatesShow({
             {},
             {
                 onSuccess: () => {
-                    toast.success('Template archived successfully');
                     router.visit(route('app.whatsapp.templates.index', {}));
                 },
                 onError: () => {
@@ -101,7 +99,6 @@ export default function TemplatesShow({
                 template: template.slug}),
             {
                 onSuccess: () => {
-                    toast.success('Template deleted successfully');
                     router.visit(route('app.whatsapp.templates.index', {}));
                 },
                 onError: () => {

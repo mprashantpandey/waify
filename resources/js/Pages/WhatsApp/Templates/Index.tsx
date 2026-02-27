@@ -95,7 +95,6 @@ export default function TemplatesIndex({
         router.post(route('app.whatsapp.templates.sync', {}), {
             connection_id: localFilters.connection || connections[0]?.id}, {
             onSuccess: () => {
-                toast.success('Templates synced successfully');
                 router.reload({ only: ['templates'] });
             },
             onError: () => {
@@ -118,7 +117,6 @@ export default function TemplatesIndex({
             {},
             {
                 onSuccess: () => {
-                    toast.success('Template archived successfully');
                     router.reload({ only: ['templates'] });
                 },
                 onError: () => {
@@ -143,7 +141,6 @@ export default function TemplatesIndex({
                 template: template.slug}),
             {
                 onSuccess: () => {
-                    toast.success('Template deleted successfully');
                     router.reload({ only: ['templates'] });
                 },
                 onError: () => {

@@ -259,7 +259,7 @@ export default function TemplatesCreate({
         // Use router.post to send the data directly
         router.post(route('app.whatsapp.templates.store', {}), submitData, {
             onSuccess: () => {
-                toast.success('Template created successfully! It will be reviewed by Meta.');
+                // Success toast comes from server flash via GlobalFlashHandler.
                 setSubmitting(false);
             },
             onError: (errors) => {
