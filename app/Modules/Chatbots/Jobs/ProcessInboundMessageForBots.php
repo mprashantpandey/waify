@@ -28,8 +28,8 @@ class ProcessInboundMessageForBots implements ShouldQueue, ShouldBeUnique
      * Create a new job instance.
      */
     public function __construct(
-        public WhatsAppMessage $inboundMessage,
-        public WhatsAppConversation $conversation
+        public int $inboundMessageId,
+        public int $conversationId
     ) {
         // Queue is selected by the dispatch site. Default queue should work
         // on hosts where only the default worker is running.
@@ -40,34 +40,43 @@ class ProcessInboundMessageForBots implements ShouldQueue, ShouldBeUnique
      */
     public function handle(BotRuntime $botRuntime): void
     {
+        $inboundMessage = WhatsAppMessage::find($this->inboundMessageId);
+        $conversation = WhatsAppConversation::find($this->conversationId);
+
+        if (!$inboundMessage || !$conversation) {
+            \Illuminate\Support\Facades\Log::channel('chatbots')->warning('ProcessInboundMessageForBots skipped: message/conversation not found', [
+                'conversation_id' => $this->conversationId,
+                'message_id' => $this->inboundMessageId,
+            ]);
+            return;
+        }
+
         \Illuminate\Support\Facades\Log::channel('chatbots')->debug('ProcessInboundMessageForBots started', [
-            'account_id' => $this->conversation->account_id,
-            'conversation_id' => $this->conversation->id,
-            'message_id' => $this->inboundMessage->id,
-            'meta_message_id' => $this->inboundMessage->meta_message_id,
+            'account_id' => $conversation->account_id,
+            'conversation_id' => $conversation->id,
+            'message_id' => $inboundMessage->id,
+            'meta_message_id' => $inboundMessage->meta_message_id,
         ]);
 
-        $botRuntime->processInboundMessage($this->inboundMessage, $this->conversation);
+        $botRuntime->processInboundMessage($inboundMessage, $conversation);
 
         \Illuminate\Support\Facades\Log::channel('chatbots')->debug('ProcessInboundMessageForBots finished', [
-            'account_id' => $this->conversation->account_id,
-            'conversation_id' => $this->conversation->id,
-            'message_id' => $this->inboundMessage->id,
+            'account_id' => $conversation->account_id,
+            'conversation_id' => $conversation->id,
+            'message_id' => $inboundMessage->id,
         ]);
     }
 
     public function uniqueId(): string
     {
-        return 'chatbot-inbound-message:' . $this->inboundMessage->id;
+        return 'chatbot-inbound-message:' . $this->inboundMessageId;
     }
 
     public function failed(\Throwable $e): void
     {
         \Illuminate\Support\Facades\Log::channel('chatbots')->error('ProcessInboundMessageForBots failed', [
-            'account_id' => $this->conversation->account_id,
-            'conversation_id' => $this->conversation->id,
-            'message_id' => $this->inboundMessage->id,
-            'meta_message_id' => $this->inboundMessage->meta_message_id,
+            'conversation_id' => $this->conversationId,
+            'message_id' => $this->inboundMessageId,
             'error' => $e->getMessage(),
         ]);
     }

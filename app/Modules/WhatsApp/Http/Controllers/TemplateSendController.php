@@ -42,6 +42,11 @@ class TemplateSendController extends Controller
 
         $template->load('connection');
 
+        if (!$template->connection) {
+            return redirect()->route('app.whatsapp.templates.index')
+                ->withErrors(['template' => 'This template is not linked to a WhatsApp connection.']);
+        }
+
         // Get required variables
         $requiredVars = $this->composer->extractRequiredVariables($template);
 
@@ -56,12 +61,18 @@ class TemplateSendController extends Controller
             ->limit(50)
             ->get()
             ->map(function ($conv) {
+                if (!$conv->contact) {
+                    return null;
+                }
+
                 return [
                     'id' => $conv->id,
                     'contact' => [
                         'wa_id' => $conv->contact->wa_id,
                         'name' => $conv->contact->name ?? $conv->contact->wa_id]];
-            });
+            })
+            ->filter()
+            ->values();
 
         return \Inertia\Inertia::render('WhatsApp/Templates/Send', [
             'account' => $account,
@@ -94,8 +105,34 @@ class TemplateSendController extends Controller
 
         $template->load('connection');
 
+        if (!$template->connection) {
+            return redirect()->back()->withErrors([
+                'template' => 'Template connection is missing. Re-sync templates or reconnect WhatsApp.',
+            ]);
+        }
+
+        if (!$template->connection->is_active) {
+            return redirect()->back()->withErrors([
+                'template' => 'Selected WhatsApp connection is inactive.',
+            ]);
+        }
+
+        $templateStatus = strtoupper((string) ($template->status ?? ''));
+        if ($templateStatus !== '' && !in_array($templateStatus, ['APPROVED', 'ACTIVE'], true)) {
+            return redirect()->back()->withErrors([
+                'template' => 'Only approved templates can be sent.',
+            ]);
+        }
+
         if (!$request->has('variables') || $request->input('variables') === null || $request->input('variables') === '') {
             $request->merge(['variables' => []]);
+        }
+
+        if (is_string($request->input('variables'))) {
+            $decoded = json_decode((string) $request->input('variables'), true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $request->merge(['variables' => $decoded]);
+            }
         }
 
         $validated = $request->validate([

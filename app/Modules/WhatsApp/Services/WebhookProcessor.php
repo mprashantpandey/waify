@@ -294,7 +294,7 @@ class WebhookProcessor
                 // Dispatch on default queue by default so it works on hosts that only
                 // run a single queue worker. If you want isolation, configure your
                 // worker to listen to multiple queues and reintroduce onQueue().
-                \App\Modules\Chatbots\Jobs\ProcessInboundMessageForBots::dispatch($message, $conversation);
+                \App\Modules\Chatbots\Jobs\ProcessInboundMessageForBots::dispatch($message->id, $conversation->id);
             }
         } finally {
             $messageLock->release();

@@ -42,6 +42,21 @@ class WhatsAppClient
         Cache::put($rateLimitKey . ':ttl', 60 - (now()->second), 60);
     }
 
+    protected function assertConnectionReady(WhatsAppConnection $connection): void
+    {
+        if (!$connection->is_active) {
+            throw new WhatsAppApiException('WhatsApp connection is inactive.', [], 400);
+        }
+
+        if (empty($connection->phone_number_id)) {
+            throw new WhatsAppApiException('WhatsApp connection is missing phone_number_id.', [], 400);
+        }
+
+        if (empty($connection->access_token)) {
+            throw new WhatsAppApiException('WhatsApp connection is missing access token.', [], 400);
+        }
+    }
+
     /**
      * Send a text message via WhatsApp Cloud API.
      */
@@ -67,6 +82,7 @@ class WhatsAppClient
                 'body' => $messageText]];
 
         try {
+            $this->assertConnectionReady($connection);
             // Check rate limit before making API call
             $this->checkRateLimit($connection);
 
@@ -154,6 +170,7 @@ class WhatsAppClient
                 'components' => $components]];
 
         try {
+            $this->assertConnectionReady($connection);
             // Check rate limit before making API call
             $this->checkRateLimit($connection);
 
@@ -250,6 +267,7 @@ class WhatsAppClient
             $type => $mediaPayload];
 
         try {
+            $this->assertConnectionReady($connection);
             $this->checkRateLimit($connection);
 
             $response = Http::withToken($connection->access_token)
@@ -325,6 +343,7 @@ class WhatsAppClient
                 'address' => $location['address'] ?? null]];
 
         try {
+            $this->assertConnectionReady($connection);
             $this->checkRateLimit($connection);
 
             $response = Http::withToken($connection->access_token)
@@ -418,6 +437,7 @@ class WhatsAppClient
         ];
 
         try {
+            $this->assertConnectionReady($connection);
             $this->checkRateLimit($connection);
 
             $response = Http::withToken($connection->access_token)

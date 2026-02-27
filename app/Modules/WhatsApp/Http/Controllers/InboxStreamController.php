@@ -19,9 +19,16 @@ class InboxStreamController extends Controller
     public function stream(Request $request)
     {
         $account = $request->attributes->get('account') ?? current_account();
+        if (! $account) {
+            abort(404, 'Account not found.');
+        }
 
         $since = $request->query('since');
-        $sinceDate = $since ? Carbon::parse($since) : Carbon::now()->subMinutes(5);
+        try {
+            $sinceDate = $since ? Carbon::parse($since) : Carbon::now()->subMinutes(5);
+        } catch (\Throwable $e) {
+            $sinceDate = Carbon::now()->subMinutes(5);
+        }
 
         // Get conversations updated since timestamp
         $updatedConversations = WhatsAppConversation::where('account_id', $account->id)
@@ -34,6 +41,10 @@ class InboxStreamController extends Controller
             ->limit(50)
             ->get()
             ->map(function ($conversation) {
+                if (! $conversation->contact || ! $conversation->connection) {
+                    return null;
+                }
+
                 return [
                     'id' => $conversation->id,
                     'account_id' => $conversation->account_id,
@@ -56,6 +67,7 @@ class InboxStreamController extends Controller
                         : null,
                 ];
             })
+            ->filter()
             ->values();
 
         // Get new message notifications (conversations with new messages)
@@ -96,7 +108,11 @@ class InboxStreamController extends Controller
         $afterNoteId = $request->query('after_note_id', 0);
         $afterAuditId = $request->query('after_audit_id', 0);
         $afterUpdatedAt = $request->query('after_updated_at');
-        $afterUpdatedAtDate = $afterUpdatedAt ? Carbon::parse($afterUpdatedAt) : Carbon::now()->subMinutes(5);
+        try {
+            $afterUpdatedAtDate = $afterUpdatedAt ? Carbon::parse($afterUpdatedAt) : Carbon::now()->subMinutes(5);
+        } catch (\Throwable $e) {
+            $afterUpdatedAtDate = Carbon::now()->subMinutes(5);
+        }
         $messageBatchSize = 200;
 
         // Get new messages.
@@ -205,7 +221,7 @@ class InboxStreamController extends Controller
             ->values();
 
         // Conversation meta if changed
-        $conversationChanged = $conversation->updated_at > now()->subMinutes(5);
+        $conversationChanged = $conversation->updated_at && $conversation->updated_at->gt($afterUpdatedAtDate);
         $conversationMeta = null;
         if ($conversationChanged) {
             $conversationMeta = [
