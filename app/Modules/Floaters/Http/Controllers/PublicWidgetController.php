@@ -21,6 +21,7 @@ class PublicWidgetController extends Controller
         $config = [
             'id' => $widgetModel->public_id,
             'name' => $widgetModel->name,
+            'widget_type' => $widgetModel->widget_type ?: FloaterWidget::TYPE_FLOATER,
             'position' => $widgetModel->position,
             'welcome_message' => $widgetModel->welcome_message ?? 'Hello! How can we help?',
             'whatsapp_phone' => $widgetModel->whatsapp_phone,
@@ -79,6 +80,10 @@ class PublicWidgetController extends Controller
 
     protected function buildScript(array $config): string
     {
+        if (in_array($config['widget_type'] ?? '', [FloaterWidget::TYPE_QR, FloaterWidget::TYPE_LINK], true)) {
+            return '(function(){ /* Non-embeddable widget type (link/qr). Use share link or QR from dashboard. */ })();';
+        }
+
         $json = json_encode($config, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $template = <<<'JS'
 (function() {
@@ -120,11 +125,14 @@ class PublicWidgetController extends Controller
     } catch (e) {}
   };
 
+  var link = 'https://wa.me/' + encodeURIComponent(config.whatsapp_phone) + (config.welcome_message ? ('?text=' + encodeURIComponent(config.welcome_message)) : '');
   var css = document.createElement('style');
   css.innerHTML =
     '.waify-widget{position:fixed;z-index:2147483647;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto}' +
     '.waify-widget__btn{width:56px;height:56px;border-radius:999px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;background:' + config.theme.primary + ';box-shadow:0 10px 25px rgba(0,0,0,0.2)}' +
     '.waify-widget__panel{position:absolute;bottom:72px;right:0;background:#fff;border-radius:16px;box-shadow:0 20px 40px rgba(0,0,0,.18);width:280px;overflow:hidden;display:none}' +
+    '.waify-widget__banner{display:flex;align-items:center;gap:10px;background:' + config.theme.background + ';color:#fff;border-radius:12px;padding:10px 12px;box-shadow:0 12px 24px rgba(0,0,0,0.2)}' +
+    '.waify-widget__banner a{color:#fff;text-decoration:none;font-weight:600;background:' + config.theme.primary + ';padding:8px 10px;border-radius:999px}' +
     '.waify-widget__header{background:' + config.theme.background + ';color:#fff;padding:14px 16px;font-weight:600}' +
     '.waify-widget__body{padding:14px 16px;color:#111827;font-size:14px;line-height:1.4}' +
     '.waify-widget__cta{margin-top:12px;display:inline-flex;align-items:center;gap:8px;background:' + config.theme.primary + ';color:#fff;text-decoration:none;padding:10px 12px;border-radius:999px;font-size:13px}' +
@@ -133,6 +141,20 @@ class PublicWidgetController extends Controller
 
   var container = document.createElement('div');
   container.className = 'waify-widget';
+  if (config.widget_type === 'banner') {
+    container.style.left = '24px';
+    container.style.right = '24px';
+    container.style[(config.position === 'top' ? 'top' : 'bottom')] = '20px';
+    var banner = document.createElement('div');
+    banner.className = 'waify-widget__banner';
+    banner.innerHTML = '<span>' + config.welcome_message + '</span><a target="_blank" rel="noopener" href="' + link + '">Chat on WhatsApp</a>';
+    container.appendChild(banner);
+    document.body.appendChild(container);
+    banner.querySelector('a').addEventListener('click', function() { sendEvent('lead'); });
+    sendEvent('impression');
+    return;
+  }
+
   if (config.position === 'bottom-left') {
     container.style.left = '24px';
     container.style.bottom = '24px';
@@ -149,7 +171,7 @@ class PublicWidgetController extends Controller
   panel.className = 'waify-widget__panel';
   panel.innerHTML = '<div class="waify-widget__header">WhatsApp<button class="waify-widget__close">×</button></div>' +
     '<div class="waify-widget__body">' + config.welcome_message +
-    '<br/><a class="waify-widget__cta" target="_blank" rel="noopener" href="https://wa.me/' + encodeURIComponent(config.whatsapp_phone) + '">Chat on WhatsApp</a>' +
+    '<br/><a class="waify-widget__cta" target="_blank" rel="noopener" href="' + link + '">Chat on WhatsApp</a>' +
     '</div>';
 
   container.appendChild(panel);

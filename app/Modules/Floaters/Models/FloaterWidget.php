@@ -13,12 +13,21 @@ class FloaterWidget extends Model
 {
     use HasFactory;
 
+    public const TYPE_FLOATER = 'floater';
+
+    public const TYPE_QR = 'qr';
+
+    public const TYPE_LINK = 'link';
+
+    public const TYPE_BANNER = 'banner';
+
     protected $table = 'floater_widgets';
 
     protected $fillable = [
         'account_id',
         'whatsapp_connection_id',
         'name',
+        'widget_type',
         'slug',
         'public_id',
         'is_active',
@@ -88,5 +97,20 @@ class FloaterWidget extends Model
     public function getRouteKeyName(): string
     {
         return 'slug';
+    }
+
+    public static function allowedTypes(): array
+    {
+        return [
+            self::TYPE_FLOATER,
+            self::TYPE_QR,
+            self::TYPE_LINK,
+            self::TYPE_BANNER,
+        ];
+    }
+
+    public function isEmbeddableType(): bool
+    {
+        return in_array($this->widget_type, [self::TYPE_FLOATER, self::TYPE_BANNER], true);
     }
 }

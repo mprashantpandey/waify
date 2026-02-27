@@ -10,12 +10,15 @@ import { useEffect } from 'react';
 
 export default function FloatersCreate({
     account,
-    connections}: {
+    connections,
+    widget_types = []}: {
     account: any;
     connections: Array<{ id: number; name: string; business_phone: string | null }>;
+    widget_types?: string[];
 }) {
     const { data, setData, post, processing, errors } = useForm({
         name: '',
+        widget_type: 'floater',
         whatsapp_connection_id: '',
         whatsapp_phone: '',
         position: 'bottom-right',
@@ -27,6 +30,9 @@ export default function FloatersCreate({
             include: '',
             exclude: ''},
         is_active: true});
+
+    const isEmbeddable = data.widget_type === 'floater' || data.widget_type === 'banner';
+    const isBanner = data.widget_type === 'banner';
 
     useEffect(() => {
         if (!data.whatsapp_connection_id) return;
@@ -40,6 +46,15 @@ export default function FloatersCreate({
         e.preventDefault();
         post(route('app.widgets.store', {}));
     };
+
+    useEffect(() => {
+        if (data.widget_type === 'banner' && !['top', 'bottom'].includes(data.position)) {
+            setData('position', 'bottom');
+        }
+        if (data.widget_type !== 'banner' && ['top', 'bottom'].includes(data.position)) {
+            setData('position', 'bottom-right');
+        }
+    }, [data.widget_type]);
 
     return (
         <AppShell>
@@ -78,6 +93,21 @@ export default function FloatersCreate({
                                     placeholder="Website Chat Bubble"
                                 />
                                 <InputError message={errors.name} className="mt-2" />
+                            </div>
+                            <div>
+                                <InputLabel value="Widget Type" />
+                                <select
+                                    value={data.widget_type}
+                                    onChange={(e) => setData('widget_type', e.target.value)}
+                                    className="mt-1 w-full rounded-xl border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm"
+                                >
+                                    {(widget_types.length ? widget_types : ['floater', 'qr', 'link', 'banner']).map((type) => (
+                                        <option key={type} value={type}>
+                                            {type.toUpperCase()} Widget
+                                        </option>
+                                    ))}
+                                </select>
+                                <InputError message={errors.widget_type} className="mt-2" />
                             </div>
                             <div className="grid md:grid-cols-2 gap-4">
                                 <div>
@@ -124,8 +154,17 @@ export default function FloatersCreate({
                                         onChange={(e) => setData('position', e.target.value)}
                                         className="mt-1 w-full rounded-xl border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm"
                                     >
-                                        <option value="bottom-right">Bottom right</option>
-                                        <option value="bottom-left">Bottom left</option>
+                                        {isBanner ? (
+                                            <>
+                                                <option value="top">Top banner</option>
+                                                <option value="bottom">Bottom banner</option>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <option value="bottom-right">Bottom right</option>
+                                                <option value="bottom-left">Bottom left</option>
+                                            </>
+                                        )}
                                     </select>
                                 </div>
                                 <div className="flex items-center gap-3 pt-6">
@@ -140,6 +179,7 @@ export default function FloatersCreate({
                         </CardContent>
                     </Card>
 
+                    {isEmbeddable && (
                     <Card className="border-0 shadow-lg">
                         <CardHeader>
                             <div className="flex items-center gap-2">
@@ -183,7 +223,9 @@ export default function FloatersCreate({
                             </div>
                         </CardContent>
                     </Card>
+                    )}
 
+                    {isEmbeddable && (
                     <Card className="border-0 shadow-lg">
                         <CardHeader>
                             <CardTitle>Page Targeting</CardTitle>
@@ -212,6 +254,7 @@ export default function FloatersCreate({
                             </div>
                         </CardContent>
                     </Card>
+                    )}
 
                     <div className="flex items-center justify-end gap-3">
                         <Link href={route('app.widgets', { })}>

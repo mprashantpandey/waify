@@ -103,6 +103,7 @@ interface CustomerStartConversation {
     widget_id: number;
     widget_slug: string;
     widget_name: string;
+    widget_type: string;
     start_link: string | null;
 }
 
@@ -277,6 +278,9 @@ export default function Dashboard({
                                     <div className="space-y-3">
                                         <div className="text-xs text-gray-500 dark:text-gray-400">
                                             Source widget: <span className="font-semibold text-gray-700 dark:text-gray-200">{customer_start_conversation.widget_name}</span>
+                                            <span className="ml-2 rounded px-2 py-0.5 bg-gray-100 dark:bg-gray-800 uppercase tracking-wide">
+                                                {customer_start_conversation.widget_type}
+                                            </span>
                                         </div>
                                         <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3 text-xs break-all text-gray-700 dark:text-gray-300">
                                             {customer_start_conversation.start_link}

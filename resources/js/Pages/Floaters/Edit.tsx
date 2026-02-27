@@ -16,12 +16,14 @@ export default function FloatersEdit({
     widget,
     connections,
     stats,
-    embed}: {
+    embed,
+    widget_types = []}: {
     account: any;
     widget: {
         id: number;
         slug: string;
         name: string;
+        widget_type: string;
         is_active: boolean;
         position: string;
         theme: { primary?: string; background?: string };
@@ -34,12 +36,14 @@ export default function FloatersEdit({
     };
     connections: Array<{ id: number; name: string; business_phone: string | null }>;
     stats: { impressions: number; clicks: number; leads: number; series: Record<string, { impressions: number; clicks: number; leads: number }> };
-    embed: { script: string; snippet: string };
+    embed: { supported?: boolean; script: string | null; snippet: string | null };
+    widget_types?: string[];
 }) {
     const widgetKey = widget.slug || widget.id;
     const { confirm, toast } = useNotifications();
     const { data, setData, put, processing, errors } = useForm({
         name: widget.name,
+        widget_type: widget.widget_type ?? 'floater',
         whatsapp_connection_id: widget.whatsapp_connection_id ?? '',
         whatsapp_phone: widget.whatsapp_phone ?? '',
         position: widget.position,
@@ -51,6 +55,8 @@ export default function FloatersEdit({
             include: (widget.show_on?.include ?? []).join('\n'),
             exclude: (widget.show_on?.exclude ?? []).join('\n')},
         is_active: widget.is_active});
+    const isEmbeddable = data.widget_type === 'floater' || data.widget_type === 'banner';
+    const isBanner = data.widget_type === 'banner';
 
     const [copied, setCopied] = useState<string | null>(null);
     const [startChatQr, setStartChatQr] = useState<string | null>(null);
@@ -62,6 +68,15 @@ export default function FloatersEdit({
             setData('whatsapp_phone', match.business_phone);
         }
     }, [data.whatsapp_connection_id]);
+
+    useEffect(() => {
+        if (data.widget_type === 'banner' && !['top', 'bottom'].includes(data.position)) {
+            setData('position', 'bottom');
+        }
+        if (data.widget_type !== 'banner' && ['top', 'bottom'].includes(data.position)) {
+            setData('position', 'bottom-right');
+        }
+    }, [data.widget_type]);
 
     const normalizedWhatsAppPhone = (data.whatsapp_phone || '').replace(/\D/g, '');
     const startConversationText = (data.welcome_message || '').trim();
@@ -173,27 +188,29 @@ export default function FloatersEdit({
                     ))}
                 </div>
 
+                {(embed.supported && embed.snippet && embed.script) && (
                 <Card className="border-0 shadow-lg">
                     <CardHeader>
                         <CardTitle>Embed Code</CardTitle>
                         <CardDescription>Paste this script into your website.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-3 text-xs text-gray-600 dark:text-gray-300">
-                            {embed.snippet}
-                        </div>
+                            <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-3 text-xs text-gray-600 dark:text-gray-300">
+                                {embed.snippet}
+                            </div>
                         <div className="flex flex-wrap items-center gap-3">
-                            <Button variant="secondary" onClick={() => copyText(embed.snippet, 'snippet')}>
+                            <Button variant="secondary" onClick={() => copyText(embed.snippet!, 'snippet')}>
                                 <Copy className="h-4 w-4 mr-2" />
                                 {copied === 'snippet' ? 'Copied' : 'Copy Snippet'}
                             </Button>
-                            <Button variant="secondary" onClick={() => copyText(embed.script, 'script')}>
+                            <Button variant="secondary" onClick={() => copyText(embed.script!, 'script')}>
                                 <Copy className="h-4 w-4 mr-2" />
                                 {copied === 'script' ? 'Copied' : 'Copy Script URL'}
                             </Button>
                         </div>
                     </CardContent>
                 </Card>
+                )}
 
                 <Card className="border-0 shadow-lg">
                     <CardHeader>
@@ -265,6 +282,21 @@ export default function FloatersEdit({
                                 />
                                 <InputError message={errors.name} className="mt-2" />
                             </div>
+                            <div>
+                                <InputLabel value="Widget Type" />
+                                <select
+                                    value={data.widget_type}
+                                    onChange={(e) => setData('widget_type', e.target.value)}
+                                    className="mt-1 w-full rounded-xl border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm"
+                                >
+                                    {(widget_types.length ? widget_types : ['floater', 'qr', 'link', 'banner']).map((type) => (
+                                        <option key={type} value={type}>
+                                            {type.toUpperCase()} Widget
+                                        </option>
+                                    ))}
+                                </select>
+                                <InputError message={errors.widget_type} className="mt-2" />
+                            </div>
                             <div className="grid md:grid-cols-2 gap-4">
                                 <div>
                                     <InputLabel value="WhatsApp Connection (optional)" />
@@ -308,8 +340,17 @@ export default function FloatersEdit({
                                         onChange={(e) => setData('position', e.target.value)}
                                         className="mt-1 w-full rounded-xl border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm"
                                     >
-                                        <option value="bottom-right">Bottom right</option>
-                                        <option value="bottom-left">Bottom left</option>
+                                        {isBanner ? (
+                                            <>
+                                                <option value="top">Top banner</option>
+                                                <option value="bottom">Bottom banner</option>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <option value="bottom-right">Bottom right</option>
+                                                <option value="bottom-left">Bottom left</option>
+                                            </>
+                                        )}
                                     </select>
                                 </div>
                                 <div className="flex items-center gap-3 pt-6">
@@ -324,6 +365,7 @@ export default function FloatersEdit({
                         </CardContent>
                     </Card>
 
+                    {isEmbeddable && (
                     <Card className="border-0 shadow-lg">
                         <CardHeader>
                             <div className="flex items-center gap-2">
@@ -367,7 +409,9 @@ export default function FloatersEdit({
                             </div>
                         </CardContent>
                     </Card>
+                    )}
 
+                    {isEmbeddable && (
                     <Card className="border-0 shadow-lg">
                         <CardHeader>
                             <CardTitle>Page Targeting</CardTitle>
@@ -396,6 +440,7 @@ export default function FloatersEdit({
                             </div>
                         </CardContent>
                     </Card>
+                    )}
 
                     <div className="flex items-center justify-end gap-3">
                         <Link href={route('app.widgets', { })}>

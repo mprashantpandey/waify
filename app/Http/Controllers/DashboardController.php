@@ -168,6 +168,7 @@ class DashboardController extends Controller
                     'widget_id' => (int) $widget->id,
                     'widget_slug' => $widget->slug,
                     'widget_name' => $widget->name,
+                    'widget_type' => $widget->widget_type ?: 'floater',
                     'start_link' => $link,
                 ];
             }

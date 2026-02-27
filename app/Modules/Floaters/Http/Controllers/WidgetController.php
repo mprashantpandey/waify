@@ -30,6 +30,7 @@ class WidgetController extends Controller
                     'id' => $widget->id,
                     'slug' => $widget->slug,
                     'name' => $widget->name,
+                    'widget_type' => $widget->widget_type ?: FloaterWidget::TYPE_FLOATER,
                     'is_active' => $widget->is_active,
                     'position' => $widget->position,
                     'public_id' => $widget->public_id,
@@ -57,7 +58,8 @@ class WidgetController extends Controller
 
         return Inertia::render('Floaters/Create', [
             'account' => $account,
-            'connections' => $connections]);
+            'connections' => $connections,
+            'widget_types' => FloaterWidget::allowedTypes()]);
     }
 
     public function store(Request $request)
@@ -67,6 +69,7 @@ class WidgetController extends Controller
 
         $validated = $this->validateWidget($request);
         $validated['account_id'] = $account->id;
+        $validated = $this->normalizeByType($validated);
         $validated['show_on'] = $this->normalizeShowOn($validated['show_on'] ?? []);
         $validated['theme'] = $this->normalizeTheme($validated['theme'] ?? []);
 
@@ -95,6 +98,7 @@ class WidgetController extends Controller
                 'id' => $widget->id,
                 'slug' => $widget->slug,
                 'name' => $widget->name,
+                'widget_type' => $widget->widget_type ?: FloaterWidget::TYPE_FLOATER,
                 'is_active' => $widget->is_active,
                 'position' => $widget->position,
                 'theme' => $widget->theme ?? [],
@@ -105,10 +109,12 @@ class WidgetController extends Controller
                 'public_id' => $widget->public_id,
                 'created_at' => $widget->created_at->toIso8601String()],
             'connections' => $connections,
+            'widget_types' => FloaterWidget::allowedTypes(),
             'stats' => $stats,
             'embed' => [
-                'script' => $this->embedScript($widget->public_id),
-                'snippet' => $this->embedSnippet($widget->public_id)]]);
+                'supported' => $widget->isEmbeddableType(),
+                'script' => $widget->isEmbeddableType() ? $this->embedScript($widget->public_id) : null,
+                'snippet' => $widget->isEmbeddableType() ? $this->embedSnippet($widget->public_id) : null]]);
     }
 
     public function update(Request $request, $widget)
@@ -118,6 +124,7 @@ class WidgetController extends Controller
         Gate::authorize('update', $widget);
 
         $validated = $this->validateWidget($request);
+        $validated = $this->normalizeByType($validated);
         $validated['show_on'] = $this->normalizeShowOn($validated['show_on'] ?? []);
         $validated['theme'] = $this->normalizeTheme($validated['theme'] ?? []);
 
@@ -154,9 +161,10 @@ class WidgetController extends Controller
     {
         return $request->validate([
             'name' => 'required|string|max:120',
+            'widget_type' => 'required|string|in:'.implode(',', FloaterWidget::allowedTypes()),
             'whatsapp_connection_id' => 'nullable|integer|exists:whatsapp_connections,id',
             'whatsapp_phone' => 'required|string|max:32',
-            'position' => 'required|string|in:bottom-right,bottom-left',
+            'position' => 'required|string|in:bottom-right,bottom-left,top,bottom',
             'welcome_message' => 'nullable|string|max:200',
             'is_active' => 'nullable|boolean',
             'theme' => 'nullable|array',
@@ -213,6 +221,22 @@ class WidgetController extends Controller
         return [
             'primary' => $theme['primary'] ?? '#25D366',
             'background' => $theme['background'] ?? '#075E54'];
+    }
+
+    protected function normalizeByType(array $validated): array
+    {
+        $type = $validated['widget_type'] ?? FloaterWidget::TYPE_FLOATER;
+
+        if ($type === FloaterWidget::TYPE_BANNER && !in_array($validated['position'] ?? '', ['top', 'bottom'], true)) {
+            $validated['position'] = 'bottom';
+        }
+
+        if (in_array($type, [FloaterWidget::TYPE_FLOATER, FloaterWidget::TYPE_QR, FloaterWidget::TYPE_LINK], true)
+            && !in_array($validated['position'] ?? '', ['bottom-right', 'bottom-left'], true)) {
+            $validated['position'] = 'bottom-right';
+        }
+
+        return $validated;
     }
 
     protected function summaryStats(int $accountId): array

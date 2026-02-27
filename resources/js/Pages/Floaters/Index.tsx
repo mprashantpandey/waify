@@ -14,6 +14,7 @@ export default function FloatersIndex({
         id: number;
         slug: string;
         name: string;
+        widget_type: string;
         is_active: boolean;
         position: string;
         public_id: string;
@@ -33,7 +34,7 @@ export default function FloatersIndex({
                             Widgets
                         </h1>
                         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                            Build a WhatsApp chat bubble to capture leads and start conversations.
+                            Create Floater, Banner, Link, or QR widgets for customer conversations.
                         </p>
                     </div>
                     <Link href={route('app.widgets.create', {})}>
@@ -92,6 +93,9 @@ export default function FloatersIndex({
                                             <CardDescription>
                                                 {widget.whatsapp_phone || 'No WhatsApp number set'}
                                             </CardDescription>
+                                            <div className="mt-1 text-xs text-gray-500 uppercase tracking-wide">
+                                                {widget.widget_type}
+                                            </div>
                                         </div>
                                         <Badge variant={widget.is_active ? 'success' : 'default'}>
                                             {widget.is_active ? 'Active' : 'Paused'}
@@ -103,19 +107,27 @@ export default function FloatersIndex({
                                         <Activity className="h-4 w-4" />
                                         Position: {widget.position.replace('-', ' ')}
                                     </div>
-                                    <div className="rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 text-xs text-gray-500">
-                                        Embed: <code className="break-all">/widgets/{widget.public_id}.js</code>
-                                    </div>
+                                    {(widget.widget_type === 'floater' || widget.widget_type === 'banner') ? (
+                                        <div className="rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 text-xs text-gray-500">
+                                            Embed: <code className="break-all">/widgets/{widget.public_id}.js</code>
+                                        </div>
+                                    ) : (
+                                        <div className="rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3 text-xs text-blue-700 dark:text-blue-300">
+                                            Share type widget: use link/QR from Manage page.
+                                        </div>
+                                    )}
                                     <div className="flex flex-wrap items-center gap-3">
                                         <Link href={route('app.widgets.edit', { widget: widget.slug || widget.id })}>
                                             <Button variant="secondary">Manage</Button>
                                         </Link>
-                                        <Button
-                                            variant="secondary"
-                                            onClick={() => navigator.clipboard.writeText(`${window.location.origin}/widgets/${widget.public_id}.js`)}
-                                        >
-                                            Copy Script URL
-                                        </Button>
+                                        {(widget.widget_type === 'floater' || widget.widget_type === 'banner') && (
+                                            <Button
+                                                variant="secondary"
+                                                onClick={() => navigator.clipboard.writeText(`${window.location.origin}/widgets/${widget.public_id}.js`)}
+                                            >
+                                                Copy Script URL
+                                            </Button>
+                                        )}
                                     </div>
                                 </CardContent>
                             </Card>
