@@ -17,6 +17,11 @@ const TOAST_DEDUPE_WINDOW_MS = 6000;
 const TOAST_EVENT_DEDUPE_WINDOW_MS = 10000;
 const GENERIC_TITLES = new Set(['success', 'error', 'warning', 'info', 'status']);
 const recentEventSignatures: Map<string, number> = new Map();
+let lastNonFlashToastAt = 0;
+
+export function hasRecentNonFlashToast(windowMs = 2000): boolean {
+    return Date.now() - lastNonFlashToastAt <= windowMs;
+}
 
 function normalizeToastMessage(toast: Omit<Toast, 'id'>): string {
     const normalize = (value: string): string => value
@@ -111,6 +116,10 @@ export function useToast() {
             id,
             duration: 5000,
             ...toast};
+
+        if (newToast.source !== 'flash') {
+            lastNonFlashToastAt = now;
+        }
 
         toasts = [...toasts, newToast];
         recentToastSignatures.set(signature, { id, at: now });

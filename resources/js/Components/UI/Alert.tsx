@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { Children, isValidElement, ReactNode } from 'react';
 import { X, CheckCircle, XCircle, AlertCircle, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -27,6 +27,12 @@ export function Alert({ variant = 'info', title, children, onClose, className }:
 
     const config = variants[variant];
     const Icon = config.icon;
+    const childNodes = Children.toArray(children);
+    const firstChild = childNodes[0];
+    const childHasInlineIcon = isValidElement(firstChild)
+        && typeof (firstChild.props as any)?.className === 'string'
+        && /\bh-\d+(\.\d+)?\b/.test((firstChild.props as any).className)
+        && /\bw-\d+(\.\d+)?\b/.test((firstChild.props as any).className);
 
     return (
         <div
@@ -37,7 +43,7 @@ export function Alert({ variant = 'info', title, children, onClose, className }:
             )}
             role="alert"
         >
-            <Icon className="h-5 w-5 flex-shrink-0 mt-0.5" />
+            {!childHasInlineIcon && <Icon className="h-5 w-5 flex-shrink-0 mt-0.5" />}
             <div className="flex-1 min-w-0">
                 {title && (
                     <p className="font-medium text-sm mb-1">{title}</p>
@@ -56,4 +62,3 @@ export function Alert({ variant = 'info', title, children, onClose, className }:
         </div>
     );
 }
-

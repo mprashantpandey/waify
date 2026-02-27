@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { usePage } from '@inertiajs/react';
-import { useToast } from '@/hooks/useToast';
+import { hasRecentNonFlashToast, useToast } from '@/hooks/useToast';
 
 /**
  * GlobalFlashHandler Component
@@ -38,16 +38,22 @@ export function GlobalFlashHandler() {
         // Flash messages (redirect()->with('success', ...) etc.)
         if (flash) {
             if (flash.success) {
-                emit('Success', flash.success, 'success');
+                if (!hasRecentNonFlashToast()) {
+                    emit('Success', flash.success, 'success');
+                }
             }
             if (flash.error) {
                 emit('Error', flash.error, 'error');
             }
             if (flash.warning) {
-                emit('Warning', flash.warning, 'warning');
+                if (!hasRecentNonFlashToast()) {
+                    emit('Warning', flash.warning, 'warning');
+                }
             }
             if (flash.info) {
-                emit('Info', flash.info, 'info');
+                if (!hasRecentNonFlashToast()) {
+                    emit('Info', flash.info, 'info');
+                }
             }
             // Do not auto-toast generic `status` flashes.
             // Many pages (especially auth/profile flows) already render inline status alerts,

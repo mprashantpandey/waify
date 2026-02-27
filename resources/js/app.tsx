@@ -7,7 +7,6 @@ import { createRoot, hydrateRoot } from 'react-dom/client';
 import { RealtimeProvider } from './Providers/RealtimeProvider';
 import { BrandingProvider } from './Components/Branding/BrandingProvider';
 import { ConfirmProvider } from './Components/Notifications/ConfirmProvider';
-import { GlobalFlashHandler } from './Components/Notifications/GlobalFlashHandler';
 
 createInertiaApp({
     title: (title) => {
