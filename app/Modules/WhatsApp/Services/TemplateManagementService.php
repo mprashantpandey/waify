@@ -6,6 +6,7 @@ use App\Modules\WhatsApp\Exceptions\WhatsAppApiException;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -134,8 +135,30 @@ class TemplateManagementService
         $requestedName = trim((string) ($templateData['name'] ?? ''));
         $templateData['name'] = $requestedName !== '' ? $requestedName : $template->name;
 
+        // Keep existing media sample for media-header templates when edit form does not re-send it.
+        if (
+            !empty($templateData['header_type'])
+            && in_array($templateData['header_type'], ['IMAGE', 'VIDEO', 'DOCUMENT'], true)
+        ) {
+            $headerMediaUrl = trim((string) ($templateData['header_media_url'] ?? ''));
+            if ($headerMediaUrl === '') {
+                $existingUrl = trim((string) ($template->header_media_url ?? ''));
+                if ($existingUrl !== '') {
+                    $templateData['header_media_url'] = $existingUrl;
+                } else {
+                    $existingHandle = $this->extractHeaderExampleHandle($template->components ?? []);
+                    if ($existingHandle !== '') {
+                        $templateData['header_media_handle'] = $existingHandle;
+                    }
+                }
+            }
+        }
+
         try {
-            return $this->createTemplate($connection, $templateData);
+            $result = $this->createTemplate($connection, $templateData);
+            $this->adoptCreatedTemplateAsUpdate($connection, $template, (string) ($result['id'] ?? ''));
+
+            return $result;
         } catch (WhatsAppApiException $e) {
             $message = strtolower($e->getMessage());
             $isDuplicateLocale = str_contains($message, 'already english')
@@ -156,11 +179,83 @@ class TemplateManagementService
             $templateData['name'] = $versionedName;
 
             $result = $this->createTemplate($connection, $templateData);
+            $this->adoptCreatedTemplateAsUpdate($connection, $template, (string) ($result['id'] ?? ''));
             $result['_auto_versioned_name'] = true;
             $result['_effective_template_name'] = $versionedName;
 
             return $result;
         }
+    }
+
+    protected function extractHeaderExampleHandle(array $components): string
+    {
+        foreach ($components as $component) {
+            if (strtoupper((string) ($component['type'] ?? '')) !== 'HEADER') {
+                continue;
+            }
+
+            $handle = trim((string) ($component['example']['header_handle'][0] ?? ''));
+            if ($handle !== '') {
+                return $handle;
+            }
+        }
+
+        return '';
+    }
+
+    protected function adoptCreatedTemplateAsUpdate(
+        WhatsAppConnection $connection,
+        WhatsAppTemplate $currentTemplate,
+        string $createdMetaTemplateId
+    ): void {
+        if ($createdMetaTemplateId === '') {
+            return;
+        }
+
+        $created = WhatsAppTemplate::where('account_id', $currentTemplate->account_id)
+            ->where('whatsapp_connection_id', $connection->id)
+            ->where('meta_template_id', $createdMetaTemplateId)
+            ->latest('id')
+            ->first();
+
+        if (!$created || $created->id === $currentTemplate->id) {
+            return;
+        }
+
+        DB::transaction(function () use ($currentTemplate, $created) {
+            $currentTemplate->update([
+                'meta_template_id' => $created->meta_template_id,
+                'name' => $created->name,
+                'language' => $created->language,
+                'category' => $created->category,
+                'status' => $created->status,
+                'quality_score' => $created->quality_score,
+                'body_text' => $created->body_text,
+                'header_type' => $created->header_type,
+                'header_text' => $created->header_text,
+                'header_media_url' => $created->header_media_url,
+                'footer_text' => $created->footer_text,
+                'buttons' => $created->buttons,
+                'components' => $created->components,
+                'last_synced_at' => now(),
+                'last_meta_error' => null,
+                'is_archived' => false,
+            ]);
+
+            if ($created->versions()->exists()) {
+                DB::table('whatsapp_template_versions')
+                    ->where('whatsapp_template_id', $created->id)
+                    ->update(['whatsapp_template_id' => $currentTemplate->id]);
+            }
+
+            if ($created->sends()->exists()) {
+                DB::table('whatsapp_template_sends')
+                    ->where('whatsapp_template_id', $created->id)
+                    ->update(['whatsapp_template_id' => $currentTemplate->id]);
+            }
+
+            $created->update(['is_archived' => true]);
+        });
     }
 
     /**
