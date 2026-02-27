@@ -6,9 +6,10 @@ import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
 import { Head, Link, useForm, router } from '@inertiajs/react';
-import { ArrowLeft, Copy, Palette, Sparkles } from 'lucide-react';
+import { ArrowLeft, Copy, Palette, Sparkles, MessageCircle, QrCode } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useNotifications } from '@/hooks/useNotifications';
+import QRCode from 'qrcode';
 
 export default function FloatersEdit({
     account,
@@ -52,6 +53,7 @@ export default function FloatersEdit({
         is_active: widget.is_active});
 
     const [copied, setCopied] = useState<string | null>(null);
+    const [startChatQr, setStartChatQr] = useState<string | null>(null);
 
     useEffect(() => {
         if (!data.whatsapp_connection_id) return;
@@ -60,6 +62,40 @@ export default function FloatersEdit({
             setData('whatsapp_phone', match.business_phone);
         }
     }, [data.whatsapp_connection_id]);
+
+    const normalizedWhatsAppPhone = (data.whatsapp_phone || '').replace(/\D/g, '');
+    const startConversationText = (data.welcome_message || '').trim();
+    const startConversationLink = normalizedWhatsAppPhone
+        ? `https://wa.me/${normalizedWhatsAppPhone}${startConversationText ? `?text=${encodeURIComponent(startConversationText)}` : ''}`
+        : '';
+
+    useEffect(() => {
+        let active = true;
+
+        if (!startConversationLink) {
+            setStartChatQr(null);
+            return () => {
+                active = false;
+            };
+        }
+
+        QRCode.toDataURL(startConversationLink, {
+            width: 260,
+            margin: 1,
+        }).then((url: string) => {
+            if (active) {
+                setStartChatQr(url);
+            }
+        }).catch(() => {
+            if (active) {
+                setStartChatQr(null);
+            }
+        });
+
+        return () => {
+            active = false;
+        };
+    }, [startConversationLink]);
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -156,6 +192,60 @@ export default function FloatersEdit({
                                 {copied === 'script' ? 'Copied' : 'Copy Script URL'}
                             </Button>
                         </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="border-0 shadow-lg">
+                    <CardHeader>
+                        <div className="flex items-center gap-2">
+                            <MessageCircle className="h-4 w-4" />
+                            <CardTitle>Customer Start Conversation</CardTitle>
+                        </div>
+                        <CardDescription>
+                            Share this link or QR code with customers to start a WhatsApp chat instantly.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        {startConversationLink ? (
+                            <div className="grid gap-4 md:grid-cols-[1fr,280px]">
+                                <div className="space-y-3">
+                                    <InputLabel value="Start Conversation Link" />
+                                    <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-3 text-xs text-gray-600 dark:text-gray-300 break-all">
+                                        {startConversationLink}
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <Button
+                                            variant="secondary"
+                                            onClick={() => copyText(startConversationLink, 'start-chat-link')}
+                                        >
+                                            <Copy className="h-4 w-4 mr-2" />
+                                            {copied === 'start-chat-link' ? 'Copied' : 'Copy Start Link'}
+                                        </Button>
+                                    </div>
+                                </div>
+                                <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-3 flex flex-col items-center justify-center">
+                                    <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-2">
+                                        <QrCode className="h-4 w-4" />
+                                        Scan to Chat
+                                    </div>
+                                    {startChatQr ? (
+                                        <img
+                                            src={startChatQr}
+                                            alt="Start conversation QR code"
+                                            className="h-56 w-56 rounded-lg border border-gray-200 dark:border-gray-700 bg-white"
+                                        />
+                                    ) : (
+                                        <div className="h-56 w-56 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 flex items-center justify-center text-xs text-gray-500">
+                                            QR not available
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="rounded-xl border border-amber-300/70 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800 p-3 text-sm text-amber-800 dark:text-amber-300">
+                                Add a valid WhatsApp phone number to generate a customer start conversation link and QR.
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 
