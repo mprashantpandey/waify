@@ -126,63 +126,67 @@ class TemplateSendController extends Controller
             ]);
         }
 
+        if (empty($template->meta_template_id)) {
+            return redirect()->back()->withErrors([
+                'template' => 'Template is missing Meta template ID. Sync templates from Meta and try again.',
+            ]);
+        }
+
         // Re-validate live status from Meta to avoid stale local status sending outdated versions.
-        if ($template->meta_template_id) {
-            try {
-                $statusData = $this->templateManagementService->getTemplateStatus($template->connection, (string) $template->meta_template_id);
-                $liveStatus = strtolower(trim((string) ($statusData['status'] ?? $template->status ?? '')));
-                $liveName = strtolower(trim((string) ($statusData['name'] ?? '')));
-                $localName = strtolower(trim((string) $template->name));
-                $liveLanguage = strtolower(trim((string) ($statusData['language'] ?? '')));
-                $localLanguage = strtolower(trim((string) $template->language));
-                $template->update([
-                    'status' => $liveStatus ?: $template->status,
-                    'last_synced_at' => now(),
-                    'last_meta_error' => $statusData['rejected_reason'] ?? $statusData['rejection_reason'] ?? null,
-                ]);
+        try {
+            $statusData = $this->templateManagementService->getTemplateStatus($template->connection, (string) $template->meta_template_id);
+            $liveStatus = strtolower(trim((string) ($statusData['status'] ?? $template->status ?? '')));
+            $liveName = strtolower(trim((string) ($statusData['name'] ?? '')));
+            $localName = strtolower(trim((string) $template->name));
+            $liveLanguage = strtolower(trim((string) ($statusData['language'] ?? '')));
+            $localLanguage = strtolower(trim((string) $template->language));
+            $template->update([
+                'status' => $liveStatus ?: $template->status,
+                'last_synced_at' => now(),
+                'last_meta_error' => $statusData['rejected_reason'] ?? $statusData['rejection_reason'] ?? null,
+            ]);
 
-                if ($liveName !== '' && $liveName !== $localName) {
-                    return redirect()->back()->withErrors([
-                        'template' => 'Template mismatch detected on Meta. Please re-sync templates and try again.',
-                    ]);
-                }
-
-                if ($liveLanguage !== '' && $liveLanguage !== $localLanguage) {
-                    return redirect()->back()->withErrors([
-                        'template' => 'Template language mismatch detected on Meta. Please re-sync templates and try again.',
-                    ]);
-                }
-
-                if (!in_array($liveStatus, ['approved', 'active'], true)) {
-                    return redirect()->back()->withErrors([
-                        'template' => 'Template is not approved on Meta yet (current status: '.$liveStatus.').',
-                    ]);
-                }
-
-                // Meta delivery resolves template by name + language.
-                // Ensure currently deliverable version is exactly this local template version.
-                $deliverable = $this->templateManagementService->getDeliverableTemplateByNameLanguage(
-                    $template->connection,
-                    (string) $template->name,
-                    (string) $template->language
-                );
-
-                if ($deliverable && (string) ($deliverable['id'] ?? '') !== (string) $template->meta_template_id) {
-                    return redirect()->back()->withErrors([
-                        'template' => 'A different approved version of this template is currently deliverable on Meta. Wait for this new version approval, then sync templates.',
-                    ]);
-                }
-            } catch (\Throwable $e) {
-                \Log::channel('whatsapp')->warning('Template live status verification failed before send', [
-                    'template_id' => $template->id,
-                    'meta_template_id' => $template->meta_template_id,
-                    'error' => $e->getMessage(),
-                ]);
-
+            if ($liveName !== '' && $liveName !== $localName) {
                 return redirect()->back()->withErrors([
-                    'template' => 'Could not verify latest template status from Meta. Please try again after template sync.',
+                    'template' => 'Template mismatch detected on Meta. Please re-sync templates and try again.',
                 ]);
             }
+
+            if ($liveLanguage !== '' && $liveLanguage !== $localLanguage) {
+                return redirect()->back()->withErrors([
+                    'template' => 'Template language mismatch detected on Meta. Please re-sync templates and try again.',
+                ]);
+            }
+
+            if (!in_array($liveStatus, ['approved', 'active'], true)) {
+                return redirect()->back()->withErrors([
+                    'template' => 'Template is not approved on Meta yet (current status: '.$liveStatus.').',
+                ]);
+            }
+
+            // Meta delivery resolves template by name + language.
+            // Ensure currently deliverable version is exactly this local template version.
+            $deliverable = $this->templateManagementService->getDeliverableTemplateByNameLanguage(
+                $template->connection,
+                (string) $template->name,
+                (string) $template->language
+            );
+
+            if ($deliverable && (string) ($deliverable['id'] ?? '') !== (string) $template->meta_template_id) {
+                return redirect()->back()->withErrors([
+                    'template' => 'A different approved version of this template is currently deliverable on Meta. Wait for this new version approval, then sync templates.',
+                ]);
+            }
+        } catch (\Throwable $e) {
+            \Log::channel('whatsapp')->warning('Template live status verification failed before send', [
+                'template_id' => $template->id,
+                'meta_template_id' => $template->meta_template_id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()->back()->withErrors([
+                'template' => 'Could not verify latest template status from Meta. Please try again after template sync.',
+            ]);
         }
 
         if (!$request->has('variables') || $request->input('variables') === null || $request->input('variables') === '') {
