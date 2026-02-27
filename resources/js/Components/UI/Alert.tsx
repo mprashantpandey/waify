@@ -1,4 +1,4 @@
-import { Children, isValidElement, ReactNode } from 'react';
+import { isValidElement, ReactNode } from 'react';
 import { X, CheckCircle, XCircle, AlertCircle, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -8,6 +8,35 @@ interface AlertProps {
     children: ReactNode;
     onClose?: () => void;
     className?: string;
+}
+
+function nodeHasInlineIcon(node: ReactNode): boolean {
+    if (node === null || node === undefined || typeof node === 'boolean') {
+        return false;
+    }
+
+    if (Array.isArray(node)) {
+        return node.some((child) => nodeHasInlineIcon(child));
+    }
+
+    if (!isValidElement(node)) {
+        return false;
+    }
+
+    const className = typeof (node.props as any)?.className === 'string'
+        ? (node.props as any).className
+        : '';
+
+    const hasIconClass =
+        /\blucide\b/.test(className)
+        || (/\bh-\d+(\.\d+)?\b/.test(className) && /\bw-\d+(\.\d+)?\b/.test(className))
+        || (node.props as any)?.['data-lucide'] !== undefined;
+
+    if (hasIconClass) {
+        return true;
+    }
+
+    return nodeHasInlineIcon((node.props as any)?.children);
 }
 
 export function Alert({ variant = 'info', title, children, onClose, className }: AlertProps) {
@@ -27,12 +56,7 @@ export function Alert({ variant = 'info', title, children, onClose, className }:
 
     const config = variants[variant];
     const Icon = config.icon;
-    const childNodes = Children.toArray(children);
-    const firstChild = childNodes[0];
-    const childHasInlineIcon = isValidElement(firstChild)
-        && typeof (firstChild.props as any)?.className === 'string'
-        && /\bh-\d+(\.\d+)?\b/.test((firstChild.props as any).className)
-        && /\bw-\d+(\.\d+)?\b/.test((firstChild.props as any).className);
+    const childHasInlineIcon = nodeHasInlineIcon(children);
 
     return (
         <div

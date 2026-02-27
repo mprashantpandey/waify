@@ -89,9 +89,6 @@ export default function ConnectionsEdit({
         if (confirmed) {
             router.post(route('app.whatsapp.connections.rotate-verify-token', {
                 connection: connection.slug ?? connection.id}), {}, {
-                onSuccess: () => {
-                    toast.success('Verify token rotated successfully');
-                },
                 onError: () => {
                     toast.error('Failed to rotate token');
                 }});

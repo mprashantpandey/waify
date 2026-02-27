@@ -325,7 +325,6 @@ export default function EmbeddedWizard({
                     step: 'complete',
                     progress: 100,
                     message: 'Connection created successfully!'}));
-                toast.success('WhatsApp connection created successfully');
             },
             onError: (errors) => {
                 setWizardState(prev => ({
