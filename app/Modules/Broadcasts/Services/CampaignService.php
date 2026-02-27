@@ -413,8 +413,8 @@ class CampaignService
         // Build template components from params
         $components = [];
         $params = array_merge(
-            $campaign->template_params ?? [],
-            $recipient->template_params ?? []
+            is_array($campaign->template_params ?? null) ? array_values($campaign->template_params) : [],
+            is_array($recipient->template_params ?? null) ? array_values($recipient->template_params) : []
         );
 
         if (!empty($params)) {
@@ -678,6 +678,15 @@ class CampaignService
                     && (int) $template->whatsapp_connection_id !== (int) $campaign->whatsapp_connection_id
                 ) {
                     $errors[] = 'Template does not belong to the selected connection.';
+                }
+
+                $requiredVars = $this->templateComposer->extractRequiredVariables($template);
+                $campaignTemplateParams = is_array($campaign->template_params ?? null)
+                    ? array_values($campaign->template_params)
+                    : [];
+                $providedCount = count($campaignTemplateParams);
+                if ((int) $requiredVars['total'] > 0 && $providedCount < (int) $requiredVars['total']) {
+                    $errors[] = "Template requires {$requiredVars['total']} variables, but campaign provides {$providedCount}.";
                 }
             }
         }

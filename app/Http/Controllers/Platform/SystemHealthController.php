@@ -53,16 +53,40 @@ class SystemHealthController extends Controller
         // Queue Status
         $queueStatus = [
             'driver' => config('queue.default'),
-            'connection' => config('queue.connections.' . config('queue.default') . '.connection')];
+            'connection' => config('queue.connections.' . config('queue.default') . '.connection'),
+            'pending_by_queue' => [],
+            'failed_by_queue' => [],
+        ];
 
         // Try to get queue size (if supported)
         try {
             if (config('queue.default') === 'database') {
                 $queueStatus['pending_jobs'] = DB::table('jobs')->count();
                 $queueStatus['failed_jobs'] = DB::table('failed_jobs')->count();
+                $queueStatus['pending_by_queue'] = DB::table('jobs')
+                    ->select('queue', DB::raw('count(*) as total'))
+                    ->groupBy('queue')
+                    ->orderByDesc('total')
+                    ->get()
+                    ->mapWithKeys(fn ($row) => [(string) ($row->queue ?: 'default') => (int) $row->total])
+                    ->toArray();
+                $queueStatus['failed_by_queue'] = DB::table('failed_jobs')
+                    ->select('queue', DB::raw('count(*) as total'))
+                    ->groupBy('queue')
+                    ->orderByDesc('total')
+                    ->get()
+                    ->mapWithKeys(fn ($row) => [(string) ($row->queue ?: 'default') => (int) $row->total])
+                    ->toArray();
             } else {
                 $queueStatus['pending_jobs'] = null;
                 $queueStatus['failed_jobs'] = DB::table('failed_jobs')->count();
+                $queueStatus['failed_by_queue'] = DB::table('failed_jobs')
+                    ->select('queue', DB::raw('count(*) as total'))
+                    ->groupBy('queue')
+                    ->orderByDesc('total')
+                    ->get()
+                    ->mapWithKeys(fn ($row) => [(string) ($row->queue ?: 'default') => (int) $row->total])
+                    ->toArray();
             }
         } catch (\Exception $e) {
             $queueStatus['pending_jobs'] = null;

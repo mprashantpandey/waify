@@ -40,6 +40,8 @@ interface QueueStatus {
     connection: string;
     pending_jobs: number | null;
     failed_jobs: number | null;
+    pending_by_queue: Record<string, number>;
+    failed_by_queue: Record<string, number>;
 }
 
 interface StorageStatus {
@@ -241,6 +243,32 @@ export default function SystemHealth({
                                     {queue_status.failed_jobs ?? 'N/A'}
                                 </Badge>
                             </div>
+                            {Object.keys(queue_status.pending_by_queue || {}).length > 0 && (
+                                <div>
+                                    <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Pending by Queue</p>
+                                    <div className="space-y-1">
+                                        {Object.entries(queue_status.pending_by_queue).map(([queueName, count]) => (
+                                            <div key={`pending-${queueName}`} className="flex items-center justify-between text-xs">
+                                                <span className="text-gray-500 dark:text-gray-400">{queueName}</span>
+                                                <span className="font-medium text-gray-900 dark:text-gray-100">{count}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {Object.keys(queue_status.failed_by_queue || {}).length > 0 && (
+                                <div>
+                                    <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Failed by Queue</p>
+                                    <div className="space-y-1">
+                                        {Object.entries(queue_status.failed_by_queue).map(([queueName, count]) => (
+                                            <div key={`failed-${queueName}`} className="flex items-center justify-between text-xs">
+                                                <span className="text-gray-500 dark:text-gray-400">{queueName}</span>
+                                                <span className="font-medium text-gray-900 dark:text-gray-100">{count}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 
