@@ -1,5 +1,5 @@
 import { useForm, usePage } from '@inertiajs/react';
-import { FormEventHandler, useMemo, useState } from 'react';
+import { FormEventHandler, useEffect, useMemo, useState } from 'react';
 import GuestLayout from '@/Layouts/GuestLayout';
 import Button from '@/Components/UI/Button';
 import { Check, Sparkles, Zap, Users, Building2, Crown, ArrowRight, Shield, CreditCard } from 'lucide-react';
@@ -25,6 +25,8 @@ export default function Onboarding({ plans = [], defaultPlanKey = 'free' }: { pl
     const [selectedPlanKey, setSelectedPlanKey] = useState<string>(defaultPlanKey);
     const [step, setStep] = useState<1 | 2>(1);
     const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+    const [autoCreateStarted, setAutoCreateStarted] = useState(false);
+    const [autoCreateFailed, setAutoCreateFailed] = useState(false);
     
     const { data, setData, post, processing, errors } = useForm({
         plan_key: defaultPlanKey,
@@ -34,11 +36,19 @@ export default function Onboarding({ plans = [], defaultPlanKey = 'free' }: { pl
     const handlePlanSelect = (planKey: string) => {
         setSelectedPlanKey(planKey);
         setData('plan_key', planKey);
+        setAutoCreateFailed(false);
     };
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
-        post(route('onboarding.store'));
+        setAutoCreateStarted(true);
+        setAutoCreateFailed(false);
+        post(route('onboarding.store'), {
+            onError: () => {
+                setAutoCreateFailed(true);
+                setAutoCreateStarted(false);
+            },
+        });
     };
 
     const selectedPlan = useMemo(
@@ -92,6 +102,22 @@ export default function Onboarding({ plans = [], defaultPlanKey = 'free' }: { pl
     };
 
     const canGoStep2 = Boolean(selectedPlanKey);
+
+    useEffect(() => {
+        if (step !== 2 || autoCreateStarted || autoCreateFailed || processing || !data.plan_key) {
+            return;
+        }
+        const timer = window.setTimeout(() => {
+            setAutoCreateStarted(true);
+            post(route('onboarding.store'), {
+                onError: () => {
+                    setAutoCreateFailed(true);
+                    setAutoCreateStarted(false);
+                },
+            });
+        }, 300);
+        return () => window.clearTimeout(timer);
+    }, [step, autoCreateStarted, autoCreateFailed, processing, data.plan_key]);
 
     return (
         <GuestLayout maxWidthClass="max-w-6xl">
@@ -332,9 +358,15 @@ export default function Onboarding({ plans = [], defaultPlanKey = 'free' }: { pl
                                     <Button type="button" variant="secondary" onClick={() => setStep(1)}>
                                         Back to Plans
                                     </Button>
-                                    <Button type="submit" className="w-full md:w-auto" disabled={processing || !data.plan_key}>
-                                        {processing ? 'Creating Account...' : 'Create Account & Continue'}
-                                    </Button>
+                                    {autoCreateFailed ? (
+                                        <Button type="submit" className="w-full md:w-auto" disabled={processing || !data.plan_key}>
+                                            {processing ? 'Retrying...' : 'Retry Create Account'}
+                                        </Button>
+                                    ) : (
+                                        <Button type="button" className="w-full md:w-auto" disabled>
+                                            {processing || autoCreateStarted ? 'Auto creating account...' : 'Preparing...'}
+                                        </Button>
+                                    )}
                                 </div>
                                 {errors.plan_key && <p className="text-sm text-red-600 dark:text-red-400">{errors.plan_key}</p>}
                                 {selectedPlanKey && (plans.find((p) => p.key === selectedPlanKey)?.trial_days ?? 0) > 0 && (
