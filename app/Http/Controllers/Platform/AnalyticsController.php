@@ -8,6 +8,7 @@ use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use App\Models\Account;
 use App\Models\AccountUsage;
 use App\Models\Subscription;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -128,6 +129,28 @@ class AnalyticsController extends Controller
             ->filter(fn($w) => $w['message_count'] > 0)
             ->values();
 
+        $embeddedOnboardingFunnel = [
+            'started' => 0,
+            'authorized' => 0,
+            'payload_received' => 0,
+            'connection_created' => 0,
+            'errors' => 0,
+            'cancelled' => 0,
+        ];
+        if (Schema::hasTable('activity_logs')) {
+            $logQuery = DB::table('activity_logs')
+                ->whereBetween('created_at', [$startDate, $endDate]);
+
+            $embeddedOnboardingFunnel = [
+                'started' => (clone $logQuery)->where('description', 'like', 'Embedded Signup started:%')->count(),
+                'authorized' => (clone $logQuery)->where('description', 'like', 'Embedded Signup success: authorization_success%')->count(),
+                'payload_received' => (clone $logQuery)->where('description', 'like', 'Embedded Signup progress: embedded_payload_received%')->count(),
+                'connection_created' => (clone $logQuery)->where('description', 'like', 'Embedded Signup success: connection_created%')->count(),
+                'errors' => (clone $logQuery)->where('description', 'like', 'Embedded Signup error:%')->count(),
+                'cancelled' => (clone $logQuery)->where('description', 'like', 'Embedded Signup cancelled:%')->count(),
+            ];
+        }
+
         return Inertia::render('Platform/Analytics', [
             'date_range' => $dateRange,
             'message_trends' => $messageTrends,
@@ -138,6 +161,8 @@ class AnalyticsController extends Controller
             'peak_hours' => $peakHours,
             'top_accounts' => $topAccounts,
             'ai_credits_platform' => $aiCreditsPlatform,
-            'ai_credits_period' => $currentPeriod]);
+            'ai_credits_period' => $currentPeriod,
+            'embedded_onboarding_funnel' => $embeddedOnboardingFunnel,
+        ]);
     }
 }

@@ -58,7 +58,15 @@ export default function Analytics({
     peak_hours,
     top_accounts,
     ai_credits_platform = 0,
-    ai_credits_period = '' }: {
+    ai_credits_period = '',
+    embedded_onboarding_funnel = {
+        started: 0,
+        authorized: 0,
+        payload_received: 0,
+        connection_created: 0,
+        errors: 0,
+        cancelled: 0,
+    } }: {
     date_range: string;
     message_trends: MessageTrend[];
     message_status_distribution: Record<string, number>;
@@ -69,6 +77,14 @@ export default function Analytics({
     top_accounts: TopTenant[];
     ai_credits_platform?: number;
     ai_credits_period?: string;
+    embedded_onboarding_funnel?: {
+        started: number;
+        authorized: number;
+        payload_received: number;
+        connection_created: number;
+        errors: number;
+        cancelled: number;
+    };
 }) {
     const { auth } = usePage().props as any;
     const [selectedRange, setSelectedRange] = useState(date_range);
@@ -133,6 +149,30 @@ export default function Analytics({
                         <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">
                             {formatNumber(ai_credits_platform)}
                         </p>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Embedded Signup Funnel</CardTitle>
+                        <CardDescription>Where onboarding users drop during WhatsApp Embedded Signup.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                            {[
+                                { label: 'Started', value: embedded_onboarding_funnel.started, color: 'text-sky-600' },
+                                { label: 'Authorized', value: embedded_onboarding_funnel.authorized, color: 'text-blue-600' },
+                                { label: 'Payload', value: embedded_onboarding_funnel.payload_received, color: 'text-indigo-600' },
+                                { label: 'Connected', value: embedded_onboarding_funnel.connection_created, color: 'text-green-600' },
+                                { label: 'Errors', value: embedded_onboarding_funnel.errors, color: 'text-red-600' },
+                                { label: 'Cancelled', value: embedded_onboarding_funnel.cancelled, color: 'text-amber-600' },
+                            ].map((item) => (
+                                <div key={item.label} className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">{item.label}</div>
+                                    <div className={`text-xl font-semibold ${item.color}`}>{formatNumber(item.value)}</div>
+                                </div>
+                            ))}
+                        </div>
                     </CardContent>
                 </Card>
 

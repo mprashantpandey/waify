@@ -52,6 +52,7 @@ export default function EmbeddedWizard({
         message: 'Ready to start',
         data: {}});
     const messageHandlerRef = useRef<((event: MessageEvent) => void) | null>(null);
+    const lastTelemetryKeyRef = useRef<string>('');
 
     const embeddedForm = useForm({
         name: '',
@@ -62,6 +63,25 @@ export default function EmbeddedWizard({
         code: '',
         pin: '',
         redirect_uri: ''});
+
+    const emitTelemetry = (payload: { step: string; status: 'started' | 'progress' | 'success' | 'error' | 'cancelled'; message?: string; context?: Record<string, unknown> }) => {
+        const key = `${payload.step}:${payload.status}:${payload.message || ''}`;
+        if (lastTelemetryKeyRef.current === key) return;
+        lastTelemetryKeyRef.current = key;
+
+        fetch(route('app.whatsapp.connections.embedded-telemetry', {}), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement | null)?.content || '',
+            },
+            body: JSON.stringify(payload),
+            credentials: 'same-origin',
+        }).catch(() => {
+            // Silent: telemetry must never break onboarding UX.
+        });
+    };
 
     // Initialize Meta SDK
     useEffect(() => {
@@ -96,6 +116,7 @@ export default function EmbeddedWizard({
                 ...prev,
                 step: 'init',
                 message: 'Meta SDK loaded. Click "Start Setup" to begin.'}));
+            emitTelemetry({ step: 'sdk_ready', status: 'progress', message: 'Meta SDK initialized' });
         };
 
         if (window.FB) {
@@ -192,6 +213,15 @@ export default function EmbeddedWizard({
                     }
 
                     toast.success('Signup data received from Meta');
+                    emitTelemetry({
+                        step: 'embedded_payload_received',
+                        status: 'progress',
+                        message: 'Received WhatsApp Business Account / phone details',
+                        context: {
+                            has_waba: Boolean(extractedData.waba_id),
+                            has_phone_number_id: Boolean(extractedData.phone_number_id),
+                        },
+                    });
                 }
             }
 
@@ -223,6 +253,16 @@ export default function EmbeddedWizard({
                             ...prev.data,
                             accessToken}}));
                 }
+
+                emitTelemetry({
+                    step: 'oauth_response_received',
+                    status: 'progress',
+                    message: 'Received code/access token response',
+                    context: {
+                        has_code: Boolean(code),
+                        has_access_token: Boolean(accessToken),
+                    },
+                });
             }
         };
 
@@ -249,6 +289,7 @@ export default function EmbeddedWizard({
             progress: 10,
             message: 'Starting Meta authorization...',
             data: {}});
+        emitTelemetry({ step: 'authorization_start', status: 'started', message: 'Started Meta OAuth flow' });
 
         embeddedForm.setData('redirect_uri', oauthRedirectUri);
 
@@ -284,11 +325,17 @@ export default function EmbeddedWizard({
 
                     if (code || accessToken) {
                         toast.success('Authorization successful');
+                        emitTelemetry({
+                            step: 'authorization_success',
+                            status: 'success',
+                            context: { has_code: Boolean(code), has_access_token: Boolean(accessToken) },
+                        });
                     } else {
                         setWizardState(prev => ({
                             ...prev,
                             step: 'error',
                             error: 'Authorization response missing code or access token'}));
+                        emitTelemetry({ step: 'authorization_error', status: 'error', message: 'Missing code/access token from OAuth response' });
                     }
                 } else {
                     setWizardState(prev => ({
@@ -296,6 +343,7 @@ export default function EmbeddedWizard({
                         step: 'error',
                         error: 'Login was cancelled or did not fully authorize'}));
                     toast.error('Authorization cancelled');
+                    emitTelemetry({ step: 'authorization_cancelled', status: 'cancelled', message: 'User cancelled authorization' });
                 }
             },
             {
@@ -312,6 +360,7 @@ export default function EmbeddedWizard({
 
         if (!embeddedForm.data.code && !embeddedForm.data.access_token) {
             toast.error('Please complete the authorization step first');
+            emitTelemetry({ step: 'submit_blocked', status: 'error', message: 'Missing code/access token before submit' });
             return;
         }
 
@@ -328,6 +377,7 @@ export default function EmbeddedWizard({
                     step: 'complete',
                     progress: 100,
                     message: 'Connection created successfully!'}));
+                emitTelemetry({ step: 'connection_created', status: 'success', message: 'Embedded connection created' });
             },
             onError: (errors) => {
                 setWizardState(prev => ({
@@ -335,6 +385,11 @@ export default function EmbeddedWizard({
                     step: 'error',
                     error: (errors as any)?.embedded || 'Failed to create connection'}));
                 toast.error('Failed to create connection');
+                emitTelemetry({
+                    step: 'connection_create_error',
+                    status: 'error',
+                    message: (errors as any)?.embedded || 'Failed to create connection',
+                });
             }});
     };
 
@@ -542,7 +597,7 @@ export default function EmbeddedWizard({
 
                                 <div className="grid md:grid-cols-2 gap-4">
                                     <div>
-                                        <InputLabel htmlFor="wizard_waba" value="WABA ID" className="text-sm font-semibold mb-2" />
+                                        <InputLabel htmlFor="wizard_waba" value="WhatsApp Business Account ID" className="text-sm font-semibold mb-2" />
                                         <TextInput
                                             id="wizard_waba"
                                             type="text"

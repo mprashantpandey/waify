@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -48,3 +49,8 @@ Artisan::command('contacts:sync-message-stats {--dry-run}', function () {
 
     $this->info(($dryRun ? 'Would update' : 'Updated') . " {$updated} contact(s).");
 })->purpose('Backfill message_count and last seen/last contacted for contacts');
+
+Schedule::command('meta-pricing:sync-official')
+    ->dailyAt('03:10')
+    ->withoutOverlapping()
+    ->runInBackground();

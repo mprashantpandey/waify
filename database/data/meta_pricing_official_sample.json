@@ -1,0 +1,18 @@
+{
+  "source": "meta_docs_snapshot_manual",
+  "versions": [
+    {
+      "country_code": "IN",
+      "currency": "INR",
+      "effective_from": "2026-01-01T00:00:00Z",
+      "effective_to": null,
+      "is_active": true,
+      "rates": {
+        "marketing": 0,
+        "utility": 0,
+        "authentication": 0,
+        "service": 0
+      }
+    }
+  ]
+}

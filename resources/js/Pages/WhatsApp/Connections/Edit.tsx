@@ -1,5 +1,5 @@
 import { useForm } from '@inertiajs/react';
-import { FormEventHandler, useState } from 'react';
+import { FormEventHandler, useEffect, useState } from 'react';
 import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
 import Button from '@/Components/UI/Button';
@@ -34,6 +34,32 @@ interface Connection {
     quiet_hours_timezone?: string | null;
 }
 
+interface MetaPhoneInsight {
+    id: string | null;
+    display_phone_number: string | null;
+    verified_name: string | null;
+    quality_rating: string | null;
+    messaging_limit_tier: string | null;
+    code_verification_status: string | null;
+}
+
+interface MetaInsights {
+    waba: {
+        id: string | null;
+        name: string | null;
+        currency: string | null;
+        timezone_id: string | null;
+        account_review_status: string | null;
+    } | null;
+    phone_numbers: MetaPhoneInsight[];
+    selected_phone: (MetaPhoneInsight & { name_status?: string | null }) | null;
+    business_verification: {
+        status: string;
+        help_url: string;
+    };
+    manage_numbers_url: string;
+}
+
 export default function ConnectionsEdit({
     account,
     connection,
@@ -50,6 +76,9 @@ export default function ConnectionsEdit({
     const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
     const [webhookLoading, setWebhookLoading] = useState(false);
     const [webhookResult, setWebhookResult] = useState<{ ok: boolean; message: string } | null>(null);
+    const [metaInsights, setMetaInsights] = useState<MetaInsights | null>(null);
+    const [metaInsightsLoading, setMetaInsightsLoading] = useState(false);
+    const [metaInsightsError, setMetaInsightsError] = useState<string | null>(null);
     const [alertOpen, setAlertOpen] = useState(false);
     const [alertTitle, setAlertTitle] = useState('');
     const [alertMessage, setAlertMessage] = useState('');
@@ -113,7 +142,9 @@ export default function ConnectionsEdit({
             const summary = [
                 data.display_phone_number ? `Phone: ${data.display_phone_number}` : null,
                 data.verified_name ? `Verified: ${data.verified_name}` : null,
-                data.waba_match === false ? 'WABA mismatch' : null,
+                data.quality_rating ? `Quality: ${data.quality_rating}` : null,
+                data.messaging_limit_tier ? `Limit: ${data.messaging_limit_tier}` : null,
+                data.waba_match === false ? 'WhatsApp Business Account mismatch' : null,
             ]
                 .filter(Boolean)
                 .join(' · ');
@@ -127,6 +158,27 @@ export default function ConnectionsEdit({
             setTestLoading(false);
         }
     };
+
+    const loadMetaInsights = async () => {
+        setMetaInsightsLoading(true);
+        setMetaInsightsError(null);
+        try {
+            const { data } = await axios.get(
+                route('app.whatsapp.connections.meta-insights', {
+                    connection: connection.slug ?? connection.id,
+                }) as string
+            );
+            setMetaInsights(data?.insights ?? null);
+        } catch (error: any) {
+            setMetaInsightsError(error?.response?.data?.error || 'Failed to load Meta account details.');
+        } finally {
+            setMetaInsightsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadMetaInsights();
+    }, []);
 
     const runWebhookTest = async () => {
         setWebhookLoading(true);
@@ -515,6 +567,80 @@ export default function ConnectionsEdit({
                                 </div>
                             </div>
                         </form>
+                    </CardContent>
+                </Card>
+
+                <Card className="border-0 shadow-xl">
+                    <CardHeader className="bg-gradient-to-r from-violet-50 to-indigo-100 dark:from-violet-900/20 dark:to-indigo-800/20">
+                        <div className="flex items-center justify-between gap-3">
+                            <div>
+                                <CardTitle className="text-xl font-bold">Meta Account Insights</CardTitle>
+                                <CardDescription>
+                                    View WhatsApp Business Account status, quality rating, messaging limits, and linked numbers.
+                                </CardDescription>
+                            </div>
+                            <Button variant="secondary" onClick={loadMetaInsights} disabled={metaInsightsLoading}>
+                                {metaInsightsLoading ? 'Refreshing...' : 'Refresh'}
+                            </Button>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-6 space-y-5">
+                        {metaInsightsError && <Alert variant="error">{metaInsightsError}</Alert>}
+                        {!metaInsightsError && metaInsightsLoading && <Alert variant="info">Loading Meta details...</Alert>}
+
+                        {metaInsights?.waba && (
+                            <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-2">
+                                <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">WhatsApp Business Account</h3>
+                                <div className="text-sm text-gray-600 dark:text-gray-300">Name: {metaInsights.waba.name || '—'}</div>
+                                <div className="text-sm text-gray-600 dark:text-gray-300">WhatsApp Business Account ID: <span className="font-mono">{metaInsights.waba.id || '—'}</span></div>
+                                <div className="text-sm text-gray-600 dark:text-gray-300">Review Status: {metaInsights.waba.account_review_status || 'Unknown'}</div>
+                                <div className="text-sm text-gray-600 dark:text-gray-300">Business Verification: {metaInsights.business_verification.status}</div>
+                            </div>
+                        )}
+
+                        {metaInsights?.selected_phone && (
+                            <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-2">
+                                <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Selected Phone Number</h3>
+                                <div className="text-sm text-gray-600 dark:text-gray-300">Display Number: {metaInsights.selected_phone.display_phone_number || '—'}</div>
+                                <div className="text-sm text-gray-600 dark:text-gray-300">Verified Name: {metaInsights.selected_phone.verified_name || '—'}</div>
+                                <div className="text-sm text-gray-600 dark:text-gray-300">Quality Rating: {metaInsights.selected_phone.quality_rating || 'Unknown'}</div>
+                                <div className="text-sm text-gray-600 dark:text-gray-300">Messaging Limit Tier: {metaInsights.selected_phone.messaging_limit_tier || 'Unknown'}</div>
+                                <div className="text-sm text-gray-600 dark:text-gray-300">Code Verification Status: {metaInsights.selected_phone.code_verification_status || 'Unknown'}</div>
+                            </div>
+                        )}
+
+                        <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                            <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">All Linked Phone Numbers</h3>
+                            {metaInsights?.phone_numbers?.length ? (
+                                <div className="space-y-2">
+                                    {metaInsights.phone_numbers.map((phone, index) => (
+                                        <div key={phone.id || `phone-${index}`} className="text-sm text-gray-600 dark:text-gray-300 border-b border-dashed border-gray-200 dark:border-gray-700 pb-2 last:border-0">
+                                            <div className="font-mono">{phone.id || '—'}</div>
+                                            <div>{phone.display_phone_number || '—'} · {phone.verified_name || 'Unverified'}</div>
+                                            <div>Quality: {phone.quality_rating || 'Unknown'} · Limit: {phone.messaging_limit_tier || 'Unknown'}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-sm text-gray-500">No linked numbers were returned from Meta.</div>
+                            )}
+                        </div>
+
+                        <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4 text-sm text-amber-800 dark:text-amber-200 space-y-2">
+                            <div className="font-semibold">Compliance & Setup Actions</div>
+                            <div>
+                                Complete Meta Business Verification:
+                                <a href={metaInsights?.business_verification?.help_url || 'https://business.facebook.com/settings/security-center'} target="_blank" rel="noreferrer" className="ml-1 underline">
+                                    Open Security Center
+                                </a>
+                            </div>
+                            <div>
+                                Add/manage phone numbers:
+                                <a href={metaInsights?.manage_numbers_url || 'https://business.facebook.com/latest/whatsapp_manager/phone_numbers'} target="_blank" rel="noreferrer" className="ml-1 underline">
+                                    Open WhatsApp Manager
+                                </a>
+                            </div>
+                        </div>
                     </CardContent>
                 </Card>
 

@@ -120,6 +120,7 @@ Route::middleware(['auth', 'super.admin'])->prefix('/platform')->name('platform.
     Route::get('/meta-pricing', [\App\Http\Controllers\Platform\MetaPricingController::class, 'index'])->name('meta-pricing.index');
     Route::post('/meta-pricing', [\App\Http\Controllers\Platform\MetaPricingController::class, 'store'])->name('meta-pricing.store');
     Route::post('/meta-pricing/import-legacy', [\App\Http\Controllers\Platform\MetaPricingController::class, 'importLegacy'])->name('meta-pricing.import-legacy');
+    Route::post('/meta-pricing/sync-official', [\App\Http\Controllers\Platform\MetaPricingController::class, 'syncOfficial'])->name('meta-pricing.sync-official');
     Route::put('/meta-pricing/{version}', [\App\Http\Controllers\Platform\MetaPricingController::class, 'update'])->name('meta-pricing.update');
     Route::post('/meta-pricing/{version}/toggle', [\App\Http\Controllers\Platform\MetaPricingController::class, 'toggle'])->name('meta-pricing.toggle');
     Route::post('/meta-pricing/billing/{billing}/recalculate', [\App\Http\Controllers\Platform\MetaPricingController::class, 'recalculateBillingSnapshot'])->name('meta-pricing.billing.recalculate');

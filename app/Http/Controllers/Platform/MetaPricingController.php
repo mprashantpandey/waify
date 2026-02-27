@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Platform;
 
+use App\Core\Billing\MetaPricingSyncService;
 use App\Core\Billing\MetaPricingResolver;
 use App\Http\Controllers\Controller;
 use App\Models\Account;
@@ -18,7 +19,8 @@ use Inertia\Response;
 class MetaPricingController extends Controller
 {
     public function __construct(
-        protected MetaPricingResolver $metaPricingResolver
+        protected MetaPricingResolver $metaPricingResolver,
+        protected MetaPricingSyncService $metaPricingSyncService
     ) {}
 
     public function index(Request $request): Response
@@ -57,6 +59,12 @@ class MetaPricingController extends Controller
                 'currency' => $legacy['currency'] ?? 'INR',
                 'rates' => $legacy['rates'] ?? [],
                 'source' => $legacy['source'] ?? 'legacy_settings',
+            ],
+            'sync_status' => [
+                'last_run_at' => PlatformSetting::get('whatsapp.meta_pricing_sync.last_run_at'),
+                'last_status' => PlatformSetting::get('whatsapp.meta_pricing_sync.last_status', 'never'),
+                'last_error' => PlatformSetting::get('whatsapp.meta_pricing_sync.last_error'),
+                'last_source' => PlatformSetting::get('whatsapp.meta_pricing_sync.last_source'),
             ],
             'reconciliation' => $reconciliation,
         ]);
@@ -226,6 +234,40 @@ class MetaPricingController extends Controller
 
         return redirect()->route('platform.meta-pricing.index')
             ->with('success', 'Legacy Meta rates imported into a versioned pricing record.');
+    }
+
+    public function syncOfficial(Request $request)
+    {
+        $validated = $request->validate([
+            'source' => 'nullable|string|max:2048',
+        ]);
+
+        $source = trim((string) ($validated['source']
+            ?? PlatformSetting::get('whatsapp.meta_pricing_sync.feed_url')
+            ?? env('META_PRICING_SYNC_URL', '')));
+
+        if ($source === '') {
+            return redirect()->route('platform.meta-pricing.index')
+                ->with('error', 'Missing official pricing feed URL. Configure whatsapp.meta_pricing_sync.feed_url first.');
+        }
+
+        try {
+            $result = $this->metaPricingSyncService->syncFromOfficialFeed($source, $request->user()?->id);
+
+            return redirect()->route('platform.meta-pricing.index')
+                ->with('success', sprintf(
+                    'Official Meta pricing sync completed. %d processed (%d created, %d updated).',
+                    $result['total'],
+                    $result['created'],
+                    $result['updated']
+                ));
+        } catch (\Throwable $e) {
+            PlatformSetting::set('whatsapp.meta_pricing_sync.last_status', 'error', 'string', 'integrations');
+            PlatformSetting::set('whatsapp.meta_pricing_sync.last_error', $e->getMessage(), 'string', 'integrations');
+
+            return redirect()->route('platform.meta-pricing.index')
+                ->with('error', 'Official sync failed: '.$e->getMessage());
+        }
     }
 
     public function recalculateBillingSnapshot(Request $request, WhatsAppMessageBilling $billing)

@@ -77,10 +77,17 @@ type FormData = {
 export default function PlatformMetaPricingIndex({
     versions,
     legacy_default,
+    sync_status,
     reconciliation,
 }: {
     versions: PricingVersion[];
     legacy_default: LegacyDefault;
+    sync_status?: {
+        last_run_at?: string | null;
+        last_status?: string | null;
+        last_error?: string | null;
+        last_source?: string | null;
+    };
     reconciliation?: {
         available: boolean;
         summary: Record<string, number>;
@@ -109,6 +116,7 @@ export default function PlatformMetaPricingIndex({
     ])).filter(Boolean);
     const [bulkIssueType, setBulkIssueType] = useState<'all_issues' | 'missing_pricing_version' | 'zero_rate_billable' | 'zero_cost_billable' | 'uncategorized'>('all_issues');
     const [bulkLimit, setBulkLimit] = useState<number>(200);
+    const [officialSource, setOfficialSource] = useState<string>(sync_status?.last_source || '');
     const { data, setData, post, processing, errors, reset } = useForm<FormData>({
         country_code: legacy_default?.country_code || 'IN',
         currency: legacy_default?.currency || 'INR',
@@ -166,14 +174,47 @@ export default function PlatformMetaPricingIndex({
                             Versioned WhatsApp conversation pricing for tenant billing estimates.
                         </p>
                     </div>
-                    <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => router.post(route('platform.meta-pricing.import-legacy'), {}, { preserveScroll: true })}
-                    >
-                        Import Legacy Rates
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => router.post(route('platform.meta-pricing.import-legacy'), {}, { preserveScroll: true })}
+                        >
+                            Import Legacy Rates
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={() => router.post(route('platform.meta-pricing.sync-official'), { source: officialSource || undefined }, { preserveScroll: true })}
+                        >
+                            Sync Official Rates
+                        </Button>
+                    </div>
                 </div>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Official Sync Feed</CardTitle>
+                        <CardDescription>Use a JSON feed URL/path and sync the latest Meta rate card snapshot.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+                            <div className="md:col-span-4">
+                                <Label htmlFor="official_source">Feed URL or absolute file path</Label>
+                                <Input id="official_source" value={officialSource} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOfficialSource(e.target.value)} placeholder="https://.../meta-pricing.json or /home/.../meta-pricing.json" />
+                            </div>
+                            <Button
+                                type="button"
+                                onClick={() => router.post(route('platform.meta-pricing.sync-official'), { source: officialSource || undefined }, { preserveScroll: true })}
+                            >
+                                Run Sync
+                            </Button>
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                            Last sync: {sync_status?.last_run_at || 'never'} · Status: {sync_status?.last_status || 'never'}
+                            {sync_status?.last_error ? ` · Error: ${sync_status.last_error}` : ''}
+                        </div>
+                    </CardContent>
+                </Card>
 
                 <Card>
                     <CardHeader>

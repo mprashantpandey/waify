@@ -24,7 +24,9 @@ Route::middleware(['module.entitled:whatsapp.cloud'])->group(function () {
     Route::post('/connections', [ConnectionController::class, 'store'])->name('whatsapp.connections.store');
     Route::post('/connections/test', [ConnectionController::class, 'testConnection'])->name('whatsapp.connections.test');
     Route::post('/connections/{connection}/test', [ConnectionController::class, 'testSavedConnection'])->name('whatsapp.connections.test-saved');
+    Route::get('/connections/{connection}/meta-insights', [ConnectionController::class, 'metaInsights'])->name('whatsapp.connections.meta-insights');
     Route::post('/connections/embedded', [ConnectionController::class, 'storeEmbedded'])->name('whatsapp.connections.store-embedded');
+    Route::post('/connections/embedded/telemetry', [ConnectionController::class, 'embeddedTelemetry'])->name('whatsapp.connections.embedded-telemetry');
     Route::get('/connections/{connection}/edit', [ConnectionController::class, 'edit'])->name('whatsapp.connections.edit');
     Route::get('/connections/{connection}/health', [ConnectionController::class, 'showHealth'])->name('whatsapp.connections.health');
     Route::get('/connections/{connection}/health/api', [ConnectionHealthController::class, 'check'])->name('whatsapp.connections.health.api');
@@ -74,6 +76,7 @@ Route::middleware(['module.entitled:templates'])->group(function () {
     Route::get('/templates/{template}/edit', [TemplateController::class, 'edit'])->name('whatsapp.templates.edit');
     Route::put('/templates/{template}', [TemplateController::class, 'update'])->name('whatsapp.templates.update');
     Route::post('/templates/{template}/check-status', [TemplateController::class, 'checkStatus'])->name('whatsapp.templates.check-status');
+    Route::get('/templates/{template}/status-snapshot', [TemplateController::class, 'statusSnapshot'])->name('whatsapp.templates.status-snapshot');
     Route::post('/templates/sync', [TemplateSyncController::class, 'store'])->name('whatsapp.templates.sync');
     Route::post('/templates/{template}/archive', [TemplateController::class, 'archive'])->name('whatsapp.templates.archive');
     Route::post('/templates/{template}/restore', [TemplateController::class, 'restore'])->name('whatsapp.templates.restore');

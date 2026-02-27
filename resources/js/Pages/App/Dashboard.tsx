@@ -99,6 +99,15 @@ interface ConnectionAlert {
     webhook_last_received_at: string | null;
 }
 
+interface ConnectionHeartbeat {
+    window_minutes: number;
+    active_connections: number;
+    healthy: number;
+    stale: number;
+    offline_or_error: number;
+    latest_received_at: string | null;
+}
+
 interface CustomerStartConversation {
     widget_id: number;
     widget_slug: string;
@@ -112,6 +121,7 @@ export default function Dashboard({
     stats, 
     onboarding_checklist,
     connection_alerts = [],
+    connection_heartbeat = null,
     customer_start_conversation = null,
     message_trends, 
     recent_conversations 
@@ -120,6 +130,7 @@ export default function Dashboard({
     stats: Stats;
     onboarding_checklist?: OnboardingChecklist;
     connection_alerts?: ConnectionAlert[];
+    connection_heartbeat?: ConnectionHeartbeat | null;
     customer_start_conversation?: CustomerStartConversation | null;
     message_trends: MessageTrend[];
     recent_conversations: RecentConversation[];
@@ -259,6 +270,41 @@ export default function Dashboard({
                                 <Link href={route('app.whatsapp.connections.index', {})}>
                                     <Button variant="secondary" size="sm">Review Connections</Button>
                                 </Link>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {connection_heartbeat && connection_heartbeat.active_connections > 0 && (
+                    <Card className="border-0 shadow-lg">
+                        <CardHeader className="bg-gradient-to-r from-sky-50 to-cyan-100 dark:from-sky-900/20 dark:to-cyan-800/20">
+                            <CardTitle className="text-base font-semibold">Webhook Live Heartbeat</CardTitle>
+                            <CardDescription>
+                                Last {connection_heartbeat.window_minutes} minutes for active WhatsApp connections.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-4">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                <div className="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3">
+                                    <div className="text-xs text-green-700 dark:text-green-300">Healthy</div>
+                                    <div className="text-lg font-semibold text-green-800 dark:text-green-200">{connection_heartbeat.healthy}</div>
+                                </div>
+                                <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3">
+                                    <div className="text-xs text-amber-700 dark:text-amber-300">Stale</div>
+                                    <div className="text-lg font-semibold text-amber-800 dark:text-amber-200">{connection_heartbeat.stale}</div>
+                                </div>
+                                <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
+                                    <div className="text-xs text-red-700 dark:text-red-300">Offline/Error</div>
+                                    <div className="text-lg font-semibold text-red-800 dark:text-red-200">{connection_heartbeat.offline_or_error}</div>
+                                </div>
+                                <div className="rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-3">
+                                    <div className="text-xs text-gray-600 dark:text-gray-400">Last event</div>
+                                    <div className="text-xs font-medium text-gray-800 dark:text-gray-200">
+                                        {connection_heartbeat.latest_received_at
+                                            ? new Date(connection_heartbeat.latest_received_at).toLocaleString()
+                                            : 'No webhook events yet'}
+                                    </div>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>

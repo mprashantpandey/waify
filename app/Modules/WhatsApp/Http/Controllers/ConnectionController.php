@@ -9,6 +9,7 @@ use App\Models\PlatformSetting;
 use App\Modules\WhatsApp\Services\ConnectionService;
 use App\Modules\WhatsApp\Services\MetaGraphService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -212,6 +213,11 @@ class ConnectionController extends Controller
                 throw new \RuntimeException('Unable to obtain access token from Meta.');
             }
 
+            $longLivedTokenData = $this->metaGraphService->exchangeForLongLivedToken($accessToken);
+            if (!empty($longLivedTokenData['access_token'])) {
+                $accessToken = $longLivedTokenData['access_token'];
+            }
+
             $systemUserToken = config('whatsapp.meta.system_user_token');
             $effectiveToken = $systemUserToken ?: $accessToken;
 
@@ -293,6 +299,38 @@ class ConnectionController extends Controller
             return redirect()->back()->withErrors([
                 'embedded' => $e->getMessage()]);
         }
+    }
+
+    public function embeddedTelemetry(Request $request)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        $validated = $request->validate([
+            'step' => 'required|string|max:64',
+            'status' => 'required|string|in:started,progress,success,error,cancelled',
+            'message' => 'nullable|string|max:500',
+            'context' => 'nullable|array',
+        ]);
+
+        DB::table('activity_logs')->insert([
+            'type' => 'system_event',
+            'description' => sprintf('Embedded Signup %s: %s', $validated['status'], $validated['step']),
+            'user_id' => $request->user()?->id,
+            'account_id' => $account?->id,
+            'metadata' => json_encode([
+                'module' => 'whatsapp.embedded_signup',
+                'step' => $validated['step'],
+                'status' => $validated['status'],
+                'message' => $validated['message'] ?? null,
+                'context' => $validated['context'] ?? [],
+            ]),
+            'ip_address' => $request->ip(),
+            'user_agent' => substr((string) $request->userAgent(), 0, 65535),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return response()->json(['ok' => true]);
     }
 
     private function getEmbeddedSignupConfig(): array
@@ -552,7 +590,11 @@ class ConnectionController extends Controller
             return response()->json([
                 'ok' => true,
                 'display_phone_number' => $details['display_phone_number'] ?? null,
-                'verified_name' => $details['verified_name'] ?? null]);
+                'verified_name' => $details['verified_name'] ?? null,
+                'quality_rating' => $details['quality_rating'] ?? null,
+                'messaging_limit_tier' => $details['messaging_limit_tier'] ?? null,
+                'code_verification_status' => $details['code_verification_status'] ?? null,
+            ]);
         } catch (\Throwable $e) {
             Log::warning('Connection test failed', [
                 'connection_id' => $connection->id,
@@ -562,5 +604,104 @@ class ConnectionController extends Controller
                 'ok' => false,
                 'error' => 'Connection test failed. Please verify your WhatsApp credentials and try again.'], 422);
         }
+    }
+
+    /**
+     * Fetch Meta-side WABA/phone/verification insights for the connection.
+     */
+    public function metaInsights(Request $request, $connection)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+        $connection = $this->resolveConnection($connection, $account);
+
+        Gate::authorize('view', $connection);
+
+        if (!$connection->access_token) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'No access token is stored for this connection.',
+            ], 422);
+        }
+
+        $insights = [
+            'waba' => null,
+            'phone_numbers' => [],
+            'selected_phone' => null,
+            'business_verification' => [
+                'status' => 'UNKNOWN',
+                'help_url' => 'https://business.facebook.com/settings/security-center',
+            ],
+            'manage_numbers_url' => 'https://business.facebook.com/latest/whatsapp_manager/phone_numbers',
+        ];
+
+        if (!empty($connection->waba_id)) {
+            try {
+                $waba = $this->metaGraphService->getWabaDetails($connection->waba_id, $connection->access_token);
+                $insights['waba'] = [
+                    'id' => $waba['id'] ?? $connection->waba_id,
+                    'name' => $waba['name'] ?? null,
+                    'currency' => $waba['currency'] ?? null,
+                    'timezone_id' => $waba['timezone_id'] ?? null,
+                    'account_review_status' => $waba['account_review_status'] ?? null,
+                ];
+
+                $verificationStatus = $waba['business_verification_status'] ?? null;
+                if (is_string($verificationStatus) && $verificationStatus !== '') {
+                    $insights['business_verification']['status'] = strtoupper($verificationStatus);
+                }
+            } catch (\Throwable $e) {
+                Log::channel('whatsapp')->warning('WABA insights lookup failed', [
+                    'connection_id' => $connection->id,
+                    'waba_id' => $connection->waba_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            try {
+                $numbers = $this->metaGraphService->listPhoneNumbers($connection->waba_id, $connection->access_token);
+                $insights['phone_numbers'] = collect($numbers)->map(function (array $number) {
+                    return [
+                        'id' => $number['id'] ?? null,
+                        'display_phone_number' => $number['display_phone_number'] ?? null,
+                        'verified_name' => $number['verified_name'] ?? null,
+                        'quality_rating' => $number['quality_rating'] ?? null,
+                        'messaging_limit_tier' => $number['messaging_limit_tier'] ?? null,
+                        'code_verification_status' => $number['code_verification_status'] ?? null,
+                    ];
+                })->values()->all();
+            } catch (\Throwable $e) {
+                Log::channel('whatsapp')->warning('WABA phone list lookup failed', [
+                    'connection_id' => $connection->id,
+                    'waba_id' => $connection->waba_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if (!empty($connection->phone_number_id)) {
+            try {
+                $selectedPhone = $this->metaGraphService->getPhoneNumberDetails($connection->phone_number_id, $connection->access_token);
+                $insights['selected_phone'] = [
+                    'id' => $connection->phone_number_id,
+                    'display_phone_number' => $selectedPhone['display_phone_number'] ?? null,
+                    'verified_name' => $selectedPhone['verified_name'] ?? null,
+                    'quality_rating' => $selectedPhone['quality_rating'] ?? null,
+                    'messaging_limit_tier' => $selectedPhone['messaging_limit_tier'] ?? null,
+                    'code_verification_status' => $selectedPhone['code_verification_status'] ?? null,
+                    'name_status' => $selectedPhone['name_status'] ?? null,
+                ];
+            } catch (\Throwable $e) {
+                Log::channel('whatsapp')->warning('Selected phone details lookup failed', [
+                    'connection_id' => $connection->id,
+                    'phone_number_id' => $connection->phone_number_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return response()->json([
+            'ok' => true,
+            'insights' => $insights,
+        ]);
     }
 }

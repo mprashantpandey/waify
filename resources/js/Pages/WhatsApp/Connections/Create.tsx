@@ -390,7 +390,7 @@ export default function ConnectionsCreate({
                             {hasEmbeddedAuthData && !hasEmbeddedResolvedIds && (
                                 <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
                                     <p className="text-xs text-amber-800 dark:text-amber-200">
-                                        Meta authorization is complete. If WABA ID / Phone Number ID stay empty, click <strong>Create Connection</strong> and the server will auto-resolve them using your Meta authorization.
+                                        Meta authorization is complete. If WhatsApp Business Account ID / Phone Number ID stay empty, click <strong>Create Connection</strong> and the server will auto-resolve them using your Meta authorization.
                                     </p>
                                 </div>
                             )}
@@ -410,7 +410,7 @@ export default function ConnectionsCreate({
 
                                 <div className="grid md:grid-cols-2 gap-4">
                                     <div>
-                                        <InputLabel htmlFor="embedded_waba" value="WABA ID" className="text-sm font-semibold mb-2" />
+                                        <InputLabel htmlFor="embedded_waba" value="WhatsApp Business Account ID" className="text-sm font-semibold mb-2" />
                                         <TextInput
                                             id="embedded_waba"
                                             type="text"

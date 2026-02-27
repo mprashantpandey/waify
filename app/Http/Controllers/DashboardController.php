@@ -146,6 +146,38 @@ class DashboardController extends Controller
                 ];
             });
 
+        $heartbeatWindowMinutes = 15;
+        $heartbeatCutoff = now()->subMinutes($heartbeatWindowMinutes);
+        $activeConnectionModels = WhatsAppConnection::where('account_id', $account->id)
+            ->where('is_active', true)
+            ->get(['id', 'webhook_last_received_at', 'webhook_last_error', 'webhook_subscribed']);
+        $healthyHeartbeatCount = $activeConnectionModels->filter(function ($connection) use ($heartbeatCutoff) {
+            return (bool) $connection->webhook_subscribed
+                && empty($connection->webhook_last_error)
+                && $connection->webhook_last_received_at
+                && $connection->webhook_last_received_at->greaterThanOrEqualTo($heartbeatCutoff);
+        })->count();
+        $staleHeartbeatCount = $activeConnectionModels->filter(function ($connection) use ($heartbeatCutoff) {
+            if (!(bool) $connection->webhook_subscribed || !empty($connection->webhook_last_error)) {
+                return false;
+            }
+            return !$connection->webhook_last_received_at
+                || $connection->webhook_last_received_at->lt($heartbeatCutoff);
+        })->count();
+        $latestHeartbeatAt = $activeConnectionModels
+            ->pluck('webhook_last_received_at')
+            ->filter()
+            ->sortDesc()
+            ->first();
+        $connectionHeartbeat = [
+            'window_minutes' => $heartbeatWindowMinutes,
+            'active_connections' => $activeConnectionModels->count(),
+            'healthy' => $healthyHeartbeatCount,
+            'stale' => $staleHeartbeatCount,
+            'offline_or_error' => max(0, $activeConnectionModels->count() - $healthyHeartbeatCount - $staleHeartbeatCount),
+            'latest_received_at' => $latestHeartbeatAt?->toIso8601String(),
+        ];
+
         $customerStartConversation = null;
         $widgetsModuleEnabled = $this->moduleRegistry->getEnabledForAccount($account)
             ->contains(fn ($module) => ($module['key'] ?? null) === 'floaters');
@@ -200,6 +232,7 @@ class DashboardController extends Controller
                 'usage' => $currentUsage],
             'onboarding_checklist' => $onboardingChecklist,
             'connection_alerts' => $connectionAlerts,
+            'connection_heartbeat' => $connectionHeartbeat,
             'customer_start_conversation' => $customerStartConversation,
             'message_trends' => $messageTrends,
             'recent_conversations' => $recentConversations]);
