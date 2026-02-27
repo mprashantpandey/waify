@@ -93,9 +93,11 @@ class ContactSegment extends Model
             $query = $this->contactsQuery();
 
             $count = $query->count();
-            $this->lockForUpdate()->update([
+            static::whereKey($this->id)->lockForUpdate()->update([
                 'contact_count' => $count,
                 'last_calculated_at' => now()]);
+            $this->contact_count = $count;
+            $this->last_calculated_at = now();
 
             return $count;
         } finally {

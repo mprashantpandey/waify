@@ -321,7 +321,7 @@ class CampaignService
         if ($campaign->respect_opt_out && $recipient->whatsapp_contact_id) {
             $contact = WhatsAppContact::find($recipient->whatsapp_contact_id);
             if ($contact && in_array($contact->status ?? 'active', ['opt_out', 'blocked'])) {
-                $recipient->lockForUpdate()->update([
+                CampaignRecipient::whereKey($recipient->id)->lockForUpdate()->update([
                     'status' => 'skipped',
                     'failure_reason' => "Contact has {$contact->status} status"]);
                 return false;
@@ -489,7 +489,7 @@ class CampaignService
      */
     protected function markRecipientFailed(CampaignRecipient $recipient, string $reason): void
     {
-        $recipient->lockForUpdate()->update([
+        CampaignRecipient::whereKey($recipient->id)->lockForUpdate()->update([
             'status' => 'failed',
             'failed_at' => now(),
             'failure_reason' => $reason]);
@@ -544,7 +544,9 @@ class CampaignService
             }
 
             $message->update($updateData);
-            $message->recipient->lockForUpdate()->update($recipientUpdate);
+            if ($message->campaign_recipient_id) {
+                CampaignRecipient::whereKey($message->campaign_recipient_id)->lockForUpdate()->update($recipientUpdate);
+            }
         } finally {
             $lock->release();
         }
