@@ -66,19 +66,35 @@ interface RecentError {
     failed_at: string;
 }
 
+interface RecentWebhookEvent {
+    id: number;
+    status: string;
+    correlation_id: string | null;
+    connection_id: number;
+    connection_name: string | null;
+    payload_size: number;
+    replay_count: number;
+    error_message: string | null;
+    processed_at: string | null;
+    last_replayed_at: string | null;
+    created_at: string | null;
+}
+
 export default function SystemHealth({
     webhook_health,
     connection_details,
     queue_status,
     storage_status,
     database_status,
-    recent_errors}: {
+    recent_errors,
+    recent_webhook_events}: {
     webhook_health: WebhookHealth;
     connection_details: ConnectionDetail[];
     queue_status: QueueStatus;
     storage_status: StorageStatus;
     database_status: DatabaseStatus;
     recent_errors: RecentError[];
+    recent_webhook_events: RecentWebhookEvent[];
 }) {
     const { auth } = usePage().props as any;
 
@@ -96,6 +112,10 @@ export default function SystemHealth({
 
     const clearWebhookError = (connectionId: number) => {
         router.post(route('platform.system-health.connections.clear-webhook-error', { connection: connectionId }));
+    };
+
+    const replayWebhookEvent = (id: number) => {
+        router.post(route('platform.system-health.webhook-events.replay', { id }));
     };
 
     const formatBytes = (bytes: number | null) => {
@@ -397,6 +417,56 @@ export default function SystemHealth({
                                             </Button>
                                             <Button size="sm" variant="secondary" onClick={() => forgetFailedJob(error.id)}>
                                                 Remove
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {recent_webhook_events.length > 0 && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <LinkIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                Recent Webhook Events
+                            </CardTitle>
+                            <CardDescription>Latest webhook payload processing state with replay action</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-3">
+                                {recent_webhook_events.map((event) => (
+                                    <div key={event.id} className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                                    {event.connection_name || `Connection #${event.connection_id}`}
+                                                </p>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                    Event #{event.id} • {event.correlation_id || 'n/a'} • {event.payload_size} bytes
+                                                </p>
+                                            </div>
+                                            <Badge
+                                                variant={event.status === 'processed' ? 'success' : event.status === 'failed' ? 'danger' : 'warning'}
+                                            >
+                                                {event.status}
+                                            </Badge>
+                                        </div>
+                                        {(event.error_message || event.last_replayed_at) && (
+                                            <div className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                                                {event.error_message && (
+                                                    <p className="text-red-600 dark:text-red-400">Error: {event.error_message}</p>
+                                                )}
+                                                {event.last_replayed_at && (
+                                                    <p>Last replay: {new Date(event.last_replayed_at).toLocaleString()} ({event.replay_count} total)</p>
+                                                )}
+                                            </div>
+                                        )}
+                                        <div className="mt-3">
+                                            <Button size="sm" onClick={() => replayWebhookEvent(event.id)}>
+                                                Replay Event
                                             </Button>
                                         </div>
                                     </div>

@@ -131,6 +131,7 @@ Route::middleware(['auth', 'super.admin'])->prefix('/platform')->name('platform.
     Route::post('/system-health/failed-jobs/{id}/retry', [\App\Http\Controllers\Platform\SystemHealthController::class, 'retryFailedJob'])->name('system-health.failed-jobs.retry');
     Route::delete('/system-health/failed-jobs/{id}', [\App\Http\Controllers\Platform\SystemHealthController::class, 'forgetFailedJob'])->name('system-health.failed-jobs.forget');
     Route::post('/system-health/connections/{connection}/clear-webhook-error', [\App\Http\Controllers\Platform\SystemHealthController::class, 'clearWebhookError'])->name('system-health.connections.clear-webhook-error');
+    Route::post('/system-health/webhook-events/{id}/replay', [\App\Http\Controllers\Platform\SystemHealthController::class, 'replayWebhookEvent'])->name('system-health.webhook-events.replay');
     Route::get('/analytics', [\App\Http\Controllers\Platform\AnalyticsController::class, 'index'])
         ->middleware('feature.enabled:analytics')
         ->name('analytics');

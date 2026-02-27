@@ -4,10 +4,12 @@ namespace App\Modules\WhatsApp\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
+use App\Modules\WhatsApp\Models\WhatsAppWebhookEvent;
 use App\Modules\WhatsApp\Services\WebhookProcessor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class WebhookController extends Controller
@@ -241,15 +243,45 @@ class WebhookController extends Controller
                 'size_bytes' => $payloadSize]);
         }
 
+        $webhookEvent = null;
+        if (Schema::hasTable('whatsapp_webhook_events')) {
+            $webhookEvent = WhatsAppWebhookEvent::create([
+                'account_id' => $connection->account_id,
+                'whatsapp_connection_id' => $connection->id,
+                'correlation_id' => $correlationId,
+                'status' => 'received',
+                'payload' => $payload,
+                'payload_size' => (int) $payloadSize,
+                'ip' => $request->ip(),
+                'user_agent' => (string) $request->userAgent(),
+            ]);
+        }
+
         try {
             // Process webhook with correlation ID
             $this->webhookProcessor->process($payload, $connection, $correlationId);
+
+            if ($webhookEvent) {
+                $webhookEvent->update([
+                    'status' => 'processed',
+                    'processed_at' => now(),
+                    'error_message' => null,
+                ]);
+            }
 
             Log::info('[Meta-WhatsApp-Webhook] POST processed OK', ['connection_id' => $connection->id]);
             return response()->json([
                 'success' => true,
                 'correlation_id' => $correlationId], 200);
         } catch (\Exception $e) {
+            if ($webhookEvent) {
+                $webhookEvent->update([
+                    'status' => 'failed',
+                    'error_message' => mb_substr($e->getMessage(), 0, 2000),
+                    'processed_at' => now(),
+                ]);
+            }
+
             Log::warning('[Meta-WhatsApp-Webhook] POST processing failed', [
                 'connection_id' => $connection->id,
                 'error' => $e->getMessage(),

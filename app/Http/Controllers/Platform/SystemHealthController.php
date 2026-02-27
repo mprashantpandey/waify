@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Platform;
 
 use App\Http\Controllers\Controller;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
+use App\Modules\WhatsApp\Models\WhatsAppWebhookEvent;
+use App\Modules\WhatsApp\Services\WebhookProcessor;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Artisan;
@@ -15,6 +17,11 @@ use Inertia\Response;
 
 class SystemHealthController extends Controller
 {
+    public function __construct(
+        protected WebhookProcessor $webhookProcessor
+    ) {
+    }
+
     /**
      * Display system health dashboard.
      */
@@ -132,13 +139,38 @@ class SystemHealthController extends Controller
                     'failed_at' => $job->failed_at];
             });
 
+        $recentWebhookEvents = collect();
+        if (DB::getSchemaBuilder()->hasTable('whatsapp_webhook_events')) {
+            $recentWebhookEvents = WhatsAppWebhookEvent::query()
+                ->with('connection:id,name,slug')
+                ->orderByDesc('created_at')
+                ->limit(20)
+                ->get()
+                ->map(function (WhatsAppWebhookEvent $event) {
+                    return [
+                        'id' => $event->id,
+                        'status' => $event->status,
+                        'correlation_id' => $event->correlation_id,
+                        'connection_id' => $event->whatsapp_connection_id,
+                        'connection_name' => $event->connection?->name,
+                        'payload_size' => (int) $event->payload_size,
+                        'replay_count' => (int) $event->replay_count,
+                        'error_message' => $event->error_message,
+                        'processed_at' => $event->processed_at?->toIso8601String(),
+                        'last_replayed_at' => $event->last_replayed_at?->toIso8601String(),
+                        'created_at' => $event->created_at?->toIso8601String(),
+                    ];
+                });
+        }
+
         return Inertia::render('Platform/SystemHealth', [
             'webhook_health' => $webhookHealth,
             'connection_details' => $connectionDetails,
             'queue_status' => $queueStatus,
             'storage_status' => $storageStatus,
             'database_status' => $databaseStatus,
-            'recent_errors' => $recentErrors]);
+            'recent_errors' => $recentErrors,
+            'recent_webhook_events' => $recentWebhookEvents]);
     }
 
     public function retryFailedJob(Request $request, string $id): RedirectResponse
@@ -194,6 +226,53 @@ class SystemHealthController extends Controller
         ]);
 
         return back()->with('success', 'Webhook error cleared for connection.');
+    }
+
+    public function replayWebhookEvent(Request $request, string $id): RedirectResponse
+    {
+        if (!DB::getSchemaBuilder()->hasTable('whatsapp_webhook_events')) {
+            return back()->withErrors(['error' => 'Webhook events table is not available.']);
+        }
+
+        /** @var WhatsAppWebhookEvent|null $event */
+        $event = WhatsAppWebhookEvent::query()->find($id);
+        if (!$event) {
+            return back()->withErrors(['error' => 'Webhook event not found.']);
+        }
+
+        $connection = WhatsAppConnection::query()->find($event->whatsapp_connection_id);
+        if (!$connection) {
+            return back()->withErrors(['error' => 'Webhook connection not found for replay.']);
+        }
+
+        $payload = $event->payload;
+        if (!is_array($payload) || empty($payload)) {
+            return back()->withErrors(['error' => 'Webhook payload is missing or invalid.']);
+        }
+
+        $replayCorrelationId = ($event->correlation_id ?: 'wh_replay_'.$event->id).'-replay-'.now()->timestamp;
+        try {
+            $this->webhookProcessor->process($payload, $connection, $replayCorrelationId);
+            $event->update([
+                'status' => 'processed',
+                'processed_at' => now(),
+                'error_message' => null,
+                'replay_count' => (int) $event->replay_count + 1,
+                'last_replayed_at' => now(),
+            ]);
+
+            return back()->with('success', 'Webhook event replayed successfully.');
+        } catch (\Throwable $e) {
+            $event->update([
+                'status' => 'failed',
+                'processed_at' => now(),
+                'error_message' => mb_substr($e->getMessage(), 0, 2000),
+                'replay_count' => (int) $event->replay_count + 1,
+                'last_replayed_at' => now(),
+            ]);
+
+            return back()->withErrors(['error' => 'Webhook replay failed: '.$e->getMessage()]);
+        }
     }
 
     /**
