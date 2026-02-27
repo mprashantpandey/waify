@@ -106,7 +106,7 @@ class WhatsAppTemplate extends Model
      */
     public function versions(): HasMany
     {
-        return $this->hasMany(WhatsAppTemplateVersion::class);
+        return $this->hasMany(WhatsAppTemplateVersion::class, 'whatsapp_template_id');
     }
 
     /**
