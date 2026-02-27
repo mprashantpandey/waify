@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Models\AccountInvitation;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redirect;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -67,16 +69,41 @@ class ProfileController extends Controller
 
         $user = $request->user();
 
-        $ownedAccountsCount = (int) $user->ownedAccounts()->count();
+        $ownedAccounts = $user->ownedAccounts()->get();
+        $ownedAccountsCount = (int) $ownedAccounts->count();
         $memberAccountsCount = (int) $user->accounts()->count();
 
-        if ($ownedAccountsCount > 0) {
-            return Redirect::back()->with('error', 'Account deletion blocked: transfer or delete your owned tenant accounts first.');
+        // If user owns tenant accounts, we auto-delete those owned tenants only when no team members/invites exist.
+        foreach ($ownedAccounts as $ownedAccount) {
+            $teamMembersCount = (int) $ownedAccount->users()
+                ->where('users.id', '!=', $user->id)
+                ->count();
+            $pendingInvitesCount = (int) AccountInvitation::where('account_id', $ownedAccount->id)->count();
+
+            if ($teamMembersCount > 0 || $pendingInvitesCount > 0) {
+                return Redirect::back()
+                    ->withErrors([
+                        'account' => 'Account deletion blocked: remove all team members and pending invites from your tenant first.',
+                    ])
+                    ->with('error', 'Account deletion blocked: remove all team members and pending invites from your tenant first.');
+            }
         }
 
         if ($memberAccountsCount > 0) {
-            return Redirect::back()->with('error', 'Account deletion blocked: leave or be removed from all tenant teams first.');
+            return Redirect::back()
+                ->withErrors([
+                    'account' => 'Account deletion blocked: leave or be removed from all tenant teams first.',
+                ])
+                ->with('error', 'Account deletion blocked: leave or be removed from all tenant teams first.');
         }
+
+        DB::transaction(function () use ($ownedAccounts) {
+            foreach ($ownedAccounts as $ownedAccount) {
+                AccountInvitation::where('account_id', $ownedAccount->id)->delete();
+                $ownedAccount->users()->detach();
+                $ownedAccount->delete();
+            }
+        });
 
         Auth::logout();
 

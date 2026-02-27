@@ -3,7 +3,11 @@ import { PropsWithChildren } from 'react';
 import { BrandingWrapper } from '@/Components/Branding/BrandingWrapper';
 import { getPlatformName, getLogoUrl } from '@/lib/branding';
 
-export default function Guest({ children }: PropsWithChildren) {
+type GuestLayoutProps = PropsWithChildren<{
+    maxWidthClass?: string;
+}>;
+
+export default function Guest({ children, maxWidthClass = 'max-w-md' }: GuestLayoutProps) {
     const { branding } = usePage().props as any;
     const platformName = getPlatformName(branding);
     const logoUrl = getLogoUrl(branding);
@@ -11,7 +15,7 @@ export default function Guest({ children }: PropsWithChildren) {
     return (
         <BrandingWrapper>
             <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 px-4 py-12">
-                <div className="w-full max-w-md">
+                <div className={`w-full ${maxWidthClass}`}>
                     <div className="text-center mb-8">
                         <Link href="/" className="inline-block">
                             {logoUrl ? (

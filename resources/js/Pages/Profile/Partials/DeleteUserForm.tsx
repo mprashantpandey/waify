@@ -45,9 +45,8 @@ export default function DeleteUserForm({
 
         destroy(route('profile.destroy'), {
             preserveScroll: true,
-            onSuccess: () => {
-                toast.success('Account deleted successfully');
-            },
+            // Avoid local success toast; server flash/redirect will communicate final state.
+            onSuccess: () => {},
             onError: () => {
                 passwordInput.current?.focus();
                 toast.error('Failed to delete account. Please check your password.');

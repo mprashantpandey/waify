@@ -28,6 +28,7 @@ export default function SecurityTab() {
     const emailVerified = Boolean(props.emailVerified);
     const accounts = Array.isArray(props.accounts) ? props.accounts : [];
     const ownedAccounts = accounts.filter((a: any) => String(a?.owner_id ?? '') === String(props.auth?.user?.id ?? ''));
+    const memberAccounts = accounts.filter((a: any) => String(a?.owner_id ?? '') !== String(props.auth?.user?.id ?? ''));
     const securityPolicy = props.securityPolicy;
     const twoFactor = props.twoFactor ?? {};
     const twoFactorEnabled = Boolean(twoFactor.enabled);
@@ -68,17 +69,18 @@ export default function SecurityTab() {
 
     const deletePrechecks = {
         hasOwnedAccounts: ownedAccounts.length > 0,
-        hasMemberAccounts: accounts.length > 0,
+        hasMemberAccounts: memberAccounts.length > 0,
         typedConfirmation: deleteAccountForm.data.confirmation_text.trim() === 'DELETE',
         hasPassword: deleteAccountForm.data.password.trim().length > 0,
     };
-    const deleteBlockedByMemberships = deletePrechecks.hasOwnedAccounts || deletePrechecks.hasMemberAccounts;
+    // Owned tenant is auto-deleted with user only if no team members/invites exist (enforced server-side).
+    const deleteBlockedByMemberships = deletePrechecks.hasMemberAccounts;
 
     const deleteAccount = async (e: React.FormEvent) => {
         e.preventDefault();
 
         if (deleteBlockedByMemberships) {
-            toast.error('Resolve tenant ownership/membership before deleting your account');
+            toast.error('Leave or be removed from all tenant teams before deleting your account');
             return;
         }
 
@@ -98,8 +100,8 @@ export default function SecurityTab() {
 
         router.delete(route('profile.destroy'), {
             data: { password: deleteAccountForm.data.password },
-            onSuccess: () => {
-            },
+            // Rely on server flash/redirect handling to avoid false success on blocked deletion.
+            onSuccess: () => {},
             onError: () => {
                 toast.error('Failed to delete account');
             },
@@ -573,12 +575,12 @@ export default function SecurityTab() {
                                 <div className="space-y-2">
                                     <div className={`rounded-lg px-3 py-2 text-sm ${deletePrechecks.hasOwnedAccounts ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300' : 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300'}`}>
                                         {deletePrechecks.hasOwnedAccounts
-                                            ? `You still own ${ownedAccounts.length} tenant account(s). Transfer ownership or delete those tenants first.`
+                                            ? `You own ${ownedAccounts.length} tenant account(s). They will be auto-deleted only if no team members/invites exist.`
                                             : 'No owned tenant accounts detected.'}
                                     </div>
                                     <div className={`rounded-lg px-3 py-2 text-sm ${deletePrechecks.hasMemberAccounts ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300' : 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300'}`}>
                                         {deletePrechecks.hasMemberAccounts
-                                            ? `You are still linked to ${accounts.length} tenant account(s). Leave/remove yourself from all teams before account deletion.`
+                                            ? `You are still linked to ${memberAccounts.length} tenant account(s) as team member. Leave/remove yourself from all teams before account deletion.`
                                             : 'No tenant memberships detected.'}
                                     </div>
                                 </div>

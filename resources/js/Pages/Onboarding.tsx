@@ -1,11 +1,8 @@
 import { useForm, usePage } from '@inertiajs/react';
-import { FormEventHandler, ChangeEvent, useMemo, useState } from 'react';
+import { FormEventHandler, useMemo, useState } from 'react';
 import GuestLayout from '@/Layouts/GuestLayout';
 import Button from '@/Components/UI/Button';
-import TextInput from '@/Components/TextInput';
-import InputLabel from '@/Components/InputLabel';
-import InputError from '@/Components/InputError';
-import { Check, Sparkles, Zap, Users, Building2, Crown, ArrowRight, Shield, CreditCard, Settings } from 'lucide-react';
+import { Check, Sparkles, Zap, Users, Building2, Crown, ArrowRight, Shield, CreditCard } from 'lucide-react';
 import { Card, CardContent } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
 
@@ -26,11 +23,10 @@ export default function Onboarding({ plans = [], defaultPlanKey = 'free' }: { pl
     const page = usePage() as any;
     const authUser = page.props?.auth?.user;
     const [selectedPlanKey, setSelectedPlanKey] = useState<string>(defaultPlanKey);
-    const [step, setStep] = useState<1 | 2 | 3>(1);
+    const [step, setStep] = useState<1 | 2>(1);
     const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
     
     const { data, setData, post, processing, errors } = useForm({
-        name: '',
         plan_key: defaultPlanKey,
     });
 
@@ -49,16 +45,6 @@ export default function Onboarding({ plans = [], defaultPlanKey = 'free' }: { pl
         () => plans.find((p) => p.key === selectedPlanKey) ?? plans[0] ?? null,
         [plans, selectedPlanKey]
     );
-
-    const suggestedSlug = useMemo(() => {
-        const base = (data.name || '')
-            .toLowerCase()
-            .trim()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '')
-            .slice(0, 40);
-        return base || 'your-workspace';
-    }, [data.name]);
 
     const formatPrice = (amount: number, currency: string = 'USD') => {
         if (amount === 0 || amount === null) return 'Free';
@@ -106,10 +92,9 @@ export default function Onboarding({ plans = [], defaultPlanKey = 'free' }: { pl
     };
 
     const canGoStep2 = Boolean(selectedPlanKey);
-    const canGoStep3 = Boolean(data.name.trim());
 
     return (
-        <GuestLayout>
+        <GuestLayout maxWidthClass="max-w-6xl">
             <div className="w-full max-w-6xl space-y-8">
                 <div className="text-center">
                     <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-full mb-4">
@@ -119,20 +104,19 @@ export default function Onboarding({ plans = [], defaultPlanKey = 'free' }: { pl
                         </span>
                     </div>
                     <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
-                        Welcome{authUser?.name ? `, ${authUser.name}` : ''} — Let’s Set Up Your Workspace
+                        Welcome{authUser?.name ? `, ${authUser.name}` : ''} — Let’s Set Up Your Account
                     </h2>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                        Professional onboarding in a few guided steps: plan, workspace, and review.
+                        Professional onboarding in a few guided steps: plan and review.
                     </p>
                 </div>
 
                 <Card>
                     <CardContent className="p-5">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             {[
                                 { id: 1, title: 'Choose Plan', icon: CreditCard },
-                                { id: 2, title: 'Workspace Details', icon: Building2 },
-                                { id: 3, title: 'Review & Create', icon: Shield },
+                                { id: 2, title: 'Review & Create', icon: Shield },
                             ].map((item) => {
                                 const Icon = item.icon;
                                 const active = step === item.id;
@@ -142,11 +126,11 @@ export default function Onboarding({ plans = [], defaultPlanKey = 'free' }: { pl
                                         key={item.id}
                                         type="button"
                                         onClick={() => {
-                                            if (item.id === 1 || (item.id === 2 && canGoStep2) || (item.id === 3 && canGoStep3)) {
-                                                setStep(item.id as 1 | 2 | 3);
+                                            if (item.id === 1 || (item.id === 2 && canGoStep2)) {
+                                                setStep(item.id as 1 | 2);
                                             }
                                         }}
-                                        className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition ${
+                                        className={`flex min-w-0 items-center gap-3 rounded-xl border px-4 py-3 text-left transition ${
                                             active
                                                 ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                                                 : done
@@ -159,7 +143,7 @@ export default function Onboarding({ plans = [], defaultPlanKey = 'free' }: { pl
                                         </div>
                                         <div>
                                             <p className="text-xs text-gray-500 dark:text-gray-400">Step {item.id}</p>
-                                            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{item.title}</p>
+                                            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 break-words">{item.title}</p>
                                         </div>
                                     </button>
                                 );
@@ -293,7 +277,7 @@ export default function Onboarding({ plans = [], defaultPlanKey = 'free' }: { pl
                 {step === 1 && (
                     <div className="flex justify-end">
                         <Button type="button" onClick={() => setStep(2)} disabled={!canGoStep2}>
-                            Continue to Workspace Details <ArrowRight className="h-4 w-4 ml-2" />
+                            Continue to Review <ArrowRight className="h-4 w-4 ml-2" />
                         </Button>
                     </div>
                 )}
@@ -302,51 +286,18 @@ export default function Onboarding({ plans = [], defaultPlanKey = 'free' }: { pl
                 <form className="space-y-6" onSubmit={submit}>
                     <Card>
                         <CardContent className="p-6 space-y-4">
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between gap-3">
                                 <div>
-                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Workspace Details</h3>
+                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Review Setup</h3>
                                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                                        This creates your tenant workspace for team, inbox, templates, campaigns, and billing.
+                                        Confirm your plan and create your tenant account.
                                     </p>
                                 </div>
-                                {step === 2 && (
-                                    <Button type="button" variant="secondary" onClick={() => setStep(3)} disabled={!canGoStep3}>
-                                        Review <ArrowRight className="h-4 w-4 ml-2" />
-                                    </Button>
-                                )}
                             </div>
 
-                            <div>
-                                <InputLabel htmlFor="name" value="Workspace Name" />
-                                <TextInput
-                                    id="name"
-                                    type="text"
-                                    value={data.name}
-                                    className="mt-1 block w-full"
-                                    onChange={(e: ChangeEvent<HTMLInputElement>) => setData('name', e.target.value)}
-                                    required
-                                    autoFocus={step === 2}
-                                    placeholder="e.g. Metatech Provider"
-                                />
-                                <InputError message={errors.name} className="mt-2" />
-                                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-3">
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">Workspace URL (slug preview)</p>
-                                        <p className="mt-1 text-sm font-mono text-gray-800 dark:text-gray-200">{suggestedSlug}</p>
-                                    </div>
-                                    <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-3">
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">Owner</p>
-                                        <p className="mt-1 text-sm text-gray-800 dark:text-gray-200">
-                                            {authUser?.email || authUser?.name || 'Current user'}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {step === 3 && (
+                            {step === 2 && (
                                 <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/15 p-4 space-y-3">
                                     <div className="flex items-center gap-2">
-                                        <Settings className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                                         <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">Review Setup</p>
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
@@ -366,43 +317,26 @@ export default function Onboarding({ plans = [], defaultPlanKey = 'free' }: { pl
                                         </div>
                                     </div>
                                     <ul className="space-y-2 text-xs text-blue-800 dark:text-blue-200">
-                                        <li className="flex items-start gap-2"><Check className="h-3.5 w-3.5 mt-0.5" />Workspace and subscription will be created automatically.</li>
+                                        <li className="flex items-start gap-2"><Check className="h-3.5 w-3.5 mt-0.5" />Account and subscription will be created automatically.</li>
                                         <li className="flex items-start gap-2"><Check className="h-3.5 w-3.5 mt-0.5" />Core modules will be enabled by default.</li>
                                         <li className="flex items-start gap-2"><Check className="h-3.5 w-3.5 mt-0.5" />You will be redirected to complete your profile before entering the app.</li>
                                     </ul>
+                                    <p className="text-xs text-blue-800 dark:text-blue-200">
+                                        Account owner: {authUser?.email || authUser?.name || 'Current user'}
+                                    </p>
                                 </div>
                             )}
 
                             <div className="flex flex-col gap-3">
-                                {step === 2 && (
-                                    <div className="flex justify-between gap-3">
-                                        <Button type="button" variant="secondary" onClick={() => setStep(1)}>
-                                            Back to Plans
-                                        </Button>
-                                        <Button type="button" onClick={() => setStep(3)} disabled={!canGoStep3}>
-                                            Continue to Review <ArrowRight className="h-4 w-4 ml-2" />
-                                        </Button>
-                                    </div>
-                                )}
-
-                                {step === 3 && (
-                                    <div className="flex justify-between gap-3">
-                                        <Button type="button" variant="secondary" onClick={() => setStep(2)}>
-                                            Back
-                                        </Button>
-                                        <Button type="submit" className="w-full md:w-auto" disabled={processing || !data.name.trim()}>
-                                            {processing ? 'Creating Workspace...' : 'Create Workspace & Continue'}
-                                        </Button>
-                                    </div>
-                                )}
-
-                                {step !== 3 && (
-                                    <div>
-                                <Button type="submit" className="w-full" disabled={processing || !data.name.trim()}>
-                                    {processing ? 'Creating Workspace...' : 'Quick Create (Skip Review)'}
-                                </Button>
-                                    </div>
-                                )}
+                                <div className="flex justify-between gap-3">
+                                    <Button type="button" variant="secondary" onClick={() => setStep(1)}>
+                                        Back to Plans
+                                    </Button>
+                                    <Button type="submit" className="w-full md:w-auto" disabled={processing || !data.plan_key}>
+                                        {processing ? 'Creating Account...' : 'Create Account & Continue'}
+                                    </Button>
+                                </div>
+                                {errors.plan_key && <p className="text-sm text-red-600 dark:text-red-400">{errors.plan_key}</p>}
                                 {selectedPlanKey && (plans.find((p) => p.key === selectedPlanKey)?.trial_days ?? 0) > 0 && (
                                     <p className="mt-2 text-center text-xs text-gray-500 dark:text-gray-400">
                                         You'll start with a {plans.find((p) => p.key === selectedPlanKey)?.trial_days}-day free trial
