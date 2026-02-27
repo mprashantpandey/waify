@@ -99,11 +99,11 @@ export default function FloatersEdit({
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
-        put(route('app.floaters.update', { widget: widgetKey }));
+        put(route('app.widgets.update', { widget: widgetKey }));
     };
 
     const toggle = () => {
-        router.post(route('app.floaters.toggle', { widget: widgetKey }));
+        router.post(route('app.widgets.toggle', { widget: widgetKey }));
     };
 
     const remove = async () => {
@@ -114,7 +114,7 @@ export default function FloatersEdit({
 
         if (!confirmed) return;
 
-        router.delete(route('app.floaters.destroy', { widget: widgetKey }), {
+        router.delete(route('app.widgets.destroy', { widget: widgetKey }), {
             onError: () => toast.error('Failed to delete widget')});
     };
 
@@ -131,7 +131,7 @@ export default function FloatersEdit({
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <div>
                         <Link
-                            href={route('app.floaters', {})}
+                            href={route('app.widgets', {})}
                             className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
                         >
                             <ArrowLeft className="h-4 w-4" />
@@ -398,7 +398,7 @@ export default function FloatersEdit({
                     </Card>
 
                     <div className="flex items-center justify-end gap-3">
-                        <Link href={route('app.floaters', { })}>
+                        <Link href={route('app.widgets', { })}>
                             <Button variant="secondary">Cancel</Button>
                         </Link>
                         <Button

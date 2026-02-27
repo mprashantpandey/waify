@@ -2,15 +2,14 @@
 
 return [
     'key' => 'floaters',
-    'name' => 'Floaters & Widgets',
-    'description' => 'Floating widgets and chat widgets',
+    'name' => 'Widgets',
+    'description' => 'Website widgets and customer chat entry points',
     'enabled_by_default' => false,
     'is_core' => false,
     'icon' => 'Zap',
     'nav' => [
         [
-            'label' => 'Floaters',
-            'href' => 'app.floaters',
+            'label' => 'Widgets',
+            'href' => 'app.widgets',
             'icon' => 'Zap',
             'group' => 'growth']]];
-

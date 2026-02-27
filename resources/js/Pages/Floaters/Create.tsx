@@ -38,7 +38,7 @@ export default function FloatersCreate({
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
-        post(route('app.floaters.store', {}));
+        post(route('app.widgets.store', {}));
     };
 
     return (
@@ -47,7 +47,7 @@ export default function FloatersCreate({
             <div className="space-y-8">
                 <div>
                     <Link
-                        href={route('app.floaters', {})}
+                        href={route('app.widgets', {})}
                         className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
                     >
                         <ArrowLeft className="h-4 w-4" />
@@ -214,7 +214,7 @@ export default function FloatersCreate({
                     </Card>
 
                     <div className="flex items-center justify-end gap-3">
-                        <Link href={route('app.floaters', { })}>
+                        <Link href={route('app.widgets', { })}>
                             <Button variant="secondary">Cancel</Button>
                         </Link>
                         <Button

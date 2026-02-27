@@ -72,7 +72,7 @@ class WidgetController extends Controller
 
         $widget = FloaterWidget::create($validated);
 
-        return redirect()->route('app.floaters.edit', [
+        return redirect()->route('app.widgets.edit', [
             'widget' => $widget->slug])->with('success', 'Widget created successfully.');
     }
 
@@ -123,7 +123,7 @@ class WidgetController extends Controller
 
         $widget->update($validated);
 
-        return redirect()->route('app.floaters.edit', [
+        return redirect()->route('app.widgets.edit', [
             'widget' => $widget->slug])->with('success', 'Widget updated successfully.');
     }
 
@@ -147,7 +147,7 @@ class WidgetController extends Controller
 
         $widget->delete();
 
-        return redirect()->route('app.floaters')->with('success', 'Widget deleted successfully.');
+        return redirect()->route('app.widgets')->with('success', 'Widget deleted successfully.');
     }
 
     protected function validateWidget(Request $request): array

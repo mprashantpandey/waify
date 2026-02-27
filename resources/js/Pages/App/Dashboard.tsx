@@ -16,12 +16,15 @@ import {
     ArrowRight,
     CheckCircle,
     Sparkles,
-    Zap
+    Zap,
+    Copy,
+    QrCode
 } from 'lucide-react';
 import { usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Input } from '@/Components/UI/Input';
 import { Label } from '@/Components/UI/Label';
+import QRCode from 'qrcode';
 
 interface Stats {
     messages: {
@@ -86,22 +89,44 @@ interface OnboardingChecklist {
     }>;
 }
 
+interface ConnectionAlert {
+    id: number;
+    slug: string;
+    name: string;
+    is_active: boolean;
+    webhook_subscribed: boolean;
+    webhook_last_error: string | null;
+    webhook_last_received_at: string | null;
+}
+
+interface CustomerStartConversation {
+    widget_id: number;
+    widget_slug: string;
+    widget_name: string;
+    start_link: string | null;
+}
+
 export default function Dashboard({ 
     account, 
     stats, 
     onboarding_checklist,
+    connection_alerts = [],
+    customer_start_conversation = null,
     message_trends, 
     recent_conversations 
 }: { 
     account: any;
     stats: Stats;
     onboarding_checklist?: OnboardingChecklist;
+    connection_alerts?: ConnectionAlert[];
+    customer_start_conversation?: CustomerStartConversation | null;
     message_trends: MessageTrend[];
     recent_conversations: RecentConversation[];
 }) {
     const { navigation } = usePage().props as any;
     const [setupWizardOpen, setSetupWizardOpen] = useState(false);
     const [wizardStepKey, setWizardStepKey] = useState<string | null>(null);
+    const [dashboardWidgetQr, setDashboardWidgetQr] = useState<string | null>(null);
     const inviteForm = useForm({
         email: '',
         role: 'member',
@@ -140,6 +165,29 @@ export default function Dashboard({
             },
         });
     };
+
+    useEffect(() => {
+        let active = true;
+        const link = customer_start_conversation?.start_link;
+        if (!link) {
+            setDashboardWidgetQr(null);
+            return () => {
+                active = false;
+            };
+        }
+
+        QRCode.toDataURL(link, { width: 180, margin: 1 })
+            .then((url) => {
+                if (active) setDashboardWidgetQr(url);
+            })
+            .catch(() => {
+                if (active) setDashboardWidgetQr(null);
+            });
+
+        return () => {
+            active = false;
+        };
+    }, [customer_start_conversation?.start_link]);
 
     const statCards = [
         {
@@ -187,6 +235,88 @@ export default function Dashboard({
                         </p>
                     </div>
                 </div>
+
+                {connection_alerts.length > 0 && (
+                    <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-900/20">
+                        <CardContent className="p-4">
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                                        Connection attention required
+                                    </p>
+                                    <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                                        One or more WhatsApp connections have webhook or activation issues.
+                                    </p>
+                                    <div className="mt-2 space-y-1">
+                                        {connection_alerts.slice(0, 3).map((alert) => (
+                                            <div key={alert.id} className="text-xs text-amber-800 dark:text-amber-200">
+                                                {alert.name}: {!alert.is_active ? 'inactive' : !alert.webhook_subscribed ? 'webhook not subscribed' : 'webhook error'}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <Link href={route('app.whatsapp.connections.index', {})}>
+                                    <Button variant="secondary" size="sm">Review Connections</Button>
+                                </Link>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {customer_start_conversation && (
+                    <Card className="border-0 shadow-lg">
+                        <CardHeader className="bg-gradient-to-r from-emerald-50 to-teal-100 dark:from-emerald-900/20 dark:to-teal-800/20">
+                            <CardTitle className="text-base font-semibold">Customer Start Conversation</CardTitle>
+                            <CardDescription>
+                                Share this link or QR code with customers to start a WhatsApp chat instantly.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-4">
+                            {customer_start_conversation.start_link ? (
+                                <div className="grid gap-4 md:grid-cols-[1fr,220px]">
+                                    <div className="space-y-3">
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                                            Source widget: <span className="font-semibold text-gray-700 dark:text-gray-200">{customer_start_conversation.widget_name}</span>
+                                        </div>
+                                        <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3 text-xs break-all text-gray-700 dark:text-gray-300">
+                                            {customer_start_conversation.start_link}
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            <Button
+                                                variant="secondary"
+                                                size="sm"
+                                                onClick={() => navigator.clipboard.writeText(customer_start_conversation.start_link || '')}
+                                            >
+                                                <Copy className="h-4 w-4 mr-2" />
+                                                Copy Link
+                                            </Button>
+                                            <Link href={route('app.widgets.edit', { widget: customer_start_conversation.widget_slug })}>
+                                                <Button variant="secondary" size="sm">Manage Widget</Button>
+                                            </Link>
+                                        </div>
+                                    </div>
+                                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3 flex flex-col items-center justify-center">
+                                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-1">
+                                            <QrCode className="h-4 w-4" />
+                                            Scan to Chat
+                                        </div>
+                                        {dashboardWidgetQr ? (
+                                            <img src={dashboardWidgetQr} alt="Customer start conversation QR" className="h-44 w-44 rounded-lg bg-white border border-gray-200 dark:border-gray-700" />
+                                        ) : (
+                                            <div className="h-44 w-44 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 flex items-center justify-center text-xs text-gray-500">
+                                                QR unavailable
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="rounded-lg border border-amber-300/70 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800 p-3 text-sm text-amber-800 dark:text-amber-300">
+                                    Configure a valid WhatsApp phone in your widget to generate the start conversation link.
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+                )}
 
                 {/* Key Metrics */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

@@ -25,18 +25,18 @@ export default function FloatersIndex({
 }) {
     return (
         <AppShell>
-            <Head title="Floaters & Widgets" />
+            <Head title="Widgets" />
             <div className="space-y-8">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-                            Floaters &amp; Widgets
+                            Widgets
                         </h1>
                         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                             Build a WhatsApp chat bubble to capture leads and start conversations.
                         </p>
                     </div>
-                    <Link href={route('app.floaters.create', {})}>
+                    <Link href={route('app.widgets.create', {})}>
                         <Button className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-lg shadow-emerald-500/40">
                             <Plus className="h-4 w-4 mr-2" />
                             New Widget
@@ -74,7 +74,7 @@ export default function FloatersIndex({
                             <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                                 Add a WhatsApp bubble to any website and track engagement.
                             </p>
-                            <Link href={route('app.floaters.create', {})} className="inline-flex mt-6">
+                            <Link href={route('app.widgets.create', {})} className="inline-flex mt-6">
                                 <Button className="bg-emerald-600 hover:bg-emerald-700 text-white">
                                     Create Widget
                                 </Button>
@@ -107,7 +107,7 @@ export default function FloatersIndex({
                                         Embed: <code className="break-all">/widgets/{widget.public_id}.js</code>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-3">
-                                        <Link href={route('app.floaters.edit', { widget: widget.slug || widget.id })}>
+                                        <Link href={route('app.widgets.edit', { widget: widget.slug || widget.id })}>
                                             <Button variant="secondary">Manage</Button>
                                         </Link>
                                         <Button

@@ -7,6 +7,7 @@ use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
+use App\Modules\Floaters\Models\FloaterWidget;
 use App\Models\AccountUser;
 use App\Core\Billing\UsageService;
 use Illuminate\Http\Request;
@@ -124,6 +125,54 @@ class DashboardController extends Controller
                     'last_activity_at' => $conversation->last_message_at?->toIso8601String()];
             });
 
+        $connectionAlerts = WhatsAppConnection::where('account_id', $account->id)
+            ->where(function ($query) {
+                $query->where('is_active', false)
+                    ->orWhere('webhook_subscribed', false)
+                    ->orWhereNotNull('webhook_last_error');
+            })
+            ->orderByDesc('updated_at')
+            ->limit(5)
+            ->get()
+            ->map(function ($connection) {
+                return [
+                    'id' => $connection->id,
+                    'slug' => $connection->slug ?? (string) $connection->id,
+                    'name' => $connection->name,
+                    'is_active' => (bool) $connection->is_active,
+                    'webhook_subscribed' => (bool) $connection->webhook_subscribed,
+                    'webhook_last_error' => $connection->webhook_last_error,
+                    'webhook_last_received_at' => $connection->webhook_last_received_at?->toIso8601String(),
+                ];
+            });
+
+        $customerStartConversation = null;
+        $widgetsModuleEnabled = $this->moduleRegistry->getEnabledForAccount($account)
+            ->contains(fn ($module) => ($module['key'] ?? null) === 'floaters');
+        if ($widgetsModuleEnabled) {
+            $widget = FloaterWidget::query()
+                ->where('account_id', $account->id)
+                ->where('is_active', true)
+                ->orderByDesc('updated_at')
+                ->orderByDesc('id')
+                ->first();
+
+            if ($widget) {
+                $normalizedPhone = preg_replace('/\D+/', '', (string) ($widget->whatsapp_phone ?? ''));
+                $welcome = trim((string) ($widget->welcome_message ?? ''));
+                $link = $normalizedPhone !== ''
+                    ? ('https://wa.me/'.$normalizedPhone.($welcome !== '' ? ('?text='.urlencode($welcome)) : ''))
+                    : null;
+
+                $customerStartConversation = [
+                    'widget_id' => (int) $widget->id,
+                    'widget_slug' => $widget->slug,
+                    'widget_name' => $widget->name,
+                    'start_link' => $link,
+                ];
+            }
+        }
+
         return Inertia::render('App/Dashboard', [
             'account' => $account,
             'stats' => [
@@ -149,6 +198,8 @@ class DashboardController extends Controller
                     'admins' => $admins],
                 'usage' => $currentUsage],
             'onboarding_checklist' => $onboardingChecklist,
+            'connection_alerts' => $connectionAlerts,
+            'customer_start_conversation' => $customerStartConversation,
             'message_trends' => $messageTrends,
             'recent_conversations' => $recentConversations]);
     }
@@ -160,10 +211,21 @@ class DashboardController extends Controller
             && (!$isPhoneVerifiedRequired || !empty($user?->phone_verified_at));
 
         $hasConnection = WhatsAppConnection::where('account_id', $account->id)->exists();
+        $hasHealthyConnection = WhatsAppConnection::where('account_id', $account->id)
+            ->where('is_active', true)
+            ->where('webhook_subscribed', true)
+            ->whereNull('webhook_last_error')
+            ->exists();
+        $hasWabaLinked = WhatsAppConnection::where('account_id', $account->id)
+            ->whereNotNull('waba_id')
+            ->exists();
         $hasTeamMember = AccountUser::where('account_id', $account->id)
             ->when($account->owner_id, fn ($q) => $q->where('user_id', '!=', $account->owner_id))
             ->exists();
         $hasTemplate = WhatsAppTemplate::where('account_id', $account->id)->exists();
+        $hasApprovedTemplate = WhatsAppTemplate::where('account_id', $account->id)
+            ->where('status', 'approved')
+            ->exists();
         $hasConversation = WhatsAppConversation::where('account_id', $account->id)->exists();
 
         $items = [
@@ -204,13 +266,40 @@ class DashboardController extends Controller
                 'priority' => 4,
             ],
             [
+                'key' => 'template_approval',
+                'label' => 'Get template approved',
+                'description' => 'Ensure at least one message template is approved and ready to send.',
+                'done' => $hasApprovedTemplate,
+                'href' => route('app.whatsapp.templates.index'),
+                'cta' => 'Review templates',
+                'priority' => 5,
+            ],
+            [
+                'key' => 'connection_health',
+                'label' => 'Verify webhook health',
+                'description' => 'Confirm your webhook is subscribed and receiving events from Meta.',
+                'done' => $hasHealthyConnection,
+                'href' => route('app.whatsapp.connections.index'),
+                'cta' => 'Check health',
+                'priority' => 6,
+            ],
+            [
+                'key' => 'meta_verification',
+                'label' => 'Review Meta verification',
+                'description' => 'Review your Meta Business verification status and complete pending checks.',
+                'done' => $hasWabaLinked,
+                'href' => route('app.whatsapp.connections.index'),
+                'cta' => 'Open connection',
+                'priority' => 7,
+            ],
+            [
                 'key' => 'test_message',
                 'label' => 'Send a test message',
                 'description' => 'Verify your end-to-end setup by sending/receiving a real message.',
                 'done' => $hasConversation,
                 'href' => route('app.whatsapp.conversations.index'),
                 'cta' => 'Open inbox',
-                'priority' => 5,
+                'priority' => 8,
             ],
         ];
 
