@@ -524,6 +524,16 @@ class CampaignService
 
             $normalizedStatus = strtolower(trim($status));
             $eventAt = $timestamp ?? now();
+            $previousStatus = strtolower((string) ($message->status ?? ''));
+            $knownStatuses = ['sent', 'delivered', 'read', 'failed'];
+            if (!in_array($normalizedStatus, $knownStatuses, true)) {
+                Log::debug('Ignoring unknown campaign message status', [
+                    'wamid' => $wamid,
+                    'status' => $status,
+                    'previous_status' => $previousStatus,
+                ]);
+                return;
+            }
             $updateData = [];
             $recipientUpdate = [];
             $campaignIncrements = [];
@@ -555,20 +565,17 @@ class CampaignService
                     $recipientUpdate['read_at'] = $eventAt;
                     break;
                 case 'failed':
-                    if (!$message->failed_at) {
+                    if (!$message->failed_at && !in_array($previousStatus, ['delivered', 'read'], true)) {
                         $updateData['failed_at'] = $eventAt;
                         $campaignIncrements['failed_count'] = ($campaignIncrements['failed_count'] ?? 0) + 1;
                     }
-                    if ($message->status !== 'read') {
+                    if (!in_array($previousStatus, ['delivered', 'read'], true)) {
                         $updateData['status'] = 'failed';
                         $recipientUpdate['status'] = 'failed';
                     }
-                    $recipientUpdate['failed_at'] = $eventAt;
-                    break;
-                default:
-                    // Keep unknown statuses for debugging visibility.
-                    $updateData['status'] = $normalizedStatus;
-                    $recipientUpdate['status'] = $normalizedStatus;
+                    if (!in_array($previousStatus, ['delivered', 'read'], true)) {
+                        $recipientUpdate['failed_at'] = $eventAt;
+                    }
                     break;
             }
 
