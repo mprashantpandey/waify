@@ -617,11 +617,6 @@ class TemplateManagementService
                 $headerType = strtoupper($component['format'] ?? 'TEXT');
                 if ($headerType === 'TEXT') {
                     $headerText = $component['text'] ?? '';
-                } elseif ($headerMediaUrl === '') {
-                    $headerExample = $component['example']['header_handle'][0] ?? null;
-                    if (is_string($headerExample) && str_starts_with($headerExample, 'http')) {
-                        $headerMediaUrl = $headerExample;
-                    }
                 }
             } elseif ($type === 'FOOTER') {
                 $footerText = $component['text'] ?? '';

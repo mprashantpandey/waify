@@ -204,7 +204,6 @@ class TemplateSyncService
         $bodyText = null;
         $headerType = null;
         $headerText = null;
-        $headerMediaUrl = null;
         $footerText = null;
         $buttons = [];
 
@@ -217,11 +216,6 @@ class TemplateSyncService
                 $headerType = strtoupper($component['format'] ?? 'TEXT');
                 if ($headerType === 'TEXT') {
                     $headerText = $component['text'] ?? '';
-                } else {
-                    $headerExample = $component['example']['header_handle'][0] ?? null;
-                    if (is_string($headerExample) && str_starts_with($headerExample, 'http')) {
-                        $headerMediaUrl = $headerExample;
-                    }
                 }
             } elseif ($type === 'FOOTER') {
                 $footerText = $component['text'] ?? '';
@@ -261,11 +255,6 @@ class TemplateSyncService
             'last_synced_at' => now(),
             'last_meta_error' => null,
         ];
-
-        // Meta sync payload usually does not contain reusable media URLs. Keep existing local URL unless sync can provide one.
-        if ($headerMediaUrl !== null) {
-            $values['header_media_url'] = $headerMediaUrl;
-        }
 
         $template = WhatsAppTemplate::updateOrCreate($match, $values);
 

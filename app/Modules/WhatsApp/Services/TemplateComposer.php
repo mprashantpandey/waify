@@ -48,6 +48,9 @@ class TemplateComposer
             if ($mediaUrl === '') {
                 throw new \Exception("Template '{$template->name}' requires header media URL before sending");
             }
+            if ($this->isTemporaryMetaHostedUrl($mediaUrl)) {
+                throw new \Exception("Template '{$template->name}' uses a temporary Meta-hosted header media URL. Re-upload header media in template edit and try again.");
+            }
 
             $mediaKey = strtolower($template->header_type);
             $components[] = [
@@ -220,24 +223,19 @@ class TemplateComposer
 
     protected function resolveHeaderMediaUrl(WhatsAppTemplate $template): string
     {
-        $mediaUrl = trim((string) ($template->header_media_url ?? ''));
-        if ($mediaUrl !== '') {
-            return $mediaUrl;
+        return trim((string) ($template->header_media_url ?? ''));
+    }
+
+    protected function isTemporaryMetaHostedUrl(string $url): bool
+    {
+        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+        if ($host === '') {
+            return false;
         }
 
-        $components = is_array($template->components) ? $template->components : [];
-        foreach ($components as $component) {
-            if (strtoupper((string) ($component['type'] ?? '')) !== 'HEADER') {
-                continue;
-            }
-
-            $candidate = $component['example']['header_handle'][0] ?? null;
-            $candidate = is_string($candidate) ? trim($candidate) : '';
-            if (str_starts_with($candidate, 'http://') || str_starts_with($candidate, 'https://')) {
-                return $candidate;
-            }
-        }
-
-        return '';
+        return str_contains($host, 'facebook.com')
+            || str_contains($host, 'fbcdn.net')
+            || str_contains($host, 'fbsbx.com')
+            || str_contains($host, 'lookaside');
     }
 }

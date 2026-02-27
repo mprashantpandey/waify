@@ -261,12 +261,19 @@ class WhatsAppClient
                     $uploadedMediaId = $this->uploadMediaFromLink($connection, $mediaLink, $paramType);
                     $components[$componentIndex]['parameters'][$paramIndex][$paramType] = ['id' => $uploadedMediaId];
                 } catch (\Throwable $e) {
-                    Log::channel('whatsapp')->warning('Failed to pre-upload template header media; sending by link', [
+                    Log::channel('whatsapp')->warning('Failed to pre-upload template header media', [
                         'connection_id' => $connection->id,
                         'media_type' => $paramType,
                         'media_link' => $mediaLink,
                         'error' => $e->getMessage(),
                     ]);
+
+                    throw new WhatsAppApiException(
+                        "Template header media could not be prepared for delivery. Re-upload header media and try again.",
+                        [],
+                        422,
+                        $e instanceof \Exception ? $e : null
+                    );
                 }
             }
         }
