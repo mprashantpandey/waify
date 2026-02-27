@@ -3,6 +3,7 @@
 namespace App\Modules\WhatsApp\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\WhatsApp\Events\Templates\TemplateStatusUpdated;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use App\Modules\WhatsApp\Services\TemplateManagementService;
@@ -520,6 +521,9 @@ class TemplateController extends Controller
                 'last_synced_at' => now(),
                 'last_meta_error' => $rejectionReason]);
 
+            $template->refresh();
+            event(new TemplateStatusUpdated($template));
+
             return back()->with('success', 'Template status updated from Meta.');
         } catch (\Exception $e) {
             Log::channel('whatsapp')->error('Template status check failed', [
@@ -528,6 +532,58 @@ class TemplateController extends Controller
 
             return back()->with('error', 'Failed to check template status: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Get current template status snapshot.
+     * Optionally syncs from Meta when ?sync=1 is provided.
+     */
+    public function statusSnapshot(Request $request, WhatsAppTemplate $template)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if (!account_ids_match($template->account_id, $account->id)) {
+            abort(404);
+        }
+
+        $sync = $request->boolean('sync', false);
+
+        if ($sync && $template->meta_template_id) {
+            try {
+                $statusData = $this->templateManagementService->getTemplateStatus(
+                    $template->connection,
+                    $template->meta_template_id
+                );
+
+                $metaStatus = strtolower((string) ($statusData['status'] ?? $template->status));
+                $rejectionReason = $statusData['rejection_reason'] ?? null;
+
+                $template->update([
+                    'status' => $metaStatus,
+                    'last_synced_at' => now(),
+                    'last_meta_error' => $rejectionReason,
+                ]);
+
+                $template->refresh();
+                event(new TemplateStatusUpdated($template));
+            } catch (\Throwable $e) {
+                Log::channel('whatsapp')->warning('Template status snapshot sync failed', [
+                    'template_id' => $template->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return response()->json([
+            'ok' => true,
+            'template' => [
+                'id' => $template->id,
+                'status' => $template->status,
+                'last_meta_error' => $template->last_meta_error,
+                'rejection_reason' => $template->rejection_reason,
+                'last_synced_at' => $template->last_synced_at?->toIso8601String(),
+            ],
+        ]);
     }
 
     protected function extractHeaderHandle(array $components): ?string

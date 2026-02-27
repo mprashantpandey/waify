@@ -86,3 +86,23 @@ Broadcast::channel('account.{accountId}.whatsapp.conversation.{conversationId}',
     ];
 });
 
+// Template status channel - for realtime template approval/rejection updates
+Broadcast::channel('account.{accountId}.whatsapp.templates', function ($user, $accountId) {
+    $account = \App\Models\Account::find($accountId);
+
+    if (!$account) {
+        return false;
+    }
+
+    $isOwner = $account->owner_id && (int) $account->owner_id === (int) $user->id;
+    $membership = $account->users()->where('user_id', $user->id)->exists();
+
+    if (!$isOwner && !$membership) {
+        return false;
+    }
+
+    return [
+        'id' => $user->id,
+        'name' => $user->name,
+    ];
+});

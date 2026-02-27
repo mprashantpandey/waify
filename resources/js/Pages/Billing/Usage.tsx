@@ -59,6 +59,13 @@ interface MetaBillingSummary {
         rate_minor: number;
         estimated_cost_minor: number;
     }>;
+    top_cost_drivers?: Array<{
+        driver_type: string;
+        driver_label: string;
+        campaign_slug?: string | null;
+        conversations_count: number;
+        estimated_cost_minor: number;
+    }>;
     note: string;
 }
 
@@ -93,6 +100,7 @@ export default function BillingUsage({
         minimumFractionDigits: 2,
     });
     const metaCategoryBreakdown = meta_billing?.category_breakdown ?? [];
+    const topCostDrivers = meta_billing?.top_cost_drivers ?? [];
 
     return (
         <AppShell>
@@ -224,6 +232,45 @@ export default function BillingUsage({
                                                     <td className="py-2 pr-3 text-gray-700 dark:text-gray-300">{row.free_count.toLocaleString()}</td>
                                                     <td className="py-2 pr-3 text-gray-700 dark:text-gray-300">{row.paid_count.toLocaleString()}</td>
                                                     <td className="py-2 pr-3 text-gray-700 dark:text-gray-300">{moneyFormatter.format((row.rate_minor ?? 0) / 100)}</td>
+                                                    <td className="py-2 text-gray-900 dark:text-gray-100 font-semibold">{moneyFormatter.format((row.estimated_cost_minor ?? 0) / 100)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+
+                            {topCostDrivers.length > 0 && (
+                                <div className="mt-5 overflow-x-auto">
+                                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
+                                        Top Cost Drivers
+                                    </p>
+                                    <table className="w-full text-xs">
+                                        <thead>
+                                            <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-emerald-200 dark:border-emerald-800">
+                                                <th className="py-2 pr-3 font-semibold uppercase tracking-wider">Driver</th>
+                                                <th className="py-2 pr-3 font-semibold uppercase tracking-wider">Type</th>
+                                                <th className="py-2 pr-3 font-semibold uppercase tracking-wider">Conversations</th>
+                                                <th className="py-2 font-semibold uppercase tracking-wider">Estimated Cost</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {topCostDrivers.map((row, idx) => (
+                                                <tr key={`${row.driver_label}-${idx}`} className="border-b border-emerald-100/70 dark:border-emerald-900/40">
+                                                    <td className="py-2 pr-3 font-medium text-gray-800 dark:text-gray-200">
+                                                        {row.driver_type === 'campaign' && row.campaign_slug ? (
+                                                            <Link
+                                                                href={route('app.broadcasts.show', { campaign: row.campaign_slug })}
+                                                                className="underline decoration-dotted underline-offset-2 hover:text-emerald-700 dark:hover:text-emerald-300"
+                                                            >
+                                                                {row.driver_label}
+                                                            </Link>
+                                                        ) : (
+                                                            row.driver_label
+                                                        )}
+                                                    </td>
+                                                    <td className="py-2 pr-3 text-gray-700 dark:text-gray-300 capitalize">{row.driver_type.replace('_', ' ')}</td>
+                                                    <td className="py-2 pr-3 text-gray-700 dark:text-gray-300">{row.conversations_count.toLocaleString()}</td>
                                                     <td className="py-2 text-gray-900 dark:text-gray-100 font-semibold">{moneyFormatter.format((row.estimated_cost_minor ?? 0) / 100)}</td>
                                                 </tr>
                                             ))}

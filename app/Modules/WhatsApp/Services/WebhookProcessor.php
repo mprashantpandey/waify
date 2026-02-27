@@ -5,6 +5,7 @@ namespace App\Modules\WhatsApp\Services;
 use App\Modules\WhatsApp\Events\Inbox\ConversationUpdated;
 use App\Modules\WhatsApp\Events\Inbox\AuditEventAdded;
 use App\Modules\WhatsApp\Events\Inbox\MessageCreated;
+use App\Modules\WhatsApp\Events\Templates\TemplateStatusUpdated;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
@@ -13,9 +14,13 @@ use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use App\Modules\WhatsApp\Models\WhatsAppMessageBilling;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use App\Modules\WhatsApp\Models\WhatsAppTemplateSend;
+use App\Notifications\WhatsAppWebhookFailureNotification;
 use App\Models\Account;
+use App\Models\PlatformSetting;
+use App\Models\User;
 use App\Core\Billing\MetaPricingResolver;
 use App\Core\Billing\UsageService;
+use App\Services\NotificationDispatchService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -25,7 +30,8 @@ class WebhookProcessor
 {
     public function __construct(
         protected UsageService $usageService,
-        protected MetaPricingResolver $metaPricingResolver
+        protected MetaPricingResolver $metaPricingResolver,
+        protected NotificationDispatchService $notificationDispatchService
     ) {
     }
 
@@ -143,7 +149,132 @@ class WebhookProcessor
             $connection->update([
                 'webhook_last_error' => $errorMessage]);
 
+            $this->notifyWebhookFailure($connection, $errorMessage);
+
             throw $e;
+        }
+    }
+
+    protected function notifyWebhookFailure(WhatsAppConnection $connection, string $errorMessage): void
+    {
+        try {
+            $account = Account::find($connection->account_id);
+            if (!$account) {
+                return;
+            }
+
+            $recipientIds = collect([$account->owner_id])
+                ->merge(
+                    $account->users()
+                        ->whereIn('account_users.role', ['owner', 'admin'])
+                        ->pluck('users.id')
+                )
+                ->filter()
+                ->unique()
+                ->values();
+
+            if ($recipientIds->isEmpty()) {
+                return;
+            }
+
+            $recipients = User::whereIn('id', $recipientIds)->get(['id', 'name', 'email']);
+            if ($recipients->isEmpty()) {
+                return;
+            }
+
+            $notification = new WhatsAppWebhookFailureNotification($connection, $errorMessage);
+            $this->notificationDispatchService->send($recipients, $notification, 900);
+        } catch (\Throwable $notifyError) {
+            Log::channel('whatsapp')->warning('Webhook failure notification dispatch failed', [
+                'connection_id' => $connection->id,
+                'error' => $notifyError->getMessage(),
+            ]);
+        }
+    }
+
+    protected function checkAndNotifyHighErrorRate(WhatsAppConnection $connection): void
+    {
+        try {
+            $alertsEnabled = filter_var(
+                PlatformSetting::get(
+                    'integrations.whatsapp_error_rate_alert_enabled',
+                    PlatformSetting::get('whatsapp.error_rate.enabled', true)
+                ),
+                FILTER_VALIDATE_BOOLEAN,
+                FILTER_NULL_ON_FAILURE
+            );
+            if ($alertsEnabled === false) {
+                return;
+            }
+
+            $thresholdPercent = (float) PlatformSetting::get(
+                'integrations.whatsapp_error_rate_threshold_percent',
+                PlatformSetting::get('whatsapp.error_rate.threshold_percent', 20)
+            );
+            $windowMinutes = (int) PlatformSetting::get(
+                'integrations.whatsapp_error_rate_window_minutes',
+                PlatformSetting::get('whatsapp.error_rate.window_minutes', 15)
+            );
+            $minimumMessages = (int) PlatformSetting::get(
+                'integrations.whatsapp_error_rate_minimum_messages',
+                PlatformSetting::get('whatsapp.error_rate.minimum_messages', 20)
+            );
+
+            $windowMinutes = max(1, $windowMinutes);
+            $minimumMessages = max(1, $minimumMessages);
+            $windowStart = now()->subMinutes($windowMinutes);
+
+            $baseQuery = WhatsAppMessage::query()
+                ->where('account_id', $connection->account_id)
+                ->where('direction', 'outbound')
+                ->where('created_at', '>=', $windowStart)
+                ->whereHas('conversation', function ($query) use ($connection) {
+                    $query->where('whatsapp_connection_id', $connection->id);
+                });
+
+            $total = (int) (clone $baseQuery)->count();
+            if ($total < $minimumMessages) {
+                return;
+            }
+
+            $failed = (int) (clone $baseQuery)->where('status', 'failed')->count();
+            $ratePercent = $total > 0 ? (($failed / $total) * 100) : 0;
+
+            if ($ratePercent < $thresholdPercent) {
+                return;
+            }
+
+            $bucket = now()->format('YmdHi');
+            $cacheKey = "whatsapp:error-rate-alert:{$connection->id}:{$bucket}";
+            if (!Cache::add($cacheKey, true, now()->addMinutes(max(1, intdiv($windowMinutes, 2))))) {
+                return;
+            }
+
+            $message = sprintf(
+                'High outbound failure rate detected: %.1f%% (%d/%d) in the last %d minutes. Threshold is %.1f%%.',
+                $ratePercent,
+                $failed,
+                $total,
+                $windowMinutes,
+                $thresholdPercent
+            );
+
+            $this->notifyWebhookFailure($connection, $message);
+
+            Log::channel('whatsapp')->warning('High WhatsApp error-rate alert sent', [
+                'connection_id' => $connection->id,
+                'account_id' => $connection->account_id,
+                'failed' => $failed,
+                'total' => $total,
+                'rate_percent' => round($ratePercent, 2),
+                'window_minutes' => $windowMinutes,
+                'threshold_percent' => $thresholdPercent,
+            ]);
+        } catch (\Throwable $e) {
+            Log::channel('whatsapp')->warning('High error-rate check failed', [
+                'connection_id' => $connection->id,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 
@@ -348,6 +479,7 @@ class WebhookProcessor
             $status = $statusData['status'] ?? null;
             $timestamp = isset($statusData['timestamp']) ? (int) $statusData['timestamp'] : null;
             $statusAt = $timestamp ? now()->setTimestamp($timestamp) : now();
+            $isFailedStatus = $status === 'failed';
 
             if ($message) {
                 // Update regular message
@@ -383,6 +515,10 @@ class WebhookProcessor
                 campaignMessage: $campaignMessage,
                 metaMessageId: $metaMessageId,
             );
+
+            if ($isFailedStatus) {
+                $this->checkAndNotifyHighErrorRate($connection);
+            }
         } finally {
             $statusLock->release();
         }
@@ -520,13 +656,19 @@ class WebhookProcessor
                 return;
             }
 
-            WhatsAppTemplate::where('account_id', $connection->account_id)
+            $templateQuery = WhatsAppTemplate::where('account_id', $connection->account_id)
                 ->where('whatsapp_connection_id', $connection->id)
-                ->where('meta_template_id', $metaTemplateId)
-                ->update([
+                ->where('meta_template_id', $metaTemplateId);
+
+            $templateQuery->update([
                     'category' => $newCategory,
                     'last_synced_at' => now(),
                 ]);
+
+            $templates = $templateQuery->get();
+            foreach ($templates as $template) {
+                event(new TemplateStatusUpdated($template));
+            }
 
             Log::channel('whatsapp')->info('Template category updated from webhook', [
                 'connection_id' => $connection->id,
@@ -569,7 +711,11 @@ class WebhookProcessor
                 $updates['category'] = $category;
             }
 
-            $query->update($updates);
+            $templates = $query->get();
+            foreach ($templates as $template) {
+                $template->update($updates);
+                event(new TemplateStatusUpdated($template->fresh()));
+            }
 
             Log::channel('whatsapp')->info('Template status updated from webhook', [
                 'connection_id' => $connection->id,

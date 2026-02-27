@@ -8,6 +8,8 @@ import { Head } from '@inertiajs/react';
 import { Alert } from '@/Components/UI/Alert';
 import { useToast } from '@/hooks/useToast';
 import { useConfirm } from '@/hooks/useConfirm';
+import { useEffect, useState } from 'react';
+import { useRealtime } from '@/Providers/RealtimeProvider';
 
 interface Template {
     id: number;
@@ -47,11 +49,17 @@ export default function TemplatesShow({
 }) {
     const { toast } = useToast();
     const confirm = useConfirm();
+    const { subscribe } = useRealtime();
+    const [liveTemplate, setLiveTemplate] = useState<Template>(template);
+
+    useEffect(() => {
+        setLiveTemplate(template);
+    }, [template]);
 
     const handleCheckStatus = () => {
         router.post(
             route('app.whatsapp.templates.check-status', {
-                template: template.slug}),
+                template: liveTemplate.slug}),
             {},
             {
                 onSuccess: () => {
@@ -63,17 +71,38 @@ export default function TemplatesShow({
         );
     };
 
+    useEffect(() => {
+        if (!account?.id) return;
+
+        const channel = `account.${account.id}.whatsapp.templates`;
+        const unsubscribe = subscribe(channel, '.whatsapp.template.status.updated', (data: any) => {
+            const incoming = data?.template;
+            if (!incoming) return;
+            if (incoming.id !== liveTemplate.id && incoming.slug !== liveTemplate.slug) return;
+
+            setLiveTemplate((prev) => ({
+                ...prev,
+                status: incoming.status ?? prev.status,
+                last_meta_error: incoming.last_meta_error ?? prev.last_meta_error,
+                rejection_reason: incoming.rejection_reason ?? prev.rejection_reason,
+                last_synced_at: incoming.last_synced_at ?? prev.last_synced_at,
+            }));
+        });
+
+        return unsubscribe;
+    }, [account?.id, liveTemplate.id, liveTemplate.slug, subscribe]);
+
     const handleArchive = async () => {
         const confirmed = await confirm({
             title: 'Archive Template',
-            message: `Are you sure you want to archive "${template.name}"? You can restore it later.`,
+            message: `Are you sure you want to archive "${liveTemplate.name}"? You can restore it later.`,
             variant: 'warning'});
 
         if (!confirmed) return;
 
         router.post(
             route('app.whatsapp.templates.archive', {
-                template: template.slug}),
+                template: liveTemplate.slug}),
             {},
             {
                 onSuccess: () => {
@@ -88,7 +117,7 @@ export default function TemplatesShow({
     const handleDelete = async () => {
         const confirmed = await confirm({
             title: 'Delete Template',
-            message: `Are you sure you want to permanently delete "${template.name}"? This action cannot be undone.`,
+            message: `Are you sure you want to permanently delete "${liveTemplate.name}"? This action cannot be undone.`,
             variant: 'danger',
             confirmText: 'Delete'});
 
@@ -96,7 +125,7 @@ export default function TemplatesShow({
 
         router.delete(
             route('app.whatsapp.templates.destroy', {
-                template: template.slug}),
+                template: liveTemplate.slug}),
             {
                 onSuccess: () => {
                     router.visit(route('app.whatsapp.templates.index', {}));
@@ -121,7 +150,7 @@ export default function TemplatesShow({
 
     return (
         <AppShell>
-            <Head title={`${template.name} - Template`} />
+            <Head title={`${liveTemplate.name} - Template`} />
             <div className="space-y-8">
                 <div>
                     <Link
@@ -134,35 +163,35 @@ export default function TemplatesShow({
                     <div className="flex items-center justify-between">
                         <div>
                             <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent flex items-center gap-3 mb-2">
-                                {template.name}
-                                {getStatusBadge(template.status)}
+                                {liveTemplate.name}
+                                {getStatusBadge(liveTemplate.status)}
                             </h1>
                             <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
                                 <div className="flex items-center gap-1.5">
                                     <Globe className="h-4 w-4" />
-                                    {template.language}
+                                    {liveTemplate.language}
                                 </div>
                                 <div className="flex items-center gap-1.5">
                                     <Tag className="h-4 w-4" />
-                                    {template.category}
+                                    {liveTemplate.category}
                                 </div>
                                 <div className="flex items-center gap-1.5">
                                     <FileText className="h-4 w-4" />
-                                    {template.connection.name}
+                                    {liveTemplate.connection.name}
                                 </div>
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
                             <Link
                                 href={route('app.whatsapp.templates.edit', {
-                                    template: template.slug})}
+                                    template: liveTemplate.slug})}
                             >
                                 <Button variant="secondary">
                                     <Edit className="h-4 w-4 mr-2" />
                                     Edit
                                 </Button>
                             </Link>
-                            {template.meta_template_id && (
+                            {liveTemplate.meta_template_id && (
                                 <Button
                                     variant="secondary"
                                     onClick={handleCheckStatus}
@@ -173,7 +202,7 @@ export default function TemplatesShow({
                             )}
                             <Link
                                 href={route('app.whatsapp.templates.send', {
-                                    template: template.slug})}
+                                    template: liveTemplate.slug})}
                             >
                                 <Button className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg shadow-green-500/50">
                                     <Send className="h-4 w-4 mr-2" />
@@ -200,22 +229,22 @@ export default function TemplatesShow({
                     </div>
                 </div>
 
-                {template.rejection_reason && (
+                {liveTemplate.rejection_reason && (
                     <Alert variant="error" className="border-red-200 dark:border-red-800">
                         <AlertCircle className="h-5 w-5" />
                         <div>
                             <h3 className="font-semibold text-red-800 dark:text-red-200 mb-1">Rejection Reason</h3>
-                            <p className="text-sm text-red-600 dark:text-red-400">{template.rejection_reason}</p>
+                            <p className="text-sm text-red-600 dark:text-red-400">{liveTemplate.rejection_reason}</p>
                         </div>
                     </Alert>
                 )}
 
-                {template.last_meta_error && (
+                {liveTemplate.last_meta_error && (
                     <Alert variant="error" className="border-red-200 dark:border-red-800">
                         <AlertCircle className="h-5 w-5" />
                         <div>
                             <h3 className="font-semibold text-red-800 dark:text-red-200 mb-1">Meta Error</h3>
-                            <p className="text-sm text-red-600 dark:text-red-400">{template.last_meta_error}</p>
+                            <p className="text-sm text-red-600 dark:text-red-400">{liveTemplate.last_meta_error}</p>
                         </div>
                     </Alert>
                 )}
@@ -234,38 +263,38 @@ export default function TemplatesShow({
                         </div>
                     </CardHeader>
                     <CardContent className="p-6 space-y-6">
-                        {template.header_type && template.header_text && (
+                        {liveTemplate.header_type && liveTemplate.header_text && (
                             <div className="p-5 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
                                 <div className="flex items-center gap-2 mb-3">
                                     <Badge variant="info" className="px-2 py-1 text-xs">
-                                        Header ({template.header_type})
+                                        Header ({liveTemplate.header_type})
                                     </Badge>
                                 </div>
                                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                    {template.header_text}
+                                    {liveTemplate.header_text}
                                 </p>
                             </div>
                         )}
 
-                        {template.body_text && (
+                        {liveTemplate.body_text && (
                             <div className="p-5 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
                                 <div className="flex items-center gap-2 mb-3">
                                     <Badge variant="default" className="px-2 py-1 text-xs">
                                         Body
                                     </Badge>
-                                    {template.variable_count > 0 && (
+                                    {liveTemplate.variable_count > 0 && (
                                         <Badge variant="info" className="px-2 py-1 text-xs">
-                                            {template.variable_count} variables
+                                            {liveTemplate.variable_count} variables
                                         </Badge>
                                     )}
                                 </div>
                                 <p className="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">
-                                    {template.body_text}
+                                    {liveTemplate.body_text}
                                 </p>
                             </div>
                         )}
 
-                        {template.footer_text && (
+                        {liveTemplate.footer_text && (
                             <div className="p-5 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
                                 <div className="flex items-center gap-2 mb-3">
                                     <Badge variant="default" className="px-2 py-1 text-xs">
@@ -273,12 +302,12 @@ export default function TemplatesShow({
                                     </Badge>
                                 </div>
                                 <p className="text-sm text-gray-900 dark:text-gray-100">
-                                    {template.footer_text}
+                                    {liveTemplate.footer_text}
                                 </p>
                             </div>
                         )}
 
-                        {template.has_buttons && template.buttons.length > 0 && (
+                        {liveTemplate.has_buttons && liveTemplate.buttons.length > 0 && (
                             <div>
                                 <div className="flex items-center gap-2 mb-3">
                                     <Badge variant="default" className="px-2 py-1 text-xs">
@@ -286,7 +315,7 @@ export default function TemplatesShow({
                                     </Badge>
                                 </div>
                                 <div className="space-y-2">
-                                    {template.buttons.map((button, index) => (
+                                    {liveTemplate.buttons.map((button, index) => (
                                         <div
                                             key={index}
                                             className="p-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl border border-blue-200 dark:border-blue-800 flex items-center justify-between hover:shadow-md transition-shadow"
@@ -320,34 +349,34 @@ export default function TemplatesShow({
                         <dl className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl">
                                 <dt className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Name</dt>
-                                <dd className="text-sm font-semibold text-gray-900 dark:text-gray-100">{template.name}</dd>
+                                <dd className="text-sm font-semibold text-gray-900 dark:text-gray-100">{liveTemplate.name}</dd>
                             </div>
                             <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl">
                                 <dt className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Language</dt>
-                                <dd className="text-sm font-semibold text-gray-900 dark:text-gray-100">{template.language}</dd>
+                                <dd className="text-sm font-semibold text-gray-900 dark:text-gray-100">{liveTemplate.language}</dd>
                             </div>
                             <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl">
                                 <dt className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Category</dt>
-                                <dd className="text-sm font-semibold text-gray-900 dark:text-gray-100">{template.category}</dd>
+                                <dd className="text-sm font-semibold text-gray-900 dark:text-gray-100">{liveTemplate.category}</dd>
                             </div>
                             <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl">
                                 <dt className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Status</dt>
-                                <dd>{getStatusBadge(template.status)}</dd>
+                                <dd>{getStatusBadge(liveTemplate.status)}</dd>
                             </div>
-                            {template.quality_score && (
+                            {liveTemplate.quality_score && (
                                 <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl">
                                     <dt className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Quality Score</dt>
-                                    <dd className="text-sm font-semibold text-gray-900 dark:text-gray-100">{template.quality_score}</dd>
+                                    <dd className="text-sm font-semibold text-gray-900 dark:text-gray-100">{liveTemplate.quality_score}</dd>
                                 </div>
                             )}
-                            {template.last_synced_at && (
+                            {liveTemplate.last_synced_at && (
                                 <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl">
                                     <dt className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1">
                                         <Clock className="h-3.5 w-3.5" />
                                         Last Synced
                                     </dt>
                                     <dd className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                        {new Date(template.last_synced_at).toLocaleString()}
+                                        {new Date(liveTemplate.last_synced_at).toLocaleString()}
                                     </dd>
                                 </div>
                             )}

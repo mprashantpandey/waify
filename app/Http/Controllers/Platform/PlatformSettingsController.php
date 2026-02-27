@@ -78,7 +78,12 @@ class PlatformSettingsController extends Controller
             'api_enabled' => $get('integrations.api_enabled', false),
             'webhook_url' => $get('integrations.webhook_url'),
             'webhook_secret' => $get('integrations.webhook_secret'),
-            'webhooks_enabled' => $get('integrations.webhooks_enabled', true)]; // Default to enabled
+            'webhooks_enabled' => $get('integrations.webhooks_enabled', true), // Default to enabled
+            'whatsapp_error_rate_alert_enabled' => $get('integrations.whatsapp_error_rate_alert_enabled', true),
+            'whatsapp_error_rate_threshold_percent' => (float) $get('integrations.whatsapp_error_rate_threshold_percent', 20),
+            'whatsapp_error_rate_window_minutes' => (int) $get('integrations.whatsapp_error_rate_window_minutes', 15),
+            'whatsapp_error_rate_minimum_messages' => (int) $get('integrations.whatsapp_error_rate_minimum_messages', 20),
+        ];
 
         // Analytics Settings
         $analyticsSettings = [
@@ -298,6 +303,10 @@ class PlatformSettingsController extends Controller
             'integrations.webhook_url' => 'nullable|url',
             'integrations.webhook_secret' => 'nullable|string',
             'integrations.webhooks_enabled' => 'nullable|boolean',
+            'integrations.whatsapp_error_rate_alert_enabled' => 'nullable|boolean',
+            'integrations.whatsapp_error_rate_threshold_percent' => 'nullable|numeric|min:1|max:100',
+            'integrations.whatsapp_error_rate_window_minutes' => 'nullable|integer|min:1|max:1440',
+            'integrations.whatsapp_error_rate_minimum_messages' => 'nullable|integer|min:1|max:10000',
             // Analytics
             'analytics.google_analytics_id' => 'nullable|string|max:50',
             'analytics.google_analytics_enabled' => 'nullable|boolean',
@@ -430,7 +439,7 @@ class PlatformSettingsController extends Controller
         $booleanFields = [
             'payment' => ['razorpay_enabled'],
             'security' => ['password_require_uppercase', 'password_require_lowercase', 'password_require_numbers', 'password_require_symbols', 'require_2fa'],
-            'integrations' => ['api_enabled', 'webhooks_enabled'],
+            'integrations' => ['api_enabled', 'webhooks_enabled', 'whatsapp_error_rate_alert_enabled'],
             'analytics' => ['google_analytics_enabled', 'mixpanel_enabled', 'sentry_enabled', 'log_api_requests'],
             'compliance' => ['gdpr_enabled', 'cookie_consent_required', 'allow_data_export', 'allow_data_deletion'],
             'performance' => ['cache_enabled', 'query_logging_enabled'],

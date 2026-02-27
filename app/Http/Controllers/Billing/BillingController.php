@@ -847,6 +847,7 @@ class BillingController extends Controller
 
         $freeUsed = (int) ($usage->meta_conversations_free_used ?? 0);
         $breakdown = collect();
+        $topCostDrivers = collect();
         $monthEstimatedFromBillings = null;
         if ($account) {
             $periodStart = now()->startOfMonth();
@@ -884,6 +885,63 @@ class BillingController extends Controller
                     'estimated_cost_minor' => (int) ($paidRow->estimated_cost_minor ?? 0),
                 ];
             })->values();
+
+            if (
+                \Illuminate\Support\Facades\Schema::hasTable('whatsapp_messages')
+                && \Illuminate\Support\Facades\Schema::hasTable('whatsapp_conversations')
+                && \Illuminate\Support\Facades\Schema::hasTable('whatsapp_connections')
+            ) {
+                $driverQuery = WhatsAppMessageBilling::query()
+                    ->where('whatsapp_message_billings.account_id', $account->id)
+                    ->whereBetween('whatsapp_message_billings.created_at', [$periodStart, $periodEnd])
+                    ->leftJoin('whatsapp_messages', 'whatsapp_messages.id', '=', 'whatsapp_message_billings.whatsapp_message_id')
+                    ->leftJoin('whatsapp_conversations', 'whatsapp_conversations.id', '=', 'whatsapp_messages.whatsapp_conversation_id')
+                    ->leftJoin('whatsapp_connections', 'whatsapp_connections.id', '=', 'whatsapp_conversations.whatsapp_connection_id');
+
+                $hasCampaignMessages = \Illuminate\Support\Facades\Schema::hasTable('campaign_messages');
+                $hasCampaigns = \Illuminate\Support\Facades\Schema::hasTable('campaigns');
+
+                if (\Illuminate\Support\Facades\Schema::hasTable('campaign_messages')) {
+                    $driverQuery->leftJoin('campaign_messages', 'campaign_messages.id', '=', 'whatsapp_message_billings.campaign_message_id');
+                }
+                if (\Illuminate\Support\Facades\Schema::hasTable('campaigns')) {
+                    $driverQuery->leftJoin('campaigns', 'campaigns.id', '=', 'campaign_messages.campaign_id');
+                }
+
+                $driverRows = $driverQuery
+                    ->selectRaw("
+                        CASE
+                            WHEN whatsapp_message_billings.campaign_message_id IS NOT NULL THEN 'campaign'
+                            WHEN whatsapp_messages.direction = 'inbound' THEN 'inbound_service'
+                            WHEN whatsapp_messages.type = 'template' THEN 'template_outbound'
+                            ELSE 'direct_outbound'
+                        END as driver_type
+                    ")
+                    ->selectRaw("
+                        COALESCE(
+                            ".($hasCampaigns ? "campaigns.name," : '')."
+                            CONCAT('Connection: ', whatsapp_connections.name),
+                            'Organic / Service'
+                        ) as driver_label
+                    ")
+                    ->selectRaw($hasCampaigns && $hasCampaignMessages ? 'MAX(campaigns.slug) as campaign_slug' : 'NULL as campaign_slug')
+                    ->selectRaw('COUNT(*) as conversations_count')
+                    ->selectRaw('SUM(COALESCE(whatsapp_message_billings.estimated_cost_minor, 0)) as estimated_cost_minor')
+                    ->groupBy('driver_type', 'driver_label')
+                    ->orderByDesc('estimated_cost_minor')
+                    ->limit(8)
+                    ->get();
+
+                $topCostDrivers = $driverRows->map(function ($row) {
+                    return [
+                        'driver_type' => (string) ($row->driver_type ?? 'unknown'),
+                        'driver_label' => (string) ($row->driver_label ?? 'Unknown'),
+                        'campaign_slug' => $row->campaign_slug ?: null,
+                        'conversations_count' => (int) ($row->conversations_count ?? 0),
+                        'estimated_cost_minor' => (int) ($row->estimated_cost_minor ?? 0),
+                    ];
+                })->values();
+            }
         }
 
         return [
@@ -909,6 +967,7 @@ class BillingController extends Controller
             'account_billing_country_code' => $accountCountry,
             'account_billing_currency' => $accountCurrency,
             'category_breakdown' => $breakdown->all(),
+            'top_cost_drivers' => $topCostDrivers->all(),
             'note' => 'Meta bills WhatsApp conversations separately. Values shown here are webhook-based estimates and can differ from your official Meta invoice.',
         ];
     }
