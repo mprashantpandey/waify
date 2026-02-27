@@ -217,6 +217,12 @@ class PlatformSettingsController extends Controller
             'msg91_otp_length' => (int) $get('sms.msg91_otp_length', 6),
         ];
 
+        $campaignsSettings = [
+            'queue_pending_threshold' => (int) $get('campaigns.queue_pending_threshold', 3000),
+            'failed_jobs_threshold' => (int) $get('campaigns.failed_jobs_threshold', 50),
+            'failed_jobs_window_minutes' => (int) $get('campaigns.failed_jobs_window_minutes', 30),
+        ];
+
         // Check for misconfigured settings
         $validationService = app(PlatformSettingsValidationService::class);
         $misconfiguredSettings = $validationService->getMisconfiguredSettings();
@@ -237,6 +243,7 @@ class PlatformSettingsController extends Controller
             'ai' => $aiSettings,
             'whatsapp' => $whatsappSettings,
             'sms' => $smsSettings,
+            'campaigns' => $campaignsSettings,
             'settings_section' => $section,
             'cron' => $this->cronDiagnosticsService->platformSummary(),
             'delivery' => $this->cronDiagnosticsService->deliverySummary(),
@@ -397,6 +404,10 @@ class PlatformSettingsController extends Controller
             'sms.msg91_sender_id' => 'nullable|string|max:11',
             'sms.msg91_otp_expiry_minutes' => 'nullable|integer|min:1|max:1440',
             'sms.msg91_otp_length' => 'nullable|integer|min:4|max:9',
+            // Campaign reliability / backpressure
+            'campaigns.queue_pending_threshold' => 'nullable|integer|min:100|max:200000',
+            'campaigns.failed_jobs_threshold' => 'nullable|integer|min:1|max:10000',
+            'campaigns.failed_jobs_window_minutes' => 'nullable|integer|min:5|max:1440',
             'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
             'favicon' => 'nullable|image|mimes:ico,png|max:512']);
 
@@ -413,7 +424,7 @@ class PlatformSettingsController extends Controller
         }
 
         // Update all settings groups
-        $groups = ['general', 'security', 'payment', 'integrations', 'analytics', 'compliance', 'performance', 'features', 'pusher', 'mail', 'storage', 'branding', 'ai', 'whatsapp', 'sms'];
+        $groups = ['general', 'security', 'payment', 'integrations', 'analytics', 'compliance', 'performance', 'features', 'pusher', 'mail', 'storage', 'branding', 'ai', 'whatsapp', 'sms', 'campaigns'];
         
         // Define boolean fields that need explicit handling (for unchecked checkboxes)
         $booleanFields = [

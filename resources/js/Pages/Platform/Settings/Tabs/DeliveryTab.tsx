@@ -1,4 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Components/UI/Card';
+import InputError from '@/Components/InputError';
+import InputLabel from '@/Components/InputLabel';
+import TextInput from '@/Components/TextInput';
 import { Activity, AlertTriangle, CheckCircle2, Mail, MessageSquare, Radio, ServerCog } from 'lucide-react';
 
 interface DeliveryProps {
@@ -60,6 +63,9 @@ interface DeliveryProps {
             failed_at: string | null;
         }>;
     };
+    data: any;
+    setData: (key: string, value: any) => void;
+    errors: any;
 }
 
 function statusTone(score: number): { label: string; cls: string } {
@@ -74,7 +80,7 @@ function statusTone(score: number): { label: string; cls: string } {
 
 const fmt = (value: string | null) => (value ? new Date(value).toLocaleString() : 'N/A');
 
-export default function DeliveryTab({ delivery }: DeliveryProps) {
+export default function DeliveryTab({ delivery, data, setData, errors }: DeliveryProps) {
     const tone = statusTone(delivery.health_score);
 
     return (
@@ -120,6 +126,79 @@ export default function DeliveryTab({ delivery }: DeliveryProps) {
                                     <strong>{count}</strong>
                                 </div>
                             ))}
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-base">
+                            <ServerCog className="h-4 w-4" />
+                            Campaign Backpressure Guards
+                        </CardTitle>
+                        <CardDescription>
+                            Auto-pause campaigns when queue backlog or failed jobs spike.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div>
+                            <InputLabel htmlFor="campaigns.queue_pending_threshold" value="Pending Jobs Threshold" />
+                            <TextInput
+                                id="campaigns.queue_pending_threshold"
+                                type="number"
+                                min="100"
+                                max="200000"
+                                value={data.campaigns?.queue_pending_threshold ?? 3000}
+                                onChange={(e) =>
+                                    setData(
+                                        'campaigns.queue_pending_threshold',
+                                        Number.parseInt(e.target.value || '3000', 10),
+                                    )
+                                }
+                                className="mt-1"
+                            />
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                Current pending jobs: {delivery.queue.pending_total}
+                            </p>
+                            <InputError message={errors['campaigns.queue_pending_threshold']} />
+                        </div>
+
+                        <div>
+                            <InputLabel htmlFor="campaigns.failed_jobs_threshold" value="Failed Jobs Threshold" />
+                            <TextInput
+                                id="campaigns.failed_jobs_threshold"
+                                type="number"
+                                min="1"
+                                max="10000"
+                                value={data.campaigns?.failed_jobs_threshold ?? 50}
+                                onChange={(e) =>
+                                    setData(
+                                        'campaigns.failed_jobs_threshold',
+                                        Number.parseInt(e.target.value || '50', 10),
+                                    )
+                                }
+                                className="mt-1"
+                            />
+                            <InputError message={errors['campaigns.failed_jobs_threshold']} />
+                        </div>
+
+                        <div>
+                            <InputLabel htmlFor="campaigns.failed_jobs_window_minutes" value="Failed Jobs Time Window (Minutes)" />
+                            <TextInput
+                                id="campaigns.failed_jobs_window_minutes"
+                                type="number"
+                                min="5"
+                                max="1440"
+                                value={data.campaigns?.failed_jobs_window_minutes ?? 30}
+                                onChange={(e) =>
+                                    setData(
+                                        'campaigns.failed_jobs_window_minutes',
+                                        Number.parseInt(e.target.value || '30', 10),
+                                    )
+                                }
+                                className="mt-1"
+                            />
+                            <InputError message={errors['campaigns.failed_jobs_window_minutes']} />
                         </div>
                     </CardContent>
                 </Card>

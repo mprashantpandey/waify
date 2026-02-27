@@ -41,6 +41,7 @@ export default function PlatformSettings({
     ai,
     whatsapp,
     sms,
+    campaigns,
     settings_section,
     cron,
     delivery,
@@ -113,6 +114,7 @@ export default function PlatformSettings({
         ai: ai || {},
         whatsapp: whatsapp || {},
         sms: sms || {},
+        campaigns: campaigns || {},
         _settings_section: currentSection,
         _settings_tab: fallbackTab});
 
@@ -142,7 +144,7 @@ export default function PlatformSettings({
         post(route('platform.settings.update'), {
             preserveScroll: false,
             forceFormData: true, // Required for file uploads
-            only: ['general', 'security', 'payment', 'integrations', 'analytics', 'compliance', 'performance', 'features', 'pusher', 'mail', 'storage', 'branding', 'ai', 'whatsapp', 'sms', 'flash'],
+            only: ['general', 'security', 'payment', 'integrations', 'analytics', 'compliance', 'performance', 'features', 'pusher', 'mail', 'storage', 'branding', 'ai', 'whatsapp', 'sms', 'campaigns', 'flash'],
             onError: (errors) => {
                 const errorMessages = Object.values(errors).flat();
                 addToast({
@@ -274,7 +276,7 @@ export default function PlatformSettings({
                         </TabsContent>
 
                         <TabsContent value="delivery">
-                            <DeliveryTab delivery={delivery} />
+                            <DeliveryTab delivery={delivery} data={data} setData={setData} errors={errors} />
                         </TabsContent>
 
                         <TabsContent value="pusher">
