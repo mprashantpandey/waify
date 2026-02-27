@@ -8,6 +8,7 @@ use App\Models\PlatformSetting;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class MetaPricingSyncService
@@ -135,12 +136,9 @@ class MetaPricingSyncService
             if (!$response->ok()) {
                 throw new RuntimeException('Unable to fetch official pricing feed (HTTP '.$response->status().').');
             }
-            $decoded = $response->json();
-            if (!is_array($decoded)) {
-                throw new RuntimeException('Official pricing feed returned invalid JSON.');
-            }
+            $raw = (string) $response->body();
 
-            return $decoded;
+            return $this->decodePayload($raw);
         }
 
         if (!is_file($source)) {
@@ -148,12 +146,224 @@ class MetaPricingSyncService
         }
 
         $raw = file_get_contents($source);
-        $decoded = json_decode((string) $raw, true);
-        if (!is_array($decoded)) {
-            throw new RuntimeException('Official pricing feed file contains invalid JSON.');
+
+        return $this->decodePayload((string) $raw);
+    }
+
+    protected function decodePayload(string $raw): array
+    {
+        $decoded = json_decode($raw, true);
+        if (is_array($decoded) && isset($decoded['versions'])) {
+            return $decoded;
         }
 
-        return $decoded;
+        return $this->parseCsvPayload($raw);
+    }
+
+    /**
+     * Parse Meta pricing CSV exports into the JSON payload shape expected by this service.
+     */
+    protected function parseCsvPayload(string $raw): array
+    {
+        $records = $this->readCsvRecords($raw);
+        $effectiveFrom = $this->extractEffectiveFrom($raw);
+
+        $headerIndex = null;
+        $header = [];
+        foreach ($records as $i => $cells) {
+            $normalized = array_map(fn ($v) => Str::of((string) $v)->lower()->replace(["\n", "\r"], ' ')->squish()->value(), $cells);
+            if (in_array('market', $normalized, true) && in_array('utility', $normalized, true) && in_array('authentication', $normalized, true)) {
+                $headerIndex = $i;
+                $header = $normalized;
+                break;
+            }
+            if (in_array('market (per rate card)', $normalized, true) && in_array('rate type', $normalized, true)) {
+                $headerIndex = $i;
+                $header = $normalized;
+                break;
+            }
+        }
+
+        if ($headerIndex === null) {
+            throw new RuntimeException('CSV feed format not recognized.');
+        }
+
+        $versions = [];
+        $market = null;
+
+        for ($i = $headerIndex + 1; $i < count($records); $i++) {
+            $row = $records[$i];
+            if (count(array_filter($row, fn ($v) => trim((string) $v) !== '')) === 0) {
+                continue;
+            }
+
+            $assoc = [];
+            foreach ($header as $idx => $key) {
+                $assoc[$key] = trim((string) ($row[$idx] ?? ''));
+            }
+
+            // Flat per-message CSV.
+            if (array_key_exists('marketing', $assoc) && array_key_exists('utility', $assoc)) {
+                $marketName = $assoc['market'] ?: null;
+                if (!$marketName) {
+                    continue;
+                }
+                $code = $this->mapMarketToCountryCode($marketName);
+                if ($code === null) {
+                    continue;
+                }
+
+                $versions[] = [
+                    'country_code' => $code,
+                    'currency' => $this->normalizeCurrency($assoc['currency'] ?? ''),
+                    'effective_from' => $effectiveFrom->toIso8601String(),
+                    'effective_to' => null,
+                    'is_active' => true,
+                    'rates' => [
+                        'marketing' => $this->toMinor($assoc['marketing'] ?? null),
+                        'utility' => $this->toMinor($assoc['utility'] ?? null),
+                        'authentication' => $this->toMinor($assoc['authentication'] ?? null),
+                        'service' => $this->toMinor($assoc['service'] ?? null),
+                    ],
+                ];
+                continue;
+            }
+
+            // Volume-tier CSV (only utility/auth at list or tier rates).
+            if (array_key_exists('market (per rate card)', $assoc) && array_key_exists('rate type', $assoc)) {
+                if ($assoc['market (per rate card)'] !== '') {
+                    $market = $assoc['market (per rate card)'];
+                }
+                if (!$market) {
+                    continue;
+                }
+                if (strtolower($assoc['rate type']) !== 'list rate') {
+                    continue;
+                }
+
+                $code = $this->mapMarketToCountryCode($market);
+                if ($code === null) {
+                    continue;
+                }
+
+                // In this export, utility/auth list rates exist; marketing/service are not present.
+                $versions[] = [
+                    'country_code' => $code,
+                    'currency' => $this->normalizeCurrency($assoc['currency'] ?? ''),
+                    'effective_from' => $effectiveFrom->toIso8601String(),
+                    'effective_to' => null,
+                    'is_active' => true,
+                    'rates' => [
+                        'marketing' => 0,
+                        'utility' => $this->toMinor($assoc['rate'] ?? null),
+                        'authentication' => $this->toMinor($assoc['rate'] ?? null),
+                        'service' => 0,
+                    ],
+                ];
+            }
+        }
+
+        if (count($versions) === 0) {
+            throw new RuntimeException('No pricing rows could be parsed from CSV feed.');
+        }
+
+        return [
+            'source' => 'meta_csv_import',
+            'versions' => $versions,
+        ];
+    }
+
+    protected function readCsvRecords(string $raw): array
+    {
+        $handle = fopen('php://temp', 'r+');
+        fwrite($handle, $raw);
+        rewind($handle);
+
+        $records = [];
+        while (($row = fgetcsv($handle)) !== false) {
+            $records[] = $row;
+        }
+
+        fclose($handle);
+
+        return $records;
+    }
+
+    protected function extractEffectiveFrom(string $raw): Carbon
+    {
+        if (preg_match('/effective\s+([A-Za-z]+\s+\d{1,2},\s+\d{4})/i', $raw, $m)) {
+            return Carbon::parse($m[1])->startOfDay();
+        }
+
+        return now()->startOfDay();
+    }
+
+    protected function normalizeCurrency(string $raw): string
+    {
+        $value = trim($raw);
+        if ($value === '' || $value === '₹') {
+            return 'INR';
+        }
+
+        $value = strtoupper($value);
+        return strlen($value) >= 3 ? substr($value, 0, 3) : 'INR';
+    }
+
+    protected function toMinor(?string $raw): int
+    {
+        $value = trim((string) $raw);
+        if ($value === '' || strtolower($value) === 'n/a' || $value === '--') {
+            return 0;
+        }
+
+        $value = str_replace([',', '₹'], '', $value);
+        if (!is_numeric($value)) {
+            return 0;
+        }
+
+        return max(0, (int) round(((float) $value) * 100));
+    }
+
+    protected function mapMarketToCountryCode(string $market): ?string
+    {
+        $map = [
+            'argentina' => 'AR',
+            'brazil' => 'BR',
+            'chile' => 'CL',
+            'colombia' => 'CO',
+            'egypt' => 'EG',
+            'france' => 'FR',
+            'germany' => 'DE',
+            'india' => 'IN',
+            'indonesia' => 'ID',
+            'israel' => 'IL',
+            'italy' => 'IT',
+            'malaysia' => 'MY',
+            'mexico' => 'MX',
+            'netherlands' => 'NL',
+            'nigeria' => 'NG',
+            'pakistan' => 'PK',
+            'peru' => 'PE',
+            'russia' => 'RU',
+            'saudi arabia' => 'SA',
+            'south africa' => 'ZA',
+            'spain' => 'ES',
+            'turkey' => 'TR',
+            'united arab emirates' => 'AE',
+            'united kingdom' => 'GB',
+            'north america' => 'XA',
+            'rest of africa' => 'XB',
+            'rest of asia pacific' => 'XC',
+            'rest of central & eastern europe' => 'XD',
+            'rest of latin america' => 'XE',
+            'rest of middle east' => 'XF',
+            'rest of western europe' => 'XG',
+            'other' => 'XO',
+        ];
+
+        $key = Str::of($market)->lower()->replace(["\n", "\r"], ' ')->squish()->value();
+
+        return $map[$key] ?? null;
     }
 
     protected function normalizeVersionRow(mixed $row): ?array

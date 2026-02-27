@@ -10,7 +10,7 @@ use Throwable;
 class MetaPricingSyncOfficialCommand extends Command
 {
     protected $signature = 'meta-pricing:sync-official
-        {--source= : HTTP URL or absolute file path for official pricing JSON feed}
+        {--source= : HTTP URL or absolute file path for official pricing JSON/CSV feed}
         {--dry-run : Validate source availability only, do not persist}';
 
     protected $description = 'Sync versioned WhatsApp Meta pricing from an official JSON feed';
@@ -22,7 +22,7 @@ class MetaPricingSyncOfficialCommand extends Command
             ?: env('META_PRICING_SYNC_URL', ''));
 
         if ($source === '') {
-            $this->error('Missing source. Set --source=... or configure whatsapp.meta_pricing_sync.feed_url.');
+            $this->error('Missing source. Set --source=... or configure whatsapp.meta_pricing_sync.feed_url (JSON/CSV).');
             return self::FAILURE;
         }
 

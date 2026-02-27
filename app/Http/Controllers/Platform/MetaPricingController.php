@@ -248,7 +248,7 @@ class MetaPricingController extends Controller
 
         if ($source === '') {
             return redirect()->route('platform.meta-pricing.index')
-                ->with('error', 'Missing official pricing feed URL. Configure whatsapp.meta_pricing_sync.feed_url first.');
+                ->with('error', 'Missing official pricing source. Configure whatsapp.meta_pricing_sync.feed_url with a JSON/CSV URL or file path.');
         }
 
         try {

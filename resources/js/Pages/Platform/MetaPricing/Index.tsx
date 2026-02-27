@@ -194,7 +194,7 @@ export default function PlatformMetaPricingIndex({
                 <Card>
                     <CardHeader>
                         <CardTitle>Official Sync Feed</CardTitle>
-                        <CardDescription>Use a JSON feed URL/path and sync the latest Meta rate card snapshot.</CardDescription>
+                        <CardDescription>Use a JSON/CSV feed URL or file path and sync the latest Meta rate card snapshot.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
                         <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
