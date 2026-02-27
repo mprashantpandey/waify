@@ -59,30 +59,26 @@ class TemplateComposer
 
         // Button variables (for URL buttons with dynamic suffix)
         if ($template->has_buttons) {
-            $buttonParams = [];
             $buttonIndex = 0;
 
             foreach ($template->buttons as $button) {
                 if ($button['type'] === 'URL' && isset($button['url'])) {
                     // Check if URL has variable placeholder
                     if (strpos($button['url'], '{{1}}') !== false) {
-                        $varValue = $variables[$requiredVariables['body_count'] + $buttonIndex] ?? '';
-                        $buttonParams[] = [
-                            'type' => 'text',
-                            'text' => $varValue,
+                        $varOffset = $requiredVariables['header_count'] + $requiredVariables['body_count'] + $buttonIndex;
+                        $varValue = $variables[$varOffset] ?? '';
+                        $components[] = [
+                            'type' => 'button',
                             'sub_type' => 'url',
-                            'index' => (string) $buttonIndex];
+                            'index' => (string) $buttonIndex,
+                            'parameters' => [[
+                                'type' => 'text',
+                                'text' => $varValue,
+                            ]],
+                        ];
                         $buttonIndex++;
                     }
                 }
-            }
-
-            if (count($buttonParams) > 0) {
-                $components[] = [
-                    'type' => 'button',
-                    'sub_type' => 'url',
-                    'index' => '0',
-                    'parameters' => $buttonParams];
             }
         }
 
@@ -203,4 +199,3 @@ class TemplateComposer
         }, $text);
     }
 }
-
