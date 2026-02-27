@@ -129,9 +129,38 @@ class TemplateManagementService
      */
     public function updateTemplate(WhatsAppConnection $connection, WhatsAppTemplate $template, array $templateData): array
     {
-        // For updates, we create a new version with the same name
-        $templateData['name'] = $template->name;
-        return $this->createTemplate($connection, $templateData);
+        // Meta does not allow same name+language recreation in many cases.
+        // Prefer user-provided name, otherwise fallback to current name.
+        $requestedName = trim((string) ($templateData['name'] ?? ''));
+        $templateData['name'] = $requestedName !== '' ? $requestedName : $template->name;
+
+        try {
+            return $this->createTemplate($connection, $templateData);
+        } catch (WhatsAppApiException $e) {
+            $message = strtolower($e->getMessage());
+            $isDuplicateLocale = str_contains($message, 'already english')
+                || str_contains($message, 'already content for this template')
+                || str_contains($message, 'already exists');
+
+            if (!$isDuplicateLocale) {
+                throw $e;
+            }
+
+            // Auto-version template name so update can continue without manual rename.
+            $baseName = preg_replace('/[^a-zA-Z0-9_]/', '_', (string) $templateData['name']);
+            $baseName = trim((string) $baseName, '_');
+            if ($baseName === '') {
+                $baseName = 'template';
+            }
+            $versionedName = strtolower(substr($baseName, 0, 480).'_v'.now()->format('YmdHis'));
+            $templateData['name'] = $versionedName;
+
+            $result = $this->createTemplate($connection, $templateData);
+            $result['_auto_versioned_name'] = true;
+            $result['_effective_template_name'] = $versionedName;
+
+            return $result;
+        }
     }
 
     /**

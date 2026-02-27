@@ -390,8 +390,14 @@ class TemplateController extends Controller
 
         try {
             $result = $this->templateManagementService->updateTemplate($connection, $template, $validated);
+            $effectiveName = $result['_effective_template_name'] ?? null;
+            $autoVersioned = (bool) ($result['_auto_versioned_name'] ?? false);
+            $message = 'Template updated successfully. A new version has been submitted to Meta for approval.';
+            if ($autoVersioned && is_string($effectiveName) && $effectiveName !== '') {
+                $message .= " Meta required a new unique template name, so it was created as '{$effectiveName}'.";
+            }
 
-            return redirect()->route('app.whatsapp.templates.index')->with('success', 'Template updated successfully. A new version has been submitted to Meta for approval.');
+            return redirect()->route('app.whatsapp.templates.index')->with('success', $message);
         } catch (\Exception $e) {
             Log::channel('whatsapp')->error('Template update failed', [
                 'account_id' => $account->id,
