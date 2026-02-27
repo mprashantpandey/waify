@@ -450,6 +450,7 @@ class TemplateManagementService
         $bodyText = null;
         $headerType = null;
         $headerText = null;
+        $headerMediaUrl = trim((string) ($templateData['header_media_url'] ?? ''));
         $footerText = null;
         $buttons = [];
 
@@ -462,6 +463,11 @@ class TemplateManagementService
                 $headerType = strtoupper($component['format'] ?? 'TEXT');
                 if ($headerType === 'TEXT') {
                     $headerText = $component['text'] ?? '';
+                } elseif ($headerMediaUrl === '') {
+                    $headerExample = $component['example']['header_handle'][0] ?? null;
+                    if (is_string($headerExample) && str_starts_with($headerExample, 'http')) {
+                        $headerMediaUrl = $headerExample;
+                    }
                 }
             } elseif ($type === 'FOOTER') {
                 $footerText = $component['text'] ?? '';
@@ -482,6 +488,7 @@ class TemplateManagementService
             'body_text' => $bodyText,
             'header_type' => $headerType,
             'header_text' => $headerText,
+            'header_media_url' => $headerMediaUrl !== '' ? $headerMediaUrl : null,
             'footer_text' => $footerText,
             'buttons' => $buttons,
             'components' => $components,

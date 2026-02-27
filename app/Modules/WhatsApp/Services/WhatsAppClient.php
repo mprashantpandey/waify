@@ -171,6 +171,7 @@ class WhatsAppClient
 
         try {
             $this->assertConnectionReady($connection);
+            $components = $this->normalizeTemplateComponentsMedia($connection, $components);
             // Check rate limit before making API call
             $this->checkRateLimit($connection);
 
@@ -231,6 +232,94 @@ class WhatsAppClient
                 $e
             );
         }
+    }
+
+    /**
+     * Convert header media link params to uploaded media IDs for higher Meta delivery reliability.
+     */
+    protected function normalizeTemplateComponentsMedia(WhatsAppConnection $connection, array $components): array
+    {
+        foreach ($components as $componentIndex => $component) {
+            if (strtolower((string) ($component['type'] ?? '')) !== 'header') {
+                continue;
+            }
+
+            foreach (($component['parameters'] ?? []) as $paramIndex => $parameter) {
+                $paramType = strtolower((string) ($parameter['type'] ?? ''));
+                if (!in_array($paramType, ['image', 'video', 'document'], true)) {
+                    continue;
+                }
+
+                $media = $parameter[$paramType] ?? [];
+                $mediaLink = trim((string) ($media['link'] ?? ''));
+                $mediaId = trim((string) ($media['id'] ?? ''));
+                if ($mediaId !== '' || $mediaLink === '') {
+                    continue;
+                }
+
+                try {
+                    $uploadedMediaId = $this->uploadMediaFromLink($connection, $mediaLink, $paramType);
+                    $components[$componentIndex]['parameters'][$paramIndex][$paramType] = ['id' => $uploadedMediaId];
+                } catch (\Throwable $e) {
+                    Log::channel('whatsapp')->warning('Failed to pre-upload template header media; sending by link', [
+                        'connection_id' => $connection->id,
+                        'media_type' => $paramType,
+                        'media_link' => $mediaLink,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+
+        return $components;
+    }
+
+    protected function uploadMediaFromLink(WhatsAppConnection $connection, string $mediaLink, string $paramType): string
+    {
+        $version = $connection->api_version ?: config('whatsapp.meta.api_version', 'v21.0');
+        $fetchResponse = Http::timeout(30)->get($mediaLink);
+        if (!$fetchResponse->successful()) {
+            throw new \RuntimeException('Could not download media URL (HTTP '.$fetchResponse->status().')');
+        }
+
+        $contents = $fetchResponse->body();
+        if ($contents === '') {
+            throw new \RuntimeException('Media URL returned empty content');
+        }
+
+        $contentType = strtolower(trim((string) explode(';', (string) $fetchResponse->header('Content-Type'))[0]));
+        $fallbackMime = match ($paramType) {
+            'image' => 'image/jpeg',
+            'video' => 'video/mp4',
+            default => 'application/pdf',
+        };
+        $mimeType = $contentType !== '' ? $contentType : $fallbackMime;
+        $extension = match (true) {
+            str_contains($mimeType, 'png') => 'png',
+            str_contains($mimeType, 'jpeg'), str_contains($mimeType, 'jpg') => 'jpg',
+            str_contains($mimeType, 'webp') => 'webp',
+            str_contains($mimeType, 'mp4') => 'mp4',
+            str_contains($mimeType, 'pdf') => 'pdf',
+            default => match ($paramType) {
+                'image' => 'jpg',
+                'video' => 'mp4',
+                default => 'pdf',
+            },
+        };
+        $filename = 'tpl_header_'.substr(sha1($mediaLink), 0, 10).'.'.$extension;
+
+        $uploadUrl = sprintf('%s/%s/%s/media', $this->baseUrl, $version, $connection->phone_number_id);
+        $uploadResponse = Http::withToken($connection->access_token)
+            ->attach('file', $contents, $filename, ['Content-Type' => $mimeType])
+            ->post($uploadUrl, ['messaging_product' => 'whatsapp']);
+
+        $uploadData = $uploadResponse->json();
+        if (!$uploadResponse->successful() || empty($uploadData['id'])) {
+            $errorMessage = $uploadData['error']['message'] ?? 'Unknown media upload error';
+            throw new \RuntimeException($errorMessage);
+        }
+
+        return (string) $uploadData['id'];
     }
 
     /**

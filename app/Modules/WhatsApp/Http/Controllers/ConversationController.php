@@ -875,6 +875,21 @@ class ConversationController extends Controller
     public function sendTemplateMessage(Request $request, WhatsAppConversation $conversation)
     {
         $account = $request->attributes->get('account') ?? current_account();
+        $wantsJson = $request->expectsJson() || $request->ajax();
+        $respondError = function (string $message, int $status = 422) use ($wantsJson) {
+            if ($wantsJson) {
+                return response()->json(['message' => $message], $status);
+            }
+
+            return redirect()->back()->withErrors(['template' => $message]);
+        };
+        $respondSuccess = function (string $message) use ($wantsJson) {
+            if ($wantsJson) {
+                return response()->json(['success' => true, 'message' => $message], 200);
+            }
+
+            return redirect()->back()->with('success', $message);
+        };
 
         if (!account_ids_match($conversation->account_id, $account->id)) {
             abort(404);
@@ -899,9 +914,7 @@ class ConversationController extends Controller
             ->findOrFail($validated['template_id']);
 
         if (empty($template->meta_template_id)) {
-            return redirect()->back()->withErrors([
-                'template' => 'Template is missing Meta template ID. Sync templates from Meta and try again.',
-            ]);
+            return $respondError('Template is missing Meta template ID. Sync templates from Meta and try again.');
         }
 
         // Re-validate live status from Meta to avoid stale local status sending outdated versions.
@@ -919,21 +932,15 @@ class ConversationController extends Controller
             ]);
 
             if ($liveName !== '' && $liveName !== $localName) {
-                return redirect()->back()->withErrors([
-                    'template' => 'Template mismatch detected on Meta. Please re-sync templates and try again.',
-                ]);
+                return $respondError('Template mismatch detected on Meta. Please re-sync templates and try again.');
             }
 
             if ($liveLanguage !== '' && $liveLanguage !== $localLanguage) {
-                return redirect()->back()->withErrors([
-                    'template' => 'Template language mismatch detected on Meta. Please re-sync templates and try again.',
-                ]);
+                return $respondError('Template language mismatch detected on Meta. Please re-sync templates and try again.');
             }
 
             if (!in_array($liveStatus, ['approved', 'active'], true)) {
-                return redirect()->back()->withErrors([
-                    'template' => 'Template is not approved on Meta yet (current status: '.$liveStatus.').',
-                ]);
+                return $respondError('Template is not approved on Meta yet (current status: '.$liveStatus.').');
             }
 
             // Meta delivery resolves template by name + language.
@@ -945,9 +952,7 @@ class ConversationController extends Controller
             );
 
             if ($deliverable && (string) ($deliverable['id'] ?? '') !== (string) $template->meta_template_id) {
-                return redirect()->back()->withErrors([
-                    'template' => 'A different approved version of this template is currently deliverable on Meta. Wait for this new version approval, then sync templates.',
-                ]);
+                return $respondError('A different approved version of this template is currently deliverable on Meta. Wait for this new version approval, then sync templates.');
             }
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::channel('whatsapp')->warning('Template live status verification failed before conversation send', [
@@ -956,18 +961,14 @@ class ConversationController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            return redirect()->back()->withErrors([
-                'template' => 'Could not verify latest template status from Meta. Please try again after template sync.',
-            ]);
+            return $respondError('Could not verify latest template status from Meta. Please try again after template sync.');
         }
 
         $requiredVars = $this->templateComposer->extractRequiredVariables($template);
         $variables = $this->normalizeTemplateVariables($validated['variables'] ?? []);
         $nonEmptyCount = count(array_filter($variables, static fn (string $value) => $value !== ''));
         if ($nonEmptyCount < (int) ($requiredVars['total'] ?? 0)) {
-            return redirect()->back()->withErrors([
-                'template' => "Template requires {$requiredVars['total']} variable(s), but only {$nonEmptyCount} non-empty value(s) were provided.",
-            ]);
+            return $respondError("Template requires {$requiredVars['total']} variable(s), but only {$nonEmptyCount} non-empty value(s) were provided.");
         }
 
         $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
@@ -1037,7 +1038,7 @@ class ConversationController extends Controller
 
             DB::commit();
 
-            return redirect()->back()->with('success', 'Template sent successfully.');
+            return $respondSuccess('Template sent successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
 
@@ -1054,8 +1055,7 @@ class ConversationController extends Controller
                     'error_message' => $e->getMessage()]);
             }
 
-            return redirect()->back()->withErrors([
-                'template' => 'Failed to send template. Please try again.']);
+            return $respondError('Failed to send template: '.$e->getMessage());
         }
     }
 
