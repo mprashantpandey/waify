@@ -411,18 +411,24 @@ class CampaignService
         $template = $campaign->template;
         $components = [];
 
-        // Build template components from params
-        $components = [];
-        $params = array_merge(
-            is_array($campaign->template_params ?? null) ? array_values($campaign->template_params) : [],
-            is_array($recipient->template_params ?? null) ? array_values($recipient->template_params) : []
-        );
+        // Build template components from params.
+        // Recipient params take precedence when provided.
+        $params = array_values(array_merge(
+            $this->normalizeTemplateParams($campaign->template_params),
+            $this->normalizeTemplateParams($recipient->template_params),
+        ));
 
-        if (!empty($params)) {
-            // Extract components from prepared payload
-            $payload = $this->templateComposer->preparePayload($template, $recipient->phone_number, $params);
-            $components = $payload['template']['components'] ?? [];
+        $requiredVars = (int) ($this->templateComposer->extractRequiredVariables($template)['total'] ?? 0);
+        if ($requiredVars > 0) {
+            $filledCount = $this->countNonEmptyTemplateParams($params);
+            if ($filledCount < $requiredVars) {
+                throw new \Exception("Template requires {$requiredVars} variables, but only {$filledCount} non-empty value(s) were provided.");
+            }
         }
+
+        // Extract components from prepared payload (composer will validate placeholders as well).
+        $payload = $this->templateComposer->preparePayload($template, $recipient->phone_number, $params);
+        $components = $payload['template']['components'] ?? [];
 
         return $this->whatsappClient->sendTemplateMessage(
             $campaign->connection,
@@ -682,12 +688,10 @@ class CampaignService
                 }
 
                 $requiredVars = $this->templateComposer->extractRequiredVariables($template);
-                $campaignTemplateParams = is_array($campaign->template_params ?? null)
-                    ? array_values($campaign->template_params)
-                    : [];
-                $providedCount = count($campaignTemplateParams);
+                $campaignTemplateParams = $this->normalizeTemplateParams($campaign->template_params);
+                $providedCount = $this->countNonEmptyTemplateParams($campaignTemplateParams);
                 if ((int) $requiredVars['total'] > 0 && $providedCount < (int) $requiredVars['total']) {
-                    $errors[] = "Template requires {$requiredVars['total']} variables, but campaign provides {$providedCount}.";
+                    $errors[] = "Template requires {$requiredVars['total']} variables, but campaign provides {$providedCount} non-empty value(s).";
                 }
             }
         }
@@ -998,5 +1002,28 @@ class CampaignService
             ],
             severity: 'warning'
         );
+    }
+
+    /**
+     * Normalize template params into a sequential string array.
+     */
+    private function normalizeTemplateParams(mixed $params): array
+    {
+        if (!is_array($params)) {
+            return [];
+        }
+
+        return array_values(array_map(
+            static fn ($value) => is_scalar($value) ? trim((string) $value) : '',
+            $params
+        ));
+    }
+
+    /**
+     * Count non-empty template params.
+     */
+    private function countNonEmptyTemplateParams(array $params): int
+    {
+        return count(array_filter($params, static fn (string $value) => $value !== ''));
     }
 }

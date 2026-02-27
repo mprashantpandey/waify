@@ -175,6 +175,7 @@ class CampaignController extends Controller
                 }),
             ],
             'template_params' => 'nullable|array',
+            'template_params.*' => 'nullable|string|max:1024',
             'message_text' => 'required_if:type,text|nullable|string',
             'media_url' => ['nullable', 'required_if:type,media', 'url'],
             'media_type' => 'required_if:type,media|nullable|in:image,video,document,audio',
