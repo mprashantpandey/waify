@@ -223,20 +223,40 @@ class TemplateManagementService
         }
 
         DB::transaction(function () use ($currentTemplate, $created) {
+            $targetName = $created->name;
+            $targetMetaTemplateId = $created->meta_template_id;
+            $targetLanguage = $created->language;
+            $targetCategory = $created->category;
+            $targetStatus = $created->status;
+            $targetQualityScore = $created->quality_score;
+            $targetBodyText = $created->body_text;
+            $targetHeaderType = $created->header_type;
+            $targetHeaderText = $created->header_text;
+            $targetHeaderMediaUrl = $created->header_media_url;
+            $targetFooterText = $created->footer_text;
+            $targetButtons = $created->buttons;
+            $targetComponents = $created->components;
+
+            // Free unique (account_id, connection_id, name, language) before assigning created identity to current row.
+            // We cannot keep both rows with the same template name+language at once.
+            $created->update([
+                'name' => $created->name.'_tmp_'.$created->id,
+            ]);
+
             $currentTemplate->update([
-                'meta_template_id' => $created->meta_template_id,
-                'name' => $created->name,
-                'language' => $created->language,
-                'category' => $created->category,
-                'status' => $created->status,
-                'quality_score' => $created->quality_score,
-                'body_text' => $created->body_text,
-                'header_type' => $created->header_type,
-                'header_text' => $created->header_text,
-                'header_media_url' => $created->header_media_url,
-                'footer_text' => $created->footer_text,
-                'buttons' => $created->buttons,
-                'components' => $created->components,
+                'meta_template_id' => $targetMetaTemplateId,
+                'name' => $targetName,
+                'language' => $targetLanguage,
+                'category' => $targetCategory,
+                'status' => $targetStatus,
+                'quality_score' => $targetQualityScore,
+                'body_text' => $targetBodyText,
+                'header_type' => $targetHeaderType,
+                'header_text' => $targetHeaderText,
+                'header_media_url' => $targetHeaderMediaUrl,
+                'footer_text' => $targetFooterText,
+                'buttons' => $targetButtons,
+                'components' => $targetComponents,
                 'last_synced_at' => now(),
                 'last_meta_error' => null,
                 'is_archived' => false,
