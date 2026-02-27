@@ -11,6 +11,7 @@ use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use App\Modules\WhatsApp\Models\WhatsAppConversationAuditEvent;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use App\Modules\WhatsApp\Models\WhatsAppMessageBilling;
+use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use App\Modules\WhatsApp\Models\WhatsAppTemplateSend;
 use App\Models\Account;
 use App\Core\Billing\MetaPricingResolver;
@@ -107,6 +108,10 @@ class WebhookProcessor
                     foreach ($statuses as $statusData) {
                         $this->processStatus($statusData, $connection);
                         $statusesProcessed++;
+                    }
+
+                    if (empty($messages) && empty($statuses)) {
+                        $this->processTemplateLifecycleChange($field, $value, $connection);
                     }
                 }
             }
@@ -502,6 +507,80 @@ class WebhookProcessor
             return in_array($normalized, ['1', 'true', 'yes', 'on'], true);
         }
         return (bool) $value;
+    }
+
+    protected function processTemplateLifecycleChange(?string $field, array $value, WhatsAppConnection $connection): void
+    {
+        $normalizedField = strtolower(trim((string) $field));
+
+        if ($normalizedField === 'template_category_update') {
+            $metaTemplateId = (string) ($value['message_template_id'] ?? '');
+            $newCategory = strtoupper(trim((string) ($value['new_category'] ?? '')));
+            if ($metaTemplateId === '' || $newCategory === '') {
+                return;
+            }
+
+            WhatsAppTemplate::where('account_id', $connection->account_id)
+                ->where('whatsapp_connection_id', $connection->id)
+                ->where('meta_template_id', $metaTemplateId)
+                ->update([
+                    'category' => $newCategory,
+                    'last_synced_at' => now(),
+                ]);
+
+            Log::channel('whatsapp')->info('Template category updated from webhook', [
+                'connection_id' => $connection->id,
+                'meta_template_id' => $metaTemplateId,
+                'category' => $newCategory,
+            ]);
+
+            return;
+        }
+
+        if ($normalizedField === 'message_template_status_update') {
+            $metaTemplateId = (string) ($value['message_template_id'] ?? '');
+            $name = trim((string) ($value['message_template_name'] ?? ''));
+            $language = trim((string) ($value['message_template_language'] ?? ''));
+            $event = strtolower(trim((string) ($value['event'] ?? '')));
+            $reason = trim((string) ($value['reason'] ?? ''));
+            $category = strtoupper(trim((string) ($value['message_template_category'] ?? '')));
+
+            if ($event === '') {
+                return;
+            }
+
+            $query = WhatsAppTemplate::where('account_id', $connection->account_id)
+                ->where('whatsapp_connection_id', $connection->id);
+
+            if ($metaTemplateId !== '') {
+                $query->where('meta_template_id', $metaTemplateId);
+            } elseif ($name !== '' && $language !== '') {
+                $query->where('name', $name)->where('language', $language);
+            } else {
+                return;
+            }
+
+            $updates = [
+                'status' => $event,
+                'last_synced_at' => now(),
+                'last_meta_error' => $reason !== '' ? $reason : null,
+            ];
+            if ($category !== '') {
+                $updates['category'] = $category;
+            }
+
+            $query->update($updates);
+
+            Log::channel('whatsapp')->info('Template status updated from webhook', [
+                'connection_id' => $connection->id,
+                'meta_template_id' => $metaTemplateId,
+                'name' => $name,
+                'language' => $language,
+                'status' => $event,
+                'category' => $category ?: null,
+                'reason' => $reason ?: null,
+            ]);
+        }
     }
 
     /**
