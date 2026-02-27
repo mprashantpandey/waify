@@ -131,11 +131,27 @@ class TemplateSendController extends Controller
             try {
                 $statusData = $this->templateManagementService->getTemplateStatus($template->connection, (string) $template->meta_template_id);
                 $liveStatus = strtolower(trim((string) ($statusData['status'] ?? $template->status ?? '')));
+                $liveName = strtolower(trim((string) ($statusData['name'] ?? '')));
+                $localName = strtolower(trim((string) $template->name));
+                $liveLanguage = strtolower(trim((string) ($statusData['language'] ?? '')));
+                $localLanguage = strtolower(trim((string) $template->language));
                 $template->update([
                     'status' => $liveStatus ?: $template->status,
                     'last_synced_at' => now(),
                     'last_meta_error' => $statusData['rejected_reason'] ?? $statusData['rejection_reason'] ?? null,
                 ]);
+
+                if ($liveName !== '' && $liveName !== $localName) {
+                    return redirect()->back()->withErrors([
+                        'template' => 'Template mismatch detected on Meta. Please re-sync templates and try again.',
+                    ]);
+                }
+
+                if ($liveLanguage !== '' && $liveLanguage !== $localLanguage) {
+                    return redirect()->back()->withErrors([
+                        'template' => 'Template language mismatch detected on Meta. Please re-sync templates and try again.',
+                    ]);
+                }
 
                 if (!in_array($liveStatus, ['approved', 'active'], true)) {
                     return redirect()->back()->withErrors([
@@ -147,6 +163,10 @@ class TemplateSendController extends Controller
                     'template_id' => $template->id,
                     'meta_template_id' => $template->meta_template_id,
                     'error' => $e->getMessage(),
+                ]);
+
+                return redirect()->back()->withErrors([
+                    'template' => 'Could not verify latest template status from Meta. Please try again after template sync.',
                 ]);
             }
         }
