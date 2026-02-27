@@ -72,6 +72,28 @@ export function Sidebar({ navigation, currentRoute, account, isOpen = false, onC
         return acc;
     }, {} as Record<string, NavItem[]>);
 
+    const groupOrder = ['core', 'messaging', 'automation', 'ai', 'growth', 'billing', 'developer', 'other'] as const;
+    const navOrder: string[] = [
+        'app.dashboard',
+        'app.whatsapp.connections.index',
+        'app.whatsapp.connections.create',
+        'app.whatsapp.conversations.index',
+        'app.whatsapp.templates.index',
+        'app.chatbots',
+        'app.broadcasts.index',
+        'app.contacts.index',
+        'app.analytics.index',
+        'app.team.index',
+        'app.ai.index',
+        'app.ai',
+        'app.billing.index',
+        'app.billing.plans',
+        'app.billing.history',
+        'app.settings',
+        'app.activity-logs',
+    ];
+    const navRank = new Map(navOrder.map((key, index) => [key, index]));
+
     const groupLabels: Record<string, string> = {
         core: 'Core',
         messaging: 'Messaging',
@@ -146,9 +168,26 @@ export function Sidebar({ navigation, currentRoute, account, isOpen = false, onC
         );
     };
 
+    const orderedGroups = [
+        ...groupOrder.filter((g) => groupedNav[g]),
+        ...Object.keys(groupedNav).filter((g) => !groupOrder.includes(g as any)).sort((a, b) => a.localeCompare(b)),
+    ];
+
+    const sortNavItems = (items: NavItem[]) => {
+        return [...items].sort((a, b) => {
+            const aRank = navRank.has(a.href) ? (navRank.get(a.href) as number) : Number.MAX_SAFE_INTEGER;
+            const bRank = navRank.has(b.href) ? (navRank.get(b.href) as number) : Number.MAX_SAFE_INTEGER;
+            if (aRank !== bRank) {
+                return aRank - bRank;
+            }
+            return a.label.localeCompare(b.label);
+        });
+    };
+
     const sidebarContent = (
         <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-6 space-y-8">
-                {Object.entries(groupedNav).map(([group, items]) => {
+                {orderedGroups.map((group) => {
+                    const items = sortNavItems(groupedNav[group] || []);
                     // Filter out null items and check if group has any valid items
                     const validItems = items.map(renderNavItem).filter((item) => item !== null);
                     

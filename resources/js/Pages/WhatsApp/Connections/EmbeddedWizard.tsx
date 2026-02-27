@@ -53,6 +53,7 @@ export default function EmbeddedWizard({
         data: {}});
     const messageHandlerRef = useRef<((event: MessageEvent) => void) | null>(null);
     const lastTelemetryKeyRef = useRef<string>('');
+    const autoCreateTriggeredRef = useRef(false);
 
     const embeddedForm = useForm({
         name: '',
@@ -355,20 +356,24 @@ export default function EmbeddedWizard({
         );
     };
 
-    const submitEmbedded: React.FormEventHandler = (e) => {
-        e.preventDefault();
-
+    const createConnection = (mode: 'manual' | 'auto' = 'manual') => {
         if (!embeddedForm.data.code && !embeddedForm.data.access_token) {
-            toast.error('Please complete the authorization step first');
+            if (mode === 'manual') {
+                toast.error('Please complete the authorization step first');
+            }
             emitTelemetry({ step: 'submit_blocked', status: 'error', message: 'Missing code/access token before submit' });
             return;
+        }
+
+        if (!embeddedForm.data.name?.trim()) {
+            embeddedForm.setData('name', 'WhatsApp Connection');
         }
 
         setWizardState(prev => ({
             ...prev,
             step: 'complete',
             progress: 90,
-            message: 'Creating connection...'}));
+            message: mode === 'auto' ? 'Creating connection automatically...' : 'Creating connection...'}));
 
         embeddedForm.post(route('app.whatsapp.connections.store-embedded', {}), {
             onSuccess: () => {
@@ -384,7 +389,10 @@ export default function EmbeddedWizard({
                     ...prev,
                     step: 'error',
                     error: (errors as any)?.embedded || 'Failed to create connection'}));
-                toast.error('Failed to create connection');
+                if (mode === 'auto') {
+                    autoCreateTriggeredRef.current = false;
+                }
+                toast.error(mode === 'auto' ? 'Auto-create failed. You can retry manually.' : 'Failed to create connection');
                 emitTelemetry({
                     step: 'connection_create_error',
                     status: 'error',
@@ -392,6 +400,23 @@ export default function EmbeddedWizard({
                 });
             }});
     };
+
+    const submitEmbedded: React.FormEventHandler = (e) => {
+        e.preventDefault();
+        createConnection('manual');
+    };
+
+    useEffect(() => {
+        const hasAuth = Boolean(embeddedForm.data.code || embeddedForm.data.access_token);
+        const canAutoCreate = ['code-exchange', 'waba-lookup', 'phone-lookup', 'subscribe', 'register'].includes(wizardState.step);
+
+        if (!hasAuth || !canAutoCreate || embeddedForm.processing || autoCreateTriggeredRef.current) {
+            return;
+        }
+
+        autoCreateTriggeredRef.current = true;
+        createConnection('auto');
+    }, [embeddedForm.data.code, embeddedForm.data.access_token, wizardState.step, embeddedForm.processing]);
 
     const getStepIcon = (step: WizardStep) => {
         switch (step) {
