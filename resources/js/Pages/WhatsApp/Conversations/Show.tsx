@@ -248,6 +248,9 @@ export default function ConversationsShow({
     const [messages, setMessages] = useState<Message[]>(normalizedMessages);
     const [conversation, setConversation] = useState<Conversation>(resolvedConversation);
     const [loading, setLoading] = useState<boolean>(normalizedMessages.length === 0 && initialTotalMessages > 0);
+    const [initialSyncPending, setInitialSyncPending] = useState<boolean>(
+        normalizedMessages.length === 0 && initialTotalMessages > 0
+    );
     const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
     const [showEmojiBar, setShowEmojiBar] = useState(false);
     const [showQuickReplies, setShowQuickReplies] = useState(false);
@@ -312,6 +315,7 @@ export default function ConversationsShow({
             setNotes(normalizedNotes);
             setAuditEvents(normalizedAuditEvents);
             setLoading(normalizedMessages.length === 0 && initialTotalMessages > 0);
+            setInitialSyncPending(normalizedMessages.length === 0 && initialTotalMessages > 0);
             hydratedConversationIdRef.current = resolvedConversation.id;
             assignedToRef.current = resolvedConversation.assigned_to ?? null;
             historyBootstrapAttemptedRef.current = normalizedMessages.length > 0;
@@ -331,6 +335,7 @@ export default function ConversationsShow({
         if (normalizedMessages.length > 0) {
             setMessages((prev) => mergeMessages(prev, normalizedMessages));
             setLoading(false);
+            setInitialSyncPending(false);
             historyBootstrapAttemptedRef.current = true;
             lastMessageIdRef.current = Math.max(
                 ...normalizedMessages.map((m) => m.id),
@@ -670,6 +675,7 @@ export default function ConversationsShow({
         if (!account?.id || !conversation?.id) return;
 
         setLoading(true);
+        setInitialSyncPending(true);
         try {
             const response = await axios.get(
                 route('app.whatsapp.inbox.conversation.stream', {
@@ -700,6 +706,7 @@ export default function ConversationsShow({
                     }
                 }
             }
+            setInitialSyncPending(false);
         } catch (error) {
             console.error('[Conversation] History recovery failed:', error);
         } finally {
@@ -909,6 +916,7 @@ export default function ConversationsShow({
                 if (newMessagesFromServer.length > 0) {
                     setMessages((prev) => mergeMessages(prev, newMessagesFromServer));
                     historyBootstrapAttemptedRef.current = true;
+                    setInitialSyncPending(false);
                     lastMessageIdRef.current = Math.max(maxId(newMessagesFromServer), lastMessageIdRef.current);
                     for (const message of newMessagesFromServer) {
                         processedMessageIds.current.add(message.id);
@@ -964,6 +972,10 @@ export default function ConversationsShow({
                     setConversation((prev) => ({ ...prev, ...response.data.conversation }));
                 }
 
+                if (initialSyncPending && initialTotalMessages > 0) {
+                    setInitialSyncPending(false);
+                }
+
                 if (response.data?.server_time) {
                     lastMessageUpdatedAtRef.current = response.data.server_time;
                 }
@@ -1001,7 +1013,7 @@ export default function ConversationsShow({
                 pollTimerRef.current = null;
             }
         };
-    }, [connected, account?.id, conversation?.id, addToast]);
+    }, [connected, account?.id, conversation?.id, addToast, initialSyncPending, initialTotalMessages]);
 
     const handleSend = useCallback(async () => {
         if (processing) return;
@@ -1397,11 +1409,17 @@ export default function ConversationsShow({
                                 <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/80 dark:bg-gray-900 mb-4 shadow-sm">
                                     <Send className="h-8 w-8 text-gray-400" />
                                 </div>
-                                <p className="text-gray-500 dark:text-gray-400 font-medium mb-1">No messages yet</p>
-                                <p className="text-sm text-gray-400 dark:text-gray-500">
-                                    {initialTotalMessages > 0 ? 'History did not load yet.' : 'Start the conversation!'}
+                                <p className="text-gray-500 dark:text-gray-400 font-medium mb-1">
+                                    {initialSyncPending ? 'Syncing conversation...' : 'No messages yet'}
                                 </p>
-                                {initialTotalMessages > 0 && (
+                                <p className="text-sm text-gray-400 dark:text-gray-500">
+                                    {initialTotalMessages > 0
+                                        ? initialSyncPending
+                                            ? 'Loading history in the background.'
+                                            : 'History did not load yet.'
+                                        : 'Start the conversation!'}
+                                </p>
+                                {initialTotalMessages > 0 && !initialSyncPending && (
                                     <div className="mt-3">
                                         <Button type="button" variant="secondary" onClick={recoverHistory}>
                                             Retry Loading History
