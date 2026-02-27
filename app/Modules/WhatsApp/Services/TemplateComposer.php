@@ -44,7 +44,7 @@ class TemplateComposer
 
         // Header media (IMAGE/VIDEO/DOCUMENT templates need a media parameter on send)
         if (in_array($template->header_type, ['IMAGE', 'VIDEO', 'DOCUMENT'], true)) {
-            $mediaUrl = trim((string) ($template->header_media_url ?? ''));
+            $mediaUrl = $this->resolveHeaderMediaUrl($template);
             if ($mediaUrl === '') {
                 throw new \Exception("Template '{$template->name}' requires header media URL before sending");
             }
@@ -216,5 +216,28 @@ class TemplateComposer
             $index = (int) $matches[1] - 1;
             return $variables[$index] ?? $matches[0];
         }, $text);
+    }
+
+    protected function resolveHeaderMediaUrl(WhatsAppTemplate $template): string
+    {
+        $mediaUrl = trim((string) ($template->header_media_url ?? ''));
+        if ($mediaUrl !== '') {
+            return $mediaUrl;
+        }
+
+        $components = is_array($template->components) ? $template->components : [];
+        foreach ($components as $component) {
+            if (strtoupper((string) ($component['type'] ?? '')) !== 'HEADER') {
+                continue;
+            }
+
+            $candidate = $component['example']['header_handle'][0] ?? null;
+            $candidate = is_string($candidate) ? trim($candidate) : '';
+            if (str_starts_with($candidate, 'http://') || str_starts_with($candidate, 'https://')) {
+                return $candidate;
+            }
+        }
+
+        return '';
     }
 }
