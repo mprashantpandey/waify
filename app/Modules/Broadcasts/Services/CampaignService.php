@@ -413,10 +413,9 @@ class CampaignService
 
         // Build template components from params.
         // Recipient params take precedence when provided.
-        $params = array_values(array_merge(
-            $this->normalizeTemplateParams($campaign->template_params),
-            $this->normalizeTemplateParams($recipient->template_params),
-        ));
+        $campaignParams = $this->normalizeTemplateParams($campaign->template_params);
+        $recipientParams = $this->normalizeTemplateParams($recipient->template_params);
+        $params = $this->mergeTemplateParamsWithRecipientOverride($campaignParams, $recipientParams);
 
         $requiredVars = (int) ($this->templateComposer->extractRequiredVariables($template)['total'] ?? 0);
         if ($requiredVars > 0) {
@@ -1025,5 +1024,23 @@ class CampaignService
     private function countNonEmptyTemplateParams(array $params): int
     {
         return count(array_filter($params, static fn (string $value) => $value !== ''));
+    }
+
+    /**
+     * Merge template params preserving placeholder positions.
+     * Recipient params override campaign defaults by index.
+     */
+    private function mergeTemplateParamsWithRecipientOverride(array $campaignParams, array $recipientParams): array
+    {
+        $length = max(count($campaignParams), count($recipientParams));
+        $merged = [];
+
+        for ($i = 0; $i < $length; $i++) {
+            $recipientValue = $recipientParams[$i] ?? null;
+            $campaignValue = $campaignParams[$i] ?? '';
+            $merged[] = ($recipientValue !== null && $recipientValue !== '') ? $recipientValue : $campaignValue;
+        }
+
+        return $merged;
     }
 }
