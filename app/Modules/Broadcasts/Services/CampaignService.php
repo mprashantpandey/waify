@@ -18,6 +18,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class CampaignService
 {
@@ -696,6 +697,32 @@ class CampaignService
             $errors[] = 'No pending recipients to send.';
         }
 
+        if (config('queue.default') === 'database' && Schema::hasTable('jobs')) {
+            $pendingThreshold = max(100, (int) PlatformSetting::get('campaigns.queue_pending_threshold', 3000));
+            $pendingJobs = (int) DB::table('jobs')->where('queue', 'campaigns')->count();
+
+            if ($pendingJobs >= $pendingThreshold) {
+                $errors[] = "Campaign queue backlog too high ({$pendingJobs} pending jobs, threshold {$pendingThreshold}).";
+            } elseif ($pendingJobs >= (int) floor($pendingThreshold * 0.75)) {
+                $warnings[] = "Campaign queue backlog is elevated ({$pendingJobs} pending jobs).";
+            }
+        }
+
+        if (Schema::hasTable('failed_jobs')) {
+            $failedWindowMinutes = max(5, (int) PlatformSetting::get('campaigns.failed_jobs_window_minutes', 30));
+            $failedThreshold = max(5, (int) PlatformSetting::get('campaigns.failed_jobs_threshold', 50));
+            $recentFailed = (int) DB::table('failed_jobs')
+                ->where('queue', 'campaigns')
+                ->where('failed_at', '>=', now()->subMinutes($failedWindowMinutes))
+                ->count();
+
+            if ($recentFailed >= $failedThreshold) {
+                $errors[] = "Too many recent campaign queue failures ({$recentFailed} in last {$failedWindowMinutes} min).";
+            } elseif ($recentFailed >= (int) floor($failedThreshold * 0.6)) {
+                $warnings[] = "Campaign queue failures are elevated ({$recentFailed} in last {$failedWindowMinutes} min).";
+            }
+        }
+
         $account = $campaign->account;
         if ($account) {
             $limits = $this->planResolver->getEffectiveLimits($account);
@@ -720,6 +747,36 @@ class CampaignService
             'warnings' => $warnings,
             'pending_recipients' => $pendingCount,
         ];
+    }
+
+    public function pauseCampaignForBackpressure(Campaign $campaign, string $reason): void
+    {
+        if ($campaign->status !== 'sending') {
+            return;
+        }
+
+        $metadata = $campaign->metadata ?? [];
+        $metadata['paused_by_backpressure'] = [
+            'at' => now()->toIso8601String(),
+            'reason' => $reason,
+        ];
+
+        $campaign->update([
+            'status' => 'paused',
+            'metadata' => $metadata,
+        ]);
+
+        $this->alertService->send(
+            'campaign_auto_paused_backpressure',
+            'Campaign auto-paused due to queue backpressure',
+            [
+                'scope' => 'campaign:' . $campaign->id,
+                'campaign_id' => $campaign->id,
+                'account_id' => $campaign->account_id,
+                'reason' => $reason,
+            ],
+            'warning'
+        );
     }
 
     public function getDispatchDelaySeconds(Campaign $campaign): int

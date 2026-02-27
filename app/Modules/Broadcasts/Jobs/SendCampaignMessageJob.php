@@ -62,6 +62,19 @@ class SendCampaignMessageJob implements ShouldQueue
                 return;
             }
 
+            $preflight = $campaignService->runPreflightChecks($campaign);
+            if (!($preflight['ok'] ?? false)) {
+                $campaignService->pauseCampaignForBackpressure(
+                    $campaign,
+                    implode(' | ', $preflight['errors'] ?? ['Queue/system preflight failed during send'])
+                );
+                Log::warning('Campaign auto-paused by worker preflight', [
+                    'campaign_id' => $this->campaignId,
+                    'errors' => $preflight['errors'] ?? [],
+                ]);
+                return;
+            }
+
             $iterations = $campaign->send_delay_seconds > 0 ? 1 : $this->batchSize;
             $processed = 0;
 
