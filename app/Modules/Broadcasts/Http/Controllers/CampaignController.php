@@ -424,10 +424,25 @@ class CampaignController extends Controller
                 'error' => 'Campaign cannot be started in its current state.']);
         }
 
+        $preflight = $this->campaignService->runPreflightChecks($campaign);
+        if (!($preflight['ok'] ?? false)) {
+            $errors = $preflight['errors'] ?? ['Campaign preflight failed.'];
+            return back()->withErrors([
+                'error' => implode(' ', $errors),
+                'preflight' => $errors,
+            ]);
+        }
+
         try {
             $this->campaignService->startCampaign($campaign);
 
-            return back()->with('success', 'Campaign started successfully.');
+            $warningMessage = '';
+            $warnings = $preflight['warnings'] ?? [];
+            if (!empty($warnings)) {
+                $warningMessage = ' Warnings: ' . implode(' ', $warnings);
+            }
+
+            return back()->with('success', 'Campaign started successfully.' . $warningMessage);
         } catch (\Exception $e) {
             Log::error('Failed to start campaign', [
                 'campaign_id' => $campaign->id,

@@ -280,7 +280,9 @@ export default function ConversationsShow({
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
-    const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+    const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const pollFailureCountRef = useRef(0);
+    const pollErrorToastAtRef = useRef(0);
     const lastMessageIdRef = useRef<number>(maxId(normalizedMessages));
     const processedMessageIds = useRef<Set<number>>(new Set(normalizedMessages.map((m) => m.id)));
     const lastMessageUpdatedAtRef = useRef<string>(
@@ -864,12 +866,25 @@ export default function ConversationsShow({
     // while server-side broadcasting is misconfigured and events are not delivered.
     useEffect(() => {
         if (!account?.id || !conversation?.id) {
-            if (pollingInterval) {
-                clearInterval(pollingInterval);
-                setPollingInterval(null);
+            if (pollTimerRef.current) {
+                clearTimeout(pollTimerRef.current);
+                pollTimerRef.current = null;
             }
             return;
         }
+
+        let cancelled = false;
+        const baseIntervalMs = connected ? 12000 : 7000;
+
+        const scheduleNextPoll = (delayMs: number) => {
+            if (cancelled) return;
+            if (pollTimerRef.current) {
+                clearTimeout(pollTimerRef.current);
+            }
+            pollTimerRef.current = setTimeout(() => {
+                void poll();
+            }, delayMs);
+        };
 
         const poll = async () => {
             try {
@@ -952,22 +967,41 @@ export default function ConversationsShow({
                 if (response.data?.server_time) {
                     lastMessageUpdatedAtRef.current = response.data.server_time;
                 }
+                pollFailureCountRef.current = 0;
                 setLoading(false);
+                scheduleNextPoll(baseIntervalMs);
             } catch (error) {
                 console.error('[Conversation] Polling error:', error);
+                pollFailureCountRef.current = Math.min(pollFailureCountRef.current + 1, 6);
+
+                const now = Date.now();
+                if (now - pollErrorToastAtRef.current > 60_000) {
+                    addToast({
+                        title: 'Realtime temporarily degraded',
+                        description: 'Retrying conversation sync in the background.',
+                        variant: 'warning',
+                        duration: 4000,
+                    });
+                    pollErrorToastAtRef.current = now;
+                }
+
+                const backoffMultiplier = Math.pow(2, Math.max(0, pollFailureCountRef.current - 1));
+                const nextDelay = Math.min(60000, baseIntervalMs * backoffMultiplier);
+                scheduleNextPoll(nextDelay);
                 setLoading(false);
             }
         };
 
-        const intervalMs = connected ? 12000 : 7000;
-        const interval = setInterval(poll, intervalMs);
-        setPollingInterval(interval);
-        poll();
+        void poll();
 
         return () => {
-            clearInterval(interval);
+            cancelled = true;
+            if (pollTimerRef.current) {
+                clearTimeout(pollTimerRef.current);
+                pollTimerRef.current = null;
+            }
         };
-    }, [connected, account?.id, conversation?.id]);
+    }, [connected, account?.id, conversation?.id, addToast]);
 
     const handleSend = useCallback(async () => {
         if (processing) return;
