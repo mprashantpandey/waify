@@ -261,39 +261,69 @@ class TemplateManagementService
     /**
      * Delete a template via Meta API.
      */
-    public function deleteTemplate(WhatsAppConnection $connection, string $metaTemplateId): bool
+    public function deleteTemplate(
+        WhatsAppConnection $connection,
+        ?string $metaTemplateId = null,
+        ?string $templateName = null,
+        ?string $language = null
+    ): bool
     {
         $wabaId = $connection->waba_id;
         if (!$wabaId) {
             throw new \Exception('WABA ID is required to delete templates');
         }
 
-        $url = sprintf(
-            '%s/%s/%s/message_templates?hsm_id=%s',
-            $this->baseUrl,
-            $connection->api_version ?: config('whatsapp.meta.api_version', 'v21.0'),
-            $wabaId,
-            $metaTemplateId
-        );
+        $version = $connection->api_version ?: config('whatsapp.meta.api_version', 'v21.0');
+        $baseUrl = sprintf('%s/%s/%s/message_templates', $this->baseUrl, $version, $wabaId);
 
         try {
             $this->rateLimitCheck($connection->id);
 
-            $response = Http::withToken($connection->access_token)
-                ->delete($url);
+            $attempts = [];
+            $metaTemplateId = trim((string) $metaTemplateId);
+            $templateName = trim((string) $templateName);
+            $language = trim((string) $language);
 
-            if (!$response->successful()) {
+            if ($metaTemplateId !== '') {
+                $attempts[] = ['hsm_id' => $metaTemplateId];
+            }
+            if ($templateName !== '' && $language !== '') {
+                $attempts[] = ['name' => $templateName, 'language' => $language];
+            }
+            if (empty($attempts)) {
+                throw new \InvalidArgumentException('Meta template identifier is required to delete template.');
+            }
+
+            $lastError = null;
+            foreach ($attempts as $params) {
+                $response = Http::withToken($connection->access_token)
+                    ->delete($baseUrl . '?' . http_build_query($params));
+
+                if ($response->successful()) {
+                    return true;
+                }
+
                 $responseData = $response->json();
                 $errorMessage = $responseData['error']['message'] ?? 'Unknown error from WhatsApp API';
-                
-                throw new WhatsAppApiException(
+                $lastError = new WhatsAppApiException(
                     "Failed to delete template: {$errorMessage}",
                     $responseData,
                     $response->status()
                 );
+
+                Log::channel('whatsapp')->warning('Template delete attempt failed', [
+                    'connection_id' => $connection->id,
+                    'params' => $params,
+                    'status' => $response->status(),
+                    'error' => $responseData['error'] ?? $errorMessage,
+                ]);
             }
 
-            return true;
+            if ($lastError) {
+                throw $lastError;
+            }
+
+            return false;
         } catch (WhatsAppApiException $e) {
             throw $e;
         } catch (\Exception $e) {

@@ -200,6 +200,31 @@ class TemplateController extends Controller
             abort(404);
         }
 
+        $connection = $template->connection;
+        Gate::authorize('update', $connection);
+
+        try {
+            $this->templateManagementService->deleteTemplate(
+                $connection,
+                $template->meta_template_id,
+                $template->name,
+                $template->language
+            );
+        } catch (\Exception $e) {
+            Log::channel('whatsapp')->error('Template delete failed on Meta', [
+                'account_id' => $account->id,
+                'template_id' => $template->id,
+                'meta_template_id' => $template->meta_template_id,
+                'name' => $template->name,
+                'language' => $template->language,
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()->back()->withErrors([
+                'delete' => 'Failed to delete template from Meta: ' . $e->getMessage(),
+            ]);
+        }
+
         $template->delete();
 
         return redirect()->route('app.whatsapp.templates.index')->with('success', 'Template deleted successfully.');
