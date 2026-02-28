@@ -120,12 +120,12 @@ export default function SegmentsEdit({
 
                     <Card className="mt-6">
                         <CardHeader>
-                            <div className="flex items-center justify-between">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div>
                                     <CardTitle>Filters</CardTitle>
                                     <CardDescription>Contacts that match all rules below will be in this segment</CardDescription>
                                 </div>
-                                <Button type="button" variant="secondary" size="sm" onClick={addFilter}>
+                                <Button type="button" variant="secondary" size="sm" className="w-full sm:w-auto" onClick={addFilter}>
                                     <Plus className="h-4 w-4 mr-2" />
                                     Add rule
                                 </Button>
@@ -136,8 +136,8 @@ export default function SegmentsEdit({
                                 <p className="text-sm text-gray-500 dark:text-gray-400">No filters. Add a rule to limit which contacts are in this segment.</p>
                             ) : (
                                 data.filters.map((filter, index) => (
-                                    <div key={index} className="flex flex-wrap items-end gap-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
-                                        <div className="w-40">
+                                    <div key={index} className="grid grid-cols-1 sm:grid-cols-[10rem_9rem_minmax(0,1fr)_auto] items-end gap-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                                        <div className="w-full">
                                             <InputLabel value="Field" />
                                             <select
                                                 value={filter.field}
@@ -149,7 +149,7 @@ export default function SegmentsEdit({
                                                 ))}
                                             </select>
                                         </div>
-                                        <div className="w-36">
+                                        <div className="w-full">
                                             <InputLabel value="Operator" />
                                             <select
                                                 value={filter.operator}
@@ -171,7 +171,7 @@ export default function SegmentsEdit({
                                                 />
                                             </div>
                                         )}
-                                        <Button type="button" variant="secondary" size="sm" onClick={() => removeFilter(index)}>
+                                        <Button type="button" variant="secondary" size="sm" className="w-full sm:w-auto" onClick={() => removeFilter(index)}>
                                             <X className="h-4 w-4" />
                                         </Button>
                                     </div>
@@ -180,10 +180,10 @@ export default function SegmentsEdit({
                         </CardContent>
                     </Card>
 
-                    <div className="mt-6 flex gap-4">
-                        <Button type="submit" disabled={processing}>Save changes</Button>
-                        <Link href={route('app.contacts.segments.show', { segment: segment.id })}>
-                            <Button type="button" variant="secondary">Cancel</Button>
+                    <div className="mt-6 flex flex-col-reverse sm:flex-row gap-3 sm:gap-4">
+                        <Button type="submit" className="w-full sm:w-auto" disabled={processing}>Save changes</Button>
+                        <Link href={route('app.contacts.segments.show', { segment: segment.id })} className="w-full sm:w-auto">
+                            <Button type="button" variant="secondary" className="w-full sm:w-auto">Cancel</Button>
                         </Link>
                     </div>
                 </form>

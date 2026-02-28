@@ -383,7 +383,7 @@ export default function BroadcastsCreate({
                             {recipientType === 'custom' && (
                                 <div className="space-y-2">
                                     {data.custom_recipients.map((recipient, index) => (
-                                        <div key={index} className="flex gap-2">
+                                        <div key={index} className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
                                             <TextInput
                                                 type="text"
                                                 placeholder="Phone number (with country code)"
@@ -401,13 +401,14 @@ export default function BroadcastsCreate({
                                             <Button
                                                 type="button"
                                                 variant="secondary"
+                                                className="w-full sm:w-auto"
                                                 onClick={() => removeCustomRecipient(index)}
                                             >
                                                 Remove
                                             </Button>
                                         </div>
                                     ))}
-                                    <Button type="button" variant="secondary" onClick={addCustomRecipient}>
+                                    <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={addCustomRecipient}>
                                         Add Recipient
                                     </Button>
                                 </div>
@@ -513,13 +514,13 @@ export default function BroadcastsCreate({
                         </CardContent>
                     </Card>
 
-                    <div className="flex justify-end gap-4">
-                        <Link href={route('app.broadcasts.index', { })}>
-                            <Button type="button" variant="secondary">
+                    <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4">
+                        <Link href={route('app.broadcasts.index', { })} className="w-full sm:w-auto">
+                            <Button type="button" variant="secondary" className="w-full sm:w-auto">
                                 Cancel
                             </Button>
                         </Link>
-                        <Button type="submit" disabled={processing}>
+                        <Button type="submit" className="w-full sm:w-auto" disabled={processing}>
                             {data.dry_run ? 'Create Dry Run' : (data.scheduled_at ? 'Schedule Campaign' : 'Create Campaign')}
                         </Button>
                     </div>
