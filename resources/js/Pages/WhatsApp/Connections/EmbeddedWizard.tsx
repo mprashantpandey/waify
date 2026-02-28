@@ -309,7 +309,7 @@ export default function EmbeddedWizard({
                     const code = response.authResponse.code;
                     const accessToken = response.authResponse.accessToken;
 
-                    if (code) {
+                    if (code && !accessToken) {
                         embeddedForm.setData('code', code);
                         setWizardState(prev => ({
                             ...prev,
@@ -323,6 +323,7 @@ export default function EmbeddedWizard({
 
                     if (accessToken) {
                         embeddedForm.setData('access_token', accessToken);
+                        embeddedForm.setData('code', '');
                         setWizardState(prev => ({
                             ...prev,
                             step: 'code-exchange',
@@ -358,8 +359,6 @@ export default function EmbeddedWizard({
             {
                 config_id: embeddedSignup.configId,
                 redirect_uri: oauthRedirectUri,
-                response_type: 'code',
-                override_default_response_type: true,
                 scope: 'whatsapp_business_management,whatsapp_business_messaging,business_management'}
         );
     };

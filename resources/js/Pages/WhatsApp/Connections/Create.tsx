@@ -297,11 +297,13 @@ export default function ConnectionsCreate({
                 if (response?.authResponse) {
                     const code = response?.code || response?.authResponse?.code;
                     const accessToken = response?.accessToken || response?.authResponse?.accessToken;
-                    if (code) {
+                    if (code && !accessToken) {
                         embeddedForm.setData('code', code);
                     }
                     if (accessToken) {
                         embeddedForm.setData('access_token', accessToken);
+                        // Prefer token path to avoid code/redirect mismatch issues in popup flow.
+                        embeddedForm.setData('code', '');
                     }
                     setEmbeddedStatus((prev) => {
                         if (prev && (prev.includes('Embedded signup data received') || prev.includes('Meta IDs not returned'))) {
@@ -317,8 +319,6 @@ export default function ConnectionsCreate({
             {
                 config_id: embeddedSignup.configId,
                 redirect_uri: oauthRedirectUri,
-                response_type: 'code',
-                override_default_response_type: true,
                 scope: 'whatsapp_business_management,whatsapp_business_messaging,business_management'}
         );
     };

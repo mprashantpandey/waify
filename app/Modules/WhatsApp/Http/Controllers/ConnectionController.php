@@ -204,9 +204,33 @@ class ConnectionController extends Controller
         try {
             $accessToken = $validated['access_token'] ?? null;
             if (!$accessToken && !empty($validated['code'])) {
-                $redirectUri = $this->resolveEmbeddedRedirectUri($validated['redirect_uri'] ?? null);
-                $tokenData = $this->metaGraphService->exchangeCodeForToken($validated['code'], $redirectUri);
-                $accessToken = $tokenData['access_token'] ?? null;
+                $redirectCandidates = $this->buildEmbeddedRedirectUriCandidates($validated['redirect_uri'] ?? null);
+                $lastExchangeError = null;
+
+                foreach ($redirectCandidates as $redirectUri) {
+                    try {
+                        Log::channel('whatsapp')->info('Embedded signup OAuth exchange redirect URI attempt', [
+                            'account_id' => $account?->id,
+                            'request_path' => $request->path(),
+                            'requested_redirect_uri' => $validated['redirect_uri'] ?? null,
+                            'attempt_redirect_uri' => $redirectUri,
+                        ]);
+
+                        $tokenData = $this->metaGraphService->exchangeCodeForToken($validated['code'], $redirectUri);
+                        $accessToken = $tokenData['access_token'] ?? null;
+                        $lastExchangeError = null;
+                        break;
+                    } catch (\Throwable $exchangeError) {
+                        $lastExchangeError = $exchangeError;
+                        if (!$this->isRedirectUriMismatchError($exchangeError)) {
+                            throw $exchangeError;
+                        }
+                    }
+                }
+
+                if (!$accessToken && $lastExchangeError) {
+                    throw $lastExchangeError;
+                }
             }
 
             if (!$accessToken) {
@@ -355,8 +379,7 @@ class ConnectionController extends Controller
 
     /**
      * Meta requires the token exchange redirect_uri to exactly match the OAuth dialog redirect_uri.
-     * Validate client-provided values against allowlisted URIs, but keep the client URI exact
-     * (except query/hash) so OAuth code exchange uses the same redirect_uri used in the dialog.
+     * Keep the exact client URI (including query string) when it matches an allowlisted base URI.
      */
     private function resolveEmbeddedRedirectUri(?string $requestedRedirectUri): string
     {
@@ -364,8 +387,8 @@ class ConnectionController extends Controller
             'whatsapp.embedded_oauth_redirect_uri',
             route('app.whatsapp.connections.create')
         );
-        $platformConfigured = $this->normalizeRedirectUri($platformConfiguredRaw)
-            ?? $this->normalizeRedirectUri(route('app.whatsapp.connections.create'))
+        $platformConfigured = $this->normalizeRedirectUriWithQuery($platformConfiguredRaw)
+            ?? $this->normalizeRedirectUriWithQuery(route('app.whatsapp.connections.create'))
             ?? route('app.whatsapp.connections.create');
 
         $allowedRaw = [
@@ -374,15 +397,19 @@ class ConnectionController extends Controller
             (string) route('app.whatsapp.connections.wizard'),
         ];
         $allowed = array_values(array_unique(array_filter(array_map(
-            fn ($uri) => $this->normalizeRedirectUri((string) $uri),
+            fn ($uri) => $this->normalizeRedirectUriWithQuery((string) $uri),
             $allowedRaw
         ))));
 
         if ($requestedRedirectUri) {
-            $normalizedRequested = $this->normalizeRedirectUri($requestedRedirectUri);
+            $normalizedRequested = $this->normalizeRedirectUriWithQuery($requestedRedirectUri);
             if ($normalizedRequested) {
+                $requestedBase = $this->normalizeRedirectUriBase($normalizedRequested);
                 foreach ($allowed as $allowedUri) {
-                    if (rtrim($normalizedRequested, '/') === rtrim($allowedUri, '/')) {
+                    if (
+                        $requestedBase !== null
+                        && $requestedBase === $this->normalizeRedirectUriBase($allowedUri)
+                    ) {
                         return $normalizedRequested;
                     }
                 }
@@ -392,7 +419,60 @@ class ConnectionController extends Controller
         return $platformConfigured;
     }
 
-    private function normalizeRedirectUri(?string $uri): ?string
+    /**
+     * Build a short allowlisted candidate list for Meta code exchange, including slash variants.
+     */
+    private function buildEmbeddedRedirectUriCandidates(?string $requestedRedirectUri): array
+    {
+        $primary = $this->resolveEmbeddedRedirectUri($requestedRedirectUri);
+        $platformConfiguredRaw = (string) PlatformSetting::get(
+            'whatsapp.embedded_oauth_redirect_uri',
+            route('app.whatsapp.connections.create')
+        );
+
+        $rawCandidates = array_filter([
+            $primary,
+            $requestedRedirectUri,
+            $platformConfiguredRaw,
+            (string) route('app.whatsapp.connections.create'),
+            (string) route('app.whatsapp.connections.wizard'),
+        ]);
+
+        $normalized = [];
+        foreach ($rawCandidates as $candidate) {
+            $uri = $this->normalizeRedirectUriWithQuery((string) $candidate);
+            if (!$uri) {
+                continue;
+            }
+
+            $normalized[] = $uri;
+
+            $parts = parse_url($uri);
+            if ($parts !== false && isset($parts['path']) && !isset($parts['query'])) {
+                $path = $parts['path'];
+                if ($path !== '/') {
+                    $altPath = str_ends_with($path, '/') ? rtrim($path, '/') : $path.'/';
+                    if ($altPath !== '') {
+                        $altUri = $parts['scheme'].'://'.$parts['host']
+                            .(isset($parts['port']) ? ':'.$parts['port'] : '')
+                            .$altPath;
+                        $normalized[] = $altUri;
+                    }
+                }
+            }
+        }
+
+        return array_values(array_unique($normalized));
+    }
+
+    private function isRedirectUriMismatchError(\Throwable $error): bool
+    {
+        $message = strtolower($error->getMessage());
+        return str_contains($message, 'redirect_uri is identical')
+            || str_contains($message, 'redirect_uri');
+    }
+
+    private function normalizeRedirectUriWithQuery(?string $uri): ?string
     {
         if (!$uri) {
             return null;
@@ -403,9 +483,35 @@ class ConnectionController extends Controller
             return null;
         }
 
-        return $parts['scheme'].'://'.$parts['host']
+        $normalized = $parts['scheme'].'://'.$parts['host']
             .(isset($parts['port']) ? ':'.$parts['port'] : '')
             .$parts['path'];
+
+        if (isset($parts['query']) && $parts['query'] !== '') {
+            $normalized .= '?'.$parts['query'];
+        }
+
+        return $normalized;
+    }
+
+    private function normalizeRedirectUriBase(?string $uri): ?string
+    {
+        $normalized = $this->normalizeRedirectUriWithQuery($uri);
+        if (!$normalized) {
+            return null;
+        }
+
+        $parts = parse_url($normalized);
+        if ($parts === false || empty($parts['scheme']) || empty($parts['host']) || !array_key_exists('path', $parts)) {
+            return null;
+        }
+
+        return rtrim(
+            $parts['scheme'].'://'.$parts['host']
+            .(isset($parts['port']) ? ':'.$parts['port'] : '')
+            .$parts['path'],
+            '/'
+        );
     }
 
     /**
