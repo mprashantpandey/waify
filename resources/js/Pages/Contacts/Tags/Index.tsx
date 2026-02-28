@@ -70,12 +70,12 @@ export default function TagsIndex({
             });
         };
         return (
-            <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-2 mt-2">
-                <TextInput value={data.name} onChange={(e) => setData('name', e.target.value)} className="w-40" required />
-                <input type="color" value={data.color} onChange={(e) => setData('color', e.target.value)} className="h-8 w-12 rounded border" />
-                <TextInput value={data.description} onChange={(e) => setData('description', e.target.value)} className="w-48" placeholder="Description" />
-                <Button type="submit" size="sm" disabled={processing}>Save</Button>
-                <Button type="button" size="sm" variant="secondary" onClick={() => setEditingId(null)}>Cancel</Button>
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-[10rem_4rem_minmax(0,1fr)_auto_auto] items-end gap-2 mt-2 w-full">
+                <TextInput value={data.name} onChange={(e) => setData('name', e.target.value)} className="w-full" required />
+                <input type="color" value={data.color} onChange={(e) => setData('color', e.target.value)} className="h-9 w-full rounded border" />
+                <TextInput value={data.description} onChange={(e) => setData('description', e.target.value)} className="w-full" placeholder="Description" />
+                <Button type="submit" size="sm" className="w-full sm:w-auto" disabled={processing}>Save</Button>
+                <Button type="button" size="sm" variant="secondary" className="w-full sm:w-auto" onClick={() => setEditingId(null)}>Cancel</Button>
                 <InputError message={errors.name} />
             </form>
         );

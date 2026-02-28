@@ -563,7 +563,7 @@ export default function ConversationsIndex({
                                         return (
                                             <div
                                                 key={conversation.id}
-                                                className="group flex items-start gap-2 px-4 py-3 hover:bg-[#f0f2f5] dark:hover:bg-gray-800 transition-colors"
+                                                className="group flex flex-col gap-2 sm:flex-row sm:items-start px-4 py-3 hover:bg-[#f0f2f5] dark:hover:bg-gray-800 transition-colors"
                                             >
                                                 <Link
                                                     href={route('app.whatsapp.conversations.show', { conversation: conversation.id })}
@@ -604,7 +604,7 @@ export default function ConversationsIndex({
                                                 </Link>
                                                 {agents.length > 0 && (
                                                     <div
-                                                        className="shrink-0 pt-0.5"
+                                                        className="w-full sm:w-auto sm:shrink-0 sm:pt-0.5"
                                                         onClick={(e) => e.preventDefault()}
                                                         onMouseDown={(e) => e.stopPropagation()}
                                                     >
@@ -630,7 +630,7 @@ export default function ConversationsIndex({
                                                                     }
                                                                 );
                                                             }}
-                                                            className="rounded border-gray-300 dark:border-gray-600 dark:bg-gray-800 text-[11px] py-1 px-2 max-w-[120px] truncate focus:border-[#25D366] focus:ring-[#25D366]"
+                                                            className="w-full sm:w-auto rounded border-gray-300 dark:border-gray-600 dark:bg-gray-800 text-[11px] py-1 px-2 sm:max-w-[140px] truncate focus:border-[#25D366] focus:ring-[#25D366]"
                                                             title="Assign to"
                                                         >
                                                             <option value="">Unassigned</option>

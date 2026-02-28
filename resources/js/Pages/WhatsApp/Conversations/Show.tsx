@@ -1311,7 +1311,7 @@ export default function ConversationsShow({
                             <h1 className="text-base sm:text-lg font-semibold truncate">
                                 {conversation.contact.name || conversation.contact.wa_id}
                             </h1>
-                            <div className="flex items-center gap-2 text-xs text-white/80">
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-white/80">
                                 <Phone className="h-3 w-3" />
                                 <span className="truncate">{conversation.contact.wa_id}</span>
                                 <span className="text-white/60">•</span>
@@ -1668,11 +1668,11 @@ export default function ConversationsShow({
                 <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-800 bg-[#f0f2f5] dark:bg-gray-900 p-3 sticky bottom-0">
                     <div className="space-y-3">
                         <div className="relative">
-                            <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1 -mx-1 px-1">
                             <button
                                 type="button"
                                 onClick={() => setShowEmojiBar((prev) => !prev)}
-                                className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                className="shrink-0 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                             >
                                 <Smile className="h-3.5 w-3.5" />
                                 Emoji
@@ -1680,7 +1680,7 @@ export default function ConversationsShow({
                             <button
                                 type="button"
                                 onClick={() => fileInputRef.current?.click()}
-                                className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                className="shrink-0 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                             >
                                 <Paperclip className="h-3.5 w-3.5" />
                                 Attach
@@ -1688,7 +1688,7 @@ export default function ConversationsShow({
                             <button
                                 type="button"
                                 onClick={() => fileInputRef.current?.click()}
-                                className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                className="shrink-0 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                             >
                                 <ImageIcon className="h-3.5 w-3.5" />
                                 Photo/Video
@@ -1696,7 +1696,7 @@ export default function ConversationsShow({
                             <button
                                 type="button"
                                 onClick={() => setShowLocation((prev) => !prev)}
-                                className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                className="shrink-0 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                             >
                                 <MapPin className="h-3.5 w-3.5" />
                                 Location
@@ -1705,7 +1705,7 @@ export default function ConversationsShow({
                                 type="button"
                                 data-template-section
                                 onClick={() => setShowTemplates((prev) => !prev)}
-                                className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                className="shrink-0 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                                 aria-label="Send template message"
                             >
                                 <FileText className="h-3.5 w-3.5" />
@@ -1717,7 +1717,7 @@ export default function ConversationsShow({
                                     setShowLists((prev) => !prev);
                                     setShowButtons(false);
                                 }}
-                                className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                className="shrink-0 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                             >
                                 <List className="h-3.5 w-3.5" />
                                 Lists
@@ -1728,7 +1728,7 @@ export default function ConversationsShow({
                                     setShowButtons((prev) => !prev);
                                     setShowLists(false);
                                 }}
-                                className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                className="shrink-0 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                             >
                                 <Square className="h-3.5 w-3.5" />
                                 Buttons
@@ -1736,7 +1736,7 @@ export default function ConversationsShow({
                             <button
                                 type="button"
                                 onClick={() => setShowQuickReplies((prev) => !prev)}
-                                className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                className="shrink-0 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                             >
                                 <Zap className="h-3.5 w-3.5" />
                                 Quick Replies
