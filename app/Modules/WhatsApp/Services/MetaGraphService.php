@@ -34,8 +34,41 @@ class MetaGraphService
         if (!$response->successful()) {
             Log::channel('whatsapp')->error('Meta OAuth code exchange failed', [
                 'status' => $response->status(),
+                'redirect_uri' => $redirectUri,
                 'error' => $data['error'] ?? $data]);
             throw new \RuntimeException($data['error']['message'] ?? 'Meta OAuth code exchange failed');
+        }
+
+        return $data;
+    }
+
+    /**
+     * Exchange a user token for a longer-lived token when possible.
+     * Falls back to original token flow if Meta does not allow exchange for this token type.
+     */
+    public function exchangeForLongLivedToken(string $accessToken): ?array
+    {
+        $appId = config('whatsapp.meta.app_id');
+        $appSecret = config('whatsapp.meta.app_secret');
+
+        if (empty($appId) || empty($appSecret)) {
+            return null;
+        }
+
+        $response = Http::get("{$this->baseUrl}/{$this->apiVersion}/oauth/access_token", [
+            'grant_type' => 'fb_exchange_token',
+            'client_id' => $appId,
+            'client_secret' => $appSecret,
+            'fb_exchange_token' => $accessToken,
+        ]);
+
+        $data = $response->json();
+        if (!$response->successful()) {
+            Log::channel('whatsapp')->warning('Meta long-lived token exchange skipped', [
+                'status' => $response->status(),
+                'error' => $data['error'] ?? $data,
+            ]);
+            return null;
         }
 
         return $data;
@@ -80,7 +113,9 @@ class MetaGraphService
     public function listPhoneNumbers(string $wabaId, string $accessToken): array
     {
         $response = Http::withToken($accessToken)
-            ->get("{$this->baseUrl}/{$this->apiVersion}/{$wabaId}/phone_numbers");
+            ->get("{$this->baseUrl}/{$this->apiVersion}/{$wabaId}/phone_numbers", [
+                'fields' => 'id,display_phone_number,verified_name,quality_rating,messaging_limit_tier,code_verification_status',
+            ]);
 
         $data = $response->json();
         if (!$response->successful()) {
@@ -117,7 +152,7 @@ class MetaGraphService
     {
         $response = Http::withToken($accessToken)
             ->get("{$this->baseUrl}/{$this->apiVersion}/{$phoneNumberId}", [
-                'fields' => 'display_phone_number,verified_name']);
+                'fields' => 'display_phone_number,verified_name,quality_rating,messaging_limit_tier,code_verification_status,name_status,new_name_status']);
 
         $data = $response->json();
         if (!$response->successful()) {
@@ -126,6 +161,26 @@ class MetaGraphService
                 'status' => $response->status(),
                 'error' => $data['error'] ?? $data]);
             throw new \RuntimeException($data['error']['message'] ?? 'Get phone number details failed');
+        }
+
+        return $data;
+    }
+
+    public function getWabaDetails(string $wabaId, string $accessToken): array
+    {
+        $response = Http::withToken($accessToken)
+            ->get("{$this->baseUrl}/{$this->apiVersion}/{$wabaId}", [
+                'fields' => 'id,name,currency,timezone_id,account_review_status,business_verification_status',
+            ]);
+
+        $data = $response->json();
+        if (!$response->successful()) {
+            Log::channel('whatsapp')->warning('Get WABA details failed', [
+                'waba_id' => $wabaId,
+                'status' => $response->status(),
+                'error' => $data['error'] ?? $data,
+            ]);
+            throw new \RuntimeException($data['error']['message'] ?? 'Get WABA details failed');
         }
 
         return $data;

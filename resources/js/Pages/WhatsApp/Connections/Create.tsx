@@ -83,6 +83,14 @@ export default function ConnectionsCreate({
     };
 
     const embeddedEnabled = Boolean(embeddedSignup?.enabled && embeddedSignup?.appId && embeddedSignup?.configId);
+    const resolveOAuthRedirectUri = () => {
+        const raw = embeddedSignup?.oauthRedirectUri || route('app.whatsapp.connections.create', {});
+        try {
+            return new URL(raw, window.location.origin).toString();
+        } catch {
+            return `${window.location.origin}/app/connections/create`;
+        }
+    };
     const embeddedForm = useForm({
         name: '',
         waba_id: '',
@@ -280,7 +288,7 @@ export default function ConnectionsCreate({
         setEmbeddedStatus('Starting Meta Embedded Signup...');
         setEmbeddedAutoSubmitRequested(false);
         setEmbeddedAutoSubmitAttempted(false);
-        const oauthRedirectUri = embeddedSignup?.oauthRedirectUri || route('app.whatsapp.connections.create', {});
+        const oauthRedirectUri = resolveOAuthRedirectUri();
         // Use a stable canonical redirect URI (no query/hash) to match Meta allowlist exactly.
         embeddedForm.setData('redirect_uri', oauthRedirectUri);
 

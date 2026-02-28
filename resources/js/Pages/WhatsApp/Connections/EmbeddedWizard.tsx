@@ -55,6 +55,14 @@ export default function EmbeddedWizard({
     const messageHandlerRef = useRef<((event: MessageEvent) => void) | null>(null);
     const lastTelemetryKeyRef = useRef<string>('');
     const autoCreateTriggeredRef = useRef(false);
+    const resolveOAuthRedirectUri = () => {
+        const raw = embeddedSignup?.oauthRedirectUri || route('app.whatsapp.connections.create', {});
+        try {
+            return new URL(raw, window.location.origin).toString();
+        } catch {
+            return `${window.location.origin}/app/connections/create`;
+        }
+    };
 
     const embeddedForm = useForm({
         name: '',
@@ -282,7 +290,7 @@ export default function EmbeddedWizard({
             return;
         }
 
-        const oauthRedirectUri = embeddedSignup?.oauthRedirectUri || route('app.whatsapp.connections.create', {});
+        const oauthRedirectUri = resolveOAuthRedirectUri();
 
         setWizardState({
             step: 'auth',
