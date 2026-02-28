@@ -280,7 +280,7 @@ export default function ConnectionsCreate({
         setEmbeddedStatus('Starting Meta Embedded Signup...');
         setEmbeddedAutoSubmitRequested(false);
         setEmbeddedAutoSubmitAttempted(false);
-        const oauthRedirectUri = embeddedSignup?.oauthRedirectUri || `${window.location.origin}${window.location.pathname}`;
+        const oauthRedirectUri = embeddedSignup?.oauthRedirectUri || route('app.whatsapp.connections.create', {});
         // Use a stable canonical redirect URI (no query/hash) to match Meta allowlist exactly.
         embeddedForm.setData('redirect_uri', oauthRedirectUri);
 

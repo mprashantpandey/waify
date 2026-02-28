@@ -282,7 +282,7 @@ export default function EmbeddedWizard({
             return;
         }
 
-        const oauthRedirectUri = embeddedSignup?.oauthRedirectUri || window.location.origin + window.location.pathname;
+        const oauthRedirectUri = embeddedSignup?.oauthRedirectUri || route('app.whatsapp.connections.create', {});
 
         setWizardState({
             step: 'auth',

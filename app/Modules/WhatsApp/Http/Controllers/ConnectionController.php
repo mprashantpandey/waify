@@ -355,37 +355,57 @@ class ConnectionController extends Controller
 
     /**
      * Meta requires the token exchange redirect_uri to exactly match the OAuth dialog redirect_uri.
-     * Normalize client-provided values to a stable allowlisted URI (strip query/hash, allow only known paths).
+     * Validate client-provided values against allowlisted URIs, but keep the client URI exact
+     * (except query/hash) so OAuth code exchange uses the same redirect_uri used in the dialog.
      */
     private function resolveEmbeddedRedirectUri(?string $requestedRedirectUri): string
     {
-        $platformConfigured = (string) PlatformSetting::get(
+        $platformConfiguredRaw = (string) PlatformSetting::get(
             'whatsapp.embedded_oauth_redirect_uri',
             route('app.whatsapp.connections.create')
         );
+        $platformConfigured = $this->normalizeRedirectUri($platformConfiguredRaw)
+            ?? $this->normalizeRedirectUri(route('app.whatsapp.connections.create'))
+            ?? route('app.whatsapp.connections.create');
 
-        $allowed = [
+        $allowedRaw = [
             $platformConfigured,
-            route('app.whatsapp.connections.create'),
-            route('app.whatsapp.connections.wizard'),
+            (string) route('app.whatsapp.connections.create'),
+            (string) route('app.whatsapp.connections.wizard'),
         ];
+        $allowed = array_values(array_unique(array_filter(array_map(
+            fn ($uri) => $this->normalizeRedirectUri((string) $uri),
+            $allowedRaw
+        ))));
 
         if ($requestedRedirectUri) {
-            $parts = parse_url($requestedRedirectUri);
-            if ($parts !== false && !empty($parts['scheme']) && !empty($parts['host']) && !empty($parts['path'])) {
-                $normalized = $parts['scheme'].'://'.$parts['host']
-                    .(isset($parts['port']) ? ':'.$parts['port'] : '')
-                    .$parts['path'];
-
-                foreach ($allowed as $uri) {
-                    if (rtrim($normalized, '/') === rtrim($uri, '/')) {
-                        return $uri;
+            $normalizedRequested = $this->normalizeRedirectUri($requestedRedirectUri);
+            if ($normalizedRequested) {
+                foreach ($allowed as $allowedUri) {
+                    if (rtrim($normalizedRequested, '/') === rtrim($allowedUri, '/')) {
+                        return $normalizedRequested;
                     }
                 }
             }
         }
 
-        return route('app.whatsapp.connections.create');
+        return $platformConfigured;
+    }
+
+    private function normalizeRedirectUri(?string $uri): ?string
+    {
+        if (!$uri) {
+            return null;
+        }
+
+        $parts = parse_url($uri);
+        if ($parts === false || empty($parts['scheme']) || empty($parts['host']) || !array_key_exists('path', $parts)) {
+            return null;
+        }
+
+        return $parts['scheme'].'://'.$parts['host']
+            .(isset($parts['port']) ? ':'.$parts['port'] : '')
+            .$parts['path'];
     }
 
     /**
