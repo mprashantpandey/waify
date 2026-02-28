@@ -69,7 +69,7 @@ export default function SegmentsShow({
                         <ArrowLeft className="h-4 w-4" />
                         Back to Segments
                     </Link>
-                    <div className="flex items-start justify-between">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div>
                             <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
                                 {segment.name}
@@ -77,7 +77,7 @@ export default function SegmentsShow({
                             {segment.description && (
                                 <p className="mt-2 text-gray-600 dark:text-gray-400">{segment.description}</p>
                             )}
-                            <div className="flex items-center gap-4 mt-2 text-sm text-gray-500 dark:text-gray-400">
+                            <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-gray-500 dark:text-gray-400">
                                 <span className="inline-flex items-center gap-1">
                                     <Users className="h-4 w-4" />
                                     {segment.contact_count} contacts
@@ -87,18 +87,18 @@ export default function SegmentsShow({
                                 )}
                             </div>
                         </div>
-                        <div className="flex gap-2">
-                            <Button variant="secondary" size="sm" onClick={handleRecalculate}>
+                        <div className="flex flex-wrap items-stretch sm:items-center gap-2 lg:shrink-0">
+                            <Button variant="secondary" size="sm" className="w-full sm:w-auto" onClick={handleRecalculate}>
                                 <RefreshCw className="h-4 w-4 mr-2" />
                                 Recalculate
                             </Button>
-                            <Link href={route('app.contacts.segments.edit', { segment: segment.id })}>
-                                <Button variant="secondary" size="sm">
+                            <Link href={route('app.contacts.segments.edit', { segment: segment.id })} className="w-full sm:w-auto">
+                                <Button variant="secondary" size="sm" className="w-full sm:w-auto">
                                     <Pencil className="h-4 w-4 mr-2" />
                                     Edit
                                 </Button>
                             </Link>
-                            <Button variant="secondary" size="sm" onClick={handleDelete}>
+                            <Button variant="secondary" size="sm" className="w-full sm:w-auto" onClick={handleDelete}>
                                 <Trash2 className="h-4 w-4 mr-2 text-red-600" />
                                 Delete
                             </Button>
@@ -118,11 +118,11 @@ export default function SegmentsShow({
                         ) : (
                             <ul className="divide-y divide-gray-200 dark:divide-gray-700">
                                 {contacts.data.map((contact) => (
-                                    <li key={contact.id} className="py-4 flex items-center justify-between">
-                                        <div>
+                                    <li key={contact.id} className="py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <div className="min-w-0">
                                             <Link
                                                 href={route('app.contacts.show', { contact: contact.slug || contact.id })}
-                                                className="font-medium text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400"
+                                                className="font-medium text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 break-words"
                                             >
                                                 {contact.name || contact.wa_id}
                                             </Link>
@@ -141,8 +141,8 @@ export default function SegmentsShow({
                                                 </div>
                                             )}
                                         </div>
-                                        <Link href={route('app.contacts.show', { contact: contact.slug || contact.id })}>
-                                            <Button variant="secondary" size="sm">View</Button>
+                                        <Link href={route('app.contacts.show', { contact: contact.slug || contact.id })} className="w-full sm:w-auto">
+                                            <Button variant="secondary" size="sm" className="w-full sm:w-auto">View</Button>
                                         </Link>
                                     </li>
                                 ))}

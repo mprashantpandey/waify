@@ -92,7 +92,7 @@ export default function ProfileTab() {
                     )}
 
                     <div className="mb-5 rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
-                        <div className="flex items-center justify-between gap-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <div className="text-sm font-semibold">Email Verification</div>
                                 <div className="text-xs text-gray-600 dark:text-gray-400">
@@ -116,7 +116,7 @@ export default function ProfileTab() {
                     </div>
 
                     <div className="mb-5 rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3">
-                        <div className="flex items-center justify-between gap-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <div className="text-sm font-semibold">Phone Verification</div>
                                 <div className="text-xs text-gray-600 dark:text-gray-400">
@@ -222,11 +222,11 @@ export default function ProfileTab() {
                             <InputError message={errors.phone} className="mt-2" />
                         </div>
 
-                        <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center sm:justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
                             <Button 
                                 type="submit" 
                                 disabled={processing}
-                                className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50 rounded-xl"
+                                className="w-full sm:w-auto bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50 rounded-xl"
                             >
                                 {processing ? 'Saving...' : (
                                     <>

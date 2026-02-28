@@ -97,7 +97,7 @@ export default function ContactsIndex({
         <AppShell>
             <Head title="Contacts" />
             <div className="space-y-6">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
                             Contacts
@@ -106,27 +106,27 @@ export default function ContactsIndex({
                             Manage your contacts and customer relationships
                         </p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                        <Link href={route('app.contacts.tags.index')}>
-                            <Button variant="secondary">
+                    <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+                        <Link href={route('app.contacts.tags.index')} className="col-span-1">
+                            <Button variant="secondary" className="w-full sm:w-auto">
                                 <Tag className="h-4 w-4 mr-2" />
                                 Tags
                             </Button>
                         </Link>
-                        <Link href={route('app.contacts.segments.index')}>
-                            <Button variant="secondary">
+                        <Link href={route('app.contacts.segments.index')} className="col-span-1">
+                            <Button variant="secondary" className="w-full sm:w-auto">
                                 <FolderOpen className="h-4 w-4 mr-2" />
                                 Segments
                             </Button>
                         </Link>
-                        <Link href={route('app.contacts.export', {})}>
-                            <Button variant="secondary">
+                        <Link href={route('app.contacts.export', {})} className="col-span-1">
+                            <Button variant="secondary" className="w-full sm:w-auto">
                                 <Download className="h-4 w-4 mr-2" />
                                 Export
                             </Button>
                         </Link>
-                        <Link href={route('app.contacts.create', {})}>
-                            <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700">
+                        <Link href={route('app.contacts.create', {})} className="col-span-1">
+                            <Button className="w-full sm:w-auto bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700">
                                 <Plus className="h-4 w-4 mr-2" />
                                 Add Contact
                             </Button>
@@ -137,7 +137,7 @@ export default function ContactsIndex({
                 {/* Search and Filters */}
                 <Card>
                     <CardContent className="p-4">
-                        <form onSubmit={handleSearch} className="flex gap-2">
+                        <form onSubmit={handleSearch} className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
                             <div className="flex-1 relative">
                                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                                 <TextInput
@@ -148,11 +148,12 @@ export default function ContactsIndex({
                                     className="pl-10 w-full"
                                 />
                             </div>
-                            <Button type="submit">Search</Button>
+                            <Button type="submit" className="w-full sm:w-auto">Search</Button>
                             <Button
                                 type="button"
                                 variant="secondary"
                                 onClick={() => setShowFilters(!showFilters)}
+                                className="w-full sm:w-auto"
                             >
                                 <Filter className="h-4 w-4 mr-2" />
                                 Filters
@@ -184,7 +185,7 @@ export default function ContactsIndex({
                         {contacts.data.map((contact) => (
                             <Card key={contact.id} className="border-0 shadow-lg hover:shadow-xl transition-shadow">
                                 <CardContent className="p-6">
-                                    <div className="flex items-start justify-between">
+                                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                                         <div className="flex-1">
                                             <div className="flex items-center gap-3 mb-2">
                                                 <Link
@@ -239,10 +240,10 @@ export default function ContactsIndex({
                                                 )}
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 lg:shrink-0">
                                         <Button
                                             size="sm"
-                                            className="bg-[#25D366] hover:bg-[#1DAA57] text-white"
+                                            className="w-full sm:w-auto bg-[#25D366] hover:bg-[#1DAA57] text-white"
                                             disabled={navigatingContactId === contact.id}
                                             onClick={() => {
                                                 setNavigatingContactId(contact.id);
@@ -258,14 +259,16 @@ export default function ContactsIndex({
                                         <Link
                                             href={route('app.contacts.show', {
                                                 contact: contact.slug || contact.id})}
+                                            className="w-full sm:w-auto"
                                         >
-                                            <Button variant="secondary" size="sm">
+                                            <Button variant="secondary" size="sm" className="w-full sm:w-auto">
                                                 View
                                             </Button>
                                         </Link>
                                         <Button
                                             variant="secondary"
                                             size="sm"
+                                            className="w-full sm:w-auto"
                                             disabled={deletingContactId === contact.id}
                                             onClick={() => handleDeleteContact(contact)}
                                         >

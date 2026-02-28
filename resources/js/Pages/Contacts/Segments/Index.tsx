@@ -49,7 +49,7 @@ export default function SegmentsIndex({
                         <ArrowLeft className="h-4 w-4" />
                         Back to Contacts
                     </Link>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                             <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
                                 Contact Segments
@@ -58,8 +58,8 @@ export default function SegmentsIndex({
                                 Group contacts by rules. Use segments for campaigns and filters.
                             </p>
                         </div>
-                        <Link href={route('app.contacts.segments.create')}>
-                            <Button>
+                        <Link href={route('app.contacts.segments.create')} className="w-full sm:w-auto">
+                            <Button className="w-full sm:w-auto">
                                 <Plus className="h-4 w-4 mr-2" />
                                 New Segment
                             </Button>
@@ -75,8 +75,8 @@ export default function SegmentsIndex({
                                 title="No segments yet"
                                 description="Create segments to group contacts by criteria (e.g. status, tag, company)."
                                 action={
-                                    <Link href={route('app.contacts.segments.create')}>
-                                        <Button><Plus className="h-4 w-4 mr-2" />New Segment</Button>
+                                    <Link href={route('app.contacts.segments.create')} className="w-full sm:w-auto">
+                                        <Button className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-2" />New Segment</Button>
                                     </Link>
                                 }
                             />
@@ -86,11 +86,11 @@ export default function SegmentsIndex({
                     <div className="grid gap-4">
                         {segments.map((seg) => (
                             <Card key={seg.id}>
-                                <CardContent className="p-6 flex items-center justify-between">
-                                    <div>
+                                <CardContent className="p-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                                    <div className="min-w-0">
                                         <Link
                                             href={route('app.contacts.segments.show', { segment: seg.id })}
-                                            className="text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400"
+                                            className="text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 break-words"
                                         >
                                             {seg.name}
                                         </Link>
@@ -107,23 +107,25 @@ export default function SegmentsIndex({
                                             )}
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex flex-wrap items-stretch sm:items-center gap-2 lg:shrink-0">
                                         <Button
                                             variant="secondary"
                                             size="sm"
+                                            className="w-full sm:w-auto"
                                             onClick={() => handleRecalculate(seg.id)}
                                         >
                                             <RefreshCw className="h-4 w-4" />
                                         </Button>
-                                        <Link href={route('app.contacts.segments.edit', { segment: seg.id })}>
-                                            <Button variant="secondary" size="sm">Edit</Button>
+                                        <Link href={route('app.contacts.segments.edit', { segment: seg.id })} className="w-full sm:w-auto">
+                                            <Button variant="secondary" size="sm" className="w-full sm:w-auto">Edit</Button>
                                         </Link>
-                                        <Link href={route('app.contacts.segments.show', { segment: seg.id })}>
-                                            <Button size="sm">View</Button>
+                                        <Link href={route('app.contacts.segments.show', { segment: seg.id })} className="w-full sm:w-auto">
+                                            <Button size="sm" className="w-full sm:w-auto">View</Button>
                                         </Link>
                                         <Button
                                             variant="secondary"
                                             size="sm"
+                                            className="w-full sm:w-auto"
                                             onClick={() => handleDelete(seg)}
                                         >
                                             <Trash2 className="h-4 w-4 text-red-600" />

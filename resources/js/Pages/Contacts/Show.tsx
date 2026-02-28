@@ -127,7 +127,7 @@ export default function ContactsShow({
                         <ArrowLeft className="h-4 w-4" />
                         Back to Contacts
                     </Link>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div>
                             <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
                                 {contact.name || contact.wa_id}
@@ -153,9 +153,9 @@ export default function ContactsShow({
                                 )}
                             </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 lg:shrink-0">
                             <Button
-                                className="bg-[#25D366] hover:bg-[#1DAA57] text-white"
+                                className="w-full sm:w-auto bg-[#25D366] hover:bg-[#1DAA57] text-white"
                                 disabled={navigatingToConversation}
                                 onClick={() => {
                                     setNavigatingToConversation(true);
@@ -174,6 +174,7 @@ export default function ContactsShow({
                             </Button>
                             <Button
                                 variant="danger"
+                                className="w-full sm:w-auto"
                                 disabled={deletingContact}
                                 onClick={handleDeleteContact}
                                 aria-label="Delete contact"

@@ -417,7 +417,7 @@ export default function ConversationsIndex({
                 <div className="grid h-full lg:grid-cols-[360px_1fr] rounded-3xl overflow-hidden border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-xl">
                     <section className="flex flex-col border-r border-gray-200 dark:border-gray-800">
                         <div className="px-5 py-4 bg-[#075E54] text-white">
-                            <div className="flex items-center justify-between gap-3">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div className="flex min-w-0 flex-1 items-center gap-3">
                                     <div>
                                         <p className="text-xs uppercase tracking-wider text-white/70">WhatsApp</p>
@@ -432,7 +432,7 @@ export default function ConversationsIndex({
                                         New chat
                                     </Link>
                                 </div>
-                                <div className="flex shrink-0 items-center gap-2 text-xs">
+                                <div className="flex shrink-0 items-center gap-2 text-xs self-start sm:self-auto">
                                     {connected ? (
                                         <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-1">
                                             <Wifi className="h-3 w-3" />
@@ -459,11 +459,11 @@ export default function ConversationsIndex({
                                     className="pl-9 rounded-full bg-white dark:bg-gray-800"
                                 />
                             </div>
-                            <div className="mt-3 flex items-center gap-2">
+                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <select
                                     value={statusFilter}
                                     onChange={(e) => setStatusFilter(e.target.value)}
-                                    className="rounded-full border-gray-300 shadow-sm focus:border-[#25D366] focus:ring-[#25D366] dark:bg-gray-800 dark:border-gray-700 text-xs px-3 py-1.5"
+                                    className="w-full rounded-full border-gray-300 shadow-sm focus:border-[#25D366] focus:ring-[#25D366] dark:bg-gray-800 dark:border-gray-700 text-xs px-3 py-1.5"
                                 >
                                     <option value="all">All</option>
                                     <option value="open">Open</option>
@@ -474,7 +474,7 @@ export default function ConversationsIndex({
                                     <select
                                         value={connectionFilter}
                                         onChange={(e) => setConnectionFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                                        className="rounded-full border-gray-300 shadow-sm focus:border-[#25D366] focus:ring-[#25D366] dark:bg-gray-800 dark:border-gray-700 text-xs px-3 py-1.5"
+                                        className="w-full rounded-full border-gray-300 shadow-sm focus:border-[#25D366] focus:ring-[#25D366] dark:bg-gray-800 dark:border-gray-700 text-xs px-3 py-1.5"
                                     >
                                         <option value="all">All numbers</option>
                                         {connections.map((conn) => (
@@ -487,7 +487,7 @@ export default function ConversationsIndex({
                                 <select
                                     value={assigneeFilter}
                                     onChange={(e) => setAssigneeFilter(e.target.value as 'all' | 'me' | 'unassigned')}
-                                    className="rounded-full border-gray-300 shadow-sm focus:border-[#25D366] focus:ring-[#25D366] dark:bg-gray-800 dark:border-gray-700 text-xs px-3 py-1.5"
+                                    className="w-full rounded-full border-gray-300 shadow-sm focus:border-[#25D366] focus:ring-[#25D366] dark:bg-gray-800 dark:border-gray-700 text-xs px-3 py-1.5"
                                 >
                                     <option value="all">All assignees</option>
                                     <option value="me">Assigned to me</option>
@@ -501,7 +501,7 @@ export default function ConversationsIndex({
                                             setConnectionFilter('all');
                                             setAssigneeFilter('all');
                                         }}
-                                        className="ml-auto text-xs text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 inline-flex items-center gap-1"
+                                        className="sm:col-span-2 text-xs text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 inline-flex items-center gap-1 justify-end"
                                         aria-label="Clear filters"
                                     >
                                         <X className="h-3.5 w-3.5" />

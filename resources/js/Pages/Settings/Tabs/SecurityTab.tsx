@@ -240,6 +240,7 @@ export default function SecurityTab() {
                                         <Button
                                             variant="secondary"
                                             onClick={() => router.post(route('app.settings.security.resend-verification'), {}, { preserveScroll: true })}
+                                            className="w-full sm:w-auto"
                                         >
                                             Resend Verification Email
                                         </Button>
@@ -250,19 +251,19 @@ export default function SecurityTab() {
                         <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
                             <div className="text-sm font-semibold mb-2">Security Summary</div>
                             <div className="space-y-2 text-sm">
-                                <div className="flex items-center justify-between gap-2">
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-2">
                                     <span className="text-gray-600 dark:text-gray-400">Email verification</span>
                                     <span className={emailVerified ? 'text-green-700 dark:text-green-300 font-medium' : 'text-amber-700 dark:text-amber-300 font-medium'}>
                                         {emailVerified ? 'Verified' : 'Pending'}
                                     </span>
                                 </div>
-                                <div className="flex items-center justify-between gap-2">
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-2">
                                     <span className="text-gray-600 dark:text-gray-400">Two-factor authentication</span>
                                     <span className={twoFactorEnabled ? 'text-green-700 dark:text-green-300 font-medium' : 'text-gray-700 dark:text-gray-300 font-medium'}>
                                         {twoFactorEnabled ? 'Enabled' : 'Not enabled'}
                                     </span>
                                 </div>
-                                <div className="flex items-center justify-between gap-2">
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-2">
                                     <span className="text-gray-600 dark:text-gray-400">Policy requires 2FA</span>
                                     <span className="text-gray-900 dark:text-gray-100 font-medium">
                                         {securityPolicy?.require_2fa ? 'Yes' : 'No'}
@@ -312,7 +313,7 @@ export default function SecurityTab() {
                                         <img
                                             src={twoFactorQrDataUrl}
                                             alt="2FA QR Code"
-                                            className="h-56 w-56 rounded-lg border border-gray-200 bg-white p-2"
+                                            className="h-44 w-44 sm:h-56 sm:w-56 rounded-lg border border-gray-200 bg-white p-2"
                                             loading="lazy"
                                         />
                                     </div>
@@ -462,11 +463,11 @@ export default function SecurityTab() {
                             <InputError message={errors.password_confirmation} className="mt-2" />
                         </div>
 
-                        <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center sm:justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
                             <Button 
                                 type="submit" 
                                 disabled={processing}
-                                className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 shadow-lg shadow-purple-500/50 rounded-xl"
+                                className="w-full sm:w-auto bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 shadow-lg shadow-purple-500/50 rounded-xl"
                             >
                                 {processing ? 'Updating...' : (
                                     <>
@@ -562,7 +563,7 @@ export default function SecurityTab() {
                             variant="danger"
                             type="button"
                             onClick={() => setShowDeleteReview((v) => !v)}
-                            className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-lg shadow-red-500/50 rounded-xl"
+                            className="w-full sm:w-auto bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-lg shadow-red-500/50 rounded-xl"
                         >
                             <Trash2 className="h-4 w-4 mr-2" />
                             {showDeleteReview ? 'Hide Deletion Review' : 'Start Deletion Review'}

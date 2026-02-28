@@ -154,7 +154,7 @@ export default function BroadcastsShow({
                         <ArrowLeft className="h-4 w-4" />
                         Back to Campaigns
                     </Link>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div>
                             <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
                                 {campaign.name}
@@ -163,53 +163,53 @@ export default function BroadcastsShow({
                                 <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{campaign.description}</p>
                             )}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-stretch sm:items-center gap-2">
                             {getStatusBadge(campaign.status)}
                             {campaign.status === 'draft' && (
-                                <Button onClick={handleStart} className="bg-blue-600 hover:bg-blue-700">
+                                <Button onClick={handleStart} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700">
                                     <Play className="h-4 w-4 mr-2" />
                                     Start
                                 </Button>
                             )}
                             {campaign.status === 'sending' && (
-                                <Button onClick={handlePause} variant="secondary">
+                                <Button onClick={handlePause} variant="secondary" className="w-full sm:w-auto">
                                     <Pause className="h-4 w-4 mr-2" />
                                     Pause
                                 </Button>
                             )}
                             {campaign.status === 'paused' && (
-                                <Button onClick={handleStart} className="bg-blue-600 hover:bg-blue-700">
+                                <Button onClick={handleStart} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700">
                                     <Play className="h-4 w-4 mr-2" />
                                     Resume
                                 </Button>
                             )}
                             {['draft', 'scheduled', 'sending', 'paused'].includes(campaign.status) && (
-                                <Button onClick={handleCancel} variant="secondary" className="text-red-600 hover:text-red-700">
+                                <Button onClick={handleCancel} variant="secondary" className="w-full sm:w-auto text-red-600 hover:text-red-700">
                                     <X className="h-4 w-4 mr-2" />
                                     Cancel
                                 </Button>
                             )}
                             {stats.failed > 0 && (
-                                <Button onClick={handleRetryFailed} variant="secondary">
+                                <Button onClick={handleRetryFailed} variant="secondary" className="w-full sm:w-auto">
                                     Retry Failed
                                 </Button>
                             )}
-                            <Button onClick={handleDuplicate} variant="secondary">
+                            <Button onClick={handleDuplicate} variant="secondary" className="w-full sm:w-auto">
                                 Duplicate
                             </Button>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                                 <input
                                     value={testPhone}
                                     onChange={(e) => setTestPhone(e.target.value)}
                                     placeholder="Test phone"
-                                    className="rounded-md border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-800"
+                                    className="w-full sm:w-44 rounded-md border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-800"
                                 />
-                                <Button onClick={handleSendTest} variant="secondary">
+                                <Button onClick={handleSendTest} variant="secondary" className="w-full sm:w-auto">
                                     Send Test To Me
                                 </Button>
                             </div>
                             {['draft', 'cancelled', 'completed'].includes(campaign.status) && (
-                                <Button onClick={handleDelete} variant="secondary" className="text-red-600 hover:text-red-700">
+                                <Button onClick={handleDelete} variant="secondary" className="w-full sm:w-auto text-red-600 hover:text-red-700">
                                     Delete
                                 </Button>
                             )}

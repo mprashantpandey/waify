@@ -89,6 +89,18 @@ export default function TemplatesSend({
         setData('to_wa_id', waId);
     };
 
+    const mediaHeaderRequired = ['IMAGE', 'VIDEO', 'DOCUMENT'].includes((template.header_type || '').toUpperCase());
+    const hasRecipient = Boolean(String(data.to_wa_id || '').trim());
+    const hasRequiredMediaHeader = !mediaHeaderRequired || Boolean(String(data.header_media_url || '').trim());
+    const allVariablesFilled = (template.required_variables.total || 0) === 0
+        || data.variables.slice(0, template.required_variables.total).every((value) => String(value || '').trim() !== '');
+    const canSubmit = hasRecipient && hasRequiredMediaHeader && allVariablesFilled && !processing;
+    const blockedReasons = [
+        !hasRecipient ? 'Select or enter a recipient' : null,
+        !hasRequiredMediaHeader ? 'Provide header media URL for this template' : null,
+        !allVariablesFilled ? 'Fill all required template variables' : null,
+    ].filter(Boolean) as string[];
+
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
         post(route('app.whatsapp.templates.send.store', {
@@ -201,35 +213,49 @@ export default function TemplatesSend({
                                         </div>
 
                                         {recipientType === 'conversation' && (
-                                            <select
-                                                value={selectedConversation}
-                                                onChange={(e) => handleConversationSelect(e.target.value)}
-                                                className="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 px-4 py-2.5"
-                                                required
-                                            >
-                                                <option value="">Select conversation...</option>
-                                                {conversations.map((conv) => (
-                                                    <option key={conv.id} value={conv.contact.wa_id}>
-                                                        {conv.contact.name} ({conv.contact.wa_id})
-                                                    </option>
-                                                ))}
-                                            </select>
+                                            <>
+                                                <select
+                                                    value={selectedConversation}
+                                                    onChange={(e) => handleConversationSelect(e.target.value)}
+                                                    className="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 px-4 py-2.5"
+                                                    required
+                                                >
+                                                    <option value="">Select conversation...</option>
+                                                    {conversations.map((conv) => (
+                                                        <option key={conv.id} value={conv.contact.wa_id}>
+                                                            {conv.contact.name} ({conv.contact.wa_id})
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                {conversations.length === 0 && (
+                                                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                                                        No conversations found. Switch to Contact or Manual Entry.
+                                                    </p>
+                                                )}
+                                            </>
                                         )}
 
                                         {recipientType === 'contact' && (
-                                            <select
-                                                value={selectedContact}
-                                                onChange={(e) => handleContactSelect(e.target.value)}
-                                                className="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 px-4 py-2.5"
-                                                required
-                                            >
-                                                <option value="">Select contact...</option>
-                                                {contacts.map((contact) => (
-                                                    <option key={contact.id} value={contact.wa_id}>
-                                                        {contact.name || contact.wa_id} ({contact.wa_id})
-                                                    </option>
-                                                ))}
-                                            </select>
+                                            <>
+                                                <select
+                                                    value={selectedContact}
+                                                    onChange={(e) => handleContactSelect(e.target.value)}
+                                                    className="w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 px-4 py-2.5"
+                                                    required
+                                                >
+                                                    <option value="">Select contact...</option>
+                                                    {contacts.map((contact) => (
+                                                        <option key={contact.id} value={contact.wa_id}>
+                                                            {contact.name || contact.wa_id} ({contact.wa_id})
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                {contacts.length === 0 && (
+                                                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                                                        No contacts found. Switch to Conversation or Manual Entry.
+                                                    </p>
+                                                )}
+                                            </>
                                         )}
 
                                         {recipientType === 'manual' && (
@@ -304,19 +330,31 @@ export default function TemplatesSend({
                                     </div>
                                 )}
 
-                                <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                                {blockedReasons.length > 0 && (
+                                    <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3">
+                                        <p className="text-xs font-semibold text-amber-900 dark:text-amber-100 mb-1">Complete these before sending:</p>
+                                        <ul className="text-xs text-amber-800 dark:text-amber-200 space-y-1">
+                                            {blockedReasons.map((reason) => (
+                                                <li key={reason}>• {reason}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3 sm:gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                                         <Link
                                             href={route('app.whatsapp.templates.show', {
                                                 template: template.slug})}
+                                            className="w-full sm:w-auto"
                                     >
-                                        <Button type="button" variant="secondary" className="rounded-xl">
+                                        <Button type="button" variant="secondary" className="w-full sm:w-auto rounded-xl">
                                             Cancel
                                         </Button>
                                     </Link>
                                     <Button 
                                         type="submit" 
-                                        disabled={processing}
-                                        className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg shadow-green-500/50 rounded-xl"
+                                        disabled={!canSubmit}
+                                        className="w-full sm:w-auto bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg shadow-green-500/50 rounded-xl"
                                     >
                                         {processing ? 'Sending...' : (
                                             <>

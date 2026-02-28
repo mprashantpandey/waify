@@ -213,7 +213,7 @@ export default function TeamIndex({
         <AppShell>
             <Head title="Team" />
             <div className="space-y-8">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
                             Team
@@ -225,7 +225,7 @@ export default function TeamIndex({
                     {can_manage && (
                         <Button 
                             onClick={() => setShowInviteDialog(true)}
-                            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50"
+                            className="w-full sm:w-auto bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50"
                         >
                             <UserPlus className="h-4 w-4 mr-2" />
                             Invite Member
@@ -268,8 +268,8 @@ export default function TeamIndex({
                                     Chat Agent
                                 </div>
                             </div>
-                            <div className="flex items-center gap-3 pt-2">
-                                <Button onClick={handleInvite} disabled={inviteSubmitting || !inviteEmail.trim()} className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700">
+                            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3 pt-2">
+                                <Button onClick={handleInvite} disabled={inviteSubmitting || !inviteEmail.trim()} className="w-full sm:flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700">
                                     {inviteSubmitting ? (
                                         <>
                                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -277,7 +277,7 @@ export default function TeamIndex({
                                         </>
                                     ) : 'Send Invitation'}
                                 </Button>
-                                <Button variant="secondary" onClick={() => setShowInviteDialog(false)} className="flex-1" disabled={inviteSubmitting}>
+                                <Button variant="secondary" onClick={() => setShowInviteDialog(false)} className="w-full sm:flex-1" disabled={inviteSubmitting}>
                                     Cancel
                                 </Button>
                             </div>
@@ -298,9 +298,9 @@ export default function TeamIndex({
                             {pending_invites.map((invite) => (
                                 <div
                                     key={invite.id}
-                                    className="flex items-center justify-between rounded-xl border border-amber-100 dark:border-amber-900/40 bg-white dark:bg-gray-900 px-4 py-3"
+                                    className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-amber-100 dark:border-amber-900/40 bg-white dark:bg-gray-900 px-4 py-3"
                                 >
-                                    <div>
+                                    <div className="min-w-0">
                                         <div className="font-semibold text-gray-900 dark:text-gray-100">{invite.email}</div>
                                         <div className="text-xs text-gray-500 dark:text-gray-400">
                                             Role: {invite.role}
@@ -320,7 +320,7 @@ export default function TeamIndex({
                                             </div>
                                         )}
                                     </div>
-                                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:shrink-0">
                                         <Button
                                             variant="secondary"
                                             size="sm"
@@ -359,7 +359,7 @@ export default function TeamIndex({
                 {/* Members List */}
                 <Card className="border-0 shadow-lg">
                     <CardHeader className="bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900">
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <CardTitle className="text-xl font-bold">Team Members</CardTitle>
                                 <CardDescription className="mt-1">{members.length} total members</CardDescription>
@@ -371,7 +371,7 @@ export default function TeamIndex({
                             {members.map((member) => (
                                 <div
                                     key={member.id}
-                                    className="flex items-center justify-between p-5 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md transition-all duration-200 group"
+                                    className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between p-5 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md transition-all duration-200 group"
                                 >
                                     <div className="flex items-center gap-4 flex-1">
                                         <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-lg group-hover:scale-110 transition-transform duration-200">
@@ -388,10 +388,10 @@ export default function TeamIndex({
                                                     </span>
                                                 )}
                                             </div>
-                                            <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
+                                            <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 text-sm text-gray-500 dark:text-gray-400">
                                                 <div className="flex items-center gap-1.5">
                                                     <Mail className="h-3.5 w-3.5" />
-                                                    {member.email}
+                                                    <span className="break-all">{member.email}</span>
                                                 </div>
                                                 <div className="flex items-center gap-1.5">
                                                     <Calendar className="h-3.5 w-3.5" />
@@ -400,7 +400,7 @@ export default function TeamIndex({
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                                         {getRoleBadge(member.role, member.is_owner)}
                                         {can_manage && !member.is_owner && member.id !== current_user_id && (
                                             <div className="flex items-center gap-2">

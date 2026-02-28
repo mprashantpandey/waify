@@ -3,10 +3,9 @@ import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
 import Button from '@/Components/UI/Button';
-import { ArrowLeft, Send, AlertCircle, FileText, Globe, Tag, Sparkles, Clock, CheckCircle2, Archive, Trash2, Edit, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Send, AlertCircle, FileText, Globe, Tag, Sparkles, Clock, CheckCircle2, Archive, Trash2, Edit, RefreshCw, Loader2 } from 'lucide-react';
 import { Head } from '@inertiajs/react';
 import { Alert } from '@/Components/UI/Alert';
-import { useToast } from '@/hooks/useToast';
 import { useConfirm } from '@/hooks/useConfirm';
 import { useEffect, useState } from 'react';
 import { useRealtime } from '@/Providers/RealtimeProvider';
@@ -47,10 +46,10 @@ export default function TemplatesShow({
     account: any;
     template: Template;
 }) {
-    const { toast } = useToast();
     const confirm = useConfirm();
     const { subscribe } = useRealtime();
     const [liveTemplate, setLiveTemplate] = useState<Template>(template);
+    const [actionState, setActionState] = useState<string | null>(null);
 
     useEffect(() => {
         setLiveTemplate(template);
@@ -62,12 +61,13 @@ export default function TemplatesShow({
                 template: liveTemplate.slug}),
             {},
             {
+                onStart: () => setActionState('check-status'),
                 onSuccess: () => {
                     router.reload({ only: ['template'] });
                 },
-                onError: (errors) => {
-                    toast.error(errors?.message || 'Failed to check template status');
-                }}
+                onError: () => {},
+                onFinish: () => setActionState(null),
+            }
         );
     };
 
@@ -105,12 +105,13 @@ export default function TemplatesShow({
                 template: liveTemplate.slug}),
             {},
             {
+                onStart: () => setActionState('archive'),
                 onSuccess: () => {
                     router.visit(route('app.whatsapp.templates.index', {}));
                 },
-                onError: () => {
-                    toast.error('Failed to archive template');
-                }}
+                onError: () => {},
+                onFinish: () => setActionState(null),
+            }
         );
     };
 
@@ -127,12 +128,13 @@ export default function TemplatesShow({
             route('app.whatsapp.templates.destroy', {
                 template: liveTemplate.slug}),
             {
+                onStart: () => setActionState('delete'),
                 onSuccess: () => {
                     router.visit(route('app.whatsapp.templates.index', {}));
                 },
-                onError: () => {
-                    toast.error('Failed to delete template');
-                }}
+                onError: () => {},
+                onFinish: () => setActionState(null),
+            }
         );
     };
 
@@ -160,7 +162,7 @@ export default function TemplatesShow({
                         <ArrowLeft className="h-4 w-4" />
                         Back to Templates
                     </Link>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div>
                             <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent flex items-center gap-3 mb-2">
                                 {liveTemplate.name}
@@ -181,12 +183,13 @@ export default function TemplatesShow({
                                 </div>
                             </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-stretch sm:items-center gap-2">
                             <Link
                                 href={route('app.whatsapp.templates.edit', {
                                     template: liveTemplate.slug})}
+                                className="w-full sm:w-auto"
                             >
-                                <Button variant="secondary">
+                                <Button variant="secondary" className="w-full sm:w-auto">
                                     <Edit className="h-4 w-4 mr-2" />
                                     Edit
                                 </Button>
@@ -195,16 +198,28 @@ export default function TemplatesShow({
                                 <Button
                                     variant="secondary"
                                     onClick={handleCheckStatus}
+                                    disabled={actionState !== null}
+                                    className="w-full sm:w-auto"
                                 >
-                                    <RefreshCw className="h-4 w-4 mr-2" />
-                                    Check Status
+                                    {actionState === 'check-status' ? (
+                                        <>
+                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                            Checking...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <RefreshCw className="h-4 w-4 mr-2" />
+                                            Check Status
+                                        </>
+                                    )}
                                 </Button>
                             )}
                             <Link
                                 href={route('app.whatsapp.templates.send', {
                                     template: liveTemplate.slug})}
+                                className="w-full sm:w-auto"
                             >
-                                <Button className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg shadow-green-500/50">
+                                <Button className="w-full sm:w-auto bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg shadow-green-500/50">
                                     <Send className="h-4 w-4 mr-2" />
                                     Send Template
                                 </Button>
@@ -212,18 +227,38 @@ export default function TemplatesShow({
                             <Button
                                 variant="secondary"
                                 onClick={handleArchive}
-                                className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+                                disabled={actionState !== null}
+                                className="w-full sm:w-auto text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-900/20"
                             >
-                                <Archive className="h-4 w-4 mr-2" />
-                                Archive
+                                {actionState === 'archive' ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                        Archiving...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Archive className="h-4 w-4 mr-2" />
+                                        Archive
+                                    </>
+                                )}
                             </Button>
                             <Button
                                 variant="secondary"
                                 onClick={handleDelete}
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                disabled={actionState !== null}
+                                className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
                             >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
+                                {actionState === 'delete' ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                        Deleting...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Delete
+                                    </>
+                                )}
                             </Button>
                         </div>
                     </div>

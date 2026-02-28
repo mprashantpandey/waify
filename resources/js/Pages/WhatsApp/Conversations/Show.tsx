@@ -1294,8 +1294,8 @@ export default function ConversationsShow({
             <Head title={`${conversation.contact.name || conversation.contact.wa_id} - Inbox`} />
             <div className="flex flex-col h-[calc(100vh-8rem)] lg:h-[calc(100vh-6rem)] rounded-3xl overflow-hidden border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-xl">
                 {/* Header */}
-                <div className="flex items-center justify-between px-4 py-3 bg-[#075E54] text-white">
-                    <div className="flex items-center gap-3 min-w-0">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 bg-[#075E54] text-white">
+                    <div className="flex items-center gap-3 min-w-0 w-full">
                         <Link
                             href={route('app.whatsapp.conversations.index', { })}
                             className="inline-flex items-center text-sm font-medium text-white/90 hover:text-white transition-colors"
@@ -1334,7 +1334,7 @@ export default function ConversationsShow({
                             </div>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 self-end sm:self-auto">
                         <span className="hidden sm:inline-flex rounded-full bg-white/15 px-3 py-1 text-xs uppercase tracking-wide">
                             {conversation.status}
                         </span>
@@ -1356,7 +1356,7 @@ export default function ConversationsShow({
                             onClick={() => setMobileDrawerOpen(false)}
                             aria-hidden="true"
                         />
-                        <div className="fixed right-0 top-0 h-full w-80 bg-white dark:bg-gray-900 shadow-2xl z-50 lg:hidden p-6 border-l border-gray-200 dark:border-gray-800">
+                        <div className="fixed right-0 top-0 h-full w-full max-w-sm bg-white dark:bg-gray-900 shadow-2xl z-50 lg:hidden p-6 border-l border-gray-200 dark:border-gray-800">
                             <div className="flex items-center justify-between mb-6">
                                 <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Conversation Info</h3>
                                 <button

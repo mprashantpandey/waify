@@ -64,7 +64,7 @@ export default function NotificationsTab() {
                     </div>
                     <form onSubmit={submit} className="space-y-5">
                         <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-                            <div className="flex items-start justify-between gap-4">
+                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                                 <div>
                                     <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                                         Assignment pings
@@ -73,7 +73,7 @@ export default function NotificationsTab() {
                                         Notify me when a conversation is assigned to me.
                                     </p>
                                 </div>
-                                <label className="relative inline-flex items-center cursor-pointer">
+                                <label className="relative inline-flex items-center cursor-pointer self-start sm:self-auto">
                                     <input
                                         type="checkbox"
                                         className="sr-only peer"
@@ -88,7 +88,7 @@ export default function NotificationsTab() {
                         </div>
 
                         <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-                            <div className="flex items-start justify-between gap-4">
+                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                                 <div>
                                     <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                                         Mention pings
@@ -97,7 +97,7 @@ export default function NotificationsTab() {
                                         Notify me when I’m mentioned in internal notes.
                                     </p>
                                 </div>
-                                <label className="relative inline-flex items-center cursor-pointer">
+                                <label className="relative inline-flex items-center cursor-pointer self-start sm:self-auto">
                                     <input
                                         type="checkbox"
                                         className="sr-only peer"
@@ -112,7 +112,7 @@ export default function NotificationsTab() {
                         </div>
 
                         <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-                            <div className="flex items-start justify-between gap-4">
+                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                                 <div>
                                     <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
                                         Notification sound
@@ -121,7 +121,7 @@ export default function NotificationsTab() {
                                         Play a short sound on mentions or assignments.
                                     </p>
                                 </div>
-                                <label className="relative inline-flex items-center cursor-pointer">
+                                <label className="relative inline-flex items-center cursor-pointer self-start sm:self-auto">
                                     <input
                                         type="checkbox"
                                         className="sr-only peer"
@@ -135,11 +135,11 @@ export default function NotificationsTab() {
                             <InputError message={errors.notify_sound_enabled} className="mt-2" />
                         </div>
 
-                        <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center sm:justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
                             <Button
                                 type="submit"
                                 disabled={processing}
-                                className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/40 rounded-xl"
+                                className="w-full sm:w-auto bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/40 rounded-xl"
                             >
                                 {processing ? 'Saving...' : 'Save Preferences'}
                             </Button>

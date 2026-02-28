@@ -89,7 +89,7 @@ export default function BroadcastsIndex({
         <AppShell>
             <Head title="Campaigns" />
             <div className="space-y-6">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
                             Campaigns
@@ -98,8 +98,8 @@ export default function BroadcastsIndex({
                             Create and manage WhatsApp broadcast campaigns
                         </p>
                     </div>
-                    <Link href={route('app.broadcasts.create', {})}>
-                        <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50">
+                    <Link href={route('app.broadcasts.create', {})} className="w-full sm:w-auto">
+                        <Button className="w-full sm:w-auto bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50">
                             <Plus className="h-4 w-4 mr-2" />
                             Create Campaign
                         </Button>
@@ -130,7 +130,7 @@ export default function BroadcastsIndex({
                                 <option value="completed">Completed</option>
                                 <option value="cancelled">Cancelled</option>
                             </select>
-                            <div className="flex gap-2">
+                            <div className="grid grid-cols-2 gap-2 sm:flex">
                                 <Button variant="secondary" onClick={() => {
                                     setSearch('');
                                     setStatus('');
@@ -139,10 +139,10 @@ export default function BroadcastsIndex({
                                         preserveScroll: true,
                                         replace: true,
                                     });
-                                }}>
+                                }} className="w-full sm:w-auto">
                                     Reset
                                 </Button>
-                                <Button onClick={applyFilters}>
+                                <Button onClick={applyFilters} className="w-full sm:w-auto">
                                     Apply
                                 </Button>
                             </div>
@@ -173,7 +173,7 @@ export default function BroadcastsIndex({
                         {campaigns.data.map((campaign) => (
                             <Card key={campaign.id} className="border-0 shadow-lg hover:shadow-xl transition-shadow">
                                 <CardContent className="p-6">
-                                    <div className="flex items-start justify-between">
+                                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                                         <div className="flex-1">
                                             <div className="flex items-center gap-3 mb-2">
                                                 <Link
@@ -215,8 +215,9 @@ export default function BroadcastsIndex({
                                         <Link
                                             href={route('app.broadcasts.show', {
                                                 campaign: campaign.slug})}
+                                            className="w-full sm:w-auto"
                                         >
-                                            <Button variant="secondary" size="sm">
+                                            <Button variant="secondary" size="sm" className="w-full sm:w-auto">
                                                 View Details
                                             </Button>
                                         </Link>

@@ -93,7 +93,7 @@ export default function TagsIndex({
                         <ArrowLeft className="h-4 w-4" />
                         Back to Contacts
                     </Link>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                             <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
                                 Contact Tags
@@ -102,7 +102,7 @@ export default function TagsIndex({
                                 Organize contacts with tags. Use tags in filters and segments.
                             </p>
                         </div>
-                        <Button onClick={() => setShowCreate(!showCreate)}>
+                        <Button onClick={() => setShowCreate(!showCreate)} className="w-full sm:w-auto">
                             <Plus className="h-4 w-4 mr-2" />
                             Add Tag
                         </Button>
@@ -115,8 +115,8 @@ export default function TagsIndex({
                             <CardTitle>New tag</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <form onSubmit={handleCreate} className="flex flex-wrap items-end gap-4">
-                                <div className="w-48">
+                            <form onSubmit={handleCreate} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[12rem_8rem_minmax(0,1fr)_auto] gap-4 items-end">
+                                <div className="w-full">
                                     <InputLabel value="Name" />
                                     <TextInput
                                         value={createData.name}
@@ -126,7 +126,7 @@ export default function TagsIndex({
                                     />
                                     <InputError message={createErrors.name} />
                                 </div>
-                                <div className="w-32">
+                                <div className="w-full">
                                     <InputLabel value="Color" />
                                     <input
                                         type="color"
@@ -135,7 +135,7 @@ export default function TagsIndex({
                                         className="mt-1 h-10 w-full rounded border border-gray-300 dark:border-gray-700"
                                     />
                                 </div>
-                                <div className="flex-1 min-w-[200px]">
+                                <div className="w-full">
                                     <InputLabel value="Description (optional)" />
                                     <TextInput
                                         value={createData.description}
@@ -143,9 +143,9 @@ export default function TagsIndex({
                                         className="mt-1"
                                     />
                                 </div>
-                                <div className="flex gap-2">
-                                    <Button type="submit" disabled={creating}>Create</Button>
-                                    <Button type="button" variant="secondary" onClick={() => { setShowCreate(false); resetCreate(); }}>Cancel</Button>
+                                <div className="grid grid-cols-2 sm:flex gap-2">
+                                    <Button type="submit" disabled={creating} className="w-full sm:w-auto">Create</Button>
+                                    <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => { setShowCreate(false); resetCreate(); }}>Cancel</Button>
                                 </div>
                             </form>
                         </CardContent>
@@ -168,14 +168,14 @@ export default function TagsIndex({
                         <CardContent className="p-0">
                             <ul className="divide-y divide-gray-200 dark:divide-gray-700">
                                 {tags.map((tag) => (
-                                    <li key={tag.id} className="flex items-center justify-between px-6 py-4">
-                                        <div className="flex items-center gap-3">
+                                    <li key={tag.id} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-6 py-4">
+                                        <div className="flex items-center gap-3 min-w-0">
                                             <span
                                                 className="h-4 w-4 rounded-full shrink-0"
                                                 style={{ backgroundColor: tag.color }}
                                             />
-                                            <div>
-                                                <span className="font-medium text-gray-900 dark:text-gray-100">{tag.name}</span>
+                                            <div className="min-w-0">
+                                                <span className="font-medium text-gray-900 dark:text-gray-100 break-words">{tag.name}</span>
                                                 {tag.description && (
                                                     <p className="text-sm text-gray-500 dark:text-gray-400">{tag.description}</p>
                                                 )}
@@ -184,18 +184,18 @@ export default function TagsIndex({
                                                 {tag.contacts_count} contact{tag.contacts_count !== 1 ? 's' : ''}
                                             </Badge>
                                         </div>
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex flex-wrap items-stretch sm:items-center gap-2 sm:shrink-0">
                                             {editingId === tag.id ? (
                                                 <EditTagForm key={tag.id} tag={tag} />
                                             ) : (
                                                 <>
-                                                    <Button variant="secondary" size="sm" onClick={() => setEditingId(tag.id)}>
+                                                    <Button variant="secondary" size="sm" className="w-full sm:w-auto" onClick={() => setEditingId(tag.id)}>
                                                         <Pencil className="h-4 w-4" />
                                                     </Button>
-                                                    <Link href={route('app.contacts.index', { tags: [tag.id] })}>
-                                                        <Button variant="secondary" size="sm">View contacts</Button>
+                                                    <Link href={route('app.contacts.index', { tags: [tag.id] })} className="w-full sm:w-auto">
+                                                        <Button variant="secondary" size="sm" className="w-full sm:w-auto">View contacts</Button>
                                                     </Link>
-                                                    <Button variant="secondary" size="sm" onClick={() => handleDelete(tag)}>
+                                                    <Button variant="secondary" size="sm" className="w-full sm:w-auto" onClick={() => handleDelete(tag)}>
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
                                                 </>

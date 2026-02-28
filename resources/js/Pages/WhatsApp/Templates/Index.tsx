@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Com
 import { Badge } from '@/Components/UI/Badge';
 import Button from '@/Components/UI/Button';
 import { EmptyState } from '@/Components/UI/EmptyState';
-import { FileText, Search, Filter, RefreshCw, Send, Copy, Check, Sparkles, X, Tag, Globe, Zap, Archive, Trash2 } from 'lucide-react';
+import { FileText, Search, Filter, RefreshCw, Send, Copy, Check, Sparkles, X, Tag, Globe, Zap, Archive, Trash2, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import TextInput from '@/Components/TextInput';
 import { Head } from '@inertiajs/react';
@@ -65,6 +65,8 @@ export default function TemplatesIndex({
     const [copied, setCopied] = useState<string | null>(null);
     const [archiving, setArchiving] = useState<string | null>(null);
     const [deleting, setDeleting] = useState<string | null>(null);
+    const [syncing, setSyncing] = useState(false);
+    const hasConnections = connections.length > 0;
 
     const applyFilters = () => {
         router.get(route('app.whatsapp.templates.index', {}), localFilters as any, {
@@ -92,14 +94,19 @@ export default function TemplatesIndex({
     };
 
     const syncTemplates = () => {
+        if (!hasConnections) {
+            toast.error('No connections found', 'Create a WhatsApp connection first, then sync templates.');
+            return;
+        }
         router.post(route('app.whatsapp.templates.sync', {}), {
             connection_id: localFilters.connection || connections[0]?.id}, {
+            onStart: () => setSyncing(true),
             onSuccess: () => {
                 router.reload({ only: ['templates'] });
             },
-            onError: () => {
-                toast.error('Failed to sync templates');
-            }});
+            onError: () => {},
+            onFinish: () => setSyncing(false),
+        });
     };
 
     const handleArchive = async (template: Template) => {
@@ -119,9 +126,7 @@ export default function TemplatesIndex({
                 onSuccess: () => {
                     router.reload({ only: ['templates'] });
                 },
-                onError: () => {
-                    toast.error('Failed to archive template');
-                },
+                onError: () => {},
                 onFinish: () => setArchiving(null)}
         );
     };
@@ -143,9 +148,7 @@ export default function TemplatesIndex({
                 onSuccess: () => {
                     router.reload({ only: ['templates'] });
                 },
-                onError: () => {
-                    toast.error('Failed to delete template');
-                },
+                onError: () => {},
                 onFinish: () => setDeleting(null)}
         );
     };
@@ -166,7 +169,7 @@ export default function TemplatesIndex({
         <AppShell>
             <Head title="Message Templates" />
             <div className="space-y-8">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
                             Message Templates
@@ -175,11 +178,12 @@ export default function TemplatesIndex({
                             Manage your WhatsApp message templates
                         </p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                         <Link
                             href={route('app.whatsapp.templates.create', {})}
+                            className="w-full sm:w-auto"
                         >
-                            <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50">
+                            <Button className="w-full sm:w-auto bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50">
                                 <FileText className="h-4 w-4 mr-2" />
                                 Create Template
                             </Button>
@@ -187,10 +191,11 @@ export default function TemplatesIndex({
                         <Button
                             onClick={syncTemplates}
                             variant="secondary"
-                            className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg shadow-green-500/50"
+                            disabled={syncing || !hasConnections}
+                            className="w-full sm:w-auto bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg shadow-green-500/50"
                         >
-                            <RefreshCw className="h-4 w-4 mr-2" />
-                            Sync from Meta
+                            {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                            {syncing ? 'Syncing...' : 'Sync from Meta'}
                         </Button>
                     </div>
                 </div>
@@ -346,10 +351,11 @@ export default function TemplatesIndex({
                                 action={
                                     <Button
                                         onClick={syncTemplates}
+                                        disabled={syncing || !hasConnections}
                                         className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg shadow-green-500/50"
                                     >
-                                        <RefreshCw className="h-4 w-4 mr-2" />
-                                        Sync Templates
+                                        {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                                        {syncing ? 'Syncing...' : 'Sync Templates'}
                                     </Button>
                                 }
                             />

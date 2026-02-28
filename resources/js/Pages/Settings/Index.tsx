@@ -92,7 +92,7 @@ export default function SettingsIndex() {
                                 </p>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full lg:w-auto lg:min-w-[460px]">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 w-full lg:w-auto lg:min-w-0 lg:max-w-[560px]">
                                 {quickChecks.map((item) => (
                                     <div key={item.label} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2.5">
                                         <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
@@ -118,14 +118,14 @@ export default function SettingsIndex() {
                         <Card className="border-0 shadow-sm xl:sticky xl:top-20">
                             <CardContent className="p-3">
                                 <div className="xl:hidden">
-                                    <TabsList className="w-full h-auto flex-wrap justify-start gap-2 p-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
+                                    <TabsList className="w-full h-auto justify-start gap-2 p-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 overflow-x-auto whitespace-nowrap">
                                         {tabs.map((tab) => {
                                             const Icon = tab.icon;
                                             return (
                                                 <TabsTrigger
                                                     key={tab.id}
                                                     value={tab.id}
-                                                    className="rounded-lg px-3 py-2 text-sm data-[state=active]:bg-blue-600 data-[state=active]:text-white"
+                                                    className="shrink-0 rounded-lg px-3 py-2 text-sm data-[state=active]:bg-blue-600 data-[state=active]:text-white"
                                                 >
                                                     <Icon className="h-4 w-4 mr-2" />
                                                     {tab.label}
