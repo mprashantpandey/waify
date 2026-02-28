@@ -3,15 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Com
 import { Badge } from '@/Components/UI/Badge';
 import Button from '@/Components/UI/Button';
 import { Puzzle, CheckCircle2, XCircle, Sparkles, Zap, ToggleLeft, ToggleRight, Crown } from 'lucide-react';
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { useToast } from '@/hooks/useToast';
 import { useConfirm } from '@/hooks/useConfirm';
 
 export default function Modules({ modules, account, current_plan }: { modules: any[]; account: any; current_plan?: { key: string; name: string } }) {
     const { addToast } = useToast();
     const confirm = useConfirm();
-    const page = usePage();
-    const { flash } = page.props as any;
     
     const handleToggleModule = async (module: any) => {
         if (!module.can_toggle) {
@@ -49,10 +47,6 @@ export default function Modules({ modules, account, current_plan }: { modules: a
             {
                 preserveScroll: true,
                 onSuccess: () => {
-                    addToast({
-                        title: 'Module updated',
-                        description: `${module.name} has been ${module.enabled ? 'disabled' : 'enabled'}.`,
-                        variant: 'success'});
                     router.reload({ only: ['modules'] });
                 },
                 onError: (errors) => {

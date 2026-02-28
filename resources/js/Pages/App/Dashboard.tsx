@@ -407,7 +407,7 @@ export default function Dashboard({
                                         Getting Started Checklist
                                     </CardTitle>
                                     <CardDescription>
-                                        Complete the setup steps to get your workspace production-ready.
+                                        Complete the setup steps to get your account production-ready.
                                     </CardDescription>
                                 </div>
                                 <div className="text-sm text-gray-700 dark:text-gray-300">
@@ -714,7 +714,7 @@ export default function Dashboard({
                         <div>
                             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">First-Run Setup Wizard</h3>
                             <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Complete your initial workspace setup without losing dashboard context.
+                                Complete your initial account setup without losing dashboard context.
                             </p>
                         </div>
                         <Button variant="secondary" size="sm" onClick={() => setSetupWizardOpen(false)}>Close</Button>

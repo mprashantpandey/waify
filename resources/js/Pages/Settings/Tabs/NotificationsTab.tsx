@@ -2,14 +2,13 @@ import { useForm, usePage } from '@inertiajs/react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
 import Button from '@/Components/UI/Button';
 import InputError from '@/Components/InputError';
-import { Bell, Sparkles, CheckCircle2 } from 'lucide-react';
-import { Transition } from '@headlessui/react';
+import { Bell, Sparkles } from 'lucide-react';
 
 export default function NotificationsTab() {
     const { auth } = usePage().props as any;
     const user = auth?.user;
 
-    const { data, setData, post, processing, errors, recentlySuccessful } = useForm({
+    const { data, setData, post, processing, errors } = useForm({
         notify_assignment_enabled: Boolean(user?.notify_assignment_enabled ?? true),
         notify_mention_enabled: Boolean(user?.notify_mention_enabled ?? true),
         notify_sound_enabled: Boolean(user?.notify_sound_enabled ?? true),
@@ -144,18 +143,6 @@ export default function NotificationsTab() {
                             >
                                 {processing ? 'Saving...' : 'Save Preferences'}
                             </Button>
-                            <Transition
-                                show={recentlySuccessful}
-                                enter="transition ease-in-out"
-                                enterFrom="opacity-0"
-                                leave="transition ease-in-out"
-                                leaveTo="opacity-0"
-                            >
-                                <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
-                                    <CheckCircle2 className="h-4 w-4" />
-                                    Saved successfully
-                                </div>
-                            </Transition>
                         </div>
                     </form>
                 </CardContent>

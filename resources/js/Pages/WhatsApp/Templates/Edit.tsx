@@ -220,13 +220,8 @@ export default function TemplatesEdit({
             onSuccess: () => {
                 // Success toast comes from server flash via GlobalFlashHandler.
             },
-            onError: (errors) => {
-                if (errors.update) {
-                    toast.error(errors.update);
-                } else {
-                    toast.error('Failed to update template. Please check the form for errors.');
-                }
-            }});
+            onError: () => {},
+        });
     };
 
     const renderPreview = () => {
@@ -293,7 +288,7 @@ export default function TemplatesEdit({
 
     return (
         <AppShell>
-            <Head title="Create Template" />
+            <Head title="Edit Template" />
             <div className="space-y-8">
                 <div>
                     <Link
@@ -327,6 +322,16 @@ export default function TemplatesEdit({
                         <div>
                             <h3 className="font-semibold text-red-800 dark:text-red-200 mb-1">Previous Rejection Reason</h3>
                             <p className="text-sm text-red-600 dark:text-red-400">{template.rejection_reason}</p>
+                        </div>
+                    </Alert>
+                )}
+
+                {(errors as any).update && (
+                    <Alert variant="error" className="border-red-200 dark:border-red-800">
+                        <AlertCircle className="h-5 w-5" />
+                        <div>
+                            <h3 className="font-semibold text-red-800 dark:text-red-200 mb-1">Template Update Error</h3>
+                            <p className="text-sm text-red-600 dark:text-red-400">{(errors as any).update}</p>
                         </div>
                     </Alert>
                 )}
@@ -813,18 +818,19 @@ export default function TemplatesEdit({
                         </>
                     )}
 
-                    <div className="flex items-center justify-between pt-6">
+                    <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-6">
                         <Link
                             href={route('app.whatsapp.templates.index', { })}
+                            className="w-full sm:w-auto"
                         >
-                            <Button variant="secondary">Cancel</Button>
+                            <Button variant="secondary" className="w-full sm:w-auto">Cancel</Button>
                         </Link>
                         <Button
                             type="submit"
-                            disabled={processing}
-                            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50"
+                            disabled={processing || uploadingMedia}
+                            className="w-full sm:w-auto bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50"
                         >
-                            {processing ? 'Updating...' : 'Update Template'}
+                            {processing ? 'Updating...' : uploadingMedia ? 'Waiting for upload...' : 'Update Template'}
                         </Button>
                     </div>
                 </form>

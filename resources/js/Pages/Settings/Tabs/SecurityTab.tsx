@@ -7,7 +7,6 @@ import InputError from '@/Components/InputError';
 import { Shield, Save, Trash2, Lock, CheckCircle2, KeyRound } from 'lucide-react';
 import { router } from '@inertiajs/react';
 import { useNotifications } from '@/hooks/useNotifications';
-import { Transition } from '@headlessui/react';
 import { usePage } from '@inertiajs/react';
 import { Alert } from '@/Components/UI/Alert';
 import { useEffect, useState } from 'react';
@@ -36,7 +35,7 @@ export default function SecurityTab() {
     const recoveryCodes: string[] = Array.isArray(twoFactor.recovery_codes) ? twoFactor.recovery_codes : [];
     const sessions: SecuritySession[] = (props.sessions ?? []) as SecuritySession[];
     const [twoFactorQrDataUrl, setTwoFactorQrDataUrl] = useState<string | null>(null);
-    const { data, setData, put, processing, errors, reset, recentlySuccessful } = useForm({
+    const { data, setData, put, processing, errors, reset } = useForm({
         current_password: '',
         password: '',
         password_confirmation: ''});
@@ -54,6 +53,7 @@ export default function SecurityTab() {
         confirmation_text: '',
     });
     const [showDeleteReview, setShowDeleteReview] = useState(false);
+    const [securityAction, setSecurityAction] = useState<string | null>(null);
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -62,9 +62,8 @@ export default function SecurityTab() {
             onSuccess: () => {
                 reset();
             },
-            onError: () => {
-                toast.error('Failed to update password');
-            }});
+            onError: () => {},
+        });
     };
 
     const deletePrechecks = {
@@ -101,10 +100,10 @@ export default function SecurityTab() {
         router.delete(route('profile.destroy'), {
             data: { password: deleteAccountForm.data.password },
             // Rely on server flash/redirect handling to avoid false success on blocked deletion.
+            onStart: () => setSecurityAction('delete-account'),
             onSuccess: () => {},
-            onError: () => {
-                toast.error('Failed to delete account');
-            },
+            onError: () => {},
+            onFinish: () => setSecurityAction(null),
         });
     };
 
@@ -112,12 +111,12 @@ export default function SecurityTab() {
         e.preventDefault();
         sessionForm.post(route('app.settings.security.revoke-other-sessions'), {
             preserveScroll: true,
+            onStart: () => setSecurityAction('revoke-other-sessions'),
             onSuccess: () => {
                 sessionForm.reset();
             },
-            onError: () => {
-                toast.error('Failed to sign out other sessions');
-            },
+            onError: () => {},
+            onFinish: () => setSecurityAction(null),
         });
     };
 
@@ -132,7 +131,9 @@ export default function SecurityTab() {
 
         router.delete(route('app.settings.security.sessions.revoke', { sessionId }), {
             preserveScroll: true,
-            onError: () => toast.error('Failed to revoke session'),
+            onStart: () => setSecurityAction(`revoke-session:${sessionId}`),
+            onError: () => {},
+            onFinish: () => setSecurityAction(null),
         });
     };
 
@@ -163,14 +164,17 @@ export default function SecurityTab() {
     const startTwoFactorSetup = () => {
         router.post(route('app.settings.security.2fa.setup'), {}, {
             preserveScroll: true,
-            onError: () => toast.error('Failed to start 2FA setup'),
+            onStart: () => setSecurityAction('2fa-setup'),
+            onError: () => {},
+            onFinish: () => setSecurityAction(null),
         });
     };
 
     const cancelTwoFactorSetup = () => {
         router.post(route('app.settings.security.2fa.cancel'), {}, {
             preserveScroll: true,
-            onSuccess: () => toast.info('2FA setup canceled'),
+            onStart: () => setSecurityAction('2fa-cancel'),
+            onFinish: () => setSecurityAction(null),
         });
     };
 
@@ -178,10 +182,12 @@ export default function SecurityTab() {
         e.preventDefault();
         twoFactorConfirmForm.post(route('app.settings.security.2fa.confirm'), {
             preserveScroll: true,
+            onStart: () => setSecurityAction('2fa-confirm'),
             onSuccess: () => {
                 twoFactorConfirmForm.reset();
             },
-            onError: () => toast.error('Failed to enable 2FA'),
+            onError: () => {},
+            onFinish: () => setSecurityAction(null),
         });
     };
 
@@ -189,17 +195,21 @@ export default function SecurityTab() {
         e.preventDefault();
         twoFactorDisableForm.post(route('app.settings.security.2fa.disable'), {
             preserveScroll: true,
+            onStart: () => setSecurityAction('2fa-disable'),
             onSuccess: () => {
                 twoFactorDisableForm.reset();
             },
-            onError: () => toast.error('Failed to disable 2FA'),
+            onError: () => {},
+            onFinish: () => setSecurityAction(null),
         });
     };
 
     const regenerateRecoveryCodes = () => {
         router.post(route('app.settings.security.2fa.recovery-codes.regenerate'), {}, {
             preserveScroll: true,
-            onError: () => toast.error('Failed to regenerate recovery codes'),
+            onStart: () => setSecurityAction('2fa-regenerate-codes'),
+            onError: () => {},
+            onFinish: () => setSecurityAction(null),
         });
     };
 
@@ -288,8 +298,8 @@ export default function SecurityTab() {
                     )}
 
                     {!twoFactorEnabled && !twoFactorPending && (
-                        <Button onClick={startTwoFactorSetup}>
-                            Start 2FA Setup
+                        <Button onClick={startTwoFactorSetup} disabled={securityAction !== null} className="w-full sm:w-auto">
+                            {securityAction === '2fa-setup' ? 'Starting...' : 'Start 2FA Setup'}
                         </Button>
                     )}
 
@@ -330,12 +340,12 @@ export default function SecurityTab() {
                                     />
                                     <InputError message={(twoFactorConfirmForm.errors as any).otp_code || (twoFactorConfirmForm.errors as any).two_factor_otp_code} className="mt-2" />
                                 </div>
-                                <div className="flex gap-3">
-                                    <Button type="submit" disabled={twoFactorConfirmForm.processing}>
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                    <Button type="submit" disabled={twoFactorConfirmForm.processing} className="w-full sm:w-auto">
                                         {twoFactorConfirmForm.processing ? 'Confirming...' : 'Enable 2FA'}
                                     </Button>
-                                    <Button type="button" variant="secondary" onClick={cancelTwoFactorSetup}>
-                                        Cancel Setup
+                                    <Button type="button" variant="secondary" onClick={cancelTwoFactorSetup} disabled={securityAction !== null || twoFactorConfirmForm.processing} className="w-full sm:w-auto">
+                                        {securityAction === '2fa-cancel' ? 'Canceling...' : 'Cancel Setup'}
                                     </Button>
                                 </div>
                             </form>
@@ -345,8 +355,8 @@ export default function SecurityTab() {
                     {twoFactorEnabled && (
                         <div className="space-y-4">
                             <div className="flex flex-wrap gap-3">
-                                <Button variant="secondary" onClick={regenerateRecoveryCodes}>
-                                    Regenerate Recovery Codes
+                                <Button variant="secondary" onClick={regenerateRecoveryCodes} disabled={securityAction !== null} className="w-full sm:w-auto">
+                                    {securityAction === '2fa-regenerate-codes' ? 'Regenerating...' : 'Regenerate Recovery Codes'}
                                 </Button>
                             </div>
 
@@ -378,8 +388,8 @@ export default function SecurityTab() {
                                     />
                                     <InputError message={(twoFactorDisableForm.errors as any).current_password || (twoFactorDisableForm.errors as any).disable_two_factor_password} className="mt-2" />
                                 </div>
-                                <Button type="submit" variant="danger" disabled={twoFactorDisableForm.processing}>
-                                    {twoFactorDisableForm.processing ? 'Disabling...' : 'Disable 2FA'}
+                                <Button type="submit" variant="danger" disabled={twoFactorDisableForm.processing} className="w-full sm:w-auto">
+                                    {twoFactorDisableForm.processing || securityAction === '2fa-disable' ? 'Disabling...' : 'Disable 2FA'}
                                 </Button>
                             </form>
                         </div>
@@ -465,18 +475,6 @@ export default function SecurityTab() {
                                     </>
                                 )}
                             </Button>
-                            <Transition
-                                show={recentlySuccessful}
-                                enter="transition ease-in-out"
-                                enterFrom="opacity-0"
-                                leave="transition ease-in-out"
-                                leaveTo="opacity-0"
-                            >
-                                <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
-                                    <CheckCircle2 className="h-4 w-4" />
-                                    Password updated
-                                </div>
-                            </Transition>
                         </div>
                     </form>
                 </CardContent>
@@ -501,8 +499,8 @@ export default function SecurityTab() {
                             />
                             <InputError message={(sessionForm.errors as any).current_password || (sessionForm.errors as any).revoke_other_sessions_password} className="mt-2" />
                         </div>
-                        <Button type="submit" variant="secondary" disabled={sessionForm.processing}>
-                            {sessionForm.processing ? 'Signing out...' : 'Sign Out Other Devices'}
+                        <Button type="submit" variant="secondary" disabled={sessionForm.processing || securityAction !== null} className="w-full sm:w-auto">
+                            {sessionForm.processing || securityAction === 'revoke-other-sessions' ? 'Signing out...' : 'Sign Out Other Devices'}
                         </Button>
                     </form>
 
@@ -527,8 +525,8 @@ export default function SecurityTab() {
                                         </p>
                                     </div>
                                     {!session.is_current && (
-                                        <Button variant="danger" onClick={() => revokeSession(session.id)}>
-                                            Revoke
+                                        <Button variant="danger" onClick={() => revokeSession(session.id)} disabled={securityAction !== null} className="w-full sm:w-auto">
+                                            {securityAction === `revoke-session:${session.id}` ? 'Revoking...' : 'Revoke'}
                                         </Button>
                                     )}
                                 </div>
@@ -614,9 +612,10 @@ export default function SecurityTab() {
                                 <Button
                                     type="submit"
                                     variant="danger"
-                                    disabled={deleteAccountForm.processing || deleteBlockedByMemberships || !deletePrechecks.typedConfirmation || !deletePrechecks.hasPassword}
+                                    disabled={deleteAccountForm.processing || securityAction !== null || deleteBlockedByMemberships || !deletePrechecks.typedConfirmation || !deletePrechecks.hasPassword}
+                                    className="w-full sm:w-auto"
                                 >
-                                    {deleteAccountForm.processing ? 'Deleting...' : 'Request Account Deletion'}
+                                    {deleteAccountForm.processing || securityAction === 'delete-account' ? 'Deleting...' : 'Request Account Deletion'}
                                 </Button>
                             </form>
                         )}

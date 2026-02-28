@@ -38,7 +38,7 @@ export default function SupportIndex({ threads, filters }: { threads: any; filte
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Support Tickets</h1>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Create and track support requests for your workspace.</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">Create and track support requests for your account.</p>
                     </div>
                 </div>
 

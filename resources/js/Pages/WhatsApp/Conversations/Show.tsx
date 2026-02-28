@@ -624,7 +624,7 @@ export default function ConversationsShow({
         if (!selectedTemplate) return;
 
         try {
-            await axios.post(
+            const response = await axios.post(
                 route('app.whatsapp.conversations.send-template', {
                     conversation: conversation.id}),
                 {
@@ -632,7 +632,11 @@ export default function ConversationsShow({
                     variables: templateVariables}
             );
 
-            addToast({ title: 'Template sent', variant: 'success' });
+            addToast({
+                title: 'Template submitted',
+                description: response?.data?.message || 'Accepted by WhatsApp. Final delivery status will update shortly.',
+                variant: 'success',
+            });
             setSelectedTemplate(null);
             setTemplateVariables([]);
             setShowTemplates(false);
@@ -1047,10 +1051,6 @@ export default function ConversationsShow({
             {
                 onSuccess: () => {
                     reset('message');
-                    addToast({
-                        title: 'Message sent',
-                        variant: 'success',
-                        duration: 2000});
                 },
                 onError: (errors) => {
                     const msg = Array.isArray(errors?.message) ? errors.message[0] : errors?.message;
@@ -1113,10 +1113,6 @@ export default function ConversationsShow({
                             ...prev,
                             ...updates,
                         }));
-                        addToast({
-                            title: 'Conversation updated',
-                            variant: 'success',
-                            duration: 2000});
                     },
                     onError: (errs) => {
                         addToast({

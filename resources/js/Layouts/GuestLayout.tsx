@@ -14,8 +14,8 @@ export default function Guest({ children, maxWidthClass = 'max-w-md' }: GuestLay
 
     return (
         <BrandingWrapper>
-            <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 px-4 py-12">
-                <div className={`w-full ${maxWidthClass}`}>
+            <div className="min-h-screen overflow-x-hidden flex flex-col items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 px-4 py-8 sm:py-12">
+                <div className={`w-full mx-auto ${maxWidthClass}`}>
                     <div className="text-center mb-8">
                         <Link href="/" className="inline-block">
                             {logoUrl ? (
@@ -35,7 +35,7 @@ export default function Guest({ children, maxWidthClass = 'max-w-md' }: GuestLay
                         <div className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 px-6 py-4 border-b border-gray-200 dark:border-gray-800">
                             <div className="h-1 w-20 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full"></div>
                         </div>
-                        <div className="p-8">
+                        <div className="p-5 sm:p-8">
                             {children}
                         </div>
                     </div>

@@ -90,12 +90,21 @@ class OnboardingController extends Controller
             ])->with('error', 'Selected plan is unavailable.');
         }
 
-        // Enforce payment requirement for paid plans without trial during onboarding.
+        // Enforce payment requirement for paid plans during onboarding.
+        // This keeps onboarding aligned with billing checkout flow and avoids unpaid tenant creation.
         $hasPaidAmount = (int) ($selectedPlan->price_monthly ?? 0) > 0 || (int) ($selectedPlan->price_yearly ?? 0) > 0;
-        if ($hasPaidAmount && (int) ($selectedPlan->trial_days ?? 0) <= 0) {
+        $requireCheckoutForPaidOnboarding = (bool) $settingsService->get('billing.require_checkout_for_paid_onboarding', true);
+        if ($hasPaidAmount && $requireCheckoutForPaidOnboarding) {
             return back()->withErrors([
-                'plan_key' => 'This paid plan requires payment checkout before account creation.',
-            ])->with('error', 'Paid plans require payment before onboarding completion.');
+                'plan_key' => 'This paid plan requires checkout before account creation.',
+            ])->with('error', 'Paid plans require checkout before onboarding completion.');
+        }
+
+        // Backward-compatible guard: if strict checkout is off, still block paid plans with no trial.
+        if ($hasPaidAmount && !$requireCheckoutForPaidOnboarding && (int) ($selectedPlan->trial_days ?? 0) <= 0) {
+            return back()->withErrors([
+                'plan_key' => 'This paid plan requires checkout before account creation.',
+            ])->with('error', 'Paid plans require checkout before onboarding completion.');
         }
         
         // Always assign a plan

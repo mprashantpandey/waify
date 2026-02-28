@@ -26,12 +26,26 @@ export function GlobalFlashHandler() {
         lastPayloadRef.current = payloadSignature;
 
         const emitted = new Set<string>();
+        const emittedSemantic = new Set<string>();
+        const normalize = (value: string) => value
+            .trim()
+            .toLowerCase()
+            .replace(/\b(successfully|successful|success)\b/g, '')
+            .replace(/\b(done|completed)\b/g, '')
+            .replace(/[.!?]+$/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
         const emit = (title: string, description: string, variant: 'success' | 'error' | 'warning' | 'info') => {
             const key = `${variant}|${title}|${description}`;
+            const semanticKey = `${normalize(title)}|${normalize(description)}`;
             if (emitted.has(key)) {
                 return;
             }
+            if (semanticKey !== '|' && emittedSemantic.has(semanticKey)) {
+                return;
+            }
             emitted.add(key);
+            emittedSemantic.add(semanticKey);
             addToast({ title, description, variant, source: 'flash' });
         };
 

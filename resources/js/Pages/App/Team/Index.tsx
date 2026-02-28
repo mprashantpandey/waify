@@ -16,10 +16,10 @@ import {
     Edit,
     Mail,
     Calendar,
-    Sparkles
+    Sparkles,
+    Loader2,
 } from 'lucide-react';
 import { useState } from 'react';
-import { usePage } from '@inertiajs/react';
 
 interface Member {
     id: number;
@@ -56,6 +56,9 @@ export default function TeamIndex({
     const [inviteEmail, setInviteEmail] = useState('');
     const [showInviteDialog, setShowInviteDialog] = useState(false);
     const [editingMember, setEditingMember] = useState<Member | null>(null);
+    const [inviteSubmitting, setInviteSubmitting] = useState(false);
+    const [memberActionKey, setMemberActionKey] = useState<string | null>(null);
+    const [inviteActionKey, setInviteActionKey] = useState<string | null>(null);
 
     const handleInvite = () => {
         if (!inviteEmail) {
@@ -69,14 +72,14 @@ export default function TeamIndex({
                 email: inviteEmail,
                 role: 'member'},
             {
+                onStart: () => setInviteSubmitting(true),
                 onSuccess: () => {
                     setInviteEmail('');
                     setShowInviteDialog(false);
                 },
-                onError: (errors) => {
-                    const firstError = errors.email || errors.role || errors.error;
-                    toast.error(firstError || 'Failed to invite member');
-                }}
+                onError: () => {},
+                onFinish: () => setInviteSubmitting(false),
+            }
         );
     };
 
@@ -89,6 +92,7 @@ export default function TeamIndex({
             variant: 'info'});
 
         if (confirmed) {
+            setMemberActionKey(`role:${member.id}`);
             router.post(
                 route('app.team.update-role', { user: member.id }),
                 { role: newRole },
@@ -96,9 +100,9 @@ export default function TeamIndex({
                     onSuccess: () => {
                         setEditingMember(null);
                     },
-                    onError: () => {
-                        toast.error('Failed to update role');
-                    }}
+                    onError: () => {},
+                    onFinish: () => setMemberActionKey(null),
+                }
             );
         }
     };
@@ -111,15 +115,16 @@ export default function TeamIndex({
             confirmText: 'Remove'});
 
         if (confirmed) {
+            setMemberActionKey(`remove:${member.id}`);
             router.delete(
                 route('app.team.remove', { user: member.id }),
                 {
                     onSuccess: () => {
                         router.reload({ only: ['members'] });
                     },
-                    onError: () => {
-                        toast.error('Failed to remove member');
-                    }}
+                    onError: () => {},
+                    onFinish: () => setMemberActionKey(null),
+                }
             );
         }
     };
@@ -132,13 +137,14 @@ export default function TeamIndex({
             confirmText: 'Revoke'});
 
         if (confirmed) {
+            setInviteActionKey(`revoke:${invite.id}`);
             router.delete(
                 route('app.team.invites.revoke', { invitation: invite.id }),
                 {
                     onSuccess: () => {},
-                    onError: () => {
-                        toast.error('Failed to revoke invitation');
-                    }}
+                    onError: () => {},
+                    onFinish: () => setInviteActionKey(null),
+                }
             );
         }
     };
@@ -151,14 +157,15 @@ export default function TeamIndex({
             confirmText: 'Resend'});
 
         if (confirmed) {
+            setInviteActionKey(`resend:${invite.id}`);
             router.post(
                 route('app.team.invites.resend', { invitation: invite.id }),
                 {},
                 {
                     onSuccess: () => {},
-                    onError: () => {
-                        toast.error('Failed to resend invitation');
-                    }}
+                    onError: () => {},
+                    onFinish: () => setInviteActionKey(null),
+                }
             );
         }
     };
@@ -262,10 +269,15 @@ export default function TeamIndex({
                                 </div>
                             </div>
                             <div className="flex items-center gap-3 pt-2">
-                                <Button onClick={handleInvite} className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700">
-                                    Send Invitation
+                                <Button onClick={handleInvite} disabled={inviteSubmitting || !inviteEmail.trim()} className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700">
+                                    {inviteSubmitting ? (
+                                        <>
+                                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                            Sending...
+                                        </>
+                                    ) : 'Send Invitation'}
                                 </Button>
-                                <Button variant="secondary" onClick={() => setShowInviteDialog(false)} className="flex-1">
+                                <Button variant="secondary" onClick={() => setShowInviteDialog(false)} className="flex-1" disabled={inviteSubmitting}>
                                     Cancel
                                 </Button>
                             </div>
@@ -308,20 +320,34 @@ export default function TeamIndex({
                                             </div>
                                         )}
                                     </div>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                                         <Button
                                             variant="secondary"
                                             size="sm"
                                             onClick={() => handleResendInvite(invite)}
+                                            disabled={inviteActionKey !== null}
+                                            className="w-full sm:w-auto"
                                         >
-                                            Resend
+                                            {inviteActionKey === `resend:${invite.id}` ? (
+                                                <>
+                                                    <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                                    Resending
+                                                </>
+                                            ) : 'Resend'}
                                         </Button>
                                         <Button
                                             variant="secondary"
                                             size="sm"
                                             onClick={() => handleRevokeInvite(invite)}
+                                            disabled={inviteActionKey !== null}
+                                            className="w-full sm:w-auto"
                                         >
-                                            Revoke
+                                            {inviteActionKey === `revoke:${invite.id}` ? (
+                                                <>
+                                                    <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                                    Revoking
+                                                </>
+                                            ) : 'Revoke'}
                                         </Button>
                                     </div>
                                 </div>
@@ -385,6 +411,7 @@ export default function TeamIndex({
                                                         className="text-sm rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 px-3 py-1.5"
                                                         onBlur={() => setEditingMember(null)}
                                                         autoFocus
+                                                        disabled={memberActionKey !== null}
                                                     >
                                                         {member.role !== 'member' && (
                                                             <option value={member.role}>
@@ -397,15 +424,21 @@ export default function TeamIndex({
                                                     <>
                                                         <button
                                                             onClick={() => setEditingMember(member)}
+                                                            disabled={memberActionKey !== null}
                                                             className="p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 transition-colors"
                                                         >
                                                             <Edit className="h-4 w-4" />
                                                         </button>
                                                         <button
                                                             onClick={() => handleRemove(member)}
+                                                            disabled={memberActionKey !== null}
                                                             className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 transition-colors"
                                                         >
-                                                            <Trash2 className="h-4 w-4" />
+                                                            {memberActionKey === `remove:${member.id}` ? (
+                                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                            ) : (
+                                                                <Trash2 className="h-4 w-4" />
+                                                            )}
                                                         </button>
                                                     </>
                                                 )}

@@ -265,16 +265,6 @@ export default function TemplatesCreate({
             onError: (errors) => {
                 console.error('Template creation errors:', errors);
                 setSubmitting(false);
-                if ((errors as any).create) {
-                    toast.error((errors as any).create);
-                } else if (Object.keys(errors).length > 0) {
-                    // Show first validation error
-                    const firstError = Object.values(errors)[0];
-                    const errorMessage = Array.isArray(firstError) ? firstError[0] : firstError;
-                    toast.error(errorMessage || 'Failed to create template. Please check the form for errors.');
-                } else {
-                    toast.error('Failed to create template. Please check the form for errors.');
-                }
             },
             onFinish: () => {
                 setSubmitting(false);
@@ -457,7 +447,17 @@ export default function TemplatesCreate({
                     </div>
                 </Alert>
 
-                <Card className="border-0 shadow-lg">
+                    {(errors as any).create && (
+                        <Alert variant="error" className="border-red-200 dark:border-red-800">
+                            <XCircle className="h-5 w-5" />
+                            <div>
+                                <h3 className="font-semibold text-red-800 dark:text-red-200 mb-1">Template Create Error</h3>
+                                <p className="text-sm text-red-600 dark:text-red-400">{(errors as any).create}</p>
+                            </div>
+                        </Alert>
+                    )}
+
+                    <Card className="border-0 shadow-lg">
                     <CardHeader>
                         <CardTitle>Local Approval Checklist</CardTitle>
                         <CardDescription>Preflight checks before submitting to Meta</CardDescription>
@@ -987,18 +987,19 @@ export default function TemplatesCreate({
                         </>
                     )}
 
-                    <div className="flex items-center justify-between pt-6">
+                    <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-6">
                         <Link
                             href={route('app.whatsapp.templates.index', { })}
+                            className="w-full sm:w-auto"
                         >
-                            <Button variant="secondary">Cancel</Button>
+                            <Button variant="secondary" className="w-full sm:w-auto">Cancel</Button>
                         </Link>
                         <Button
                             type="submit"
-                            disabled={submitting || processing}
-                            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50"
+                            disabled={submitting || processing || uploadingMedia}
+                            className="w-full sm:w-auto bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50"
                         >
-                            {submitting || processing ? 'Creating...' : 'Create Template'}
+                            {submitting || processing ? 'Creating...' : uploadingMedia ? 'Waiting for upload...' : 'Create Template'}
                         </Button>
                     </div>
                 </form>

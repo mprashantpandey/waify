@@ -1,4 +1,4 @@
-import { useForm, usePage } from '@inertiajs/react';
+import { Link, useForm, usePage } from '@inertiajs/react';
 import { FormEventHandler, useEffect, useMemo, useState } from 'react';
 import GuestLayout from '@/Layouts/GuestLayout';
 import Button from '@/Components/UI/Button';
@@ -100,11 +100,15 @@ export default function Onboarding({ plans = [], defaultPlanKey = 'free' }: { pl
         if (!plan) return 0;
         return billingCycle === 'yearly' && plan.price_yearly != null ? plan.price_yearly : plan.price_monthly;
     };
+    const selectedPlanRequiresCheckout = useMemo(() => {
+        if (!selectedPlan) return false;
+        return Number(selectedPlan.price_monthly || 0) > 0 || Number(selectedPlan.price_yearly || 0) > 0;
+    }, [selectedPlan]);
 
     const canGoStep2 = Boolean(selectedPlanKey);
 
     useEffect(() => {
-        if (step !== 2 || autoCreateStarted || autoCreateFailed || processing || !data.plan_key) {
+        if (step !== 2 || autoCreateStarted || autoCreateFailed || processing || !data.plan_key || selectedPlanRequiresCheckout) {
             return;
         }
         const timer = window.setTimeout(() => {
@@ -117,11 +121,11 @@ export default function Onboarding({ plans = [], defaultPlanKey = 'free' }: { pl
             });
         }, 300);
         return () => window.clearTimeout(timer);
-    }, [step, autoCreateStarted, autoCreateFailed, processing, data.plan_key]);
+    }, [step, autoCreateStarted, autoCreateFailed, processing, data.plan_key, selectedPlanRequiresCheckout]);
 
     return (
-        <GuestLayout maxWidthClass="max-w-6xl">
-            <div className="w-full max-w-6xl space-y-8">
+        <GuestLayout maxWidthClass="max-w-7xl">
+            <div className="w-full max-w-7xl space-y-6 sm:space-y-8">
                 <div className="text-center">
                     <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-full mb-4">
                         <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400" />
@@ -129,7 +133,7 @@ export default function Onboarding({ plans = [], defaultPlanKey = 'free' }: { pl
                             Choose Your Plan • Start Free Trial
                         </span>
                     </div>
-                    <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+                    <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
                         Welcome{authUser?.name ? `, ${authUser.name}` : ''} — Let’s Set Up Your Account
                     </h2>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
@@ -138,7 +142,7 @@ export default function Onboarding({ plans = [], defaultPlanKey = 'free' }: { pl
                 </div>
 
                 <Card>
-                    <CardContent className="p-5">
+                    <CardContent className="p-4 sm:p-5">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             {[
                                 { id: 1, title: 'Choose Plan', icon: CreditCard },
@@ -167,7 +171,7 @@ export default function Onboarding({ plans = [], defaultPlanKey = 'free' }: { pl
                                         <div className={`flex h-9 w-9 items-center justify-center rounded-full ${done ? 'bg-emerald-600' : active ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-700'}`}>
                                             {done ? <Check className="h-4 w-4 text-white" /> : <Icon className="h-4 w-4 text-white" />}
                                         </div>
-                                        <div>
+                                        <div className="min-w-0">
                                             <p className="text-xs text-gray-500 dark:text-gray-400">Step {item.id}</p>
                                             <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 break-words">{item.title}</p>
                                         </div>
@@ -199,7 +203,7 @@ export default function Onboarding({ plans = [], defaultPlanKey = 'free' }: { pl
 
                 {/* Plan Selection */}
                 {plans.length > 0 && step === 1 && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                         {plans.map((plan) => {
                             const Icon = getPlanIcon(plan.key);
                             const isSelected = selectedPlanKey === plan.key;
@@ -353,12 +357,30 @@ export default function Onboarding({ plans = [], defaultPlanKey = 'free' }: { pl
                                 </div>
                             )}
 
+                            {step === 2 && selectedPlanRequiresCheckout && (
+                                <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4 space-y-2">
+                                    <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">Checkout required for paid plans</p>
+                                    <p className="text-xs text-amber-800 dark:text-amber-200">
+                                        Complete checkout first. After successful payment, account creation will continue automatically.
+                                    </p>
+                                    <div>
+                                        <Link href={route('pricing')} className="inline-flex">
+                                            <Button type="button" size="sm">Go to Pricing & Checkout</Button>
+                                        </Link>
+                                    </div>
+                                </div>
+                            )}
+
                             <div className="flex flex-col gap-3">
                                 <div className="flex justify-between gap-3">
                                     <Button type="button" variant="secondary" onClick={() => setStep(1)}>
                                         Back to Plans
                                     </Button>
-                                    {autoCreateFailed ? (
+                                    {selectedPlanRequiresCheckout ? (
+                                        <Button type="button" className="w-full md:w-auto" disabled>
+                                            Awaiting checkout
+                                        </Button>
+                                    ) : autoCreateFailed ? (
                                         <Button type="submit" className="w-full md:w-auto" disabled={processing || !data.plan_key}>
                                             {processing ? 'Retrying...' : 'Retry Create Account'}
                                         </Button>

@@ -51,6 +51,7 @@ export default function EmbeddedWizard({
         progress: 0,
         message: 'Ready to start',
         data: {}});
+    const [autoCreateMode, setAutoCreateMode] = useState(false);
     const messageHandlerRef = useRef<((event: MessageEvent) => void) | null>(null);
     const lastTelemetryKeyRef = useRef<string>('');
     const autoCreateTriggeredRef = useRef(false);
@@ -212,8 +213,6 @@ export default function EmbeddedWizard({
                     if (extractedData.business_phone) {
                         embeddedForm.setData('business_phone', extractedData.business_phone);
                     }
-
-                    toast.success('Signup data received from Meta');
                     emitTelemetry({
                         step: 'embedded_payload_received',
                         status: 'progress',
@@ -290,6 +289,8 @@ export default function EmbeddedWizard({
             progress: 10,
             message: 'Starting Meta authorization...',
             data: {}});
+        setAutoCreateMode(false);
+        autoCreateTriggeredRef.current = false;
         emitTelemetry({ step: 'authorization_start', status: 'started', message: 'Started Meta OAuth flow' });
 
         embeddedForm.setData('redirect_uri', oauthRedirectUri);
@@ -325,7 +326,6 @@ export default function EmbeddedWizard({
                     }
 
                     if (code || accessToken) {
-                        toast.success('Authorization successful');
                         emitTelemetry({
                             step: 'authorization_success',
                             status: 'success',
@@ -369,6 +369,8 @@ export default function EmbeddedWizard({
             embeddedForm.setData('name', 'WhatsApp Connection');
         }
 
+        setAutoCreateMode(mode === 'auto');
+
         setWizardState(prev => ({
             ...prev,
             step: 'complete',
@@ -377,6 +379,7 @@ export default function EmbeddedWizard({
 
         embeddedForm.post(route('app.whatsapp.connections.store-embedded', {}), {
             onSuccess: () => {
+                setAutoCreateMode(false);
                 setWizardState(prev => ({
                     ...prev,
                     step: 'complete',
@@ -389,6 +392,7 @@ export default function EmbeddedWizard({
                     ...prev,
                     step: 'error',
                     error: (errors as any)?.embedded || 'Failed to create connection'}));
+                setAutoCreateMode(false);
                 if (mode === 'auto') {
                     autoCreateTriggeredRef.current = false;
                 }
@@ -493,6 +497,21 @@ export default function EmbeddedWizard({
                                 <div>
                                     <p className="font-semibold text-red-800 dark:text-red-200 mb-1">Error</p>
                                     <p className="text-sm text-red-600 dark:text-red-400">{wizardState.error}</p>
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        <Button type="button" size="sm" variant="secondary" onClick={startWizard}>
+                                            Retry Authorization
+                                        </Button>
+                                        {(embeddedForm.data.code || embeddedForm.data.access_token) && (
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                onClick={() => createConnection('manual')}
+                                                disabled={embeddedForm.processing}
+                                            >
+                                                Retry Connection Create
+                                            </Button>
+                                        )}
+                                    </div>
                                 </div>
                             </Alert>
                         )}
@@ -695,11 +714,16 @@ export default function EmbeddedWizard({
                                 </div>
 
                                 <InputError message={(embeddedForm.errors as any)?.embedded} className="mt-2" />
+                                {autoCreateMode && (
+                                    <Alert variant="info">
+                                        Auto-create is running. Please wait while we complete connection setup.
+                                    </Alert>
+                                )}
 
                                 <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                                     <Button
                                         type="submit"
-                                        disabled={embeddedForm.processing || !embeddedForm.data.code && !embeddedForm.data.access_token}
+                                        disabled={autoCreateMode || embeddedForm.processing || !embeddedForm.data.code && !embeddedForm.data.access_token}
                                         className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 shadow-lg shadow-emerald-500/40 rounded-xl"
                                     >
                                         {embeddedForm.processing ? (

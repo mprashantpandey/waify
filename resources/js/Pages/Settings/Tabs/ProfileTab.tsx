@@ -4,14 +4,12 @@ import Button from '@/Components/UI/Button';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
-import { User, Save, Mail, CheckCircle2, Phone, ShieldCheck } from 'lucide-react';
+import { User, Save, Mail, Phone, ShieldCheck } from 'lucide-react';
 import { usePage } from '@inertiajs/react';
-import { Transition } from '@headlessui/react';
 import { Alert } from '@/Components/UI/Alert';
-import { useNotifications } from '@/hooks/useNotifications';
+import { useState } from 'react';
 
 export default function ProfileTab() {
-    const { toast } = useNotifications();
     const pageProps = usePage().props as any;
     const { auth, account } = pageProps;
     const user = auth?.user;
@@ -21,7 +19,7 @@ export default function ProfileTab() {
     const phoneVerified = Boolean(user?.phone_verified_at);
     const originalPhone = String(user?.phone || '');
 
-    const { data, setData, patch, processing, errors, reset, recentlySuccessful } = useForm({
+    const { data, setData, patch, processing, errors, reset } = useForm({
         name: user?.name || '',
         email: user?.email || '',
         phone: user?.phone || '',
@@ -29,6 +27,8 @@ export default function ProfileTab() {
     const otpForm = useForm({
         otp_code: '',
     });
+    const [sendingOtp, setSendingOtp] = useState(false);
+    const [resendingVerification, setResendingVerification] = useState(false);
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -41,7 +41,9 @@ export default function ProfileTab() {
     const sendOtp = () => {
         router.post(route('app.settings.security.phone.send-code'), {}, {
             preserveScroll: true,
-            onError: () => toast.error('Failed to send verification code'),
+            onStart: () => setSendingOtp(true),
+            onError: () => {},
+            onFinish: () => setSendingOtp(false),
         });
     };
 
@@ -52,16 +54,16 @@ export default function ProfileTab() {
             onSuccess: () => {
                 otpForm.reset('otp_code');
             },
-            onError: () => {
-                toast.error('Failed to verify code');
-            },
+            onError: () => {},
         });
     };
 
     const resendEmailVerification = () => {
         router.post(route('app.settings.security.resend-verification'), {}, {
             preserveScroll: true,
-            onError: () => toast.error('Failed to send verification email'),
+            onStart: () => setResendingVerification(true),
+            onError: () => {},
+            onFinish: () => setResendingVerification(false),
         });
     };
 
@@ -104,7 +106,7 @@ export default function ProfileTab() {
                         {!emailVerified && mustVerifyEmail && (
                             <div className="flex flex-wrap gap-3">
                                 <Button type="button" variant="secondary" onClick={resendEmailVerification}>
-                                    Resend Verification Email
+                                    {resendingVerification ? 'Sending...' : 'Resend Verification Email'}
                                 </Button>
                                 <p className="text-xs text-gray-500 dark:text-gray-400 self-center">
                                     Check inbox/spam for the verification link.
@@ -141,9 +143,9 @@ export default function ProfileTab() {
                                         type="button"
                                         variant="secondary"
                                         onClick={sendOtp}
-                                        disabled={processing || !canRequestOtp}
+                                        disabled={processing || sendingOtp || otpForm.processing || !canRequestOtp}
                                     >
-                                        Send Verification Code
+                                        {sendingOtp ? 'Sending...' : 'Send Verification Code'}
                                     </Button>
                                     <div className="flex-1">
                                         <TextInput
@@ -233,18 +235,6 @@ export default function ProfileTab() {
                                     </>
                                 )}
                             </Button>
-                            <Transition
-                                show={recentlySuccessful}
-                                enter="transition ease-in-out"
-                                enterFrom="opacity-0"
-                                leave="transition ease-in-out"
-                                leaveTo="opacity-0"
-                            >
-                                <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
-                                    <CheckCircle2 className="h-4 w-4" />
-                                    Saved successfully
-                                </div>
-                            </Transition>
                         </div>
                     </form>
                 </CardContent>

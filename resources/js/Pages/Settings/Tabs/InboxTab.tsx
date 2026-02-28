@@ -2,13 +2,12 @@ import { useForm, usePage } from '@inertiajs/react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
 import Button from '@/Components/UI/Button';
 import InputError from '@/Components/InputError';
-import { Inbox, Sparkles, CheckCircle2 } from 'lucide-react';
-import { Transition } from '@headlessui/react';
+import { Inbox, Sparkles } from 'lucide-react';
 
 export default function InboxTab() {
     const { account } = usePage().props as any;
 
-    const { data, setData, post, processing, errors, recentlySuccessful } = useForm({
+    const { data, setData, post, processing, errors } = useForm({
         auto_assign_enabled: Boolean(account?.auto_assign_enabled),
         auto_assign_strategy: account?.auto_assign_strategy || 'round_robin',
     });
@@ -105,18 +104,6 @@ export default function InboxTab() {
                             >
                                 {processing ? 'Saving...' : 'Save Settings'}
                             </Button>
-                            <Transition
-                                show={recentlySuccessful}
-                                enter="transition ease-in-out"
-                                enterFrom="opacity-0"
-                                leave="transition ease-in-out"
-                                leaveTo="opacity-0"
-                            >
-                                <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
-                                    <CheckCircle2 className="h-4 w-4" />
-                                    Saved successfully
-                                </div>
-                            </Transition>
                         </div>
                     </form>
                 </CardContent>
