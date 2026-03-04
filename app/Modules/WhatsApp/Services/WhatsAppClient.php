@@ -4,6 +4,7 @@ namespace App\Modules\WhatsApp\Services;
 
 use App\Modules\WhatsApp\Exceptions\WhatsAppApiException;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -11,6 +12,10 @@ use Illuminate\Support\Facades\Log;
 class WhatsAppClient
 {
     protected string $baseUrl;
+    protected int $connectTimeout = 10;
+    protected int $requestTimeout = 30;
+    protected int $requestRetries = 2;
+    protected int $retryDelayMs = 250;
 
     public function __construct()
     {
@@ -57,6 +62,18 @@ class WhatsAppClient
         }
     }
 
+    protected function metaRequest(): PendingRequest
+    {
+        return Http::connectTimeout($this->connectTimeout)
+            ->timeout($this->requestTimeout)
+            ->retry($this->requestRetries, $this->retryDelayMs, throw: false);
+    }
+
+    protected function metaRequestWithToken(string $token): PendingRequest
+    {
+        return $this->metaRequest()->withToken($token);
+    }
+
     /**
      * Send a text message via WhatsApp Cloud API.
      */
@@ -86,7 +103,7 @@ class WhatsAppClient
             // Check rate limit before making API call
             $this->checkRateLimit($connection);
 
-            $response = Http::withToken($connection->access_token)
+            $response = $this->metaRequestWithToken($connection->access_token)
                 ->post($url, $payload);
 
             $responseData = $response->json();
@@ -177,7 +194,7 @@ class WhatsAppClient
             // Check rate limit before making API call
             $this->checkRateLimit($connection);
 
-            $response = Http::withToken($connection->access_token)
+            $response = $this->metaRequestWithToken($connection->access_token)
                 ->post($url, $payload);
 
             $responseData = $response->json();
@@ -286,7 +303,7 @@ class WhatsAppClient
     protected function uploadMediaFromLink(WhatsAppConnection $connection, string $mediaLink, string $paramType): string
     {
         $version = $connection->api_version ?: config('whatsapp.meta.api_version', 'v21.0');
-        $fetchResponse = Http::timeout(30)->get($mediaLink);
+        $fetchResponse = $this->metaRequest()->get($mediaLink);
         if (!$fetchResponse->successful()) {
             throw new \RuntimeException('Could not download media URL (HTTP '.$fetchResponse->status().')');
         }
@@ -318,7 +335,7 @@ class WhatsAppClient
         $filename = 'tpl_header_'.substr(sha1($mediaLink), 0, 10).'.'.$extension;
 
         $uploadUrl = sprintf('%s/%s/%s/media', $this->baseUrl, $version, $connection->phone_number_id);
-        $uploadResponse = Http::withToken($connection->access_token)
+        $uploadResponse = $this->metaRequestWithToken($connection->access_token)
             ->attach('file', $contents, $filename, ['Content-Type' => $mimeType])
             ->post($uploadUrl, ['messaging_product' => 'whatsapp']);
 
@@ -368,7 +385,7 @@ class WhatsAppClient
             $this->assertConnectionReady($connection);
             $this->checkRateLimit($connection);
 
-            $response = Http::withToken($connection->access_token)
+            $response = $this->metaRequestWithToken($connection->access_token)
                 ->post($url, $payload);
 
             $responseData = $response->json();
@@ -444,7 +461,7 @@ class WhatsAppClient
             $this->assertConnectionReady($connection);
             $this->checkRateLimit($connection);
 
-            $response = Http::withToken($connection->access_token)
+            $response = $this->metaRequestWithToken($connection->access_token)
                 ->post($url, $payload);
 
             $responseData = $response->json();
@@ -538,7 +555,7 @@ class WhatsAppClient
             $this->assertConnectionReady($connection);
             $this->checkRateLimit($connection);
 
-            $response = Http::withToken($connection->access_token)
+            $response = $this->metaRequestWithToken($connection->access_token)
                 ->post($url, $payload);
 
             $responseData = $response->json();
@@ -645,7 +662,7 @@ class WhatsAppClient
         try {
             $this->checkRateLimit($connection);
 
-            $response = Http::withToken($connection->access_token)
+            $response = $this->metaRequestWithToken($connection->access_token)
                 ->post($url, $payload);
 
             $responseData = $response->json();

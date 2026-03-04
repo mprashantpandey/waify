@@ -2,6 +2,7 @@
 
 namespace App\Modules\WhatsApp\Services;
 
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -9,11 +10,27 @@ class MetaGraphService
 {
     protected string $baseUrl;
     protected string $apiVersion;
+    protected int $connectTimeout = 10;
+    protected int $requestTimeout = 30;
+    protected int $requestRetries = 2;
+    protected int $retryDelayMs = 250;
 
     public function __construct()
     {
         $this->baseUrl = rtrim(config('whatsapp.meta.base_url', 'https://graph.facebook.com'), '/');
         $this->apiVersion = config('whatsapp.meta.api_version', 'v21.0');
+    }
+
+    private function graphRequest(): PendingRequest
+    {
+        return Http::connectTimeout($this->connectTimeout)
+            ->timeout($this->requestTimeout)
+            ->retry($this->requestRetries, $this->retryDelayMs, throw: false);
+    }
+
+    private function graphRequestWithToken(string $token): PendingRequest
+    {
+        return $this->graphRequest()->withToken($token);
     }
 
     public function exchangeCodeForToken(string $code, string $redirectUri): array
@@ -24,7 +41,7 @@ class MetaGraphService
             throw new \RuntimeException('Meta App ID/Secret not configured.');
         }
 
-        $response = Http::get("{$this->baseUrl}/{$this->apiVersion}/oauth/access_token", [
+        $response = $this->graphRequest()->get("{$this->baseUrl}/{$this->apiVersion}/oauth/access_token", [
             'client_id' => $appId,
             'client_secret' => $appSecret,
             'redirect_uri' => $redirectUri,
@@ -55,7 +72,7 @@ class MetaGraphService
             return null;
         }
 
-        $response = Http::get("{$this->baseUrl}/{$this->apiVersion}/oauth/access_token", [
+        $response = $this->graphRequest()->get("{$this->baseUrl}/{$this->apiVersion}/oauth/access_token", [
             'grant_type' => 'fb_exchange_token',
             'client_id' => $appId,
             'client_secret' => $appSecret,
@@ -78,7 +95,7 @@ class MetaGraphService
     {
         $effectiveToken = $accessToken ?: config('whatsapp.meta.system_user_token') ?: $inputToken;
 
-        $response = Http::get("{$this->baseUrl}/{$this->apiVersion}/debug_token", [
+        $response = $this->graphRequest()->get("{$this->baseUrl}/{$this->apiVersion}/debug_token", [
             'input_token' => $inputToken,
             'access_token' => $effectiveToken]);
 
@@ -95,7 +112,7 @@ class MetaGraphService
 
     public function subscribeAppToWaba(string $wabaId, string $accessToken): array
     {
-        $response = Http::withToken($accessToken)
+        $response = $this->graphRequestWithToken($accessToken)
             ->post("{$this->baseUrl}/{$this->apiVersion}/{$wabaId}/subscribed_apps");
 
         $data = $response->json();
@@ -112,7 +129,7 @@ class MetaGraphService
 
     public function listPhoneNumbers(string $wabaId, string $accessToken): array
     {
-        $response = Http::withToken($accessToken)
+        $response = $this->graphRequestWithToken($accessToken)
             ->get("{$this->baseUrl}/{$this->apiVersion}/{$wabaId}/phone_numbers", [
                 'fields' => 'id,display_phone_number,verified_name,quality_rating,messaging_limit_tier,code_verification_status',
             ]);
@@ -131,7 +148,7 @@ class MetaGraphService
 
     public function registerPhoneNumber(string $phoneNumberId, string $pin, string $accessToken): array
     {
-        $response = Http::withToken($accessToken)
+        $response = $this->graphRequestWithToken($accessToken)
             ->post("{$this->baseUrl}/{$this->apiVersion}/{$phoneNumberId}/register", [
                 'messaging_product' => 'whatsapp',
                 'pin' => $pin]);
@@ -150,7 +167,7 @@ class MetaGraphService
 
     public function getPhoneNumberDetails(string $phoneNumberId, string $accessToken): array
     {
-        $response = Http::withToken($accessToken)
+        $response = $this->graphRequestWithToken($accessToken)
             ->get("{$this->baseUrl}/{$this->apiVersion}/{$phoneNumberId}", [
                 'fields' => 'display_phone_number,verified_name,quality_rating,messaging_limit_tier,code_verification_status,name_status,new_name_status']);
 
@@ -168,7 +185,7 @@ class MetaGraphService
 
     public function getWabaDetails(string $wabaId, string $accessToken): array
     {
-        $response = Http::withToken($accessToken)
+        $response = $this->graphRequestWithToken($accessToken)
             ->get("{$this->baseUrl}/{$this->apiVersion}/{$wabaId}", [
                 'fields' => 'id,name,currency,timezone_id,account_review_status,business_verification_status',
             ]);
