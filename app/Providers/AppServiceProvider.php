@@ -15,6 +15,7 @@ use Illuminate\Mail\Events\MessageSent;
 use Illuminate\Notifications\Events\NotificationFailed;
 use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Queue;
@@ -92,6 +93,44 @@ class AppServiceProvider extends ServiceProvider
                     } catch (\Throwable $exception) {
                         \Log::warning('Failed to apply platform config before queued job', [
                             'job' => $event->job?->resolveName(),
+                            'error' => $exception->getMessage(),
+                        ]);
+                    }
+                });
+
+                Queue::failing(function (JobFailed $event) {
+                    try {
+                        $enabled = filter_var(
+                            \App\Models\PlatformSetting::get('alerts.queue_failure_enabled', true),
+                            FILTER_VALIDATE_BOOLEAN,
+                            FILTER_NULL_ON_FAILURE
+                        );
+                        if ($enabled === false) {
+                            return;
+                        }
+
+                        $job = $event->job;
+                        $jobName = $job?->resolveName() ?? 'unknown-job';
+                        $queueName = method_exists($job, 'getQueue') ? $job->getQueue() : null;
+                        $attempts = method_exists($job, 'attempts') ? $job->attempts() : null;
+
+                        /** @var \App\Services\OperationalAlertService $alerts */
+                        $alerts = app(\App\Services\OperationalAlertService::class);
+                        $alerts->send(
+                            eventKey: 'queue.job_failed',
+                            title: 'Queue job failed',
+                            severity: 'critical',
+                            context: [
+                                'scope' => ($queueName ?: 'default').':'.$jobName,
+                                'connection' => $event->connectionName,
+                                'queue' => $queueName,
+                                'job' => $jobName,
+                                'attempts' => $attempts,
+                                'error' => $event->exception->getMessage(),
+                            ]
+                        );
+                    } catch (\Throwable $exception) {
+                        \Log::warning('Failed to dispatch queue failure operational alert', [
                             'error' => $exception->getMessage(),
                         ]);
                     }
