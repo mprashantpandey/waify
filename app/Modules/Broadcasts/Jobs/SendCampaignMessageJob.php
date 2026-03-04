@@ -25,7 +25,7 @@ class SendCampaignMessageJob implements ShouldQueue
     /**
      * The number of seconds to wait before retrying the job.
      */
-    public $backoff = 60;
+    public array $backoff = [10, 30, 90];
     public $timeout = 120;
 
     protected int $batchSize = 20;
@@ -135,5 +135,13 @@ class SendCampaignMessageJob implements ShouldQueue
         } finally {
             $lock->release();
         }
+    }
+
+    public function failed(\Throwable $e): void
+    {
+        Log::error('SendCampaignMessageJob failed', [
+            'campaign_id' => $this->campaignId,
+            'error' => $e->getMessage(),
+        ]);
     }
 }

@@ -15,12 +15,19 @@ class SendScheduledCampaignJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public int $tries = 5;
+
+    public int $timeout = 120;
+
+    public array $backoff = [10, 30, 90, 180];
+
     /**
      * Create a new job instance.
      */
     public function __construct(
         public int $campaignId
     ) {
+        $this->onQueue('campaigns');
     }
 
     /**
@@ -45,5 +52,12 @@ class SendScheduledCampaignJob implements ShouldQueue
         // Start the campaign
         $campaignService->startCampaign($campaign);
     }
-}
 
+    public function failed(\Throwable $e): void
+    {
+        Log::error('SendScheduledCampaignJob failed', [
+            'campaign_id' => $this->campaignId,
+            'error' => $e->getMessage(),
+        ]);
+    }
+}
