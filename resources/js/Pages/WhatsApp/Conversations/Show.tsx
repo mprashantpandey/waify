@@ -288,6 +288,11 @@ export default function ConversationsShow({
     const [aiSuggestLoading, setAiSuggestLoading] = useState(false);
     const [showButtons, setShowButtons] = useState(false);
     const [showLocation, setShowLocation] = useState(false);
+    const [textSending, setTextSending] = useState(false);
+    const [listSending, setListSending] = useState(false);
+    const [buttonsSending, setButtonsSending] = useState(false);
+    const [locationSending, setLocationSending] = useState(false);
+    const [attachmentsSending, setAttachmentsSending] = useState(false);
     const [lastAiSuggestion, setLastAiSuggestion] = useState<string | null>(null);
     const [aiFeedbackSending, setAiFeedbackSending] = useState<null | 'up' | 'down'>(null);
     const [aiFeedbackSent, setAiFeedbackSent] = useState<null | 'up' | 'down'>(null);
@@ -499,12 +504,14 @@ export default function ConversationsShow({
     };
 
     const sendList = useCallback(async () => {
+        if (listSending) return;
         if (!selectedList) {
             addToast({ title: 'List needed', description: 'Please select a list to send.', variant: 'warning' });
             return;
         }
 
         try {
+            setListSending(true);
             const response = await axios.post(
                 route('app.whatsapp.conversations.send-list', {
                     conversation: conversation.id}),
@@ -523,10 +530,13 @@ export default function ConversationsShow({
                 title: 'Failed to send list',
                 description: error?.response?.data?.message || 'Please try again',
                 variant: 'error'});
+        } finally {
+            setListSending(false);
         }
-    }, [addToast, conversation.id, selectedList, account.slug]);
+    }, [addToast, conversation.id, selectedList, account.slug, listSending]);
 
     const sendInteractiveButtons = useCallback(async () => {
+        if (buttonsSending) return;
         const validButtons = interactiveButtons.filter((btn) => btn.id.trim() && btn.text.trim());
         if (validButtons.length === 0) {
             addToast({ title: 'Buttons needed', description: 'Please add at least one button.', variant: 'warning' });
@@ -538,6 +548,7 @@ export default function ConversationsShow({
         }
 
         try {
+            setButtonsSending(true);
             const response = await axios.post(
                 route('app.whatsapp.conversations.send-buttons', {
                     conversation: conversation.id}),
@@ -562,8 +573,10 @@ export default function ConversationsShow({
                 title: 'Failed to send buttons',
                 description: error?.response?.data?.message || 'Please try again',
                 variant: 'error'});
+        } finally {
+            setButtonsSending(false);
         }
-    }, [addToast, conversation.id, interactiveButtons, buttonBodyText, buttonHeaderText, buttonFooterText, account.slug]);
+    }, [addToast, conversation.id, interactiveButtons, buttonBodyText, buttonHeaderText, buttonFooterText, account.slug, buttonsSending]);
 
     const addButton = () => {
         if (interactiveButtons.length >= 3) {
@@ -589,6 +602,7 @@ export default function ConversationsShow({
     };
 
     const sendLocation = useCallback(async () => {
+        if (locationSending) return;
         const { label, lat, lng } = locationInput;
         if (!lat || !lng) {
             addToast({ title: 'Location needed', description: 'Add latitude and longitude.', variant: 'warning' });
@@ -596,6 +610,7 @@ export default function ConversationsShow({
         }
 
         try {
+            setLocationSending(true);
             const response = await axios.post(
                 route('app.whatsapp.conversations.send-location', {
                     conversation: conversation.id}),
@@ -618,52 +633,60 @@ export default function ConversationsShow({
                 title: 'Failed to send location',
                 description: error?.response?.data?.message || 'Please try again',
                 variant: 'error'});
+        } finally {
+            setLocationSending(false);
         }
-    }, [addToast, conversation.id, locationInput, account.slug]);
+    }, [addToast, conversation.id, locationInput, account.slug, locationSending]);
 
     const sendAttachments = useCallback(async (caption?: string) => {
+        if (attachmentsSending) return;
         if (attachments.length === 0) return;
 
-        for (let i = 0; i < attachments.length; i += 1) {
-            const file = attachments[i];
-            const fileType = file.type.startsWith('image/')
-                ? 'image'
-                : file.type.startsWith('video/')
-                ? 'video'
-                : 'document';
+        try {
+            setAttachmentsSending(true);
+            for (let i = 0; i < attachments.length; i += 1) {
+                const file = attachments[i];
+                const fileType = file.type.startsWith('image/')
+                    ? 'image'
+                    : file.type.startsWith('video/')
+                    ? 'video'
+                    : 'document';
 
-            const formData = new FormData();
-            formData.append('type', fileType);
-            formData.append('attachment', file);
-            if (caption && i === 0) {
-                formData.append('caption', caption);
-            }
-            formData.append('client_request_id', createClientRequestId('media'));
-
-            try {
-                const response = await axios.post(
-                    route('app.whatsapp.conversations.send-media', {
-                        conversation: conversation.id}),
-                    formData,
-                    {
-                        headers: { 'Content-Type': 'multipart/form-data' }}
-                );
-                const message = response?.data?.message;
-                if (typeof message === 'string' && message.toLowerCase().includes('duplicate')) {
-                    addToast({ title: 'Duplicate ignored', description: message, variant: 'info' });
+                const formData = new FormData();
+                formData.append('type', fileType);
+                formData.append('attachment', file);
+                if (caption && i === 0) {
+                    formData.append('caption', caption);
                 }
-            } catch (error: any) {
-                addToast({
-                    title: 'Failed to send attachment',
-                    description: error?.response?.data?.message || 'Please try again',
-                    variant: 'error'});
-                return;
-            }
-        }
+                formData.append('client_request_id', createClientRequestId('media'));
 
-        addToast({ title: 'Attachments sent', variant: 'success' });
-        setAttachments([]);
-    }, [addToast, attachments, conversation.id, account.slug]);
+                try {
+                    const response = await axios.post(
+                        route('app.whatsapp.conversations.send-media', {
+                            conversation: conversation.id}),
+                        formData,
+                        {
+                            headers: { 'Content-Type': 'multipart/form-data' }}
+                    );
+                    const message = response?.data?.message;
+                    if (typeof message === 'string' && message.toLowerCase().includes('duplicate')) {
+                        addToast({ title: 'Duplicate ignored', description: message, variant: 'info' });
+                    }
+                } catch (error: any) {
+                    addToast({
+                        title: 'Failed to send attachment',
+                        description: error?.response?.data?.message || 'Please try again',
+                        variant: 'error'});
+                    return;
+                }
+            }
+
+            addToast({ title: 'Attachments sent', variant: 'success' });
+            setAttachments([]);
+        } finally {
+            setAttachmentsSending(false);
+        }
+    }, [addToast, attachments, conversation.id, account.slug, attachmentsSending]);
 
     const sendTemplate = useCallback(async () => {
         if (!selectedTemplate || templateSending) return;
@@ -1105,7 +1128,7 @@ export default function ConversationsShow({
     }, [connected, account?.id, conversation?.id, addToast, initialSyncPending, initialTotalMessages, recoverHistory]);
 
     const handleSend = useCallback(async () => {
-        if (processing) return;
+        if (processing || textSending || attachmentsSending) return;
 
         const trimmed = data.message.trim();
 
@@ -1117,6 +1140,7 @@ export default function ConversationsShow({
 
         if (!trimmed) return;
         try {
+            setTextSending(true);
             await axios.post(
                 route('app.whatsapp.conversations.send', {
                     conversation: conversation.id}),
@@ -1142,8 +1166,10 @@ export default function ConversationsShow({
                     templateSection?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 }, 300);
             }
+        } finally {
+            setTextSending(false);
         }
-    }, [processing, data.message, attachments.length, sendAttachments, account.slug, conversation.id, reset, addToast]);
+    }, [processing, textSending, attachmentsSending, data.message, attachments.length, sendAttachments, account.slug, conversation.id, reset, addToast]);
 
     const submitNote = async () => {
         const trimmed = noteDraft.trim();
@@ -1312,6 +1338,25 @@ export default function ConversationsShow({
             default:
                 return null;
         }
+    };
+
+    const getDeliveryLatencyLabel = (message: Message): string | null => {
+        if (message.direction !== 'outbound' || !message.sent_at) return null;
+
+        const sentTs = new Date(message.sent_at).getTime();
+        const deliveredTs = message.delivered_at ? new Date(message.delivered_at).getTime() : null;
+        const readTs = message.read_at ? new Date(message.read_at).getTime() : null;
+        const targetTs = readTs ?? deliveredTs;
+        if (!targetTs || Number.isNaN(sentTs) || Number.isNaN(targetTs) || targetTs < sentTs) {
+            return null;
+        }
+
+        const seconds = Math.max(0, Math.round((targetTs - sentTs) / 1000));
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        const duration = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+
+        return readTs ? `Read in ${duration}` : `Delivered in ${duration}`;
     };
 
     const renderMessageBody = (message: Message) => {
@@ -1563,6 +1608,11 @@ export default function ConversationsShow({
                                                     {message.direction === 'outbound' && getStatusLabel(message) && (
                                                         <span className="text-[11px] text-gray-500 dark:text-gray-400">
                                                             {getStatusLabel(message)}
+                                                        </span>
+                                                    )}
+                                                    {message.direction === 'outbound' && getDeliveryLatencyLabel(message) && (
+                                                        <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                                                            {getDeliveryLatencyLabel(message)}
                                                         </span>
                                                     )}
                                                     <span className={cn(
@@ -1899,27 +1949,30 @@ export default function ConversationsShow({
                                         value={locationInput.label}
                                         onChange={(e) => setLocationInput((prev) => ({ ...prev, label: e.target.value }))}
                                         placeholder="Label (optional)"
+                                        disabled={locationSending}
                                         className="rounded-xl"
                                     />
                                     <TextInput
                                         value={locationInput.lat}
                                         onChange={(e) => setLocationInput((prev) => ({ ...prev, lat: e.target.value }))}
                                         placeholder="Latitude"
+                                        disabled={locationSending}
                                         className="rounded-xl"
                                     />
                                     <TextInput
                                         value={locationInput.lng}
                                         onChange={(e) => setLocationInput((prev) => ({ ...prev, lng: e.target.value }))}
                                         placeholder="Longitude"
+                                        disabled={locationSending}
                                         className="rounded-xl"
                                     />
                                 </div>
                                 <div className="mt-3 flex justify-end gap-2">
-                                    <Button type="button" variant="secondary" onClick={() => setShowLocation(false)}>
+                                    <Button type="button" variant="secondary" onClick={() => setShowLocation(false)} disabled={locationSending}>
                                         Cancel
                                     </Button>
-                                    <Button type="button" onClick={sendLocation} className="bg-[#25D366] hover:bg-[#1DAA57] text-white">
-                                        Send Location
+                                    <Button type="button" onClick={sendLocation} disabled={locationSending} className="bg-[#25D366] hover:bg-[#1DAA57] text-white">
+                                        {locationSending ? 'Sending...' : 'Send Location'}
                                     </Button>
                                 </div>
                             </div>
@@ -2117,6 +2170,7 @@ export default function ConversationsShow({
                                             key={list.id}
                                             type="button"
                                             onClick={() => setSelectedList(list)}
+                                            disabled={listSending}
                                             className={cn(
                                                 'w-full rounded-xl border px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700',
                                                 selectedList?.id === list.id
@@ -2141,6 +2195,7 @@ export default function ConversationsShow({
                                             <Button
                                                 type="button"
                                                 variant="secondary"
+                                                disabled={listSending}
                                                 onClick={() => {
                                                     setSelectedList(null);
                                                 }}
@@ -2150,9 +2205,10 @@ export default function ConversationsShow({
                                             <Button
                                                 type="button"
                                                 onClick={sendList}
+                                                disabled={listSending}
                                                 className="bg-[#25D366] hover:bg-[#1DAA57] text-white"
                                             >
-                                                Send List
+                                                {listSending ? 'Sending...' : 'Send List'}
                                             </Button>
                                         </div>
                                     </div>
@@ -2173,6 +2229,7 @@ export default function ConversationsShow({
                                             placeholder="Enter message body text"
                                             maxLength={1024}
                                             rows={3}
+                                            disabled={buttonsSending}
                                             className="rounded-xl"
                                         />
                                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -2189,6 +2246,7 @@ export default function ConversationsShow({
                                             onChange={(e) => setButtonHeaderText(e.target.value)}
                                             placeholder="Optional header text"
                                             maxLength={60}
+                                            disabled={buttonsSending}
                                             className="rounded-xl"
                                         />
                                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -2205,6 +2263,7 @@ export default function ConversationsShow({
                                             onChange={(e) => setButtonFooterText(e.target.value)}
                                             placeholder="Optional footer text"
                                             maxLength={60}
+                                            disabled={buttonsSending}
                                             className="rounded-xl"
                                         />
                                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -2223,6 +2282,7 @@ export default function ConversationsShow({
                                                     onClick={addButton}
                                                     variant="secondary"
                                                     size="sm"
+                                                    disabled={buttonsSending}
                                                 >
                                                     <Plus className="h-3 w-3 mr-1" />
                                                     Add Button
@@ -2240,6 +2300,7 @@ export default function ConversationsShow({
                                                         onChange={(e) => updateButton(index, 'id', e.target.value)}
                                                         placeholder="Button ID (unique)"
                                                         maxLength={256}
+                                                        disabled={buttonsSending}
                                                         className="flex-1 text-sm rounded-lg"
                                                     />
                                                     <TextInput
@@ -2247,6 +2308,7 @@ export default function ConversationsShow({
                                                         onChange={(e) => updateButton(index, 'text', e.target.value)}
                                                         placeholder="Button text (max 20)"
                                                         maxLength={20}
+                                                        disabled={buttonsSending}
                                                         className="flex-1 text-sm rounded-lg"
                                                     />
                                                     {interactiveButtons.length > 1 && (
@@ -2255,6 +2317,7 @@ export default function ConversationsShow({
                                                             onClick={() => removeButton(index)}
                                                             variant="ghost"
                                                             size="sm"
+                                                            disabled={buttonsSending}
                                                         >
                                                             <X className="h-3 w-3 text-red-500" />
                                                         </Button>
@@ -2268,6 +2331,7 @@ export default function ConversationsShow({
                                         <Button
                                             type="button"
                                             variant="secondary"
+                                            disabled={buttonsSending}
                                             onClick={() => {
                                                 setShowButtons(false);
                                                 setInteractiveButtons([{ id: '', text: '' }]);
@@ -2281,9 +2345,10 @@ export default function ConversationsShow({
                                         <Button
                                             type="button"
                                             onClick={sendInteractiveButtons}
+                                            disabled={buttonsSending}
                                             className="bg-[#25D366] hover:bg-[#1DAA57] text-white"
                                         >
-                                            Send Buttons
+                                            {buttonsSending ? 'Sending...' : 'Send Buttons'}
                                         </Button>
                                     </div>
                                 </div>
@@ -2298,7 +2363,7 @@ export default function ConversationsShow({
                                         className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs text-gray-600 shadow-sm dark:bg-gray-800 dark:text-gray-300"
                                     >
                                         <span className="truncate max-w-[160px]">{file.name}</span>
-                                        <button type="button" onClick={() => removeAttachment(index)} className="text-gray-400 hover:text-gray-600" aria-label={`Remove ${file.name}`}>
+                                        <button type="button" onClick={() => removeAttachment(index)} disabled={attachmentsSending} className="text-gray-400 hover:text-gray-600 disabled:opacity-50" aria-label={`Remove ${file.name}`}>
                                             <X className="h-3.5 w-3.5" aria-hidden />
                                         </button>
                                     </div>
@@ -2312,7 +2377,7 @@ export default function ConversationsShow({
                                 onChange={(e) => setData('message', e.target.value)}
                                 placeholder="Type a message"
                                 className="flex-1 rounded-full bg-white dark:bg-gray-800"
-                                disabled={processing}
+                                disabled={processing || textSending || attachmentsSending}
                                 autoFocus
                                 aria-label="Message input"
                             />
@@ -2321,7 +2386,7 @@ export default function ConversationsShow({
                                     <Button
                                         type="button"
                                         onClick={handleAiSuggest}
-                                        disabled={processing || aiSuggestLoading || !canUseAiSuggest}
+                                        disabled={processing || textSending || attachmentsSending || aiSuggestLoading || !canUseAiSuggest}
                                         aria-label="Get AI reply suggestion"
                                         title={
                                             !aiSuggestionsEnabled
@@ -2375,7 +2440,7 @@ export default function ConversationsShow({
                             )}
                             <Button
                                 type="submit"
-                                disabled={processing || (!data.message.trim() && attachments.length === 0)}
+                                disabled={processing || textSending || attachmentsSending || (!data.message.trim() && attachments.length === 0)}
                                 aria-label="Send message"
                                 className="bg-[#25D366] hover:bg-[#1DAA57] text-white rounded-full px-5"
                             >
