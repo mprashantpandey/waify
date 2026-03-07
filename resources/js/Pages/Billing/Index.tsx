@@ -205,7 +205,7 @@ export default function BillingIndex({
                             )}
                             <Link href={route('app.billing.plans', {})}>
                                 <Button variant="secondary" size="sm" className="rounded-xl">
-                                    Update Payment
+                                    Renew Subscription
                                 </Button>
                             </Link>
                         </div>
@@ -301,6 +301,13 @@ export default function BillingIndex({
                                     </div>
                                 )}
                                 <div className="flex items-center gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                                    {subscription?.status === 'past_due' ? (
+                                        <Link href={route('app.billing.plans', {})}>
+                                            <Button className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-lg shadow-amber-500/40 rounded-xl">
+                                                Renew Now
+                                            </Button>
+                                        </Link>
+                                    ) : null}
                                     <Link href={route('app.billing.plans', {})}>
                                         <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50 rounded-xl">
                                             Change Plan
