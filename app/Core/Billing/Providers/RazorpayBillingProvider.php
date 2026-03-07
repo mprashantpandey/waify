@@ -9,6 +9,7 @@ use App\Models\PlatformSetting;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Models\Account;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -54,12 +55,23 @@ class RazorpayBillingProvider implements BillingProvider
 
     public function updateSubscription(Subscription $subscription, Plan $newPlan, User $actor, array $metadata = []): Subscription
     {
+        $now = now();
+        $currentEnd = $subscription->current_period_end instanceof Carbon
+            ? $subscription->current_period_end
+            : ($subscription->current_period_end ? Carbon::parse($subscription->current_period_end) : null);
+        $nextPeriodStart = $currentEnd && $currentEnd->isFuture() ? $currentEnd->copy() : $now->copy();
+        $nextPeriodEnd = $nextPeriodStart->copy()->addMonth();
+
         $subscription->update([
             'plan_id' => $newPlan->id,
             'status' => 'active',
+            'started_at' => $subscription->started_at ?: $now,
+            'trial_ends_at' => null,
+            'current_period_start' => $nextPeriodStart,
+            'current_period_end' => $nextPeriodEnd,
             'provider' => $this->getName(),
             'provider_ref' => $metadata['payment_id'] ?? $metadata['order_id'] ?? $subscription->provider_ref,
-            'last_payment_at' => $metadata['paid_at'] ?? now(),
+            'last_payment_at' => $metadata['paid_at'] ?? $now,
             'last_payment_failed_at' => null,
             'last_error' => null,
             'cancel_at_period_end' => false,
@@ -126,6 +138,8 @@ class RazorpayBillingProvider implements BillingProvider
                 'status' => 'paid',
                 'provider_payment_id' => $paymentId ?? $paymentOrder->provider_payment_id,
                 'paid_at' => now()]);
+
+            $this->activateSubscriptionForPaymentOrder($paymentOrder);
         }
 
         if ($event === 'payment.failed') {
@@ -256,5 +270,35 @@ class RazorpayBillingProvider implements BillingProvider
         }
 
         return (bool) $value;
+    }
+
+    protected function activateSubscriptionForPaymentOrder(PaymentOrder $paymentOrder): void
+    {
+        $account = Account::find($paymentOrder->account_id);
+        $plan = Plan::find($paymentOrder->plan_id);
+        if (!$account || !$plan) {
+            return;
+        }
+
+        $subscription = Subscription::firstOrCreate(
+            ['account_id' => $account->id],
+            [
+                'plan_id' => $plan->id,
+                'status' => 'active',
+                'started_at' => now(),
+                'provider' => $this->getName(),
+            ]
+        );
+
+        $actor = $account->owner;
+        if (!$actor) {
+            return;
+        }
+
+        $this->updateSubscription($subscription, $plan, $actor, [
+            'order_id' => $paymentOrder->provider_order_id,
+            'payment_id' => $paymentOrder->provider_payment_id,
+            'paid_at' => $paymentOrder->paid_at ?? now(),
+        ]);
     }
 }

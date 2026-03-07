@@ -12,6 +12,7 @@ use App\Models\PaymentOrder;
 use App\Models\Plan;
 use App\Models\WalletTransaction;
 use App\Models\WalletTopupOrder;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use App\Modules\WhatsApp\Models\WhatsAppMessageBilling;
 use App\Services\PlatformSettingsService;
 use App\Services\WalletService;
@@ -474,6 +475,20 @@ class BillingController extends Controller
                 $paymentOrder->status === 'paid' &&
                 (string) $paymentOrder->provider_payment_id === (string) $validated['payment_id']
             ) {
+                $plan = Plan::find($paymentOrder->plan_id);
+                if ($plan) {
+                    $this->subscriptionService->changePlan(
+                        $account,
+                        $plan,
+                        $request->user(),
+                        'razorpay',
+                        [
+                            'payment_id' => $validated['payment_id'],
+                            'order_id' => $validated['order_id'],
+                            'paid_at' => $paymentOrder->paid_at ?? now(),
+                        ]
+                    );
+                }
                 return;
             }
 
@@ -623,6 +638,71 @@ class BillingController extends Controller
         return Inertia::render('Billing/History', [
             'account' => $account,
             'payments' => $payments]);
+    }
+
+    public function showPayment(Request $request, PaymentOrder $paymentOrder): Response
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+        if (!account_ids_match($paymentOrder->account_id, $account->id)) {
+            abort(404);
+        }
+
+        $paymentOrder->load('plan');
+
+        return Inertia::render('Billing/PaymentDetails', [
+            'account' => $account,
+            'payment' => [
+                'id' => $paymentOrder->id,
+                'invoice_no' => sprintf('INV-%06d', $paymentOrder->id),
+                'provider' => $paymentOrder->provider,
+                'provider_order_id' => $paymentOrder->provider_order_id,
+                'provider_payment_id' => $paymentOrder->provider_payment_id,
+                'amount' => (int) $paymentOrder->amount,
+                'currency' => $paymentOrder->currency,
+                'status' => $paymentOrder->status,
+                'plan' => $paymentOrder->plan ? [
+                    'id' => $paymentOrder->plan->id,
+                    'name' => $paymentOrder->plan->name,
+                ] : null,
+                'metadata' => $paymentOrder->metadata ?? [],
+                'created_at' => $paymentOrder->created_at?->toIso8601String(),
+                'paid_at' => $paymentOrder->paid_at?->toIso8601String(),
+                'failed_at' => $paymentOrder->failed_at?->toIso8601String(),
+            ],
+        ]);
+    }
+
+    public function downloadInvoice(Request $request, PaymentOrder $paymentOrder): StreamedResponse
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+        if (!account_ids_match($paymentOrder->account_id, $account->id)) {
+            abort(404);
+        }
+
+        $paymentOrder->load('plan');
+        $invoiceNo = sprintf('INV-%06d', $paymentOrder->id);
+        $filename = $invoiceNo.'.txt';
+        $status = strtoupper((string) $paymentOrder->status);
+        $planName = $paymentOrder->plan?->name ?? 'N/A';
+        $amountMajor = number_format(((int) $paymentOrder->amount) / 100, 2, '.', '');
+        $content = implode("\n", [
+            "Invoice: {$invoiceNo}",
+            "Account: {$account->name}",
+            "Plan: {$planName}",
+            "Amount: {$paymentOrder->currency} {$amountMajor}",
+            "Status: {$status}",
+            "Provider: ".strtoupper((string) $paymentOrder->provider),
+            "Provider Order ID: ".($paymentOrder->provider_order_id ?: 'N/A'),
+            "Provider Payment ID: ".($paymentOrder->provider_payment_id ?: 'N/A'),
+            "Created At: ".($paymentOrder->created_at?->toDateTimeString() ?? 'N/A'),
+            "Paid At: ".($paymentOrder->paid_at?->toDateTimeString() ?? 'N/A'),
+        ])."\n";
+
+        return response()->streamDownload(function () use ($content) {
+            echo $content;
+        }, $filename, [
+            'Content-Type' => 'text/plain; charset=UTF-8',
+        ]);
     }
 
     public function transactions(Request $request): Response

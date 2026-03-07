@@ -171,6 +171,8 @@ Route::middleware(['auth', 'account.resolve', 'account.active', 'account.subscri
             ->middleware('throttle:10,1')
             ->name('razorpay.confirm');
         Route::get('/history', [\App\Http\Controllers\Billing\BillingController::class, 'history'])->name('history');
+        Route::get('/history/{paymentOrder}', [\App\Http\Controllers\Billing\BillingController::class, 'showPayment'])->name('history.show');
+        Route::get('/history/{paymentOrder}/download', [\App\Http\Controllers\Billing\BillingController::class, 'downloadInvoice'])->name('history.download');
         Route::get('/transactions', [\App\Http\Controllers\Billing\BillingController::class, 'transactions'])->name('transactions');
         Route::post('/wallet/topup', [\App\Http\Controllers\Billing\BillingController::class, 'walletTopup'])->name('wallet.topup');
         Route::post('/wallet/topup/confirm', [\App\Http\Controllers\Billing\BillingController::class, 'confirmWalletTopup'])->name('wallet.topup.confirm');

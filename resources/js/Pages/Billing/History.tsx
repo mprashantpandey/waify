@@ -92,12 +92,15 @@ export default function BillingHistory({
                                         <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                             Paid At
                                         </th>
+                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                            Actions
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-gray-900">
                                     {payments.length === 0 && (
                                         <tr>
-                                            <td colSpan={7} className="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                                            <td colSpan={8} className="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                                                 No payments recorded yet.
                                             </td>
                                         </tr>
@@ -122,6 +125,16 @@ export default function BillingHistory({
                                             </td>
                                             <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
                                                 {payment.paid_at ? new Date(payment.paid_at).toLocaleString() : '—'}
+                                            </td>
+                                            <td className="px-6 py-4 text-sm">
+                                                <div className="flex items-center gap-3">
+                                                    <Link href={route('app.billing.history.show', { paymentOrder: payment.id })} className="text-blue-600 hover:underline">
+                                                        View
+                                                    </Link>
+                                                    <Link href={route('app.billing.history.download', { paymentOrder: payment.id })} className="text-gray-700 dark:text-gray-300 hover:underline">
+                                                        Download
+                                                    </Link>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}

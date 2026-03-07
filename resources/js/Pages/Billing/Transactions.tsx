@@ -36,6 +36,7 @@ export default function BillingTransactions({
     const { toast } = useNotifications();
     const [topupAmountMajor, setTopupAmountMajor] = useState<string>('');
     const [topupNotes, setTopupNotes] = useState<string>('');
+    const [selectedTx, setSelectedTx] = useState<TransactionRow | null>(null);
 
     const formatMoney = (minor: number, currency: string) =>
         new Intl.NumberFormat('en-IN', { style: 'currency', currency: currency || 'INR' }).format((minor || 0) / 100);
@@ -224,12 +225,13 @@ export default function BillingTransactions({
                                         <th className="px-4 py-3 text-left">Status</th>
                                         <th className="px-4 py-3 text-left">Reference</th>
                                         <th className="px-4 py-3 text-left">Date</th>
+                                        <th className="px-4 py-3 text-left">Details</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {transactions.length === 0 && (
                                         <tr>
-                                            <td colSpan={7} className="px-4 py-6 text-center text-gray-500">
+                                            <td colSpan={8} className="px-4 py-6 text-center text-gray-500">
                                                 No transactions found.
                                             </td>
                                         </tr>
@@ -247,6 +249,15 @@ export default function BillingTransactions({
                                             </td>
                                             <td className="px-4 py-3 text-xs font-mono">{tx.reference || '—'}</td>
                                             <td className="px-4 py-3">{new Date(tx.created_at).toLocaleString()}</td>
+                                            <td className="px-4 py-3">
+                                                <button
+                                                    type="button"
+                                                    className="text-blue-600 hover:underline"
+                                                    onClick={() => setSelectedTx(tx)}
+                                                >
+                                                    View
+                                                </button>
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -254,6 +265,27 @@ export default function BillingTransactions({
                         </div>
                     </CardContent>
                 </Card>
+
+                {selectedTx && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Transaction Details</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2 text-sm">
+                            <p><span className="text-gray-500">Type:</span> {selectedTx.type}</p>
+                            <p><span className="text-gray-500">Direction:</span> {selectedTx.direction}</p>
+                            <p><span className="text-gray-500">Amount:</span> {formatMoney(selectedTx.amount_minor, selectedTx.currency)}</p>
+                            <p><span className="text-gray-500">Status:</span> {selectedTx.status}</p>
+                            <p><span className="text-gray-500">Source:</span> {sourceLabel(selectedTx.source)}</p>
+                            <p><span className="text-gray-500">Reference:</span> <span className="font-mono">{selectedTx.reference || 'N/A'}</span></p>
+                            <p><span className="text-gray-500">Notes:</span> {selectedTx.notes || 'N/A'}</p>
+                            <p><span className="text-gray-500">Created:</span> {new Date(selectedTx.created_at).toLocaleString()}</p>
+                            <div className="pt-2">
+                                <Button variant="secondary" size="sm" onClick={() => setSelectedTx(null)}>Close</Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
             </div>
         </AppShell>
     );
