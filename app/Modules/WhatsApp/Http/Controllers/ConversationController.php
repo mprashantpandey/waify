@@ -786,6 +786,27 @@ class ConversationController extends Controller
     public function sendMessage(Request $request, WhatsAppConversation $conversation)
     {
         $account = $request->attributes->get('account') ?? current_account();
+        $wantsJson = $request->expectsJson() || $request->ajax();
+        $respondError = function (string $message, ?string $detail = null, int $status = 422) use ($wantsJson) {
+            if ($wantsJson) {
+                return response()->json([
+                    'message' => $message,
+                    'message_detail' => $detail,
+                ], $status);
+            }
+
+            return redirect()->back()->withErrors([
+                'message' => $message,
+                'message_detail' => $detail,
+            ]);
+        };
+        $respondSuccess = function (string $message) use ($wantsJson) {
+            if ($wantsJson) {
+                return response()->json(['success' => true, 'message' => $message], 200);
+            }
+
+            return redirect()->back()->with('success', $message);
+        };
 
         // Ensure conversation belongs to account
         if (!account_ids_match($conversation->account_id, $account->id)) {
@@ -811,7 +832,7 @@ class ConversationController extends Controller
             $clientRequestId,
             $messageFingerprint
         )) {
-            return redirect()->back()->with('info', 'Duplicate send request ignored. Message is already being processed.');
+            return $respondSuccess('Duplicate send request ignored. Message is already being processed.');
         }
 
         // Check message limit before sending
@@ -867,7 +888,7 @@ class ConversationController extends Controller
             event(new MessageUpdated($message));
             event(new ConversationUpdated($conversation));
 
-            return redirect()->back()->with('success', 'Message sent successfully.');
+            return $respondSuccess('Message sent successfully.');
         } catch (\Exception $e) {
             $message->update([
                 'status' => 'failed',
@@ -886,13 +907,13 @@ class ConversationController extends Controller
                 || stripos($msg, 'message outside') !== false;
 
             if ($is24hWindow) {
-                return redirect()->back()->withErrors([
-                    'message' => 'outside_24h',
-                    'message_detail' => 'You can only send a template message to reopen this conversation. Use the template button above.']);
+                return $respondError(
+                    'outside_24h',
+                    'You can only send a template message to reopen this conversation. Use the template button above.'
+                );
             }
 
-            return redirect()->back()->withErrors([
-                'message' => 'Failed to send message: ' . $e->getMessage()]);
+            return $respondError('Failed to send message: ' . $e->getMessage());
         }
     }
 

@@ -332,7 +332,7 @@ export default function ConversationsShow({
     const historyBootstrapAttemptedRef = useRef<boolean>(normalizedMessages.length > 0);
     const forcedHistoryResyncRef = useRef<boolean>(false);
 
-    const { data, setData, post, processing, errors, reset } = useForm({
+    const { data, setData, processing, errors, reset } = useForm({
         message: ''});
 
     useEffect(() => {
@@ -1099,32 +1099,34 @@ export default function ConversationsShow({
         }
 
         if (!trimmed) return;
-
-        post(
-            route('app.whatsapp.conversations.send', {
-                conversation: conversation.id}),
-            {
-                onSuccess: () => {
-                    reset('message');
-                },
-                onError: (errors) => {
-                    const msg = Array.isArray(errors?.message) ? errors.message[0] : errors?.message;
-                    const detail = Array.isArray(errors?.message_detail) ? errors.message_detail[0] : errors?.message_detail;
-                    const is24h = msg === 'outside_24h' || (typeof msg === 'string' && (msg.includes('template') || msg.includes('24 hour') || msg.includes('recovery')));
-                    addToast({
-                        title: is24h ? 'Use a template to start the conversation' : 'Failed to send message',
-                        description: detail || msg || (is24h ? 'Send a template message using the template button above.' : 'Please try again'),
-                        variant: 'error',
-                        duration: 8000});
-                    if (is24h) {
-                        setTimeout(() => {
-                            const templateSection = document.querySelector('[data-template-section]');
-                            templateSection?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                        }, 300);
-                    }
-                }}
-        );
-    }, [processing, data.message, attachments.length, sendAttachments, post, account.slug, conversation.id, reset, addToast]);
+        try {
+            await axios.post(
+                route('app.whatsapp.conversations.send', {
+                    conversation: conversation.id}),
+                {
+                    message: trimmed,
+                    client_request_id: createClientRequestId('msg'),
+                }
+            );
+            reset('message');
+        } catch (error: any) {
+            const payload = error?.response?.data ?? {};
+            const msg = payload?.message || error?.message;
+            const detail = payload?.message_detail;
+            const is24h = msg === 'outside_24h' || (typeof msg === 'string' && (msg.includes('template') || msg.includes('24 hour') || msg.includes('recovery')));
+            addToast({
+                title: is24h ? 'Use a template to start the conversation' : 'Failed to send message',
+                description: detail || msg || (is24h ? 'Send a template message using the template button above.' : 'Please try again'),
+                variant: 'error',
+                duration: 8000});
+            if (is24h) {
+                setTimeout(() => {
+                    const templateSection = document.querySelector('[data-template-section]');
+                    templateSection?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 300);
+            }
+        }
+    }, [processing, data.message, attachments.length, sendAttachments, account.slug, conversation.id, reset, addToast]);
 
     const submitNote = async () => {
         const trimmed = noteDraft.trim();
