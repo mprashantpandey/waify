@@ -164,6 +164,13 @@ class SystemHealthController extends Controller
                 });
         }
 
+        $productionReadiness = $this->buildProductionReadinessChecks($queueStatus);
+        $productionReadinessSummary = [
+            'pass' => collect($productionReadiness)->where('status', 'pass')->count(),
+            'warn' => collect($productionReadiness)->where('status', 'warn')->count(),
+            'fail' => collect($productionReadiness)->where('status', 'fail')->count(),
+        ];
+
         return Inertia::render('Platform/SystemHealth', [
             'webhook_health' => $webhookHealth,
             'connection_details' => $connectionDetails,
@@ -171,7 +178,10 @@ class SystemHealthController extends Controller
             'storage_status' => $storageStatus,
             'database_status' => $databaseStatus,
             'recent_errors' => $recentErrors,
-            'recent_webhook_events' => $recentWebhookEvents]);
+            'recent_webhook_events' => $recentWebhookEvents,
+            'production_readiness' => $productionReadiness,
+            'production_readiness_summary' => $productionReadinessSummary,
+        ]);
     }
 
     public function retryFailedJob(Request $request, string $id): RedirectResponse
@@ -314,5 +324,100 @@ class SystemHealthController extends Controller
             }
         }
         return $size;
+    }
+
+    private function buildProductionReadinessChecks(array $queueStatus): array
+    {
+        $appEnv = (string) config('app.env');
+        $appDebug = (bool) config('app.debug');
+        $appUrl = (string) config('app.url');
+        $queueDriver = (string) config('queue.default');
+        $cacheDriver = (string) config('cache.default');
+        $sessionDriver = (string) config('session.driver');
+        $sessionSecure = config('session.secure');
+        $failedJobs = (int) ($queueStatus['failed_jobs'] ?? 0);
+
+        $checks = [];
+
+        $checks[] = [
+            'key' => 'app_debug',
+            'label' => 'APP_DEBUG disabled',
+            'status' => $appDebug ? 'fail' : 'pass',
+            'value' => $appDebug ? 'enabled' : 'disabled',
+            'hint' => $appDebug
+                ? 'Set APP_DEBUG=false in production.'
+                : 'Safe for production.',
+        ];
+
+        $checks[] = [
+            'key' => 'app_url_https',
+            'label' => 'APP_URL uses HTTPS',
+            'status' => str_starts_with(strtolower($appUrl), 'https://') ? 'pass' : 'fail',
+            'value' => $appUrl !== '' ? $appUrl : '(empty)',
+            'hint' => str_starts_with(strtolower($appUrl), 'https://')
+                ? 'Secure base URL configured.'
+                : 'Set APP_URL to your https:// domain.',
+        ];
+
+        $checks[] = [
+            'key' => 'queue_driver',
+            'label' => 'Queue driver is async',
+            'status' => $queueDriver === 'sync' ? 'fail' : 'pass',
+            'value' => $queueDriver,
+            'hint' => $queueDriver === 'sync'
+                ? 'Use database/redis queue in production.'
+                : 'Async queue enabled.',
+        ];
+
+        $checks[] = [
+            'key' => 'failed_jobs_backlog',
+            'label' => 'Failed jobs backlog',
+            'status' => $failedJobs > 50 ? 'fail' : ($failedJobs > 0 ? 'warn' : 'pass'),
+            'value' => (string) $failedJobs,
+            'hint' => $failedJobs > 50
+                ? 'Investigate and retry/clear failed jobs urgently.'
+                : ($failedJobs > 0 ? 'Some failed jobs need attention.' : 'No failed jobs pending.'),
+        ];
+
+        $checks[] = [
+            'key' => 'cache_driver',
+            'label' => 'Cache driver suitable for scale',
+            'status' => in_array($cacheDriver, ['redis', 'memcached', 'database'], true) ? 'pass' : 'warn',
+            'value' => $cacheDriver,
+            'hint' => in_array($cacheDriver, ['redis', 'memcached', 'database'], true)
+                ? 'Shared cache is configured.'
+                : 'File/array cache is not ideal for multi-instance production.',
+        ];
+
+        $checks[] = [
+            'key' => 'session_driver',
+            'label' => 'Session storage suitable for scale',
+            'status' => in_array($sessionDriver, ['redis', 'database', 'memcached'], true) ? 'pass' : 'warn',
+            'value' => $sessionDriver,
+            'hint' => in_array($sessionDriver, ['redis', 'database', 'memcached'], true)
+                ? 'Session backend is production-friendly.'
+                : 'File/cookie sessions can cause issues on multiple app nodes.',
+        ];
+
+        $secureCookiesEnabled = $sessionSecure === true || $sessionSecure === 1 || $sessionSecure === '1';
+        $checks[] = [
+            'key' => 'session_secure_cookie',
+            'label' => 'Secure session cookies',
+            'status' => $secureCookiesEnabled ? 'pass' : 'warn',
+            'value' => $secureCookiesEnabled ? 'enabled' : 'disabled',
+            'hint' => $secureCookiesEnabled
+                ? 'Cookies marked secure.'
+                : 'Set SESSION_SECURE_COOKIE=true on HTTPS deployments.',
+        ];
+
+        $checks[] = [
+            'key' => 'app_env_value',
+            'label' => 'APP_ENV value',
+            'status' => in_array($appEnv, ['production', 'staging', 'local', 'testing'], true) ? 'pass' : 'warn',
+            'value' => $appEnv !== '' ? $appEnv : '(empty)',
+            'hint' => 'Use explicit APP_ENV for predictable behavior.',
+        ];
+
+        return $checks;
     }
 }

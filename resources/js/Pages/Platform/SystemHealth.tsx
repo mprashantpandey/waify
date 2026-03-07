@@ -80,6 +80,20 @@ interface RecentWebhookEvent {
     created_at: string | null;
 }
 
+interface ProductionReadinessCheck {
+    key: string;
+    label: string;
+    status: 'pass' | 'warn' | 'fail';
+    value: string;
+    hint: string;
+}
+
+interface ProductionReadinessSummary {
+    pass: number;
+    warn: number;
+    fail: number;
+}
+
 export default function SystemHealth({
     webhook_health,
     connection_details,
@@ -87,7 +101,9 @@ export default function SystemHealth({
     storage_status,
     database_status,
     recent_errors,
-    recent_webhook_events}: {
+    recent_webhook_events,
+    production_readiness,
+    production_readiness_summary}: {
     webhook_health: WebhookHealth;
     connection_details: ConnectionDetail[];
     queue_status: QueueStatus;
@@ -95,6 +111,8 @@ export default function SystemHealth({
     database_status: DatabaseStatus;
     recent_errors: RecentError[];
     recent_webhook_events: RecentWebhookEvent[];
+    production_readiness: ProductionReadinessCheck[];
+    production_readiness_summary: ProductionReadinessSummary;
 }) {
     const { auth } = usePage().props as any;
 
@@ -224,6 +242,47 @@ export default function SystemHealth({
                                     </div>
                                 ))}
                             </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Production Readiness</CardTitle>
+                        <CardDescription>Critical configuration checks for stable production operation</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                            <div className="rounded-lg bg-green-50 p-3 dark:bg-green-900/20">
+                                <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Pass</p>
+                                <p className="text-xl font-bold text-green-700 dark:text-green-300">{production_readiness_summary.pass}</p>
+                            </div>
+                            <div className="rounded-lg bg-yellow-50 p-3 dark:bg-yellow-900/20">
+                                <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Warn</p>
+                                <p className="text-xl font-bold text-yellow-700 dark:text-yellow-300">{production_readiness_summary.warn}</p>
+                            </div>
+                            <div className="rounded-lg bg-red-50 p-3 dark:bg-red-900/20">
+                                <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Fail</p>
+                                <p className="text-xl font-bold text-red-700 dark:text-red-300">{production_readiness_summary.fail}</p>
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            {production_readiness.map((check) => (
+                                <div key={check.key} className="flex flex-col gap-2 rounded-lg border border-gray-200 p-3 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{check.label}</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">{check.hint}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-gray-500 dark:text-gray-400">{check.value}</span>
+                                        <Badge
+                                            variant={check.status === 'pass' ? 'success' : check.status === 'warn' ? 'warning' : 'danger'}
+                                        >
+                                            {check.status.toUpperCase()}
+                                        </Badge>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     </CardContent>
                 </Card>
