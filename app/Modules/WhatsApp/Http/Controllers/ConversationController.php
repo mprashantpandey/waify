@@ -29,6 +29,7 @@ use App\Models\AiSuggestionFeedback;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -277,7 +278,9 @@ class ConversationController extends Controller
                 'name',
                 'language',
                 'body_text',
+                'header_type',
                 'header_text',
+                'header_media_url',
                 'footer_text',
                 'buttons'])
             ->map(function ($template) {
@@ -287,7 +290,9 @@ class ConversationController extends Controller
                     'name' => $template->name,
                     'language' => $template->language,
                     'body_text' => $template->body_text,
+                    'header_type' => $template->header_type,
                     'header_text' => $template->header_text,
+                    'header_media_url' => $template->header_media_url,
                     'footer_text' => $template->footer_text,
                     'buttons' => $template->buttons ?? [],
                     'variable_count' => $requiredVariables['total'],
@@ -788,7 +793,26 @@ class ConversationController extends Controller
         }
 
         $validated = $request->validate([
-            'message' => 'required|string|max:4096']);
+            'message' => 'required|string|max:4096',
+            'client_request_id' => 'nullable|string|max:120',
+        ]);
+
+        $messageBody = trim((string) ($validated['message'] ?? ''));
+        $clientRequestId = $this->normalizeClientRequestId($validated['client_request_id'] ?? null);
+        $messageFingerprint = hash('sha256', implode('|', [
+            'text',
+            (string) $conversation->id,
+            $messageBody,
+        ]));
+        if (!$this->reserveOutboundSendGuard(
+            (int) $account->id,
+            (int) $conversation->id,
+            'text',
+            $clientRequestId,
+            $messageFingerprint
+        )) {
+            return redirect()->back()->with('info', 'Duplicate send request ignored. Message is already being processed.');
+        }
 
         // Check message limit before sending
         $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
@@ -796,14 +820,14 @@ class ConversationController extends Controller
         $conversation->load(['connection', 'contact']);
 
         // Use transaction with lock to prevent duplicate message creation
-        $message = DB::transaction(function () use ($account, $conversation, $validated) {
+        $message = DB::transaction(function () use ($account, $conversation, $messageBody) {
             return WhatsAppMessage::lockForUpdate()
                 ->create([
                     'account_id' => $account->id,
                     'whatsapp_conversation_id' => $conversation->id,
                     'direction' => 'outbound',
                     'type' => 'text',
-                    'text_body' => $validated['message'],
+                    'text_body' => $messageBody,
                     'status' => 'queued']);
         });
 
@@ -818,7 +842,7 @@ class ConversationController extends Controller
             $response = $this->whatsappClient->sendTextMessage(
                 $conversation->connection,
                 $conversation->contact->wa_id,
-                $validated['message']
+                $messageBody
             );
 
             // Update message with Meta message ID and status
@@ -835,7 +859,7 @@ class ConversationController extends Controller
             // Update conversation
             $conversation->update([
                 'last_message_at' => now(),
-                'last_message_preview' => substr($validated['message'], 0, 100)]);
+                'last_message_preview' => substr($messageBody, 0, 100)]);
 
             $this->touchContactAfterOutbound($conversation);
 
@@ -902,7 +926,9 @@ class ConversationController extends Controller
         $validated = $request->validate([
             'template_id' => 'required|integer|exists:whatsapp_templates,id',
             'variables' => 'sometimes|array',
-            'variables.*' => 'nullable|string|max:1024']);
+            'variables.*' => 'nullable|string|max:1024',
+            'client_request_id' => 'nullable|string|max:120',
+        ]);
 
         $template = WhatsAppTemplate::where('account_id', $account->id)
             ->where('whatsapp_connection_id', $conversation->whatsapp_connection_id)
@@ -966,6 +992,23 @@ class ConversationController extends Controller
 
         $requiredVars = $this->templateComposer->extractRequiredVariables($template);
         $variables = $this->normalizeTemplateVariables($validated['variables'] ?? []);
+        $clientRequestId = $this->normalizeClientRequestId($validated['client_request_id'] ?? null);
+        $templateFingerprint = hash('sha256', implode('|', [
+            'template',
+            (string) $template->id,
+            (string) $conversation->id,
+            json_encode($variables, JSON_UNESCAPED_UNICODE) ?: '',
+        ]));
+        if (!$this->reserveOutboundSendGuard(
+            (int) $account->id,
+            (int) $conversation->id,
+            'template',
+            $clientRequestId,
+            $templateFingerprint
+        )) {
+            return $respondSuccess('Duplicate send request ignored. Message is already being processed.');
+        }
+
         $nonEmptyCount = count(array_filter($variables, static fn (string $value) => $value !== ''));
         if ($nonEmptyCount < (int) ($requiredVars['total'] ?? 0)) {
             return $respondError("Template requires {$requiredVars['total']} variable(s), but only {$nonEmptyCount} non-empty value(s) were provided.");
@@ -1401,6 +1444,46 @@ class ConversationController extends Controller
             static fn ($value) => is_scalar($value) ? trim((string) $value) : '',
             $variables
         ));
+    }
+
+    private function normalizeClientRequestId(mixed $raw): ?string
+    {
+        if (!is_scalar($raw)) {
+            return null;
+        }
+
+        $value = trim((string) $raw);
+        if ($value === '') {
+            return null;
+        }
+
+        if (!preg_match('/^[A-Za-z0-9:_\-]{8,120}$/', $value)) {
+            return null;
+        }
+
+        return $value;
+    }
+
+    private function reserveOutboundSendGuard(
+        int $accountId,
+        int $conversationId,
+        string $action,
+        ?string $clientRequestId,
+        string $payloadFingerprint
+    ): bool {
+        $base = "wa:outbound:guard:{$accountId}:{$conversationId}:{$action}";
+
+        if ($clientRequestId) {
+            $requestKey = "{$base}:req:{$clientRequestId}";
+            if (!Cache::add($requestKey, true, now()->addMinutes(10))) {
+                return false;
+            }
+        }
+
+        $fingerprint = substr($payloadFingerprint, 0, 48);
+        $rapidKey = "{$base}:fp:{$fingerprint}";
+
+        return Cache::add($rapidKey, true, now()->addSeconds(8));
     }
 
     protected function touchContactAfterOutbound(WhatsAppConversation $conversation): void

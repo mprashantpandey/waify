@@ -1,0 +1,46 @@
+import { jsxs, jsx } from "react/jsx-runtime";
+import { P as PublicLayout } from "./PublicLayout-CRYi50tL.js";
+import { Head, Link } from "@inertiajs/react";
+import { ArrowRight } from "lucide-react";
+function LegalDocumentPage({
+  title,
+  eyebrow = "Legal",
+  icon,
+  lastUpdated,
+  content,
+  children
+}) {
+  const hasCustomContent = Boolean(content && content.trim() !== "");
+  return /* @__PURE__ */ jsxs(PublicLayout, { children: [
+    /* @__PURE__ */ jsx(Head, { title }),
+    /* @__PURE__ */ jsxs("div", { className: "relative", children: [
+      /* @__PURE__ */ jsx("div", { className: "absolute inset-x-0 top-0 h-56 bg-gradient-to-b from-blue-50 via-indigo-50 to-transparent dark:from-blue-950/30 dark:via-indigo-950/20 dark:to-transparent pointer-events-none" }),
+      /* @__PURE__ */ jsxs("div", { className: "relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14 sm:py-16", children: [
+        /* @__PURE__ */ jsx("div", { className: "mb-8 rounded-2xl border border-white/70 dark:border-gray-800 bg-white/80 dark:bg-gray-900/70 backdrop-blur shadow-sm p-6 sm:p-8", children: /* @__PURE__ */ jsxs("div", { className: "flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between", children: [
+          /* @__PURE__ */ jsxs("div", { children: [
+            /* @__PURE__ */ jsxs("div", { className: "inline-flex items-center gap-2 rounded-full border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 px-3 py-1 text-xs font-semibold text-blue-700 dark:text-blue-300", children: [
+              icon,
+              /* @__PURE__ */ jsx("span", { children: eyebrow })
+            ] }),
+            /* @__PURE__ */ jsx("h1", { className: "mt-4 text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-gray-100", children: title }),
+            lastUpdated && /* @__PURE__ */ jsxs("p", { className: "mt-2 text-sm text-gray-500 dark:text-gray-400", children: [
+              "Last updated: ",
+              lastUpdated
+            ] })
+          ] }),
+          /* @__PURE__ */ jsx("div", { className: "text-sm", children: /* @__PURE__ */ jsxs(Link, { href: route("contact"), className: "inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline", children: [
+            "Need clarification? Contact support",
+            /* @__PURE__ */ jsx(ArrowRight, { className: "h-4 w-4" })
+          ] }) })
+        ] }) }),
+        /* @__PURE__ */ jsxs("div", { className: "rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm overflow-hidden", children: [
+          /* @__PURE__ */ jsx("div", { className: "h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-500" }),
+          /* @__PURE__ */ jsx("div", { className: "p-6 sm:p-8", children: hasCustomContent ? /* @__PURE__ */ jsx("div", { className: "whitespace-pre-wrap text-sm sm:text-base leading-7 text-gray-700 dark:text-gray-300", children: content }) : /* @__PURE__ */ jsx("div", { className: "space-y-6 text-sm sm:text-base leading-7 text-gray-700 dark:text-gray-300", children }) })
+        ] })
+      ] })
+    ] })
+  ] });
+}
+export {
+  LegalDocumentPage as L
+};

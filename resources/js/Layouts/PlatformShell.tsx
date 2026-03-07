@@ -19,7 +19,8 @@ import {
     Activity,
     Puzzle,
     Wallet,
-    LifeBuoy
+    LifeBuoy,
+    AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getPlatformName, getLogoUrl } from '@/lib/branding';
@@ -121,6 +122,10 @@ export default function PlatformShell({ children, auth }: PlatformShellProps) {
             name: 'System Health',
             href: route('platform.system-health'),
             icon: Shield},
+        {
+            name: 'Operational Alerts',
+            href: route('platform.operational-alerts.index'),
+            icon: AlertTriangle},
         {
             name: 'Settings',
             href: route('platform.settings'),

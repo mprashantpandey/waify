@@ -33,6 +33,7 @@ export default function PlatformSettings({
     security,
     payment,
     integrations,
+    alerts,
     analytics,
     compliance,
     performance,
@@ -103,6 +104,7 @@ export default function PlatformSettings({
         security: security || {},
         payment: payment || {},
         integrations: integrations || {},
+        alerts: alerts || {},
         analytics: analytics || {},
         compliance: compliance || {},
         performance: performance || {},
@@ -144,7 +146,7 @@ export default function PlatformSettings({
         post(route('platform.settings.update'), {
             preserveScroll: false,
             forceFormData: true, // Required for file uploads
-            only: ['general', 'security', 'payment', 'integrations', 'analytics', 'compliance', 'performance', 'features', 'pusher', 'mail', 'storage', 'branding', 'ai', 'whatsapp', 'sms', 'campaigns', 'flash'],
+            only: ['general', 'security', 'payment', 'integrations', 'alerts', 'analytics', 'compliance', 'performance', 'features', 'pusher', 'mail', 'storage', 'branding', 'ai', 'whatsapp', 'sms', 'campaigns', 'flash'],
             onError: (errors) => {
                 const errorMessages = Object.values(errors).flat();
                 addToast({

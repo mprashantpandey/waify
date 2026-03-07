@@ -98,6 +98,86 @@ export default function IntegrationsTab({ data, setData, errors }: IntegrationsT
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
+                        <LinkIcon className="h-5 w-5" />
+                        Operational Alerts
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <InputLabel value="Queue Failure Alerts" />
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Send immediate email/webhook alerts when a queued job fails.
+                            </p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={data.alerts?.queue_failure_enabled ?? true}
+                                onChange={(e) => setData('alerts.queue_failure_enabled', e.target.checked)}
+                                className="sr-only peer"
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <InputLabel htmlFor="alerts.email_to" value="Alert Email" />
+                            <TextInput
+                                id="alerts.email_to"
+                                type="email"
+                                value={data.alerts?.email_to || ''}
+                                onChange={(e) => setData('alerts.email_to', e.target.value)}
+                                className="mt-1"
+                                placeholder="ops@example.com"
+                            />
+                            <InputError message={errors['alerts.email_to']} />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="alerts.dedupe_minutes" value="Dedupe Window (minutes)" />
+                            <TextInput
+                                id="alerts.dedupe_minutes"
+                                type="number"
+                                min="1"
+                                max="1440"
+                                value={data.alerts?.dedupe_minutes ?? 15}
+                                onChange={(e) => setData('alerts.dedupe_minutes', parseInt(e.target.value, 10) || 15)}
+                                className="mt-1"
+                            />
+                            <InputError message={errors['alerts.dedupe_minutes']} />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="alerts.webhook_url" value="Alert Webhook URL" />
+                            <TextInput
+                                id="alerts.webhook_url"
+                                type="url"
+                                value={data.alerts?.webhook_url || ''}
+                                onChange={(e) => setData('alerts.webhook_url', e.target.value)}
+                                className="mt-1"
+                                placeholder="https://hooks.example.com/ops"
+                            />
+                            <InputError message={errors['alerts.webhook_url']} />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="alerts.slack_webhook_url" value="Slack Webhook URL" />
+                            <TextInput
+                                id="alerts.slack_webhook_url"
+                                type="url"
+                                value={data.alerts?.slack_webhook_url || ''}
+                                onChange={(e) => setData('alerts.slack_webhook_url', e.target.value)}
+                                className="mt-1"
+                                placeholder="https://hooks.slack.com/services/..."
+                            />
+                            <InputError message={errors['alerts.slack_webhook_url']} />
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
                         <Webhook className="h-5 w-5" />
                         Webhook Configuration
                     </CardTitle>

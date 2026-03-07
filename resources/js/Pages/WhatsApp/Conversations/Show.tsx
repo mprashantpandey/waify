@@ -48,7 +48,9 @@ interface TemplateItem {
     name: string;
     language: string;
     body_text: string | null;
+    header_type?: string | null;
     header_text: string | null;
+    header_media_url?: string | null;
     footer_text: string | null;
     buttons: any[];
     variable_count: number;
@@ -117,6 +119,33 @@ const asBool = (value: unknown): boolean => {
         return ['1', 'true', 'yes', 'on'].includes(normalized);
     }
     return Boolean(value);
+};
+
+const createClientRequestId = (prefix: string): string => {
+    try {
+        if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+            return `${prefix}:${crypto.randomUUID()}`;
+        }
+    } catch {
+        // Fallback below.
+    }
+
+    return `${prefix}:${Date.now()}:${Math.random().toString(36).slice(2, 12)}`;
+};
+
+const isTemporaryMetaHostedUrl = (url: string | null | undefined): boolean => {
+    if (!url) return false;
+    try {
+        const host = new URL(url).hostname.toLowerCase();
+        return (
+            host.includes('facebook.com') ||
+            host.includes('fbcdn.net') ||
+            host.includes('fbsbx.com') ||
+            host.includes('lookaside')
+        );
+    } catch {
+        return false;
+    }
 };
 
 const normalizeMessage = (value: any): Message | null => {
@@ -273,6 +302,7 @@ export default function ConversationsShow({
     const [locationInput, setLocationInput] = useState({ label: '', lat: '', lng: '' });
     const [selectedTemplate, setSelectedTemplate] = useState<TemplateItem | null>(null);
     const [templateVariables, setTemplateVariables] = useState<string[]>([]);
+    const [templateSending, setTemplateSending] = useState(false);
     const [emojiSearch, setEmojiSearch] = useState('');
     const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
     const [notes, setNotes] = useState<NoteItem[]>(normalizedNotes);
@@ -621,15 +651,38 @@ export default function ConversationsShow({
     }, [addToast, attachments, conversation.id, account.slug]);
 
     const sendTemplate = useCallback(async () => {
-        if (!selectedTemplate) return;
+        if (!selectedTemplate || templateSending) return;
+
+        const headerType = (selectedTemplate.header_type || '').toUpperCase();
+        const requiresHeaderMedia = ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType);
+        const headerMediaUrl = (selectedTemplate.header_media_url || '').trim();
+        if (requiresHeaderMedia && !headerMediaUrl) {
+            addToast({
+                title: 'Template requires header media',
+                description: `This template expects ${headerType.toLowerCase()} header media. Upload media in template edit before sending.`,
+                variant: 'error',
+            });
+            return;
+        }
+        if (requiresHeaderMedia && isTemporaryMetaHostedUrl(headerMediaUrl)) {
+            addToast({
+                title: 'Template header media expired',
+                description: 'This template uses a temporary Meta-hosted media URL. Re-upload header media in template edit and sync.',
+                variant: 'error',
+            });
+            return;
+        }
 
         try {
+            setTemplateSending(true);
             const response = await axios.post(
                 route('app.whatsapp.conversations.send-template', {
                     conversation: conversation.id}),
                 {
                     template_id: selectedTemplate.id,
-                    variables: templateVariables}
+                    variables: templateVariables,
+                    client_request_id: createClientRequestId('tpl'),
+                }
             );
 
             addToast({
@@ -645,8 +698,10 @@ export default function ConversationsShow({
                 title: 'Failed to send template',
                 description: error?.response?.data?.message || 'Please try again',
                 variant: 'error'});
+        } finally {
+            setTemplateSending(false);
         }
-    }, [addToast, conversation.id, selectedTemplate, templateVariables, account.slug]);
+    }, [addToast, conversation.id, selectedTemplate, templateVariables, account.slug, templateSending]);
 
     // Auto-scroll detection - only scroll if user is near bottom
     const checkScrollPosition = useCallback(() => {
@@ -1221,6 +1276,25 @@ export default function ConversationsShow({
         }
     };
 
+    const getStatusLabel = (message: Message): string | null => {
+        if (message.direction === 'inbound') return null;
+
+        switch (message.status) {
+            case 'queued':
+                return 'Queued';
+            case 'sent':
+                return 'Accepted';
+            case 'delivered':
+                return 'Delivered';
+            case 'read':
+                return 'Read';
+            case 'failed':
+                return 'Failed';
+            default:
+                return null;
+        }
+    };
+
     const renderMessageBody = (message: Message) => {
         const payload = message.payload || {};
 
@@ -1467,6 +1541,11 @@ export default function ConversationsShow({
                                             >
                                                 {renderMessageBody(message)}
                                                 <div className="flex items-center justify-end gap-1.5 mt-2">
+                                                    {message.direction === 'outbound' && getStatusLabel(message) && (
+                                                        <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                                                            {getStatusLabel(message)}
+                                                        </span>
+                                                    )}
                                                     <span className={cn(
                                                         'text-[11px]',
                                                         message.direction === 'outbound' ? 'text-gray-600' : 'text-gray-500 dark:text-gray-400'
@@ -1886,6 +1965,11 @@ export default function ConversationsShow({
                                         <div className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-200">
                                             Fill template variables
                                         </div>
+                                        {['IMAGE', 'VIDEO', 'DOCUMENT'].includes((selectedTemplate.header_type || '').toUpperCase()) && (
+                                            <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700/40 dark:bg-amber-500/10 dark:text-amber-200">
+                                                Header media required ({(selectedTemplate.header_type || '').toUpperCase()}). Configure it in template edit if delivery fails.
+                                            </div>
+                                        )}
                                         {templateVariables.length === 0 && (
                                             <div className="text-xs text-gray-500 dark:text-gray-400">
                                                 This template has no variables.
@@ -1983,9 +2067,10 @@ export default function ConversationsShow({
                                             <Button
                                                 type="button"
                                                 onClick={sendTemplate}
+                                                disabled={templateSending}
                                                 className="bg-[#25D366] hover:bg-[#1DAA57] text-white"
                                             >
-                                                Send Template
+                                                {templateSending ? 'Sending...' : 'Send Template'}
                                             </Button>
                                         </div>
                                     </div>

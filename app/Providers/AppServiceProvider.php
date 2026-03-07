@@ -4,7 +4,9 @@ namespace App\Providers;
 
 use App\Console\Commands\OpsBackupDatabaseCommand;
 use App\Console\Commands\OpsCleanupRetentionCommand;
+use App\Console\Commands\OpsQueueScanFailuresCommand;
 use App\Console\Commands\OpsRunMaintenanceCommand;
+use App\Console\Commands\OpsTestAlertCommand;
 use App\Modules\Floaters\Models\FloaterWidget;
 use App\Modules\Floaters\Policies\FloaterWidgetPolicy;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
@@ -50,6 +52,8 @@ class AppServiceProvider extends ServiceProvider
                 OpsRunMaintenanceCommand::class,
                 OpsBackupDatabaseCommand::class,
                 OpsCleanupRetentionCommand::class,
+                OpsQueueScanFailuresCommand::class,
+                OpsTestAlertCommand::class,
             ]);
         }
     }

@@ -145,6 +145,7 @@ class OpsMaintenanceService
             $retentionDays = max(7, (int) PlatformSetting::get('compliance.data_retention_days', 365));
             $outboxRetentionDays = max(7, (int) PlatformSetting::get('compliance.notification_outbox_retention_days', 45));
             $failedJobsRetentionDays = max(3, (int) PlatformSetting::get('compliance.failed_jobs_retention_days', 14));
+            $opsAlertRetentionDays = max(3, (int) PlatformSetting::get('compliance.operational_alert_retention_days', 30));
 
             $deleted = [];
 
@@ -170,6 +171,12 @@ class OpsMaintenanceService
             if (DB::getSchemaBuilder()->hasTable('failed_jobs')) {
                 $deleted['failed_jobs'] = DB::table('failed_jobs')
                     ->where('failed_at', '<', now()->subDays($failedJobsRetentionDays))
+                    ->delete();
+            }
+
+            if (DB::getSchemaBuilder()->hasTable('operational_alert_events')) {
+                $deleted['operational_alert_events'] = DB::table('operational_alert_events')
+                    ->where('created_at', '<', now()->subDays($opsAlertRetentionDays))
                     ->delete();
             }
 

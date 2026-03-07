@@ -54,3 +54,8 @@ Schedule::command('meta-pricing:sync-official')
     ->dailyAt('03:10')
     ->withoutOverlapping()
     ->runInBackground();
+
+Schedule::command('ops:queue:scan-failures --limit=100')
+    ->everyFiveMinutes()
+    ->withoutOverlapping()
+    ->runInBackground();

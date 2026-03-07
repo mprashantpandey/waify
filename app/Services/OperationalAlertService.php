@@ -2,18 +2,32 @@
 
 namespace App\Services;
 
+use App\Models\OperationalAlertEvent;
 use App\Models\PlatformSetting;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Schema;
 
 class OperationalAlertService
 {
     public function send(string $eventKey, string $title, array $context = [], string $severity = 'warning'): void
     {
-        $dedupeKey = 'ops-alert:' . sha1($eventKey . '|' . ($context['scope'] ?? 'global'));
+        $errorFingerprint = substr((string) ($context['error'] ?? ''), 0, 160);
+        $dedupeKey = 'ops-alert:' . sha1($eventKey . '|' . ($context['scope'] ?? 'global') . '|' . $errorFingerprint);
         $ttlMinutes = max(1, (int) PlatformSetting::get('alerts.dedupe_minutes', 15));
         if (!cache()->add($dedupeKey, now()->timestamp, now()->addMinutes($ttlMinutes))) {
+            $this->recordEvent([
+                'event_key' => $eventKey,
+                'title' => $title,
+                'severity' => $severity,
+                'scope' => (string) ($context['scope'] ?? 'global'),
+                'dedupe_key' => $dedupeKey,
+                'status' => 'skipped',
+                'channels' => ['dedupe' => 'skipped'],
+                'context' => $context,
+                'sent_at' => now(),
+            ]);
             return;
         }
 
@@ -25,17 +39,38 @@ class OperationalAlertService
             'context' => $context,
         ];
 
-        $this->sendEmailAlert($payload);
-        $this->sendWebhookAlert($payload);
+        $channels = [
+            'email' => $this->sendEmailAlert($payload),
+            ...$this->sendWebhookAlert($payload),
+        ];
+
+        $status = collect($channels)->contains(fn ($channelStatus) => str_starts_with((string) $channelStatus, 'sent'))
+            ? 'sent'
+            : 'failed';
+
+        $this->recordEvent([
+            'event_key' => $eventKey,
+            'title' => $title,
+            'severity' => $severity,
+            'scope' => (string) ($context['scope'] ?? 'global'),
+            'dedupe_key' => $dedupeKey,
+            'status' => $status,
+            'channels' => $channels,
+            'context' => $context,
+            'error_message' => $status === 'failed'
+                ? collect($channels)->filter(fn ($s) => str_starts_with((string) $s, 'failed'))->implode('; ')
+                : null,
+            'sent_at' => now(),
+        ]);
     }
 
-    protected function sendEmailAlert(array $payload): void
+    protected function sendEmailAlert(array $payload): string
     {
         $to = PlatformSetting::get('alerts.email_to')
             ?: PlatformSetting::get('branding.support_email')
             ?: PlatformSetting::get('general.support_email');
         if (!$to || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
-            return;
+            return 'skipped:not_configured';
         }
 
         $subject = "[Waify Alert] {$payload['title']}";
@@ -45,34 +80,61 @@ class OperationalAlertService
             Mail::raw((string) $body, function ($message) use ($to, $subject) {
                 $message->to((string) $to)->subject($subject);
             });
+            return 'sent';
         } catch (\Throwable $e) {
             Log::warning('Failed to send operational email alert', ['error' => $e->getMessage()]);
+            return 'failed:' . $e->getMessage();
         }
     }
 
-    protected function sendWebhookAlert(array $payload): void
+    protected function sendWebhookAlert(array $payload): array
     {
         $webhookUrl = PlatformSetting::get('alerts.webhook_url')
             ?: PlatformSetting::get('integrations.webhook_url');
         $slackWebhook = PlatformSetting::get('alerts.slack_webhook_url');
+        $result = [
+            'webhook' => 'skipped:not_configured',
+            'slack' => 'skipped:not_configured',
+        ];
 
         if ($webhookUrl) {
             try {
-                Http::timeout(8)->post((string) $webhookUrl, $payload);
+                $response = Http::retry(2, 250)->timeout(8)->post((string) $webhookUrl, $payload);
+                $result['webhook'] = $response->successful()
+                    ? 'sent'
+                    : 'failed:http_' . $response->status();
             } catch (\Throwable $e) {
                 Log::warning('Failed to send operational webhook alert', ['error' => $e->getMessage()]);
+                $result['webhook'] = 'failed:' . $e->getMessage();
             }
         }
 
         if ($slackWebhook) {
             try {
-                Http::timeout(8)->post((string) $slackWebhook, [
+                $response = Http::retry(2, 250)->timeout(8)->post((string) $slackWebhook, [
                     'text' => "{$payload['title']} ({$payload['severity']})\n" . json_encode($payload['context'], JSON_UNESCAPED_SLASHES),
                 ]);
+                $result['slack'] = $response->successful()
+                    ? 'sent'
+                    : 'failed:http_' . $response->status();
             } catch (\Throwable $e) {
                 Log::warning('Failed to send Slack operational alert', ['error' => $e->getMessage()]);
+                $result['slack'] = 'failed:' . $e->getMessage();
             }
+        }
+
+        return $result;
+    }
+
+    protected function recordEvent(array $attributes): void
+    {
+        try {
+            if (!Schema::hasTable('operational_alert_events')) {
+                return;
+            }
+            OperationalAlertEvent::create($attributes);
+        } catch (\Throwable $e) {
+            Log::warning('Failed to record operational alert event', ['error' => $e->getMessage()]);
         }
     }
 }
-

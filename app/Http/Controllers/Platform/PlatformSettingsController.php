@@ -85,6 +85,14 @@ class PlatformSettingsController extends Controller
             'whatsapp_error_rate_minimum_messages' => (int) $get('integrations.whatsapp_error_rate_minimum_messages', 20),
         ];
 
+        $alertsSettings = [
+            'queue_failure_enabled' => $get('alerts.queue_failure_enabled', true),
+            'email_to' => $get('alerts.email_to'),
+            'webhook_url' => $get('alerts.webhook_url'),
+            'slack_webhook_url' => $get('alerts.slack_webhook_url'),
+            'dedupe_minutes' => (int) $get('alerts.dedupe_minutes', 15),
+        ];
+
         // Analytics Settings
         $analyticsSettings = [
             'google_analytics_id' => $get('analytics.google_analytics_id'),
@@ -237,6 +245,7 @@ class PlatformSettingsController extends Controller
             'security' => $securitySettings,
             'payment' => $paymentSettings,
             'integrations' => $integrationsSettings,
+            'alerts' => $alertsSettings,
             'analytics' => $analyticsSettings,
             'compliance' => $complianceSettings,
             'performance' => $performanceSettings,
@@ -307,6 +316,12 @@ class PlatformSettingsController extends Controller
             'integrations.whatsapp_error_rate_threshold_percent' => 'nullable|numeric|min:1|max:100',
             'integrations.whatsapp_error_rate_window_minutes' => 'nullable|integer|min:1|max:1440',
             'integrations.whatsapp_error_rate_minimum_messages' => 'nullable|integer|min:1|max:10000',
+            // Operational Alerts
+            'alerts.queue_failure_enabled' => 'nullable|boolean',
+            'alerts.email_to' => 'nullable|email',
+            'alerts.webhook_url' => 'nullable|url',
+            'alerts.slack_webhook_url' => 'nullable|url',
+            'alerts.dedupe_minutes' => 'nullable|integer|min:1|max:1440',
             // Analytics
             'analytics.google_analytics_id' => 'nullable|string|max:50',
             'analytics.google_analytics_enabled' => 'nullable|boolean',
@@ -433,13 +448,14 @@ class PlatformSettingsController extends Controller
         }
 
         // Update all settings groups
-        $groups = ['general', 'security', 'payment', 'integrations', 'analytics', 'compliance', 'performance', 'features', 'pusher', 'mail', 'storage', 'branding', 'ai', 'whatsapp', 'sms', 'campaigns'];
+        $groups = ['general', 'security', 'payment', 'integrations', 'alerts', 'analytics', 'compliance', 'performance', 'features', 'pusher', 'mail', 'storage', 'branding', 'ai', 'whatsapp', 'sms', 'campaigns'];
         
         // Define boolean fields that need explicit handling (for unchecked checkboxes)
         $booleanFields = [
             'payment' => ['razorpay_enabled'],
             'security' => ['password_require_uppercase', 'password_require_lowercase', 'password_require_numbers', 'password_require_symbols', 'require_2fa'],
             'integrations' => ['api_enabled', 'webhooks_enabled', 'whatsapp_error_rate_alert_enabled'],
+            'alerts' => ['queue_failure_enabled'],
             'analytics' => ['google_analytics_enabled', 'mixpanel_enabled', 'sentry_enabled', 'log_api_requests'],
             'compliance' => ['gdpr_enabled', 'cookie_consent_required', 'allow_data_export', 'allow_data_deletion'],
             'performance' => ['cache_enabled', 'query_logging_enabled'],

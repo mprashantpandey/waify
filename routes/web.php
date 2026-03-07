@@ -128,6 +128,11 @@ Route::middleware(['auth', 'super.admin'])->prefix('/platform')->name('platform.
     Route::post('/accounts/{account}/wallet/credit', [\App\Http\Controllers\Platform\TransactionController::class, 'credit'])->name('accounts.wallet.credit');
     Route::post('/accounts/{account}/wallet/debit', [\App\Http\Controllers\Platform\TransactionController::class, 'debit'])->name('accounts.wallet.debit');
     Route::get('/system-health', [\App\Http\Controllers\Platform\SystemHealthController::class, 'index'])->name('system-health');
+    Route::get('/operational-alerts', [\App\Http\Controllers\Platform\OperationalAlertsController::class, 'index'])->name('operational-alerts.index');
+    Route::post('/operational-alerts/test', [\App\Http\Controllers\Platform\OperationalAlertsController::class, 'sendTest'])->name('operational-alerts.test');
+    Route::post('/operational-alerts/{event}/acknowledge', [\App\Http\Controllers\Platform\OperationalAlertsController::class, 'acknowledge'])->name('operational-alerts.acknowledge');
+    Route::post('/operational-alerts/acknowledge', [\App\Http\Controllers\Platform\OperationalAlertsController::class, 'bulkAcknowledge'])->name('operational-alerts.acknowledge.bulk');
+    Route::get('/operational-alerts/export', [\App\Http\Controllers\Platform\OperationalAlertsController::class, 'export'])->name('operational-alerts.export');
     Route::post('/system-health/failed-jobs/retry-all', [\App\Http\Controllers\Platform\SystemHealthController::class, 'retryAllFailedJobs'])->name('system-health.failed-jobs.retry-all');
     Route::post('/system-health/failed-jobs/{id}/retry', [\App\Http\Controllers\Platform\SystemHealthController::class, 'retryFailedJob'])->name('system-health.failed-jobs.retry');
     Route::delete('/system-health/failed-jobs/{id}', [\App\Http\Controllers\Platform\SystemHealthController::class, 'forgetFailedJob'])->name('system-health.failed-jobs.forget');
