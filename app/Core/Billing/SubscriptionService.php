@@ -30,12 +30,22 @@ class SubscriptionService
             throw new \InvalidArgumentException('Plan does not support trials.');
         }
 
+        $hasPriorTrial = BillingEvent::where('account_id', $account->id)
+            ->where('type', 'trial_started')
+            ->exists();
+
+        if ($hasPriorTrial) {
+            throw new \InvalidArgumentException('Trial has already been used for this account.');
+        }
+
         $provider = $providerKey ? $this->providerManager->get($providerKey) : $this->providerManager->getDefault();
         if (!$provider) {
             throw new \InvalidArgumentException("Billing provider '{$providerKey}' not found.");
         }
 
-        $subscription = $provider->createSubscription($account, $plan, $actor ?? $account->owner);
+        $subscription = $provider->createSubscription($account, $plan, $actor ?? $account->owner, [
+            'apply_trial' => true,
+        ]);
 
         $this->logEvent($account, 'trial_started', [
             'plan_key' => $plan->key,

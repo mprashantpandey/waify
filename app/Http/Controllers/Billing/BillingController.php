@@ -184,6 +184,7 @@ class BillingController extends Controller
             'account' => $account,
             'plans' => $plans,
             'current_plan_key' => $currentPlan?->key,
+            'subscription_status' => $account->subscription?->status,
             'current_modules' => $currentModules,
             'razorpay_enabled' => $razorpayEnabled,
             'razorpay_key_id' => $razorpayKeyId]);
@@ -238,13 +239,11 @@ class BillingController extends Controller
 
         // For free plans, allow direct switching (or initial subscription)
         try {
-            if ($isNewSubscription && $plan->trial_days > 0) {
-                // Start trial for new subscriptions with trial days
-                $this->subscriptionService->startTrial($account, $plan, $request->user());
-            } else {
-                // Change plan (or create new subscription for accounts without one)
-                $this->subscriptionService->changePlan($account, $plan, $request->user(), null);
-            }
+            // Never auto-apply trial on plan switch/selection.
+            $this->subscriptionService->changePlan($account, $plan, $request->user(), null, [
+                'apply_trial' => false,
+                'origin' => 'billing_switch',
+            ]);
             
             \Log::info('Plan ' . ($isNewSubscription ? 'assigned' : 'changed') . ' successfully', [
                 'account_id' => $account->id,

@@ -35,12 +35,14 @@ export default function BillingPlans({
     account,
     plans,
     current_plan_key,
+    subscription_status = null,
     current_modules = [],
     razorpay_enabled = false,
     razorpay_key_id = null}: {
     account: any;
     plans: Plan[];
     current_plan_key: string | null;
+    subscription_status?: string | null;
     current_modules?: string[];
     razorpay_enabled?: boolean;
     razorpay_key_id?: string | null;
@@ -65,11 +67,10 @@ export default function BillingPlans({
         const isNewPlan = !current_plan_key;
         const plan = plans.find(p => p.key === planKey);
         
-        const trialDays = plan?.trial_days ?? 0;
         const confirmed = await confirm({
             title: isNewPlan ? 'Select Plan' : 'Switch Plan',
             message: isNewPlan 
-                ? `Are you sure you want to select the ${plan?.name ?? 'this'} plan?${trialDays > 0 ? ` You'll start with a ${trialDays}-day free trial.` : ''}`
+                ? `Are you sure you want to select the ${plan?.name ?? 'this'} plan?`
                 : 'Are you sure you want to switch to this plan?',
             variant: 'info'});
 
@@ -86,7 +87,7 @@ export default function BillingPlans({
                         title: isNewPlan ? 'Plan selected successfully' : 'Plan changed successfully',
                         description: isNewPlan ? 'You can now use all features of the platform.' : undefined,
                         variant: 'success'});
-                    router.reload({ only: ['plans', 'current_plan_key'] });
+                    router.reload({ only: ['plans', 'current_plan_key', 'subscription_status'] });
                 },
                 onError: (errors) => {
                     const errorMessage = errors?.plan || errors?.error || 'Failed to change plan. Please try again.';
@@ -203,7 +204,7 @@ export default function BillingPlans({
                             payment_id: response.razorpay_payment_id,
                             signature: response.razorpay_signature});
                         addToast({ title: 'Payment successful. Plan activated.', variant: 'success' });
-                        router.reload({ only: ['plans', 'current_plan_key', 'flash'] });
+                        router.reload({ only: ['plans', 'current_plan_key', 'subscription_status', 'flash'] });
                     } catch (error: any) {
                         const errorMsg = error?.response?.data?.message || error?.message || 'Unknown error';
                         addToast({ 
@@ -328,6 +329,7 @@ export default function BillingPlans({
     };
 
     const hasNoPlan = !current_plan_key;
+    const isPastDue = subscription_status === 'past_due';
 
     return (
         <AppShell>
@@ -345,7 +347,7 @@ export default function BillingPlans({
                                 </h3>
                                 <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">
                                     Your account doesn't have an active plan. Please select a plan below to continue using the platform. 
-                                    You can start with our free plan or choose a paid plan with a trial.
+                                    You can start with our free plan or choose a paid plan.
                                 </p>
                             </div>
                         </div>
@@ -528,15 +530,25 @@ export default function BillingPlans({
                                         </div>
                                     )}
 
-                                    <Button
+                                    {(() => {
+                                        const isCurrentAndPastDue = plan.is_current && isPastDue;
+                                        const canPayCurrent = isCurrentAndPastDue && (plan.price_monthly ?? 0) > 0 && razorpayEnabled;
+                                        const disabled = (!canPayCurrent && plan.is_current) || switchingPlan === plan.key || plan.price_monthly === null;
+
+                                        return (
+                                            <Button
                                         variant={plan.is_current ? 'secondary' : 'primary'}
                                         className={`w-full rounded-xl ${
                                             !plan.is_current 
                                                 ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50' 
                                                 : ''
                                         }`}
-                                        disabled={plan.is_current || switchingPlan === plan.key || plan.price_monthly === null}
+                                        disabled={disabled}
                                         onClick={() => {
+                                            if (canPayCurrent) {
+                                                handleRazorpayCheckout(plan);
+                                                return;
+                                            }
                                             if (plan.price_monthly && plan.price_monthly > 0 && razorpayEnabled) {
                                                 handleRazorpayCheckout(plan);
                                                 return;
@@ -544,7 +556,9 @@ export default function BillingPlans({
                                             handleSwitchPlan(plan.key);
                                         }}
                                     >
-                                        {plan.is_current
+                                        {canPayCurrent
+                                            ? 'Pay to Renew'
+                                            : plan.is_current
                                             ? 'Current Plan'
                                             : switchingPlan === plan.key
                                             ? 'Switching...'
@@ -554,6 +568,8 @@ export default function BillingPlans({
                                             ? 'Pay & Switch'
                                             : 'Switch to this Plan'}
                                     </Button>
+                                        );
+                                    })()}
                                 </CardContent>
                             </Card>
                         ))}

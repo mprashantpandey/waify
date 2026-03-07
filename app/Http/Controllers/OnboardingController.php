@@ -127,11 +127,11 @@ class OnboardingController extends Controller
                     'enabled' => true]);
             }
 
-            if ($selectedPlan->trial_days > 0) {
-                $subscriptionService->startTrial($account, $selectedPlan, $user);
-            } else {
-                $subscriptionService->changePlan($account, $selectedPlan, $user);
-            }
+            // Never auto-apply trials during onboarding.
+            $subscriptionService->changePlan($account, $selectedPlan, $user, null, [
+                'apply_trial' => false,
+                'origin' => 'onboarding',
+            ]);
 
             return $account;
         });

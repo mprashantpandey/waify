@@ -31,11 +31,12 @@ class ManualBillingProvider implements BillingProvider
     public function createSubscription(Account $account, Plan $plan, User $actor, array $metadata = []): Subscription
     {
         $now = now();
-        $trialEndsAt = $plan->trial_days > 0 
+        $applyTrial = (bool) ($metadata['apply_trial'] ?? false);
+        $trialEndsAt = $applyTrial && $plan->trial_days > 0
             ? $now->copy()->addDays($plan->trial_days) 
             : null;
 
-        $status = $plan->trial_days > 0 ? 'trialing' : 'active';
+        $status = $trialEndsAt ? 'trialing' : 'active';
         $periodEnd = $trialEndsAt ?? $now->copy()->addMonth();
 
         return Subscription::updateOrCreate(
@@ -128,4 +129,3 @@ class ManualBillingProvider implements BillingProvider
         return null;
     }
 }
-
