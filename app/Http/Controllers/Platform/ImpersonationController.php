@@ -42,4 +42,24 @@ class ImpersonationController extends Controller
         return redirect()->route('platform.dashboard')
             ->with('success', 'Impersonation ended.');
     }
+
+    public function startAsUser(Request $request, User $user): RedirectResponse
+    {
+        if (!$request->session()->has('impersonator_id')) {
+            $request->session()->put('impersonator_id', $request->user()->id);
+        }
+
+        Auth::loginUsingId($user->id);
+
+        $accountId = $user->ownedAccounts()->value('id') ?? $user->accounts()->value('accounts.id');
+        if ($accountId) {
+            $request->session()->put('current_account_id', $accountId);
+            $request->session()->put('impersonated_account_id', $accountId);
+            return redirect()->route('app.dashboard')
+                ->with('success', "You are now logged in as {$user->email}.");
+        }
+
+        return redirect()->route('onboarding')
+            ->with('success', "You are now logged in as {$user->email}.");
+    }
 }

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
 import Button from '@/Components/UI/Button';
 import TextInput from '@/Components/TextInput';
-import { Search, Shield, Eye } from 'lucide-react';
+import { Search, Shield, Eye, LogIn } from 'lucide-react';
 
 interface User {
     id: number;
@@ -29,25 +29,11 @@ export default function PlatformUsersIndex({
 }) {
     const { auth } = usePage().props as any;
     const [localFilters, setLocalFilters] = useState(filters);
-    const [confirmToggle, setConfirmToggle] = useState<{ userId: number; action: 'make' | 'remove' } | null>(null);
 
     const applyFilters = () => {
         router.get(route('platform.users.index'), localFilters as any, {
             preserveState: true,
             preserveScroll: true});
-    };
-
-    const handleToggleSuperAdmin = () => {
-        if (!confirmToggle) return;
-
-        const routeName = confirmToggle.action === 'make'
-            ? 'platform.users.make-super-admin'
-            : 'platform.users.remove-super-admin';
-
-        router.post(route(routeName, { user: confirmToggle.userId }), {}, {
-            onSuccess: () => {
-                setConfirmToggle(null);
-            }});
     };
 
     return (
@@ -143,22 +129,14 @@ export default function PlatformUsersIndex({
                                                             View
                                                         </Button>
                                                     </Link>
-                                                    {user.is_super_admin ? (
+                                                    {Number(auth?.user?.id) !== Number(user.id) && (
                                                         <Button
-                                                            variant="warning"
+                                                            variant="secondary"
                                                             size="sm"
-                                                            onClick={() => setConfirmToggle({ userId: user.id, action: 'remove' })}
+                                                            onClick={() => router.post(route('platform.users.impersonate', { user: user.id }))}
                                                         >
-                                                            Remove Super Admin
-                                                        </Button>
-                                                    ) : (
-                                                        <Button
-                                                            variant="info"
-                                                            size="sm"
-                                                            onClick={() => setConfirmToggle({ userId: user.id, action: 'make' })}
-                                                        >
-                                                            <Shield className="h-4 w-4 mr-1" />
-                                                            Make Super Admin
+                                                            <LogIn className="h-4 w-4 mr-1" />
+                                                            Login As User
                                                         </Button>
                                                     )}
                                                 </div>
@@ -189,38 +167,7 @@ export default function PlatformUsersIndex({
                     </div>
                 )}
 
-                {/* Confirmation Modal */}
-                {confirmToggle && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                        <Card className="w-full max-w-md">
-                            <CardHeader>
-                                <CardTitle>
-                                    {confirmToggle.action === 'make' ? 'Make Super Admin' : 'Remove Super Admin'}
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                                    {confirmToggle.action === 'make'
-                                        ? 'Are you sure you want to make this user a super admin? They will have full platform access.'
-                                        : 'Are you sure you want to remove super admin status from this user?'}
-                                </p>
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        variant={confirmToggle.action === 'make' ? 'info' : 'warning'}
-                                        onClick={handleToggleSuperAdmin}
-                                    >
-                                        Confirm
-                                    </Button>
-                                    <Button variant="secondary" onClick={() => setConfirmToggle(null)}>
-                                        Cancel
-                                    </Button>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
-                )}
             </div>
         </PlatformShell>
     );
 }
-

@@ -89,6 +89,7 @@ Route::middleware(['auth', 'super.admin'])->prefix('/platform')->name('platform.
     Route::post('/accounts/{account}/enable', [\App\Http\Controllers\Platform\PlatformAccountController::class, 'enable'])->name('accounts.enable');
     Route::get('/users', [\App\Http\Controllers\Platform\PlatformUserController::class, 'index'])->name('users.index');
     Route::get('/users/{user}', [\App\Http\Controllers\Platform\PlatformUserController::class, 'show'])->name('users.show');
+    Route::post('/users/{user}/impersonate', [ImpersonationController::class, 'startAsUser'])->name('users.impersonate');
     Route::post('/users/{user}/make-super-admin', [\App\Http\Controllers\Platform\PlatformUserController::class, 'makeSuperAdmin'])->name('users.make-super-admin');
     Route::post('/users/{user}/remove-super-admin', [\App\Http\Controllers\Platform\PlatformUserController::class, 'removeSuperAdmin'])->name('users.remove-super-admin');
     Route::get('/settings', [\App\Http\Controllers\Platform\PlatformSettingsController::class, 'index'])->name('settings');
