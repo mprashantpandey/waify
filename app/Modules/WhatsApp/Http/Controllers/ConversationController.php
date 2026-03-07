@@ -1126,6 +1126,21 @@ class ConversationController extends Controller
     public function sendMediaMessage(Request $request, WhatsAppConversation $conversation)
     {
         $account = $request->attributes->get('account') ?? current_account();
+        $wantsJson = $request->expectsJson() || $request->ajax();
+        $respondError = function (string $message, int $status = 422) use ($wantsJson) {
+            if ($wantsJson) {
+                return response()->json(['message' => $message], $status);
+            }
+
+            return redirect()->back()->withErrors(['media' => $message]);
+        };
+        $respondSuccess = function (string $message) use ($wantsJson) {
+            if ($wantsJson) {
+                return response()->json(['success' => true, 'message' => $message], 200);
+            }
+
+            return redirect()->back()->with('success', $message);
+        };
 
         if (!account_ids_match($conversation->account_id, $account->id)) {
             abort(404);
@@ -1134,7 +1149,11 @@ class ConversationController extends Controller
         $validated = $request->validate([
             'type' => 'required|in:image,video,document',
             'caption' => 'nullable|string|max:1024',
-            'attachment' => 'required|file|max:10240']);
+            'attachment' => 'required|file|max:10240',
+            'client_request_id' => 'nullable|string|max:120',
+        ]);
+
+        $clientRequestId = $this->normalizeClientRequestId($validated['client_request_id'] ?? null);
 
         $mimeRules = [
             'image' => 'mimes:jpg,jpeg,png,gif,webp',
@@ -1154,6 +1173,23 @@ class ConversationController extends Controller
         $caption = $validated['caption'] ?? null;
         $filename = $file->getClientOriginalName();
         $type = $validated['type'];
+        $mediaFingerprint = hash('sha256', implode('|', [
+            'media',
+            (string) $conversation->id,
+            $type,
+            (string) $caption,
+            (string) $filename,
+            (string) $file->getSize(),
+        ]));
+        if (!$this->reserveOutboundSendGuard(
+            (int) $account->id,
+            (int) $conversation->id,
+            'media',
+            $clientRequestId,
+            $mediaFingerprint
+        )) {
+            return $respondSuccess('Duplicate send request ignored. Message is already being processed.');
+        }
 
         $message = WhatsAppMessage::lockForUpdate()->create([
             'account_id' => $account->id,
@@ -1199,21 +1235,35 @@ class ConversationController extends Controller
             event(new MessageUpdated($message));
             event(new ConversationUpdated($conversation));
 
-            return redirect()->back()->with('success', 'Media sent successfully.');
+            return $respondSuccess('Media sent successfully.');
         } catch (\Exception $e) {
             $message->update([
                 'status' => 'failed',
                 'error_message' => $e->getMessage()]);
             event(new MessageUpdated($message));
 
-            return redirect()->back()->withErrors([
-                'media' => 'Failed to send media. Please try again.']);
+            return $respondError('Failed to send media. Please try again.');
         }
     }
 
     public function sendLocationMessage(Request $request, WhatsAppConversation $conversation)
     {
         $account = $request->attributes->get('account') ?? current_account();
+        $wantsJson = $request->expectsJson() || $request->ajax();
+        $respondError = function (string $message, int $status = 422) use ($wantsJson) {
+            if ($wantsJson) {
+                return response()->json(['message' => $message], $status);
+            }
+
+            return redirect()->back()->withErrors(['location' => $message]);
+        };
+        $respondSuccess = function (string $message) use ($wantsJson) {
+            if ($wantsJson) {
+                return response()->json(['success' => true, 'message' => $message], 200);
+            }
+
+            return redirect()->back()->with('success', $message);
+        };
 
         if (!account_ids_match($conversation->account_id, $account->id)) {
             abort(404);
@@ -1223,7 +1273,28 @@ class ConversationController extends Controller
             'latitude' => 'required|numeric',
             'longitude' => 'required|numeric',
             'name' => 'nullable|string|max:120',
-            'address' => 'nullable|string|max:255']);
+            'address' => 'nullable|string|max:255',
+            'client_request_id' => 'nullable|string|max:120',
+        ]);
+
+        $clientRequestId = $this->normalizeClientRequestId($validated['client_request_id'] ?? null);
+        $locationFingerprint = hash('sha256', implode('|', [
+            'location',
+            (string) $conversation->id,
+            (string) $validated['latitude'],
+            (string) $validated['longitude'],
+            (string) ($validated['name'] ?? ''),
+            (string) ($validated['address'] ?? ''),
+        ]));
+        if (!$this->reserveOutboundSendGuard(
+            (int) $account->id,
+            (int) $conversation->id,
+            'location',
+            $clientRequestId,
+            $locationFingerprint
+        )) {
+            return $respondSuccess('Duplicate send request ignored. Message is already being processed.');
+        }
 
         $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
 
@@ -1274,15 +1345,14 @@ class ConversationController extends Controller
             event(new MessageUpdated($message));
             event(new ConversationUpdated($conversation));
 
-            return redirect()->back()->with('success', 'Location sent successfully.');
+            return $respondSuccess('Location sent successfully.');
         } catch (\Exception $e) {
             $message->update([
                 'status' => 'failed',
                 'error_message' => $e->getMessage()]);
             event(new MessageUpdated($message));
 
-            return redirect()->back()->withErrors([
-                'location' => 'Failed to send location. Please try again.']);
+            return $respondError('Failed to send location. Please try again.');
         }
     }
 
@@ -1292,6 +1362,21 @@ class ConversationController extends Controller
     public function sendList(Request $request, WhatsAppConversation $conversation)
     {
         $account = $request->attributes->get('account') ?? current_account();
+        $wantsJson = $request->expectsJson() || $request->ajax();
+        $respondError = function (string $message, int $status = 422) use ($wantsJson) {
+            if ($wantsJson) {
+                return response()->json(['message' => $message], $status);
+            }
+
+            return redirect()->back()->withErrors(['list' => $message]);
+        };
+        $respondSuccess = function (string $message) use ($wantsJson) {
+            if ($wantsJson) {
+                return response()->json(['success' => true, 'message' => $message], 200);
+            }
+
+            return redirect()->back()->with('success', $message);
+        };
 
         if (!account_ids_match($conversation->account_id, $account->id)) {
             abort(404);
@@ -1299,6 +1384,7 @@ class ConversationController extends Controller
 
         $validated = $request->validate([
             'list_id' => 'required|exists:whatsapp_lists,id',
+            'client_request_id' => 'nullable|string|max:120',
         ]);
 
         $list = \App\Modules\WhatsApp\Models\WhatsAppList::where('id', $validated['list_id'])
@@ -1307,8 +1393,23 @@ class ConversationController extends Controller
             ->firstOrFail();
 
         if ($list->whatsapp_connection_id !== $conversation->whatsapp_connection_id) {
-            return redirect()->back()->withErrors([
-                'list_id' => 'This list belongs to a different connection.']);
+            return $respondError('This list belongs to a different connection.');
+        }
+
+        $clientRequestId = $this->normalizeClientRequestId($validated['client_request_id'] ?? null);
+        $listFingerprint = hash('sha256', implode('|', [
+            'list',
+            (string) $conversation->id,
+            (string) $list->id,
+        ]));
+        if (!$this->reserveOutboundSendGuard(
+            (int) $account->id,
+            (int) $conversation->id,
+            'list',
+            $clientRequestId,
+            $listFingerprint
+        )) {
+            return $respondSuccess('Duplicate send request ignored. Message is already being processed.');
         }
 
         $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
@@ -1362,15 +1463,14 @@ class ConversationController extends Controller
             event(new MessageUpdated($message));
             event(new ConversationUpdated($conversation));
 
-            return redirect()->back()->with('success', 'List message sent successfully.');
+            return $respondSuccess('List message sent successfully.');
         } catch (\Exception $e) {
             $message->update([
                 'status' => 'failed',
                 'error_message' => $e->getMessage()]);
             event(new MessageUpdated($message));
 
-            return redirect()->back()->withErrors([
-                'list' => 'Failed to send list: ' . $e->getMessage()]);
+            return $respondError('Failed to send list: ' . $e->getMessage());
         }
     }
 
@@ -1380,6 +1480,21 @@ class ConversationController extends Controller
     public function sendInteractiveButtons(Request $request, WhatsAppConversation $conversation)
     {
         $account = $request->attributes->get('account') ?? current_account();
+        $wantsJson = $request->expectsJson() || $request->ajax();
+        $respondError = function (string $message, int $status = 422) use ($wantsJson) {
+            if ($wantsJson) {
+                return response()->json(['message' => $message], $status);
+            }
+
+            return redirect()->back()->withErrors(['buttons' => $message]);
+        };
+        $respondSuccess = function (string $message) use ($wantsJson) {
+            if ($wantsJson) {
+                return response()->json(['success' => true, 'message' => $message], 200);
+            }
+
+            return redirect()->back()->with('success', $message);
+        };
 
         if (!account_ids_match($conversation->account_id, $account->id)) {
             abort(404);
@@ -1392,7 +1507,27 @@ class ConversationController extends Controller
             'buttons.*.text' => 'required|string|max:20',
             'header_text' => 'nullable|string|max:60',
             'footer_text' => 'nullable|string|max:60',
+            'client_request_id' => 'nullable|string|max:120',
         ]);
+
+        $clientRequestId = $this->normalizeClientRequestId($validated['client_request_id'] ?? null);
+        $buttonsFingerprint = hash('sha256', implode('|', [
+            'buttons',
+            (string) $conversation->id,
+            (string) ($validated['body_text'] ?? ''),
+            json_encode($validated['buttons'] ?? [], JSON_UNESCAPED_UNICODE) ?: '',
+            (string) ($validated['header_text'] ?? ''),
+            (string) ($validated['footer_text'] ?? ''),
+        ]));
+        if (!$this->reserveOutboundSendGuard(
+            (int) $account->id,
+            (int) $conversation->id,
+            'buttons',
+            $clientRequestId,
+            $buttonsFingerprint
+        )) {
+            return $respondSuccess('Duplicate send request ignored. Message is already being processed.');
+        }
 
         $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
 
@@ -1443,15 +1578,14 @@ class ConversationController extends Controller
             event(new MessageUpdated($message));
             event(new ConversationUpdated($conversation));
 
-            return redirect()->back()->with('success', 'Interactive buttons sent successfully.');
+            return $respondSuccess('Interactive buttons sent successfully.');
         } catch (\Exception $e) {
             $message->update([
                 'status' => 'failed',
                 'error_message' => $e->getMessage()]);
             event(new MessageUpdated($message));
 
-            return redirect()->back()->withErrors([
-                'buttons' => 'Failed to send interactive buttons: ' . $e->getMessage()]);
+            return $respondError('Failed to send interactive buttons: ' . $e->getMessage());
         }
     }
 

@@ -505,14 +505,17 @@ export default function ConversationsShow({
         }
 
         try {
-            await axios.post(
+            const response = await axios.post(
                 route('app.whatsapp.conversations.send-list', {
                     conversation: conversation.id}),
                 {
                     list_id: selectedList.id,
+                    client_request_id: createClientRequestId('list'),
                 }
             );
-            addToast({ title: 'List sent', variant: 'success' });
+            const message = response?.data?.message || 'List sent successfully.';
+            const isDuplicate = typeof message === 'string' && message.toLowerCase().includes('duplicate');
+            addToast({ title: isDuplicate ? 'Duplicate ignored' : 'List accepted', description: message, variant: isDuplicate ? 'info' : 'success' });
             setShowLists(false);
             setSelectedList(null);
         } catch (error: any) {
@@ -535,7 +538,7 @@ export default function ConversationsShow({
         }
 
         try {
-            await axios.post(
+            const response = await axios.post(
                 route('app.whatsapp.conversations.send-buttons', {
                     conversation: conversation.id}),
                 {
@@ -543,9 +546,12 @@ export default function ConversationsShow({
                     buttons: validButtons,
                     header_text: buttonHeaderText || null,
                     footer_text: buttonFooterText || null,
+                    client_request_id: createClientRequestId('buttons'),
                 }
             );
-            addToast({ title: 'Interactive buttons sent', variant: 'success' });
+            const message = response?.data?.message || 'Interactive buttons sent successfully.';
+            const isDuplicate = typeof message === 'string' && message.toLowerCase().includes('duplicate');
+            addToast({ title: isDuplicate ? 'Duplicate ignored' : 'Buttons accepted', description: message, variant: isDuplicate ? 'info' : 'success' });
             setShowButtons(false);
             setInteractiveButtons([{ id: '', text: '' }]);
             setButtonBodyText('');
@@ -590,17 +596,21 @@ export default function ConversationsShow({
         }
 
         try {
-            await axios.post(
+            const response = await axios.post(
                 route('app.whatsapp.conversations.send-location', {
                     conversation: conversation.id}),
                 {
                     latitude: Number(lat),
                     longitude: Number(lng),
                     name: label || null,
-                    address: null}
+                    address: null,
+                    client_request_id: createClientRequestId('location'),
+                }
             );
 
-            addToast({ title: 'Location sent', variant: 'success' });
+            const message = response?.data?.message || 'Location sent successfully.';
+            const isDuplicate = typeof message === 'string' && message.toLowerCase().includes('duplicate');
+            addToast({ title: isDuplicate ? 'Duplicate ignored' : 'Location accepted', description: message, variant: isDuplicate ? 'info' : 'success' });
             setShowLocation(false);
             setLocationInput({ label: '', lat: '', lng: '' });
         } catch (error: any) {
@@ -628,15 +638,20 @@ export default function ConversationsShow({
             if (caption && i === 0) {
                 formData.append('caption', caption);
             }
+            formData.append('client_request_id', createClientRequestId('media'));
 
             try {
-                await axios.post(
+                const response = await axios.post(
                     route('app.whatsapp.conversations.send-media', {
                         conversation: conversation.id}),
                     formData,
                     {
                         headers: { 'Content-Type': 'multipart/form-data' }}
                 );
+                const message = response?.data?.message;
+                if (typeof message === 'string' && message.toLowerCase().includes('duplicate')) {
+                    addToast({ title: 'Duplicate ignored', description: message, variant: 'info' });
+                }
             } catch (error: any) {
                 addToast({
                     title: 'Failed to send attachment',
@@ -685,10 +700,12 @@ export default function ConversationsShow({
                 }
             );
 
+            const message = response?.data?.message || 'Accepted by WhatsApp. Delivery/read status will update from webhook events.';
+            const isDuplicate = typeof message === 'string' && message.toLowerCase().includes('duplicate');
             addToast({
-                title: 'Template submitted',
-                description: response?.data?.message || 'Accepted by WhatsApp. Final delivery status will update shortly.',
-                variant: 'success',
+                title: isDuplicate ? 'Duplicate ignored' : 'Template accepted',
+                description: message,
+                variant: isDuplicate ? 'info' : 'success',
             });
             setSelectedTemplate(null);
             setTemplateVariables([]);
