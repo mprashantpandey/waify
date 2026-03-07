@@ -290,24 +290,27 @@ export default function BillingIndex({
                         <AlertCircle className="h-5 w-5" />
                         <div className="flex-1">
                             <h3 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-1">
-                                Payment Past Due
+                                Subscription Payment Required
                             </h3>
                             <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-3">
-                                Your subscription payment is past due. Please update your payment method to continue using all features.
+                                Your current billing cycle has ended and renewal payment is pending.
                             </p>
                             {subscription.last_error && (
                                 <p className="text-xs text-yellow-600 dark:text-yellow-400 italic mb-3">
                                     {subscription.last_error}
                                 </p>
                             )}
+                            <p className="text-xs text-yellow-700 dark:text-yellow-300 mb-3">
+                                Renew now to restore full access immediately and prevent workflow interruption.
+                            </p>
                             {canRenewNow ? (
                                 <Button variant="secondary" size="sm" className="rounded-xl" onClick={handleRenewNow} disabled={renewing}>
-                                    {renewing ? 'Opening Checkout...' : 'Renew Subscription'}
+                                    {renewing ? 'Opening Checkout...' : 'Renew Now'}
                                 </Button>
                             ) : (
                                 <Link href={route('app.billing.plans', {})}>
                                     <Button variant="secondary" size="sm" className="rounded-xl">
-                                        Renew Subscription
+                                        Open Renewal Options
                                     </Button>
                                 </Link>
                             )}

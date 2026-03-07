@@ -26,10 +26,10 @@ export default function BillingPastDue({
                             <AlertCircle className="h-12 w-12 text-yellow-600 dark:text-yellow-400" />
                         </div>
                         <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent mb-3">
-                            Subscription Past Due
+                            Renewal Needed
                         </h1>
                         <p className="text-gray-600 dark:text-gray-400 mb-6">
-                            Your subscription for <strong className="text-gray-900 dark:text-gray-100">{account.name}</strong> is past due.
+                            The current billing cycle for <strong className="text-gray-900 dark:text-gray-100">{account.name}</strong> has ended.
                         </p>
                         {subscription.last_error && (
                             <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-4 mb-6 text-left">
@@ -39,11 +39,11 @@ export default function BillingPastDue({
                             </div>
                         )}
                         <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-                            Please update your payment method or contact support to restore access.
+                            Complete renewal to restore full access immediately.
                         </p>
                         <Link href={route('app.billing.index', { })}>
                             <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50 rounded-xl w-full">
-                                Go to Billing
+                                Open Billing & Renew
                             </Button>
                         </Link>
                     </CardContent>
