@@ -1,5 +1,7 @@
 import { Link, router } from '@inertiajs/react';
 import { usePage } from '@inertiajs/react';
+import axios from 'axios';
+import { useState } from 'react';
 import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
@@ -62,6 +64,16 @@ interface MetaBillingSummary {
     note: string;
 }
 
+interface RecentPayment {
+    id: number;
+    invoice_no: string;
+    amount: number;
+    currency: string;
+    status: string;
+    plan_name: string | null;
+    created_at: string;
+}
+
 export default function BillingIndex({
     account,
     subscription,
@@ -69,20 +81,28 @@ export default function BillingIndex({
     usage,
     meta_billing,
     wallet,
+    recent_payments = [],
     current_connections_count,
-    current_agents_count}: {
+    current_agents_count,
+    razorpay_enabled = false,
+    razorpay_key_id = null}: {
     account: Account;
     subscription: Subscription | null;
     plan: Plan | null;
     usage: Usage;
     meta_billing?: MetaBillingSummary;
     wallet: Wallet;
+    recent_payments?: RecentPayment[];
     current_connections_count?: number;
     current_agents_count?: number;
+    razorpay_enabled?: boolean;
+    razorpay_key_id?: string | null;
 }) {
     const { auth } = usePage().props as any;
     const { confirm } = useNotifications();
+    const [renewing, setRenewing] = useState(false);
     const isOwner = Number(account.owner_id) === Number(auth?.user?.id);
+    const razorpayEnabled = razorpay_enabled && Boolean(razorpay_key_id);
 
     const getStatusBadge = (status: string) => {
         const statusMap: Record<string, { variant: 'success' | 'warning' | 'danger' | 'default'; label: string }> = {
@@ -128,6 +148,83 @@ export default function BillingIndex({
     const trialDays = subscription ? getTrialDaysRemaining(subscription.trial_ends_at) : null;
     const estimatedMetaCost = (meta_billing?.estimated_cost_minor ?? usage.meta_estimated_cost_minor ?? 0) / 100;
     const walletBalance = (wallet?.balance_minor ?? 0) / 100;
+    const canRenewNow = Boolean(
+        isOwner
+            && subscription?.status === 'past_due'
+            && plan
+            && (plan.price_monthly ?? 0) > 0
+            && razorpayEnabled
+    );
+
+    const loadRazorpay = () =>
+        new Promise<void>((resolve, reject) => {
+            if (typeof window !== 'undefined' && (window as any).Razorpay) {
+                resolve();
+                return;
+            }
+            const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+            if (existingScript) {
+                existingScript.addEventListener('load', () => resolve());
+                existingScript.addEventListener('error', () => reject(new Error('Failed to load Razorpay script')));
+                return;
+            }
+            const script = document.createElement('script');
+            script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+            script.async = true;
+            script.crossOrigin = 'anonymous';
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error('Failed to load Razorpay script'));
+            document.head.appendChild(script);
+        });
+
+    const handleRenewNow = async () => {
+        if (!plan || !canRenewNow) return;
+
+        const confirmed = await confirm({
+            title: 'Renew Subscription',
+            message: `Proceed to renew ${plan.name}?`,
+            variant: 'info',
+        });
+        if (!confirmed) return;
+
+        setRenewing(true);
+        try {
+            await loadRazorpay();
+            const orderUrl = route('app.billing.razorpay.order', { plan: plan.key });
+            const orderResponse = await axios.post(orderUrl, {}, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
+            });
+            const { order_id, amount, currency, key_id } = orderResponse.data || {};
+            if (!order_id || !amount || !key_id || !(window as any).Razorpay) {
+                throw new Error('Invalid payment order response');
+            }
+
+            const razorpay = new (window as any).Razorpay({
+                key: key_id,
+                amount: Number(amount),
+                currency: currency || 'INR',
+                order_id,
+                name: account.slug,
+                description: `Renew ${plan.name}`,
+                handler: async (response: any) => {
+                    await axios.post(route('app.billing.razorpay.confirm', {}), {
+                        order_id: response.razorpay_order_id,
+                        payment_id: response.razorpay_payment_id,
+                        signature: response.razorpay_signature,
+                    });
+                    router.reload({ only: ['subscription', 'plan', 'recent_payments', 'flash'] });
+                },
+                modal: {
+                    ondismiss: () => setRenewing(false),
+                },
+            });
+            razorpay.on('payment.failed', () => setRenewing(false));
+            razorpay.open();
+        } catch {
+            setRenewing(false);
+            router.reload({ only: ['flash'] });
+        }
+    };
 
     const renderUsageMeter = (
         label: string,
@@ -203,11 +300,17 @@ export default function BillingIndex({
                                     {subscription.last_error}
                                 </p>
                             )}
-                            <Link href={route('app.billing.plans', {})}>
-                                <Button variant="secondary" size="sm" className="rounded-xl">
-                                    Renew Subscription
+                            {canRenewNow ? (
+                                <Button variant="secondary" size="sm" className="rounded-xl" onClick={handleRenewNow} disabled={renewing}>
+                                    {renewing ? 'Opening Checkout...' : 'Renew Subscription'}
                                 </Button>
-                            </Link>
+                            ) : (
+                                <Link href={route('app.billing.plans', {})}>
+                                    <Button variant="secondary" size="sm" className="rounded-xl">
+                                        Renew Subscription
+                                    </Button>
+                                </Link>
+                            )}
                         </div>
                     </Alert>
                 )}
@@ -301,13 +404,23 @@ export default function BillingIndex({
                                     </div>
                                 )}
                                 <div className="flex items-center gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                                    {subscription?.status === 'past_due' ? (
-                                        <Link href={route('app.billing.plans', {})}>
-                                            <Button className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-lg shadow-amber-500/40 rounded-xl">
-                                                Renew Now
+                                    {subscription?.status === 'past_due' && (
+                                        canRenewNow ? (
+                                            <Button
+                                                className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-lg shadow-amber-500/40 rounded-xl"
+                                                onClick={handleRenewNow}
+                                                disabled={renewing}
+                                            >
+                                                {renewing ? 'Opening Checkout...' : 'Renew Now'}
                                             </Button>
-                                        </Link>
-                                    ) : null}
+                                        ) : (
+                                            <Link href={route('app.billing.plans', {})}>
+                                                <Button className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-lg shadow-amber-500/40 rounded-xl">
+                                                    Renew Now
+                                                </Button>
+                                            </Link>
+                                        )
+                                    )}
                                     <Link href={route('app.billing.plans', {})}>
                                         <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50 rounded-xl">
                                             Change Plan
@@ -346,6 +459,57 @@ export default function BillingIndex({
                         ) : (
                             <p className="text-gray-500 dark:text-gray-400">No plan assigned</p>
                         )}
+                    </CardContent>
+                </Card>
+
+                <Card className="border-0 shadow-lg">
+                    <CardHeader className="bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900">
+                        <div className="flex items-center justify-between gap-3">
+                            <div>
+                                <CardTitle className="text-xl font-bold">Invoices & Transactions</CardTitle>
+                                <CardDescription>Latest billing activity with quick access</CardDescription>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Link href={route('app.billing.history', {})}>
+                                    <Button variant="secondary" size="sm" className="rounded-xl">Invoices</Button>
+                                </Link>
+                                <Link href={route('app.billing.transactions', {})}>
+                                    <Button variant="secondary" size="sm" className="rounded-xl">Transactions</Button>
+                                </Link>
+                            </div>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+                                    <tr>
+                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Invoice</th>
+                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Plan</th>
+                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
+                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-gray-900">
+                                    {recent_payments.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={5} className="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                                                No invoice records yet.
+                                            </td>
+                                        </tr>
+                                    ) : recent_payments.map((payment) => (
+                                        <tr key={payment.id}>
+                                            <td className="px-6 py-4 text-xs font-mono text-gray-700 dark:text-gray-300">{payment.invoice_no}</td>
+                                            <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">{payment.plan_name || '—'}</td>
+                                            <td className="px-6 py-4 text-sm font-semibold text-gray-900 dark:text-gray-100">{formatPrice(payment.amount, payment.currency)}</td>
+                                            <td className="px-6 py-4 text-sm">{getStatusBadge(payment.status)}</td>
+                                            <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">{new Date(payment.created_at).toLocaleString()}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </CardContent>
                 </Card>
 

@@ -44,6 +44,23 @@ class BillingController extends Controller
         $usageMetaSnapshot = $this->currentMetaUsageSnapshot($account);
         $metaBilling = $this->buildMetaBillingSummary($usage, $account);
         $wallet = $this->walletService->getOrCreateWallet($account);
+        $recentPayments = PaymentOrder::with('plan')
+            ->where('account_id', $account->id)
+            ->orderByDesc('created_at')
+            ->limit(5)
+            ->get()
+            ->map(function (PaymentOrder $order) {
+                return [
+                    'id' => $order->id,
+                    'invoice_no' => sprintf('INV-%06d', $order->id),
+                    'amount' => (int) $order->amount,
+                    'currency' => $order->currency,
+                    'status' => $order->status,
+                    'plan_name' => $order->plan?->name,
+                    'created_at' => $order->created_at->toIso8601String(),
+                ];
+            })
+            ->values();
 
         // Get current counts
         $currentConnectionsCount = \App\Modules\WhatsApp\Models\WhatsAppConnection::where('account_id', $account->id)
@@ -55,6 +72,12 @@ class BillingController extends Controller
         // Get default currency from platform settings
         $settingsService = app(PlatformSettingsService::class);
         $defaultCurrency = $settingsService->get('payment.default_currency', 'USD');
+        $razorpayProvider = $this->providerManager->get('razorpay');
+        $razorpayEnabled = $razorpayProvider?->isEnabled() ?? false;
+        $razorpayKeyId = method_exists($razorpayProvider, 'getKeyId') ? $razorpayProvider->getKeyId() : null;
+        if (is_string($razorpayKeyId)) {
+            $razorpayKeyId = trim($razorpayKeyId);
+        }
 
         return Inertia::render('Billing/Index', [
             'account' => $account,
@@ -93,8 +116,12 @@ class BillingController extends Controller
                 'balance_minor' => (int) $wallet->balance_minor,
                 'currency' => $wallet->currency,
             ],
+            'recent_payments' => $recentPayments,
             'current_connections_count' => $currentConnectionsCount,
-            'current_agents_count' => $currentAgentsCount]);
+            'current_agents_count' => $currentAgentsCount,
+            'razorpay_enabled' => $razorpayEnabled,
+            'razorpay_key_id' => $razorpayKeyId,
+        ]);
     }
 
     /**
@@ -578,6 +605,7 @@ class BillingController extends Controller
             ->map(function (PaymentOrder $order) {
                 return [
                     'id' => $order->id,
+                    'invoice_no' => sprintf('INV-%06d', $order->id),
                     'provider' => $order->provider,
                     'provider_order_id' => $order->provider_order_id,
                     'provider_payment_id' => $order->provider_payment_id,

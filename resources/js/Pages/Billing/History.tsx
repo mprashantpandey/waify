@@ -6,6 +6,7 @@ import { Head } from '@inertiajs/react';
 
 interface Payment {
     id: number;
+    invoice_no: string;
     provider: string;
     provider_order_id: string;
     provider_payment_id: string | null;
@@ -71,6 +72,9 @@ export default function BillingHistory({
                                 <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                                     <tr>
                                         <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                            Invoice
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                             Plan
                                         </th>
                                         <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -93,13 +97,16 @@ export default function BillingHistory({
                                 <tbody className="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-gray-900">
                                     {payments.length === 0 && (
                                         <tr>
-                                            <td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                                            <td colSpan={7} className="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                                                 No payments recorded yet.
                                             </td>
                                         </tr>
                                     )}
                                     {payments.map((payment) => (
                                         <tr key={payment.id}>
+                                            <td className="px-6 py-4 text-xs font-mono text-gray-700 dark:text-gray-300">
+                                                {payment.invoice_no}
+                                            </td>
                                             <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">
                                                 {payment.plan?.name ?? 'Unknown'}
                                             </td>

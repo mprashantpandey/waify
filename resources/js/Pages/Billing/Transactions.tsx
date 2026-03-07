@@ -40,6 +40,17 @@ export default function BillingTransactions({
     const formatMoney = (minor: number, currency: string) =>
         new Intl.NumberFormat('en-IN', { style: 'currency', currency: currency || 'INR' }).format((minor || 0) / 100);
 
+    const sourceLabel = (source: string) => {
+        const map: Record<string, string> = {
+            subscription_payment: 'Subscription Payment',
+            wallet_topup: 'Wallet Top-up',
+            wallet_adjustment: 'Wallet Adjustment',
+            billing_proration_charge: 'Proration Charge',
+            billing_proration_credit: 'Proration Credit',
+        };
+        return map[source] || source.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    };
+
     const groupedCounts = useMemo(() => {
         return transactions.reduce(
             (acc, tx) => {
@@ -228,7 +239,7 @@ export default function BillingTransactions({
                                             <td className="px-4 py-3">{tx.type}</td>
                                             <td className="px-4 py-3">{tx.direction}</td>
                                             <td className="px-4 py-3 font-medium">{formatMoney(tx.amount_minor, tx.currency)}</td>
-                                            <td className="px-4 py-3">{tx.source}</td>
+                                            <td className="px-4 py-3">{sourceLabel(tx.source)}</td>
                                             <td className="px-4 py-3">
                                                 <Badge variant={tx.status === 'failed' ? 'danger' : tx.status === 'success' || tx.status === 'paid' ? 'success' : 'default'}>
                                                     {tx.status}
