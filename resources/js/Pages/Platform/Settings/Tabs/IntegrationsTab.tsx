@@ -381,6 +381,55 @@ export default function IntegrationsTab({ data, setData, errors }: IntegrationsT
                             <InputError message={errors['whatsapp.system_user_token']} />
                         </div>
                         <div>
+                            <InputLabel htmlFor="whatsapp.system_user_id" value="System User ID" />
+                            <TextInput
+                                id="whatsapp.system_user_id"
+                                type="text"
+                                value={data.whatsapp?.system_user_id || ''}
+                                onChange={(e) => setData('whatsapp.system_user_id', e.target.value)}
+                                className="mt-1"
+                                placeholder="123456789012345"
+                            />
+                            <InputError message={errors['whatsapp.system_user_id']} />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="whatsapp.partner_business_id" value="Partner Business ID" />
+                            <TextInput
+                                id="whatsapp.partner_business_id"
+                                type="text"
+                                value={data.whatsapp?.partner_business_id || ''}
+                                onChange={(e) => setData('whatsapp.partner_business_id', e.target.value)}
+                                className="mt-1"
+                                placeholder="Your agency Business Manager ID"
+                            />
+                            <InputError message={errors['whatsapp.partner_business_id']} />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="whatsapp.credit_line_id" value="Credit Line ID" />
+                            <TextInput
+                                id="whatsapp.credit_line_id"
+                                type="text"
+                                value={data.whatsapp?.credit_line_id || ''}
+                                onChange={(e) => setData('whatsapp.credit_line_id', e.target.value)}
+                                className="mt-1"
+                                placeholder="Extended Credit Line ID"
+                            />
+                            <InputError message={errors['whatsapp.credit_line_id']} />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="whatsapp.template_api_mode" value="Template API Mode" />
+                            <select
+                                id="whatsapp.template_api_mode"
+                                value={data.whatsapp?.template_api_mode || 'direct'}
+                                onChange={(e) => setData('whatsapp.template_api_mode', e.target.value)}
+                                className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900"
+                            >
+                                <option value="direct">Direct (WABA endpoint)</option>
+                                <option value="obo">On-Behalf-Of (Partner endpoint)</option>
+                            </select>
+                            <InputError message={errors['whatsapp.template_api_mode']} />
+                        </div>
+                        <div>
                             <InputLabel htmlFor="whatsapp.api_version" value="Graph API Version" />
                             <TextInput
                                 id="whatsapp.api_version"
@@ -392,6 +441,23 @@ export default function IntegrationsTab({ data, setData, errors }: IntegrationsT
                             />
                             <InputError message={errors['whatsapp.api_version']} />
                         </div>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-800 p-3">
+                        <div>
+                            <InputLabel value="Strict Embedded Provisioning" />
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                If enabled, embedded signup will fail when System User assignment or credit-line attachment fails.
+                            </p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={data.whatsapp?.strict_embedded_provisioning ?? false}
+                                onChange={(e) => setData('whatsapp.strict_embedded_provisioning', e.target.checked)}
+                                className="sr-only peer"
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                        </label>
                     </div>
                 </CardContent>
             </Card>

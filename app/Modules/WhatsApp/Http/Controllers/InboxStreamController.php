@@ -7,12 +7,18 @@ use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use App\Modules\WhatsApp\Models\WhatsAppConversationNote;
 use App\Modules\WhatsApp\Models\WhatsAppConversationAuditEvent;
+use App\Modules\WhatsApp\Services\CustomerCareWindowService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Carbon;
 
 class InboxStreamController extends Controller
 {
+    public function __construct(
+        protected CustomerCareWindowService $customerCareWindowService
+    ) {
+    }
+
     /**
      * Stream inbox updates (for polling fallback).
      */
@@ -53,6 +59,9 @@ class InboxStreamController extends Controller
                         'wa_id' => $conversation->contact->wa_id,
                         'name' => $conversation->contact->name ?? $conversation->contact->wa_id],
                     'status' => $conversation->status,
+                    'customer_care_window' => $this->formatCustomerCareWindowState(
+                        $this->customerCareWindowService->forConversation($conversation)
+                    ),
                     'last_message_preview' => $conversation->last_message_preview,
                     'last_message_at' => $conversation->last_message_at?->toIso8601String(),
                     'connection' => [
@@ -220,22 +229,22 @@ class InboxStreamController extends Controller
             })
             ->values();
 
-        // Conversation meta if changed
-        $conversationChanged = $conversation->updated_at && $conversation->updated_at->gt($afterUpdatedAtDate);
-        $conversationMeta = null;
-        if ($conversationChanged) {
-            $conversationMeta = [
-                'id' => $conversation->id,
-                'status' => $conversation->status,
-            ];
+        // Always include conversation meta so customer care window state stays accurate
+        // even when no DB row has changed (window expiration is time-based).
+        $conversationMeta = [
+            'id' => $conversation->id,
+            'status' => $conversation->status,
+            'customer_care_window' => $this->formatCustomerCareWindowState(
+                $this->customerCareWindowService->forConversation($conversation)
+            ),
+        ];
 
-            if (Schema::hasColumn('whatsapp_conversations', 'assigned_to')) {
-                $conversationMeta['assigned_to'] = $conversation->assigned_to;
-            }
+        if (Schema::hasColumn('whatsapp_conversations', 'assigned_to')) {
+            $conversationMeta['assigned_to'] = $conversation->assigned_to;
+        }
 
-            if (Schema::hasColumn('whatsapp_conversations', 'priority')) {
-                $conversationMeta['priority'] = $conversation->priority;
-            }
+        if (Schema::hasColumn('whatsapp_conversations', 'priority')) {
+            $conversationMeta['priority'] = $conversation->priority;
         }
 
         return response()->json([
@@ -247,5 +256,15 @@ class InboxStreamController extends Controller
             'conversation' => $conversationMeta,
             'history_truncated' => $historyTruncated,
             'batch_size' => $messageBatchSize]);
+    }
+
+    private function formatCustomerCareWindowState(array $windowState): array
+    {
+        return [
+            'is_open' => (bool) ($windowState['is_open'] ?? false),
+            'last_inbound_at' => ($windowState['last_inbound_at'] ?? null)?->toIso8601String(),
+            'expires_at' => ($windowState['expires_at'] ?? null)?->toIso8601String(),
+            'seconds_remaining' => (int) ($windowState['seconds_remaining'] ?? 0),
+        ];
     }
 }

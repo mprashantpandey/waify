@@ -215,6 +215,11 @@ class PlatformSettingsController extends Controller
             'meta_app_id' => $get('whatsapp.meta_app_id', config('whatsapp.meta.app_id')),
             'meta_app_secret' => $get('whatsapp.meta_app_secret', config('whatsapp.meta.app_secret')),
             'system_user_token' => $get('whatsapp.system_user_token', config('whatsapp.meta.system_user_token')),
+            'system_user_id' => $get('whatsapp.system_user_id', config('whatsapp.meta.system_user_id')),
+            'partner_business_id' => $get('whatsapp.partner_business_id', config('whatsapp.meta.partner_business_id')),
+            'credit_line_id' => $get('whatsapp.credit_line_id', config('whatsapp.meta.credit_line_id')),
+            'strict_embedded_provisioning' => $get('whatsapp.strict_embedded_provisioning', config('whatsapp.meta.strict_embedded_provisioning', false)),
+            'template_api_mode' => $get('whatsapp.template_api_mode', config('whatsapp.meta.template_api_mode', 'direct')),
             'embedded_signup_config_id' => $get('whatsapp.embedded_signup_config_id', config('whatsapp.meta.embedded_signup_config_id')),
             'api_version' => $get('whatsapp.api_version', config('whatsapp.meta.api_version', 'v21.0'))];
 
@@ -417,6 +422,11 @@ class PlatformSettingsController extends Controller
             'whatsapp.meta_app_id' => 'nullable|string|max:255',
             'whatsapp.meta_app_secret' => 'nullable|string|max:255',
             'whatsapp.system_user_token' => 'nullable|string',
+            'whatsapp.system_user_id' => 'nullable|string|max:255',
+            'whatsapp.partner_business_id' => 'nullable|string|max:255',
+            'whatsapp.credit_line_id' => 'nullable|string|max:255',
+            'whatsapp.strict_embedded_provisioning' => 'nullable|boolean',
+            'whatsapp.template_api_mode' => 'nullable|string|in:direct,obo',
             'whatsapp.embedded_signup_config_id' => 'nullable|string|max:255',
             'whatsapp.api_version' => 'nullable|string|max:10',
             // SMS (2FA / OTP)
@@ -463,7 +473,7 @@ class PlatformSettingsController extends Controller
             'general' => ['maintenance_mode'],
             'branding' => ['show_powered_by'],
             'ai' => ['enabled'],
-            'whatsapp' => ['embedded_enabled']];
+            'whatsapp' => ['embedded_enabled', 'strict_embedded_provisioning']];
         
         foreach ($groups as $group) {
             // Handle both nested array format and dot-notation format

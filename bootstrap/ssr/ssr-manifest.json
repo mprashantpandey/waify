@@ -167,19 +167,22 @@
     "/build/assets/VerifyEmail-BtRhDnLY.js"
   ],
   "resources/js/Pages/Billing/History.tsx": [
-    "/build/assets/History-DtiTpf9u.js"
+    "/build/assets/History-CpX43yay.js"
   ],
   "resources/js/Pages/Billing/Index.tsx": [
-    "/build/assets/Index-h5MbTVAR.js"
+    "/build/assets/Index-DguhBtXn.js"
   ],
   "resources/js/Pages/Billing/PastDue.tsx": [
-    "/build/assets/PastDue-8_FJ2329.js"
+    "/build/assets/PastDue-CQ8UBA1F.js"
+  ],
+  "resources/js/Pages/Billing/PaymentDetails.tsx": [
+    "/build/assets/PaymentDetails-ChSBp-il.js"
   ],
   "resources/js/Pages/Billing/Plans.tsx": [
-    "/build/assets/Plans-CNQWex9W.js"
+    "/build/assets/Plans-SWiu1L9-.js"
   ],
   "resources/js/Pages/Billing/Transactions.tsx": [
-    "/build/assets/Transactions-ApkVvK-t.js"
+    "/build/assets/Transactions-BDIqGHUv.js"
   ],
   "resources/js/Pages/Billing/Usage.tsx": [
     "/build/assets/Usage-B5Dk9BZy.js"
@@ -308,7 +311,7 @@
     "/build/assets/Show-C6U5lTrz.js"
   ],
   "resources/js/Pages/Platform/Settings.tsx": [
-    "/build/assets/Settings-BZHiDI3Q.js"
+    "/build/assets/Settings-oeK6Q696.js"
   ],
   "resources/js/Pages/Platform/Settings/Tabs/AiTab.tsx": [
     "/build/assets/AiTab-ltaiglEI.js"
@@ -338,7 +341,7 @@
     "/build/assets/GeneralTab-Bwp6caNn.js"
   ],
   "resources/js/Pages/Platform/Settings/Tabs/IntegrationsTab.tsx": [
-    "/build/assets/IntegrationsTab-C_tAm7Rn.js"
+    "/build/assets/IntegrationsTab-D9RW36OB.js"
   ],
   "resources/js/Pages/Platform/Settings/Tabs/MailTab.tsx": [
     "/build/assets/MailTab-CThf-D3S.js"
@@ -374,7 +377,7 @@
     "/build/assets/Show-Btc2nELX.js"
   ],
   "resources/js/Pages/Platform/SystemHealth.tsx": [
-    "/build/assets/SystemHealth-DyWpyPhi.js"
+    "/build/assets/SystemHealth-B5MzLF4e.js"
   ],
   "resources/js/Pages/Platform/Templates/Index.tsx": [
     "/build/assets/Index-BUyr8vjJ.js"
@@ -386,7 +389,7 @@
     "/build/assets/Index-BtoUgAv5.js"
   ],
   "resources/js/Pages/Platform/Users/Index.tsx": [
-    "/build/assets/Index-BoDZwbLP.js"
+    "/build/assets/Index-DACIFoXu.js"
   ],
   "resources/js/Pages/Platform/Users/Show.tsx": [
     "/build/assets/Show-CC49ix-h.js"
@@ -458,13 +461,13 @@
     "/build/assets/Welcome-Dw20EsBf.js"
   ],
   "resources/js/Pages/WhatsApp/Connections/Create.tsx": [
-    "/build/assets/Create-fI33dFYF.js"
+    "/build/assets/Create-NLgau_NZ.js"
   ],
   "resources/js/Pages/WhatsApp/Connections/Edit.tsx": [
     "/build/assets/Edit-_-CJKx6N.js"
   ],
   "resources/js/Pages/WhatsApp/Connections/EmbeddedWizard.tsx": [
-    "/build/assets/EmbeddedWizard-CYvpGGwx.js"
+    "/build/assets/EmbeddedWizard-D_6eChzQ.js"
   ],
   "resources/js/Pages/WhatsApp/Connections/HealthCheck.tsx": [
     "/build/assets/HealthCheck-Bwr6IL7t.js"
@@ -479,7 +482,7 @@
     "/build/assets/New-fNjjCZLn.js"
   ],
   "resources/js/Pages/WhatsApp/Conversations/Show.tsx": [
-    "/build/assets/Show-B2p77D-c.js"
+    "/build/assets/Show-C86XDO_m.js"
   ],
   "resources/js/Pages/WhatsApp/Lists/Create.tsx": [
     "/build/assets/Create-C9Fho0mG.js"

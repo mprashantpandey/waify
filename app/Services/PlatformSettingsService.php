@@ -293,6 +293,11 @@ class PlatformSettingsService
         $appId = $this->get('whatsapp.meta_app_id', config('whatsapp.meta.app_id'));
         $appSecret = $this->get('whatsapp.meta_app_secret', config('whatsapp.meta.app_secret'));
         $systemUserToken = $this->get('whatsapp.system_user_token', config('whatsapp.meta.system_user_token'));
+        $systemUserId = $this->get('whatsapp.system_user_id', config('whatsapp.meta.system_user_id'));
+        $partnerBusinessId = $this->get('whatsapp.partner_business_id', config('whatsapp.meta.partner_business_id'));
+        $creditLineId = $this->get('whatsapp.credit_line_id', config('whatsapp.meta.credit_line_id'));
+        $strictEmbeddedProvisioning = $this->get('whatsapp.strict_embedded_provisioning', config('whatsapp.meta.strict_embedded_provisioning', false));
+        $templateApiMode = $this->get('whatsapp.template_api_mode', config('whatsapp.meta.template_api_mode', 'direct'));
         $embeddedConfigId = $this->get('whatsapp.embedded_signup_config_id', config('whatsapp.meta.embedded_signup_config_id'));
         $apiVersion = $this->get('whatsapp.api_version', config('whatsapp.meta.api_version', 'v21.0'));
         $embeddedEnabled = $this->get('whatsapp.embedded_enabled');
@@ -305,6 +310,21 @@ class PlatformSettingsService
         }
         if ($systemUserToken) {
             config(['whatsapp.meta.system_user_token' => $systemUserToken]);
+        }
+        if ($systemUserId) {
+            config(['whatsapp.meta.system_user_id' => $systemUserId]);
+        }
+        if ($partnerBusinessId) {
+            config(['whatsapp.meta.partner_business_id' => $partnerBusinessId]);
+        }
+        if ($creditLineId) {
+            config(['whatsapp.meta.credit_line_id' => $creditLineId]);
+        }
+        if ($strictEmbeddedProvisioning !== null) {
+            config(['whatsapp.meta.strict_embedded_provisioning' => (bool) $strictEmbeddedProvisioning]);
+        }
+        if ($templateApiMode) {
+            config(['whatsapp.meta.template_api_mode' => $templateApiMode]);
         }
         if ($embeddedConfigId) {
             config(['whatsapp.meta.embedded_signup_config_id' => $embeddedConfigId]);

@@ -237,13 +237,16 @@ class ConnectionController extends Controller
                 throw new \RuntimeException('Unable to obtain access token from Meta.');
             }
 
-            $longLivedTokenData = $this->metaGraphService->exchangeForLongLivedToken($accessToken);
-            if (!empty($longLivedTokenData['access_token'])) {
-                $accessToken = $longLivedTokenData['access_token'];
-            }
-
-            $systemUserToken = config('whatsapp.meta.system_user_token');
-            $effectiveToken = $systemUserToken ?: $accessToken;
+            // Meta Tech Provider mode: use partner System User token for durable access.
+            // Do not rely on exchanging client token to a long-lived user token.
+            $systemUserToken = (string) config('whatsapp.meta.system_user_token');
+            $systemUserId = (string) config('whatsapp.meta.system_user_id');
+            $creditLineId = (string) config('whatsapp.meta.credit_line_id');
+            $strictProvisioning = filter_var(
+                config('whatsapp.meta.strict_embedded_provisioning', false),
+                FILTER_VALIDATE_BOOLEAN
+            );
+            $effectiveToken = $systemUserToken !== '' ? $systemUserToken : $accessToken;
 
             $wabaId = $validated['waba_id'] ?? null;
             if (!$wabaId) {
@@ -261,6 +264,20 @@ class ConnectionController extends Controller
 
             if (!$wabaId || !$phoneNumberId) {
                 throw new \RuntimeException('Unable to resolve WABA ID and Phone Number ID from Embedded Signup.');
+            }
+
+            // Tech-provider provisioning: assign partner system user and attach partner credit line.
+            $this->provisionTechProviderOwnership(
+                wabaId: $wabaId,
+                accessToken: $accessToken,
+                systemUserId: $systemUserId,
+                systemUserToken: $systemUserToken,
+                creditLineId: $creditLineId,
+                strict: $strictProvisioning
+            );
+
+            if ($systemUserToken !== '') {
+                $effectiveToken = $systemUserToken;
             }
 
             $businessPhone = $validated['business_phone'] ?? null;
@@ -470,6 +487,57 @@ class ConnectionController extends Controller
         $message = strtolower($error->getMessage());
         return str_contains($message, 'redirect_uri is identical')
             || str_contains($message, 'redirect_uri');
+    }
+
+    private function provisionTechProviderOwnership(
+        string $wabaId,
+        string $accessToken,
+        string $systemUserId,
+        string $systemUserToken,
+        string $creditLineId,
+        bool $strict
+    ): void {
+        $provisioningToken = $systemUserToken !== '' ? $systemUserToken : $accessToken;
+
+        if ($systemUserId !== '') {
+            try {
+                $this->metaGraphService->assignSystemUserToWaba(
+                    wabaId: $wabaId,
+                    systemUserId: $systemUserId,
+                    accessToken: $provisioningToken
+                );
+            } catch (\Throwable $e) {
+                if ($strict) {
+                    throw new \RuntimeException('System User assignment failed: '.$e->getMessage(), 0, $e);
+                }
+                Log::channel('whatsapp')->warning('System User assignment skipped (non-strict)', [
+                    'waba_id' => $wabaId,
+                    'system_user_id' => $systemUserId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        } elseif ($strict) {
+            throw new \RuntimeException('System User ID is required for strict embedded provisioning.');
+        }
+
+        if ($creditLineId !== '') {
+            try {
+                $this->metaGraphService->attachCreditLineToWaba(
+                    creditLineId: $creditLineId,
+                    wabaId: $wabaId,
+                    accessToken: $provisioningToken
+                );
+            } catch (\Throwable $e) {
+                if ($strict) {
+                    throw new \RuntimeException('Credit line attachment failed: '.$e->getMessage(), 0, $e);
+                }
+                Log::channel('whatsapp')->warning('Credit line attach skipped (non-strict)', [
+                    'waba_id' => $wabaId,
+                    'credit_line_id' => $creditLineId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     private function normalizeRedirectUriWithQuery(?string $uri): ?string

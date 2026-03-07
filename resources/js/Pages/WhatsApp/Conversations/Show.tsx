@@ -39,6 +39,12 @@ interface Conversation {
         name: string;
     };
     status: string;
+    customer_care_window?: {
+        is_open: boolean;
+        last_inbound_at: string | null;
+        expires_at: string | null;
+        seconds_remaining: number;
+    };
     assigned_to?: number | null;
     priority?: string | null;
 }
@@ -132,6 +138,9 @@ const createClientRequestId = (prefix: string): string => {
 
     return `${prefix}:${Date.now()}:${Math.random().toString(36).slice(2, 12)}`;
 };
+
+const CUSTOMER_CARE_WINDOW_CLOSED_MESSAGE =
+    '24-hour customer care window is closed. Send an approved template message to reopen the conversation.';
 
 const isTemporaryMetaHostedUrl = (url: string | null | undefined): boolean => {
     if (!url) return false;
@@ -416,6 +425,7 @@ export default function ConversationsShow({
     ];
     const availableTemplates = normalizedTemplates;
     const agentMap = new Map(normalizedAgents.map((agent) => [agent.id, agent]));
+    const isCustomerCareWindowOpen = Boolean(conversation.customer_care_window?.is_open);
     const mentionTokens = useMemo(() => {
         if (!auth?.user) return [];
         const name = auth.user.name || '';
@@ -503,8 +513,21 @@ export default function ConversationsShow({
         setAttachments((prev) => prev.filter((_, i) => i !== index));
     };
 
+    const notifyClosedCustomerCareWindow = useCallback(() => {
+        addToast({
+            title: '24-hour window closed',
+            description: CUSTOMER_CARE_WINDOW_CLOSED_MESSAGE,
+            variant: 'warning',
+            duration: 7000,
+        });
+    }, [addToast]);
+
     const sendList = useCallback(async () => {
         if (listSending) return;
+        if (!isCustomerCareWindowOpen) {
+            notifyClosedCustomerCareWindow();
+            return;
+        }
         if (!selectedList) {
             addToast({ title: 'List needed', description: 'Please select a list to send.', variant: 'warning' });
             return;
@@ -533,10 +556,14 @@ export default function ConversationsShow({
         } finally {
             setListSending(false);
         }
-    }, [addToast, conversation.id, selectedList, account.slug, listSending]);
+    }, [addToast, conversation.id, selectedList, account.slug, listSending, isCustomerCareWindowOpen, notifyClosedCustomerCareWindow]);
 
     const sendInteractiveButtons = useCallback(async () => {
         if (buttonsSending) return;
+        if (!isCustomerCareWindowOpen) {
+            notifyClosedCustomerCareWindow();
+            return;
+        }
         const validButtons = interactiveButtons.filter((btn) => btn.id.trim() && btn.text.trim());
         if (validButtons.length === 0) {
             addToast({ title: 'Buttons needed', description: 'Please add at least one button.', variant: 'warning' });
@@ -576,7 +603,7 @@ export default function ConversationsShow({
         } finally {
             setButtonsSending(false);
         }
-    }, [addToast, conversation.id, interactiveButtons, buttonBodyText, buttonHeaderText, buttonFooterText, account.slug, buttonsSending]);
+    }, [addToast, conversation.id, interactiveButtons, buttonBodyText, buttonHeaderText, buttonFooterText, account.slug, buttonsSending, isCustomerCareWindowOpen, notifyClosedCustomerCareWindow]);
 
     const addButton = () => {
         if (interactiveButtons.length >= 3) {
@@ -603,6 +630,10 @@ export default function ConversationsShow({
 
     const sendLocation = useCallback(async () => {
         if (locationSending) return;
+        if (!isCustomerCareWindowOpen) {
+            notifyClosedCustomerCareWindow();
+            return;
+        }
         const { label, lat, lng } = locationInput;
         if (!lat || !lng) {
             addToast({ title: 'Location needed', description: 'Add latitude and longitude.', variant: 'warning' });
@@ -636,11 +667,15 @@ export default function ConversationsShow({
         } finally {
             setLocationSending(false);
         }
-    }, [addToast, conversation.id, locationInput, account.slug, locationSending]);
+    }, [addToast, conversation.id, locationInput, account.slug, locationSending, isCustomerCareWindowOpen, notifyClosedCustomerCareWindow]);
 
     const sendAttachments = useCallback(async (caption?: string) => {
         if (attachmentsSending) return;
         if (attachments.length === 0) return;
+        if (!isCustomerCareWindowOpen) {
+            notifyClosedCustomerCareWindow();
+            return;
+        }
 
         try {
             setAttachmentsSending(true);
@@ -686,7 +721,7 @@ export default function ConversationsShow({
         } finally {
             setAttachmentsSending(false);
         }
-    }, [addToast, attachments, conversation.id, account.slug, attachmentsSending]);
+    }, [addToast, attachments, conversation.id, account.slug, attachmentsSending, isCustomerCareWindowOpen, notifyClosedCustomerCareWindow]);
 
     const sendTemplate = useCallback(async () => {
         if (!selectedTemplate || templateSending) return;
@@ -887,6 +922,8 @@ export default function ConversationsShow({
                     setConversation((prev) => ({
                         ...prev,
                         status: data.conversation.status ?? prev.status,
+                        customer_care_window:
+                            data.conversation.customer_care_window ?? prev.customer_care_window,
                         assigned_to: data.conversation.assignee_id ?? prev.assigned_to,
                         priority: data.conversation.priority ?? prev.priority,
                     }));
@@ -1070,7 +1107,12 @@ export default function ConversationsShow({
                 }
 
                 if (response.data.conversation) {
-                    setConversation((prev) => ({ ...prev, ...response.data.conversation }));
+                    setConversation((prev) => ({
+                        ...prev,
+                        ...response.data.conversation,
+                        customer_care_window:
+                            response.data.conversation.customer_care_window ?? prev.customer_care_window,
+                    }));
                 }
 
                 if (
@@ -1129,6 +1171,10 @@ export default function ConversationsShow({
 
     const handleSend = useCallback(async () => {
         if (processing || textSending || attachmentsSending) return;
+        if (!isCustomerCareWindowOpen) {
+            notifyClosedCustomerCareWindow();
+            return;
+        }
 
         const trimmed = data.message.trim();
 
@@ -1157,7 +1203,7 @@ export default function ConversationsShow({
             const is24h = msg === 'outside_24h' || (typeof msg === 'string' && (msg.includes('template') || msg.includes('24 hour') || msg.includes('recovery')));
             addToast({
                 title: is24h ? 'Use a template to start the conversation' : 'Failed to send message',
-                description: detail || msg || (is24h ? 'Send a template message using the template button above.' : 'Please try again'),
+                description: detail || msg || (is24h ? CUSTOMER_CARE_WINDOW_CLOSED_MESSAGE : 'Please try again'),
                 variant: 'error',
                 duration: 8000});
             if (is24h) {
@@ -1169,7 +1215,7 @@ export default function ConversationsShow({
         } finally {
             setTextSending(false);
         }
-    }, [processing, textSending, attachmentsSending, data.message, attachments.length, sendAttachments, account.slug, conversation.id, reset, addToast]);
+    }, [processing, textSending, attachmentsSending, data.message, attachments.length, sendAttachments, account.slug, conversation.id, reset, addToast, isCustomerCareWindowOpen, notifyClosedCustomerCareWindow]);
 
     const submitNote = async () => {
         const trimmed = noteDraft.trim();
@@ -1476,6 +1522,16 @@ export default function ConversationsShow({
                         <span className="hidden sm:inline-flex rounded-full bg-white/15 px-3 py-1 text-xs uppercase tracking-wide">
                             {conversation.status}
                         </span>
+                        <span
+                            className={cn(
+                                'hidden sm:inline-flex rounded-full px-3 py-1 text-xs uppercase tracking-wide',
+                                isCustomerCareWindowOpen
+                                    ? 'bg-emerald-500/20 text-emerald-100'
+                                    : 'bg-amber-500/20 text-amber-100'
+                            )}
+                        >
+                            24h {isCustomerCareWindowOpen ? 'open' : 'closed'}
+                        </span>
                         <button
                             onClick={() => setMobileDrawerOpen(!mobileDrawerOpen)}
                             className="lg:hidden p-2 rounded-lg text-white/90 hover:bg-white/10 transition-colors"
@@ -1526,6 +1582,12 @@ export default function ConversationsShow({
                                         <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Status</p>
                                         <Badge variant={conversation.status === 'open' ? 'success' : 'default'} className="px-3 py-1">
                                             {conversation.status}
+                                        </Badge>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">24h Window</p>
+                                        <Badge variant={isCustomerCareWindowOpen ? 'success' : 'warning'} className="px-3 py-1">
+                                            {isCustomerCareWindowOpen ? 'Open' : 'Closed'}
                                         </Badge>
                                     </div>
                                 </div>
@@ -1655,6 +1717,12 @@ export default function ConversationsShow({
                                 <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Status</span>
                                 <Badge variant={conversation.status === 'open' ? 'success' : 'default'} className="px-3 py-1">
                                     {conversation.status}
+                                </Badge>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">24h Window</span>
+                                <Badge variant={isCustomerCareWindowOpen ? 'success' : 'warning'} className="px-3 py-1">
+                                    {isCustomerCareWindowOpen ? 'Open' : 'Closed'}
                                 </Badge>
                             </div>
                         </div>
@@ -1828,6 +1896,7 @@ export default function ConversationsShow({
                             <button
                                 type="button"
                                 onClick={() => fileInputRef.current?.click()}
+                                disabled={!isCustomerCareWindowOpen}
                                 className="shrink-0 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                             >
                                 <Paperclip className="h-3.5 w-3.5" />
@@ -1836,6 +1905,7 @@ export default function ConversationsShow({
                             <button
                                 type="button"
                                 onClick={() => fileInputRef.current?.click()}
+                                disabled={!isCustomerCareWindowOpen}
                                 className="shrink-0 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                             >
                                 <ImageIcon className="h-3.5 w-3.5" />
@@ -1844,6 +1914,7 @@ export default function ConversationsShow({
                             <button
                                 type="button"
                                 onClick={() => setShowLocation((prev) => !prev)}
+                                disabled={!isCustomerCareWindowOpen}
                                 className="shrink-0 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                             >
                                 <MapPin className="h-3.5 w-3.5" />
@@ -1865,6 +1936,7 @@ export default function ConversationsShow({
                                     setShowLists((prev) => !prev);
                                     setShowButtons(false);
                                 }}
+                                disabled={!isCustomerCareWindowOpen}
                                 className="shrink-0 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                             >
                                 <List className="h-3.5 w-3.5" />
@@ -1876,6 +1948,7 @@ export default function ConversationsShow({
                                     setShowButtons((prev) => !prev);
                                     setShowLists(false);
                                 }}
+                                disabled={!isCustomerCareWindowOpen}
                                 className="shrink-0 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                             >
                                 <Square className="h-3.5 w-3.5" />
@@ -1884,6 +1957,7 @@ export default function ConversationsShow({
                             <button
                                 type="button"
                                 onClick={() => setShowQuickReplies((prev) => !prev)}
+                                disabled={!isCustomerCareWindowOpen}
                                 className="shrink-0 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                             >
                                 <Zap className="h-3.5 w-3.5" />
@@ -1949,21 +2023,21 @@ export default function ConversationsShow({
                                         value={locationInput.label}
                                         onChange={(e) => setLocationInput((prev) => ({ ...prev, label: e.target.value }))}
                                         placeholder="Label (optional)"
-                                        disabled={locationSending}
+                                        disabled={locationSending || !isCustomerCareWindowOpen}
                                         className="rounded-xl"
                                     />
                                     <TextInput
                                         value={locationInput.lat}
                                         onChange={(e) => setLocationInput((prev) => ({ ...prev, lat: e.target.value }))}
                                         placeholder="Latitude"
-                                        disabled={locationSending}
+                                        disabled={locationSending || !isCustomerCareWindowOpen}
                                         className="rounded-xl"
                                     />
                                     <TextInput
                                         value={locationInput.lng}
                                         onChange={(e) => setLocationInput((prev) => ({ ...prev, lng: e.target.value }))}
                                         placeholder="Longitude"
-                                        disabled={locationSending}
+                                        disabled={locationSending || !isCustomerCareWindowOpen}
                                         className="rounded-xl"
                                     />
                                 </div>
@@ -1971,7 +2045,7 @@ export default function ConversationsShow({
                                     <Button type="button" variant="secondary" onClick={() => setShowLocation(false)} disabled={locationSending}>
                                         Cancel
                                     </Button>
-                                    <Button type="button" onClick={sendLocation} disabled={locationSending} className="bg-[#25D366] hover:bg-[#1DAA57] text-white">
+                                    <Button type="button" onClick={sendLocation} disabled={locationSending || !isCustomerCareWindowOpen} className="bg-[#25D366] hover:bg-[#1DAA57] text-white">
                                         {locationSending ? 'Sending...' : 'Send Location'}
                                     </Button>
                                 </div>
@@ -2205,7 +2279,7 @@ export default function ConversationsShow({
                                             <Button
                                                 type="button"
                                                 onClick={sendList}
-                                                disabled={listSending}
+                                                disabled={listSending || !isCustomerCareWindowOpen}
                                                 className="bg-[#25D366] hover:bg-[#1DAA57] text-white"
                                             >
                                                 {listSending ? 'Sending...' : 'Send List'}
@@ -2345,7 +2419,7 @@ export default function ConversationsShow({
                                         <Button
                                             type="button"
                                             onClick={sendInteractiveButtons}
-                                            disabled={buttonsSending}
+                                            disabled={buttonsSending || !isCustomerCareWindowOpen}
                                             className="bg-[#25D366] hover:bg-[#1DAA57] text-white"
                                         >
                                             {buttonsSending ? 'Sending...' : 'Send Buttons'}
@@ -2371,13 +2445,19 @@ export default function ConversationsShow({
                             </div>
                         )}
 
+                        {!isCustomerCareWindowOpen && (
+                            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700/50 dark:bg-amber-500/10 dark:text-amber-100">
+                                {CUSTOMER_CARE_WINDOW_CLOSED_MESSAGE}
+                            </div>
+                        )}
+
                         <form onSubmit={submit} className="flex items-center gap-3">
                             <TextInput
                                 value={data.message}
                                 onChange={(e) => setData('message', e.target.value)}
                                 placeholder="Type a message"
                                 className="flex-1 rounded-full bg-white dark:bg-gray-800"
-                                disabled={processing || textSending || attachmentsSending}
+                                disabled={processing || textSending || attachmentsSending || !isCustomerCareWindowOpen}
                                 autoFocus
                                 aria-label="Message input"
                             />
@@ -2386,7 +2466,14 @@ export default function ConversationsShow({
                                     <Button
                                         type="button"
                                         onClick={handleAiSuggest}
-                                        disabled={processing || textSending || attachmentsSending || aiSuggestLoading || !canUseAiSuggest}
+                                        disabled={
+                                            processing ||
+                                            textSending ||
+                                            attachmentsSending ||
+                                            aiSuggestLoading ||
+                                            !canUseAiSuggest ||
+                                            !isCustomerCareWindowOpen
+                                        }
                                         aria-label="Get AI reply suggestion"
                                         title={
                                             !aiSuggestionsEnabled
@@ -2440,7 +2527,13 @@ export default function ConversationsShow({
                             )}
                             <Button
                                 type="submit"
-                                disabled={processing || textSending || attachmentsSending || (!data.message.trim() && attachments.length === 0)}
+                                disabled={
+                                    processing ||
+                                    textSending ||
+                                    attachmentsSending ||
+                                    !isCustomerCareWindowOpen ||
+                                    (!data.message.trim() && attachments.length === 0)
+                                }
                                 aria-label="Send message"
                                 className="bg-[#25D366] hover:bg-[#1DAA57] text-white rounded-full px-5"
                             >

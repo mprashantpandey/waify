@@ -5,6 +5,7 @@ namespace App\Modules\WhatsApp\Services;
 use App\Modules\WhatsApp\Exceptions\WhatsAppApiException;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
+use App\Models\PlatformSetting;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -30,12 +31,7 @@ class TemplateManagementService
             throw new \Exception('WABA ID is required to create templates');
         }
 
-        $url = sprintf(
-            '%s/%s/%s/message_templates',
-            $this->baseUrl,
-            $connection->api_version ?: config('whatsapp.meta.api_version', 'v21.0'),
-            $wabaId
-        );
+        $url = $this->resolveTemplateCreateUrl($connection, $wabaId);
 
         // If header is media (IMAGE/VIDEO/DOCUMENT), we must provide an example. Prefer Meta upload handle over URL.
         if (!empty($templateData['header_type']) && in_array($templateData['header_type'], ['IMAGE', 'VIDEO', 'DOCUMENT'])) {
@@ -64,6 +60,9 @@ class TemplateManagementService
 
         // Build payload according to Meta's latest API format
         $payload = $this->buildTemplatePayload($templateData);
+        if ($this->isOboTemplateMode()) {
+            $payload['waba_id'] = $wabaId;
+        }
 
         try {
             // Check rate limit
@@ -122,6 +121,31 @@ class TemplateManagementService
                 $e
             );
         }
+    }
+
+    protected function resolveTemplateCreateUrl(WhatsAppConnection $connection, string $wabaId): string
+    {
+        $version = $connection->api_version ?: config('whatsapp.meta.api_version', 'v21.0');
+
+        if ($this->isOboTemplateMode()) {
+            $partnerBusinessId = (string) PlatformSetting::get(
+                'whatsapp.partner_business_id',
+                config('whatsapp.meta.partner_business_id')
+            );
+            if ($partnerBusinessId !== '') {
+                return sprintf('%s/%s/%s/message_templates', $this->baseUrl, $version, $partnerBusinessId);
+            }
+
+            Log::channel('whatsapp')->warning('OBO template mode enabled but partner_business_id missing; falling back to direct mode');
+        }
+
+        return sprintf('%s/%s/%s/message_templates', $this->baseUrl, $version, $wabaId);
+    }
+
+    protected function isOboTemplateMode(): bool
+    {
+        $mode = (string) PlatformSetting::get('whatsapp.template_api_mode', config('whatsapp.meta.template_api_mode', 'direct'));
+        return strtolower(trim($mode)) === 'obo';
     }
 
     /**

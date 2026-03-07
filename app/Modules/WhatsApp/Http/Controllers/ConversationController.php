@@ -20,6 +20,7 @@ use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use App\Modules\WhatsApp\Models\WhatsAppTemplateSend;
 use App\Modules\WhatsApp\Services\TemplateComposer;
+use App\Modules\WhatsApp\Services\CustomerCareWindowService;
 use App\Modules\WhatsApp\Services\TemplateManagementService;
 use App\Modules\WhatsApp\Services\WhatsAppClient;
 use App\Services\AI\ConversationAssistantService;
@@ -41,6 +42,7 @@ class ConversationController extends Controller
     public function __construct(
         protected WhatsAppClient $whatsappClient,
         protected TemplateComposer $templateComposer,
+        protected CustomerCareWindowService $customerCareWindowService,
         protected TemplateManagementService $templateManagementService,
         protected EntitlementService $entitlementService,
         protected UsageService $usageService,
@@ -238,6 +240,7 @@ class ConversationController extends Controller
         }
 
         $conversation->load(['contact', 'connection']);
+        $customerCareWindow = $this->customerCareWindowService->forConversation($conversation);
 
         // Load last 50 messages for initial render (optimized query)
         $messages = WhatsAppMessage::where('whatsapp_conversation_id', $conversation->id)
@@ -379,6 +382,7 @@ class ConversationController extends Controller
                     'id' => $conversation->connection->id,
                     'name' => $conversation->connection->name],
                 'status' => $conversation->status,
+                'customer_care_window' => $this->formatCustomerCareWindowState($customerCareWindow),
                 'assigned_to' => $assignedTo,
                 'priority' => $priority,
             ],
@@ -820,6 +824,12 @@ class ConversationController extends Controller
 
         $messageBody = trim((string) ($validated['message'] ?? ''));
         $clientRequestId = $this->normalizeClientRequestId($validated['client_request_id'] ?? null);
+        $conversation->load(['connection', 'contact']);
+        $windowGuard = $this->ensureCustomerCareWindowOpen($conversation, $respondError);
+        if ($windowGuard !== null) {
+            return $windowGuard;
+        }
+
         $messageFingerprint = hash('sha256', implode('|', [
             'text',
             (string) $conversation->id,
@@ -837,8 +847,6 @@ class ConversationController extends Controller
 
         // Check message limit before sending
         $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
-
-        $conversation->load(['connection', 'contact']);
 
         // Use transaction with lock to prevent duplicate message creation
         $message = DB::transaction(function () use ($account, $conversation, $messageBody) {
@@ -1127,12 +1135,18 @@ class ConversationController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
         $wantsJson = $request->expectsJson() || $request->ajax();
-        $respondError = function (string $message, int $status = 422) use ($wantsJson) {
+        $respondError = function (string $message, ?string $detail = null, int $status = 422) use ($wantsJson) {
             if ($wantsJson) {
-                return response()->json(['message' => $message], $status);
+                return response()->json([
+                    'message' => $message,
+                    'message_detail' => $detail,
+                ], $status);
             }
 
-            return redirect()->back()->withErrors(['media' => $message]);
+            return redirect()->back()->withErrors([
+                'media' => $message,
+                'message_detail' => $detail,
+            ]);
         };
         $respondSuccess = function (string $message) use ($wantsJson) {
             if ($wantsJson) {
@@ -1162,14 +1176,13 @@ class ConversationController extends Controller
         $request->validate([
             'attachment' => $mimeRules[$validated['type']] ?? 'file']);
 
-        $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
-
         $conversation->load(['connection', 'contact']);
+        $windowGuard = $this->ensureCustomerCareWindowOpen($conversation, $respondError);
+        if ($windowGuard !== null) {
+            return $windowGuard;
+        }
 
         $file = $request->file('attachment');
-        $path = $file->store('whatsapp-media', 'public');
-        $url = rtrim(config('app.url'), '/') . Storage::url($path);
-
         $caption = $validated['caption'] ?? null;
         $filename = $file->getClientOriginalName();
         $type = $validated['type'];
@@ -1190,6 +1203,11 @@ class ConversationController extends Controller
         )) {
             return $respondSuccess('Duplicate send request ignored. Message is already being processed.');
         }
+
+        $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
+
+        $path = $file->store('whatsapp-media', 'public');
+        $url = rtrim(config('app.url'), '/') . Storage::url($path);
 
         $message = WhatsAppMessage::lockForUpdate()->create([
             'account_id' => $account->id,
@@ -1250,12 +1268,18 @@ class ConversationController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
         $wantsJson = $request->expectsJson() || $request->ajax();
-        $respondError = function (string $message, int $status = 422) use ($wantsJson) {
+        $respondError = function (string $message, ?string $detail = null, int $status = 422) use ($wantsJson) {
             if ($wantsJson) {
-                return response()->json(['message' => $message], $status);
+                return response()->json([
+                    'message' => $message,
+                    'message_detail' => $detail,
+                ], $status);
             }
 
-            return redirect()->back()->withErrors(['location' => $message]);
+            return redirect()->back()->withErrors([
+                'location' => $message,
+                'message_detail' => $detail,
+            ]);
         };
         $respondSuccess = function (string $message) use ($wantsJson) {
             if ($wantsJson) {
@@ -1277,6 +1301,12 @@ class ConversationController extends Controller
             'client_request_id' => 'nullable|string|max:120',
         ]);
 
+        $conversation->load(['connection', 'contact']);
+        $windowGuard = $this->ensureCustomerCareWindowOpen($conversation, $respondError);
+        if ($windowGuard !== null) {
+            return $windowGuard;
+        }
+
         $clientRequestId = $this->normalizeClientRequestId($validated['client_request_id'] ?? null);
         $locationFingerprint = hash('sha256', implode('|', [
             'location',
@@ -1297,8 +1327,6 @@ class ConversationController extends Controller
         }
 
         $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
-
-        $conversation->load(['connection', 'contact']);
 
         $message = WhatsAppMessage::lockForUpdate()->create([
             'account_id' => $account->id,
@@ -1363,12 +1391,18 @@ class ConversationController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
         $wantsJson = $request->expectsJson() || $request->ajax();
-        $respondError = function (string $message, int $status = 422) use ($wantsJson) {
+        $respondError = function (string $message, ?string $detail = null, int $status = 422) use ($wantsJson) {
             if ($wantsJson) {
-                return response()->json(['message' => $message], $status);
+                return response()->json([
+                    'message' => $message,
+                    'message_detail' => $detail,
+                ], $status);
             }
 
-            return redirect()->back()->withErrors(['list' => $message]);
+            return redirect()->back()->withErrors([
+                'list' => $message,
+                'message_detail' => $detail,
+            ]);
         };
         $respondSuccess = function (string $message) use ($wantsJson) {
             if ($wantsJson) {
@@ -1396,6 +1430,12 @@ class ConversationController extends Controller
             return $respondError('This list belongs to a different connection.');
         }
 
+        $conversation->load(['connection', 'contact']);
+        $windowGuard = $this->ensureCustomerCareWindowOpen($conversation, $respondError);
+        if ($windowGuard !== null) {
+            return $windowGuard;
+        }
+
         $clientRequestId = $this->normalizeClientRequestId($validated['client_request_id'] ?? null);
         $listFingerprint = hash('sha256', implode('|', [
             'list',
@@ -1413,8 +1453,6 @@ class ConversationController extends Controller
         }
 
         $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
-
-        $conversation->load(['connection', 'contact']);
 
         $listFormat = $list->toMetaFormat();
 
@@ -1481,12 +1519,18 @@ class ConversationController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
         $wantsJson = $request->expectsJson() || $request->ajax();
-        $respondError = function (string $message, int $status = 422) use ($wantsJson) {
+        $respondError = function (string $message, ?string $detail = null, int $status = 422) use ($wantsJson) {
             if ($wantsJson) {
-                return response()->json(['message' => $message], $status);
+                return response()->json([
+                    'message' => $message,
+                    'message_detail' => $detail,
+                ], $status);
             }
 
-            return redirect()->back()->withErrors(['buttons' => $message]);
+            return redirect()->back()->withErrors([
+                'buttons' => $message,
+                'message_detail' => $detail,
+            ]);
         };
         $respondSuccess = function (string $message) use ($wantsJson) {
             if ($wantsJson) {
@@ -1510,6 +1554,12 @@ class ConversationController extends Controller
             'client_request_id' => 'nullable|string|max:120',
         ]);
 
+        $conversation->load(['connection', 'contact']);
+        $windowGuard = $this->ensureCustomerCareWindowOpen($conversation, $respondError);
+        if ($windowGuard !== null) {
+            return $windowGuard;
+        }
+
         $clientRequestId = $this->normalizeClientRequestId($validated['client_request_id'] ?? null);
         $buttonsFingerprint = hash('sha256', implode('|', [
             'buttons',
@@ -1530,8 +1580,6 @@ class ConversationController extends Controller
         }
 
         $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
-
-        $conversation->load(['connection', 'contact']);
 
         $message = WhatsAppMessage::lockForUpdate()->create([
             'account_id' => $account->id,
@@ -1656,5 +1704,29 @@ class ConversationController extends Controller
         $contact->forceFill([
             'last_contacted_at' => now(),
         ])->save();
+    }
+
+    private function ensureCustomerCareWindowOpen(WhatsAppConversation $conversation, callable $respondError): mixed
+    {
+        $windowState = $this->customerCareWindowService->forConversation($conversation);
+        if (($windowState['is_open'] ?? false) === true) {
+            return null;
+        }
+
+        return $respondError(
+            'outside_24h',
+            '24-hour customer care window is closed. Send an approved template message to reopen the conversation.',
+            422
+        );
+    }
+
+    private function formatCustomerCareWindowState(array $windowState): array
+    {
+        return [
+            'is_open' => (bool) ($windowState['is_open'] ?? false),
+            'last_inbound_at' => ($windowState['last_inbound_at'] ?? null)?->toIso8601String(),
+            'expires_at' => ($windowState['expires_at'] ?? null)?->toIso8601String(),
+            'seconds_remaining' => (int) ($windowState['seconds_remaining'] ?? 0),
+        ];
     }
 }

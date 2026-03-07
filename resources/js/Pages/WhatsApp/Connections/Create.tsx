@@ -21,11 +21,11 @@ declare global {
 export default function ConnectionsCreate({
     account,
     embeddedSignup,
-    defaultApiVersion}: {
-    account: any;
-    embeddedSignup: { enabled?: boolean; appId?: string; configId?: string; apiVersion?: string; oauthRedirectUri?: string | null };
-    defaultApiVersion: string;
-}) {
+    defaultApiVersion }: {
+        account: any;
+        embeddedSignup: { enabled?: boolean; appId?: string; configId?: string; apiVersion?: string; oauthRedirectUri?: string | null };
+        defaultApiVersion: string;
+    }) {
     const [showToken, setShowToken] = useState(false);
     const [embeddedReady, setEmbeddedReady] = useState(false);
     const [embeddedStatus, setEmbeddedStatus] = useState<string | null>(null);
@@ -45,7 +45,8 @@ export default function ConnectionsCreate({
         throughput_cap_per_minute: 120,
         quiet_hours_start: '',
         quiet_hours_end: '',
-        quiet_hours_timezone: 'UTC'});
+        quiet_hours_timezone: 'UTC'
+    });
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -61,7 +62,8 @@ export default function ConnectionsCreate({
                 {
                     phone_number_id: data.phone_number_id,
                     access_token: data.access_token,
-                    waba_id: data.waba_id || null}
+                    waba_id: data.waba_id || null
+                }
             );
 
             const payload = response.data;
@@ -69,13 +71,15 @@ export default function ConnectionsCreate({
             setData('business_phone', payload.display_phone_number || data.business_phone);
             setTestResult({
                 ok: true,
-                message: `Success: ${display}`});
+                message: `Success: ${display}`
+            });
             addToast({ title: 'Connection verified', variant: 'success' });
         } catch (error: any) {
             const message = error?.response?.data?.error || 'Unable to verify connection';
             setTestResult({
                 ok: false,
-                message});
+                message
+            });
             addToast({ title: 'Connection test failed', variant: 'error' });
         } finally {
             setTesting(false);
@@ -99,7 +103,8 @@ export default function ConnectionsCreate({
         access_token: '',
         code: '',
         pin: '',
-        redirect_uri: ''});
+        redirect_uri: ''
+    });
     const hasEmbeddedAuthData = Boolean(embeddedForm.data.code || embeddedForm.data.access_token);
     const hasEmbeddedResolvedIds = Boolean(embeddedForm.data.waba_id && embeddedForm.data.phone_number_id);
 
@@ -140,7 +145,8 @@ export default function ConnectionsCreate({
                 appId: embeddedSignup.appId,
                 cookie: true,
                 xfbml: true,
-                version: embeddedSignup.apiVersion || 'v21.0'});
+                version: embeddedSignup.apiVersion || 'v21.0'
+            });
             setEmbeddedReady(true);
         };
 
@@ -266,8 +272,8 @@ export default function ConnectionsCreate({
                     hasSignupData
                         ? 'Embedded signup data received from Meta. Review and create connection.'
                         : hasAuthData
-                          ? 'Authorization complete. Meta IDs not returned in browser event; you can continue and we will resolve them during setup.'
-                          : 'Embedded signup finished. Ready to create connection.'
+                            ? 'Authorization complete. Meta IDs not returned in browser event; you can continue and we will resolve them during setup.'
+                            : 'Embedded signup finished. Ready to create connection.'
                 );
 
                 if ((action === 'FINISH' || action === 'COMPLETE' || action === 'SUCCESS') && hasAuthData) {
@@ -318,8 +324,10 @@ export default function ConnectionsCreate({
             },
             {
                 config_id: embeddedSignup.configId,
+                response_type: 'code',
                 redirect_uri: oauthRedirectUri,
-                scope: 'whatsapp_business_management,whatsapp_business_messaging,business_management'}
+                scope: 'whatsapp_business_management,whatsapp_business_messaging,business_management'
+            }
         );
     };
 
@@ -723,13 +731,13 @@ export default function ConnectionsCreate({
                             </div>
 
                             <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                                <Link href={route('app.whatsapp.connections.index', { })}>
+                                <Link href={route('app.whatsapp.connections.index', {})}>
                                     <Button type="button" variant="secondary" className="rounded-xl">
                                         Cancel
                                     </Button>
                                 </Link>
-                                <Button 
-                                    type="submit" 
+                                <Button
+                                    type="submit"
                                     disabled={processing}
                                     className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50 rounded-xl"
                                 >

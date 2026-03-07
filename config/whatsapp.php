@@ -18,8 +18,14 @@ return [
         'app_id' => env('META_APP_ID'),
         'app_secret' => env('META_APP_SECRET'),
         'system_user_token' => env('META_SYSTEM_USER_TOKEN'),
+        'system_user_id' => env('META_SYSTEM_USER_ID'),
+        'partner_business_id' => env('META_PARTNER_BUSINESS_ID'),
+        'credit_line_id' => env('META_CREDIT_LINE_ID'),
+        'strict_embedded_provisioning' => env('META_STRICT_EMBEDDED_PROVISIONING', false),
         'embedded_signup_config_id' => env('META_EMBEDDED_SIGNUP_CONFIG_ID'),
         'embedded_enabled' => env('META_EMBEDDED_SIGNUP_ENABLED'),
+        // direct|obo (On-Behalf-Of template create mode)
+        'template_api_mode' => env('META_TEMPLATE_API_MODE', 'direct'),
     ],
 
     /*

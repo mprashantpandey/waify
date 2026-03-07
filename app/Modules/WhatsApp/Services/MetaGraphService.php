@@ -203,6 +203,76 @@ class MetaGraphService
         return $data;
     }
 
+    /**
+     * Ensure partner System User is assigned to tenant WABA with required tasks.
+     * Best-effort: if assignment already exists Meta may return an error; caller decides strictness.
+     */
+    public function assignSystemUserToWaba(
+        string $wabaId,
+        string $systemUserId,
+        string $accessToken,
+        array $tasks = ['MANAGE', 'DEVELOP']
+    ): array {
+        $response = $this->graphRequestWithToken($accessToken)
+            ->post("{$this->baseUrl}/{$this->apiVersion}/{$wabaId}/assigned_users", [
+                'user' => $systemUserId,
+                'tasks' => $tasks,
+            ]);
+
+        $data = $response->json();
+        if (!$response->successful()) {
+            Log::channel('whatsapp')->warning('Assign system user to WABA failed', [
+                'waba_id' => $wabaId,
+                'system_user_id' => $systemUserId,
+                'status' => $response->status(),
+                'error' => $data['error'] ?? $data,
+            ]);
+            throw new \RuntimeException($data['error']['message'] ?? 'Assign system user to WABA failed');
+        }
+
+        return $data;
+    }
+
+    /**
+     * Attempt to share partner credit line with tenant WABA.
+     * Meta has different edge shapes by account setup/version, so we try known paths.
+     */
+    public function attachCreditLineToWaba(
+        string $creditLineId,
+        string $wabaId,
+        string $accessToken
+    ): array {
+        $attempts = [
+            [
+                'url' => "{$this->baseUrl}/{$this->apiVersion}/{$creditLineId}/owning_credit_allocation_configs",
+                'payload' => ['recipient' => $wabaId],
+            ],
+            [
+                'url' => "{$this->baseUrl}/{$this->apiVersion}/{$creditLineId}/credit_allocations",
+                'payload' => ['whatsapp_business_account' => $wabaId],
+            ],
+        ];
+
+        $lastError = null;
+        foreach ($attempts as $attempt) {
+            $response = $this->graphRequestWithToken($accessToken)->post($attempt['url'], $attempt['payload']);
+            $data = $response->json();
+            if ($response->successful()) {
+                return $data;
+            }
+            $lastError = $data['error']['message'] ?? 'Credit line attachment failed';
+            Log::channel('whatsapp')->warning('Credit line attach attempt failed', [
+                'waba_id' => $wabaId,
+                'credit_line_id' => $creditLineId,
+                'url' => $attempt['url'],
+                'status' => $response->status(),
+                'error' => $data['error'] ?? $data,
+            ]);
+        }
+
+        throw new \RuntimeException((string) $lastError);
+    }
+
     public function getApiVersion(): string
     {
         return $this->apiVersion;

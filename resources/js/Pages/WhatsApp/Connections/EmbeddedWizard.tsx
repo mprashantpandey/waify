@@ -39,18 +39,19 @@ interface WizardState {
 export default function EmbeddedWizard({
     account,
     embeddedSignup,
-    defaultApiVersion}: {
-    account: any;
-    embeddedSignup: { enabled?: boolean; appId?: string; configId?: string; apiVersion?: string; oauthRedirectUri?: string | null };
-    defaultApiVersion: string;
-}) {
+    defaultApiVersion }: {
+        account: any;
+        embeddedSignup: { enabled?: boolean; appId?: string; configId?: string; apiVersion?: string; oauthRedirectUri?: string | null };
+        defaultApiVersion: string;
+    }) {
     const { toast } = useToast();
     const [embeddedReady, setEmbeddedReady] = useState(false);
     const [wizardState, setWizardState] = useState<WizardState>({
         step: 'init',
         progress: 0,
         message: 'Ready to start',
-        data: {}});
+        data: {}
+    });
     const [autoCreateMode, setAutoCreateMode] = useState(false);
     const messageHandlerRef = useRef<((event: MessageEvent) => void) | null>(null);
     const lastTelemetryKeyRef = useRef<string>('');
@@ -72,7 +73,8 @@ export default function EmbeddedWizard({
         access_token: '',
         code: '',
         pin: '',
-        redirect_uri: ''});
+        redirect_uri: ''
+    });
 
     const emitTelemetry = (payload: { step: string; status: 'started' | 'progress' | 'success' | 'error' | 'cancelled'; message?: string; context?: Record<string, unknown> }) => {
         const key = `${payload.step}:${payload.status}:${payload.message || ''}`;
@@ -99,7 +101,8 @@ export default function EmbeddedWizard({
             setWizardState(prev => ({
                 ...prev,
                 step: 'error',
-                error: 'Embedded Signup is disabled by your platform administrator.'}));
+                error: 'Embedded Signup is disabled by your platform administrator.'
+            }));
             return;
         }
 
@@ -107,7 +110,8 @@ export default function EmbeddedWizard({
             setWizardState(prev => ({
                 ...prev,
                 step: 'error',
-                error: 'Embedded Signup is not configured yet. Please contact support or use manual setup.'}));
+                error: 'Embedded Signup is not configured yet. Please contact support or use manual setup.'
+            }));
             return;
         }
 
@@ -120,12 +124,14 @@ export default function EmbeddedWizard({
                 appId: embeddedSignup.appId,
                 cookie: true,
                 xfbml: true,
-                version: embeddedSignup.apiVersion || 'v21.0'});
+                version: embeddedSignup.apiVersion || 'v21.0'
+            });
             setEmbeddedReady(true);
             setWizardState(prev => ({
                 ...prev,
                 step: 'init',
-                message: 'Meta SDK loaded. Click "Start Setup" to begin.'}));
+                message: 'Meta SDK loaded. Click "Start Setup" to begin.'
+            }));
             emitTelemetry({ step: 'sdk_ready', status: 'progress', message: 'Meta SDK initialized' });
         };
 
@@ -164,7 +170,7 @@ export default function EmbeddedWizard({
             }
 
             let payload: any = event.data;
-            
+
             // Handle string payloads
             if (typeof payload === 'string') {
                 try {
@@ -191,15 +197,16 @@ export default function EmbeddedWizard({
             const data = payload?.data || payload?.payload || payload?.result || payload;
 
             // Handle Embedded Signup completion events
-            if (action === 'FINISH' || action === 'COMPLETE' || action === 'SUCCESS' || 
+            if (action === 'FINISH' || action === 'COMPLETE' || action === 'SUCCESS' ||
                 data?.waba_id || data?.phone_number_id || payload?.waba_id || payload?.phone_number_id) {
-                
+
                 const extractedData = {
                     waba_id: data?.waba_id || payload?.waba_id || data?.wabaId || payload?.wabaId,
                     phone_number_id: data?.phone_number_id || payload?.phone_number_id || data?.phoneNumberId || payload?.phoneNumberId,
-                    business_phone: data?.business_phone || payload?.business_phone || 
-                                  data?.display_phone_number || payload?.display_phone_number ||
-                                  data?.businessPhone || payload?.businessPhone};
+                    business_phone: data?.business_phone || payload?.business_phone ||
+                        data?.display_phone_number || payload?.display_phone_number ||
+                        data?.businessPhone || payload?.businessPhone
+                };
 
                 if (extractedData.waba_id || extractedData.phone_number_id) {
                     setWizardState(prev => ({
@@ -209,7 +216,9 @@ export default function EmbeddedWizard({
                         message: 'Received signup data from Meta',
                         data: {
                             ...prev.data,
-                            ...extractedData}}));
+                            ...extractedData
+                        }
+                    }));
 
                     // Auto-fill form
                     if (extractedData.waba_id) {
@@ -247,7 +256,9 @@ export default function EmbeddedWizard({
                         message: 'Authorization code received',
                         data: {
                             ...prev.data,
-                            code}}));
+                            code
+                        }
+                    }));
                 }
 
                 if (accessToken) {
@@ -259,7 +270,9 @@ export default function EmbeddedWizard({
                         message: 'Access token received',
                         data: {
                             ...prev.data,
-                            accessToken}}));
+                            accessToken
+                        }
+                    }));
                 }
 
                 emitTelemetry({
@@ -296,7 +309,8 @@ export default function EmbeddedWizard({
             step: 'auth',
             progress: 10,
             message: 'Starting Meta authorization...',
-            data: {}});
+            data: {}
+        });
         setAutoCreateMode(false);
         autoCreateTriggeredRef.current = false;
         emitTelemetry({ step: 'authorization_start', status: 'started', message: 'Started Meta OAuth flow' });
@@ -318,7 +332,9 @@ export default function EmbeddedWizard({
                             message: 'Authorization code received. Exchanging for access token...',
                             data: {
                                 ...prev.data,
-                                code}}));
+                                code
+                            }
+                        }));
                     }
 
                     if (accessToken) {
@@ -331,7 +347,9 @@ export default function EmbeddedWizard({
                             message: 'Access token received',
                             data: {
                                 ...prev.data,
-                                accessToken}}));
+                                accessToken
+                            }
+                        }));
                     }
 
                     if (code || accessToken) {
@@ -344,22 +362,26 @@ export default function EmbeddedWizard({
                         setWizardState(prev => ({
                             ...prev,
                             step: 'error',
-                            error: 'Authorization response missing code or access token'}));
+                            error: 'Authorization response missing code or access token'
+                        }));
                         emitTelemetry({ step: 'authorization_error', status: 'error', message: 'Missing code/access token from OAuth response' });
                     }
                 } else {
                     setWizardState(prev => ({
                         ...prev,
                         step: 'error',
-                        error: 'Login was cancelled or did not fully authorize'}));
+                        error: 'Login was cancelled or did not fully authorize'
+                    }));
                     toast.error('Authorization cancelled');
                     emitTelemetry({ step: 'authorization_cancelled', status: 'cancelled', message: 'User cancelled authorization' });
                 }
             },
             {
                 config_id: embeddedSignup.configId,
+                response_type: 'code',
                 redirect_uri: oauthRedirectUri,
-                scope: 'whatsapp_business_management,whatsapp_business_messaging,business_management'}
+                scope: 'whatsapp_business_management,whatsapp_business_messaging,business_management'
+            }
         );
     };
 
@@ -382,7 +404,8 @@ export default function EmbeddedWizard({
             ...prev,
             step: 'complete',
             progress: 90,
-            message: mode === 'auto' ? 'Creating connection automatically...' : 'Creating connection...'}));
+            message: mode === 'auto' ? 'Creating connection automatically...' : 'Creating connection...'
+        }));
 
         embeddedForm.post(route('app.whatsapp.connections.store-embedded', {}), {
             onSuccess: () => {
@@ -391,14 +414,16 @@ export default function EmbeddedWizard({
                     ...prev,
                     step: 'complete',
                     progress: 100,
-                    message: 'Connection created successfully!'}));
+                    message: 'Connection created successfully!'
+                }));
                 emitTelemetry({ step: 'connection_created', status: 'success', message: 'Embedded connection created' });
             },
             onError: (errors) => {
                 setWizardState(prev => ({
                     ...prev,
                     step: 'error',
-                    error: (errors as any)?.embedded || 'Failed to create connection'}));
+                    error: (errors as any)?.embedded || 'Failed to create connection'
+                }));
                 setAutoCreateMode(false);
                 if (mode === 'auto') {
                     autoCreateTriggeredRef.current = false;
@@ -409,7 +434,8 @@ export default function EmbeddedWizard({
                     status: 'error',
                     message: (errors as any)?.embedded || 'Failed to create connection',
                 });
-            }});
+            }
+        });
     };
 
     const submitEmbedded: React.FormEventHandler = (e) => {
@@ -497,7 +523,7 @@ export default function EmbeddedWizard({
                     </CardHeader>
                     <CardContent className="p-6 space-y-4">
                         <Progress value={wizardState.progress} variant={wizardState.step === 'error' ? 'danger' : 'default'} className="h-3" />
-                        
+
                         {wizardState.error && (
                             <Alert variant="error" className="border-red-200 dark:border-red-800">
                                 <AlertCircle className="h-5 w-5" />
@@ -532,20 +558,19 @@ export default function EmbeddedWizard({
                                 { key: 'complete', label: 'Complete', icon: CheckCircle2 },
                             ].map(({ key, label, icon: Icon }) => {
                                 const isActive = wizardState.step === key;
-                                const isCompleted = ['waba-lookup', 'phone-lookup', 'subscribe', 'register', 'complete'].includes(wizardState.step) && 
-                                                  ['auth', 'code-exchange', 'waba-lookup'].includes(key);
+                                const isCompleted = ['waba-lookup', 'phone-lookup', 'subscribe', 'register', 'complete'].includes(wizardState.step) &&
+                                    ['auth', 'code-exchange', 'waba-lookup'].includes(key);
                                 const isPending = !isActive && !isCompleted;
 
                                 return (
                                     <div
                                         key={key}
-                                        className={`p-4 rounded-xl border-2 transition-all ${
-                                            isActive
+                                        className={`p-4 rounded-xl border-2 transition-all ${isActive
                                                 ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                                                 : isCompleted
-                                                ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-                                                : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800'
-                                        }`}
+                                                    ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                                                    : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800'
+                                            }`}
                                     >
                                         <div className="flex items-center gap-2 mb-1">
                                             {isCompleted ? (
@@ -555,11 +580,10 @@ export default function EmbeddedWizard({
                                             ) : (
                                                 <Icon className="h-4 w-4 text-gray-400" />
                                             )}
-                                            <span className={`text-xs font-semibold ${
-                                                isActive ? 'text-blue-700 dark:text-blue-300' :
-                                                isCompleted ? 'text-green-700 dark:text-green-300' :
-                                                'text-gray-500 dark:text-gray-400'
-                                            }`}>
+                                            <span className={`text-xs font-semibold ${isActive ? 'text-blue-700 dark:text-blue-300' :
+                                                    isCompleted ? 'text-green-700 dark:text-green-300' :
+                                                        'text-gray-500 dark:text-gray-400'
+                                                }`}>
                                                 {label}
                                             </span>
                                         </div>
@@ -594,7 +618,7 @@ export default function EmbeddedWizard({
                                     Ready to Start
                                 </h3>
                                 <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
-                                    Click the button below to begin the Meta Embedded Signup process. 
+                                    Click the button below to begin the Meta Embedded Signup process.
                                     You'll be guided through authorization and connection setup.
                                 </p>
                                 <Button
@@ -761,7 +785,7 @@ export default function EmbeddedWizard({
                                 <p className="text-gray-600 dark:text-gray-400 mb-6">
                                     Your WhatsApp connection has been set up and is ready to use.
                                 </p>
-                                <Link href={route('app.whatsapp.connections.index', { })}>
+                                <Link href={route('app.whatsapp.connections.index', {})}>
                                     <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50 rounded-xl">
                                         View Connections
                                     </Button>

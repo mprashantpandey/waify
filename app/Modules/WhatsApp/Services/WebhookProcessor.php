@@ -117,6 +117,7 @@ class WebhookProcessor
                     }
 
                     if (empty($messages) && empty($statuses)) {
+                        $this->processAccountLifecycleChange($field, $value, $connection);
                         $this->processTemplateLifecycleChange($field, $value, $connection);
                     }
                 }
@@ -726,6 +727,84 @@ class WebhookProcessor
                 'category' => $category ?: null,
                 'reason' => $reason ?: null,
             ]);
+        }
+    }
+
+    protected function processAccountLifecycleChange(?string $field, array $value, WhatsAppConnection $connection): void
+    {
+        $normalizedField = strtolower(trim((string) $field));
+        $accountFields = [
+            'account_update',
+            'phone_number_name_update',
+            'phone_number_quality_update',
+            'business_capability_update',
+            'waba_update',
+            'security',
+        ];
+
+        if (!in_array($normalizedField, $accountFields, true)) {
+            return;
+        }
+
+        $event = strtolower(trim((string) ($value['event'] ?? $value['status'] ?? $value['quality_rating'] ?? '')));
+        $payloadSummary = [
+            'field' => $normalizedField,
+            'event' => $event !== '' ? $event : null,
+            'value_keys' => array_keys($value),
+        ];
+
+        $looksCritical = false;
+        $criticalKeywords = ['disable', 'disabled', 'restrict', 'banned', 'ban', 'flagged', 'low', 'rejected', 'blocked'];
+        foreach ($criticalKeywords as $keyword) {
+            if (str_contains($event, $keyword)) {
+                $looksCritical = true;
+                break;
+            }
+        }
+
+        try {
+            DB::table('activity_logs')->insert([
+                'type' => 'system_event',
+                'description' => sprintf(
+                    'WhatsApp account webhook: %s%s',
+                    $normalizedField,
+                    $event !== '' ? " ({$event})" : ''
+                ),
+                'user_id' => null,
+                'account_id' => $connection->account_id,
+                'metadata' => json_encode([
+                    'module' => 'whatsapp.account_webhook',
+                    'connection_id' => $connection->id,
+                    'field' => $normalizedField,
+                    'event' => $event,
+                    'payload' => $value,
+                ]),
+                'ip_address' => null,
+                'user_agent' => 'meta_webhook',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::channel('whatsapp')->warning('Failed to persist account webhook activity log', [
+                'connection_id' => $connection->id,
+                'field' => $normalizedField,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        Log::channel('whatsapp')->info('Account-level webhook received', [
+            'connection_id' => $connection->id,
+            'account_id' => $connection->account_id,
+            'summary' => $payloadSummary,
+        ]);
+
+        if ($looksCritical) {
+            $message = sprintf(
+                'WhatsApp account status alert: %s%s',
+                $normalizedField,
+                $event !== '' ? " ({$event})" : ''
+            );
+            $this->notifyWebhookFailure($connection, $message);
         }
     }
 

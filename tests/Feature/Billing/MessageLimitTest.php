@@ -72,6 +72,14 @@ class MessageLimitTest extends TestCase
             'whatsapp_connection_id' => $connection->id,
             'whatsapp_contact_id' => $contact->id,
         ]);
+        \App\Modules\WhatsApp\Models\WhatsAppMessage::factory()->create([
+            'account_id' => $account->id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'direction' => 'inbound',
+            'received_at' => now()->subHour(),
+            'created_at' => now()->subHour(),
+            'updated_at' => now()->subHour(),
+        ]);
 
         $response = $this->post(route('app.whatsapp.conversations.send', [
             'account' => $account->slug,
@@ -87,5 +95,44 @@ class MessageLimitTest extends TestCase
             'account_id' => $account->id,
             'type' => 'limit_blocked',
         ]);
+    }
+
+    public function test_message_sending_blocked_when_customer_care_window_expired(): void
+    {
+        $account = $this->createAccountWithPlan('free');
+        $this->actingAsAccountOwner($account);
+
+        $connection = \App\Modules\WhatsApp\Models\WhatsAppConnection::factory()->create([
+            'account_id' => $account->id,
+        ]);
+        $contact = \App\Modules\WhatsApp\Models\WhatsAppContact::factory()->create([
+            'account_id' => $account->id,
+        ]);
+        $conversation = \App\Modules\WhatsApp\Models\WhatsAppConversation::factory()->create([
+            'account_id' => $account->id,
+            'whatsapp_connection_id' => $connection->id,
+            'whatsapp_contact_id' => $contact->id,
+        ]);
+
+        \App\Modules\WhatsApp\Models\WhatsAppMessage::factory()->create([
+            'account_id' => $account->id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'direction' => 'inbound',
+            'received_at' => now()->subHours(25),
+            'created_at' => now()->subHours(25),
+            'updated_at' => now()->subHours(25),
+        ]);
+
+        $response = $this->postJson(route('app.whatsapp.conversations.send', [
+            'account' => $account->slug,
+            'conversation' => $conversation->id,
+        ]), [
+            'message' => 'Test message',
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJson([
+                'message' => 'outside_24h',
+            ]);
     }
 }
