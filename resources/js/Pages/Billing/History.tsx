@@ -131,9 +131,9 @@ export default function BillingHistory({
                                                     <Link href={route('app.billing.history.show', { paymentOrder: payment.id })} className="text-blue-600 hover:underline">
                                                         View
                                                     </Link>
-                                                    <Link href={route('app.billing.history.download', { paymentOrder: payment.id })} className="text-gray-700 dark:text-gray-300 hover:underline">
+                                                    <a href={route('app.billing.history.download', { paymentOrder: payment.id })} className="text-gray-700 dark:text-gray-300 hover:underline">
                                                         Download
-                                                    </Link>
+                                                    </a>
                                                 </div>
                                             </td>
                                         </tr>

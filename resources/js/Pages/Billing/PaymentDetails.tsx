@@ -39,9 +39,9 @@ export default function PaymentDetails({ payment }: { payment: Payment }) {
             <h1 className="mt-2 text-2xl font-bold text-gray-900 dark:text-gray-100">Invoice {payment.invoice_no}</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">Payment and invoice details</p>
           </div>
-          <Link href={route('app.billing.history.download', { paymentOrder: payment.id })}>
+          <a href={route('app.billing.history.download', { paymentOrder: payment.id })}>
             <Button>Download Invoice</Button>
-          </Link>
+          </a>
         </div>
 
         <Card className="border-0 shadow-lg">
