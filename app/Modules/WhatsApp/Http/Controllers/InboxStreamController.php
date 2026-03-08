@@ -54,7 +54,19 @@ class InboxStreamController extends Controller
                 $query->where('updated_at', '>', $sinceDate)
                     ->orWhere('last_message_at', '>', $sinceDate);
             })
-            ->with(['contact', 'connection', 'latestAuditEvent:id,whatsapp_conversation_id,event_type,description,created_at'])
+            ->with([
+                'contact',
+                'connection',
+                'latestAuditEvent' => function ($query) {
+                    $query->select([
+                        'whatsapp_conversation_audit_events.id',
+                        'whatsapp_conversation_audit_events.whatsapp_conversation_id',
+                        'whatsapp_conversation_audit_events.event_type',
+                        'whatsapp_conversation_audit_events.description',
+                        'whatsapp_conversation_audit_events.created_at',
+                    ]);
+                },
+            ])
             ->orderBy('last_message_at', 'desc')
             ->limit(50)
             ->get();

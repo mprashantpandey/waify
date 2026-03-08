@@ -76,7 +76,15 @@ class ConversationController extends Controller
             ->with([
                 'contact:id,account_id,wa_id,name',
                 'connection:id,account_id,name',
-                'latestAuditEvent:id,whatsapp_conversation_id,event_type,description,created_at',
+                'latestAuditEvent' => function ($query) {
+                    $query->select([
+                        'whatsapp_conversation_audit_events.id',
+                        'whatsapp_conversation_audit_events.whatsapp_conversation_id',
+                        'whatsapp_conversation_audit_events.event_type',
+                        'whatsapp_conversation_audit_events.description',
+                        'whatsapp_conversation_audit_events.created_at',
+                    ]);
+                },
             ]);
 
         if ($request->filled('search')) {
