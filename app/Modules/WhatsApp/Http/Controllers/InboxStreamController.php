@@ -8,6 +8,7 @@ use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use App\Modules\WhatsApp\Models\WhatsAppConversationNote;
 use App\Modules\WhatsApp\Models\WhatsAppConversationAuditEvent;
 use App\Modules\WhatsApp\Services\CustomerCareWindowService;
+use App\Modules\WhatsApp\Services\InboxMetricsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Carbon;
@@ -15,7 +16,8 @@ use Illuminate\Support\Carbon;
 class InboxStreamController extends Controller
 {
     public function __construct(
-        protected CustomerCareWindowService $customerCareWindowService
+        protected CustomerCareWindowService $customerCareWindowService,
+        protected InboxMetricsService $inboxMetricsService
     ) {
     }
 
@@ -29,11 +31,21 @@ class InboxStreamController extends Controller
             abort(404, 'Account not found.');
         }
 
-        $since = $request->query('since');
+        $validated = $request->validate([
+            'since' => 'nullable|date',
+        ]);
+        $since = $validated['since'] ?? null;
         try {
             $sinceDate = $since ? Carbon::parse($since) : Carbon::now()->subMinutes(5);
         } catch (\Throwable $e) {
             $sinceDate = Carbon::now()->subMinutes(5);
+        }
+        $now = Carbon::now();
+        if ($sinceDate->lt($now->copy()->subDay())) {
+            $sinceDate = $now->copy()->subDay();
+        }
+        if ($sinceDate->gt($now)) {
+            $sinceDate = $now;
         }
 
         // Get conversations updated since timestamp
@@ -42,14 +54,20 @@ class InboxStreamController extends Controller
                 $query->where('updated_at', '>', $sinceDate)
                     ->orWhere('last_message_at', '>', $sinceDate);
             })
-            ->with(['contact', 'connection'])
+            ->with(['contact', 'connection', 'latestAuditEvent:id,whatsapp_conversation_id,event_type,description,created_at'])
             ->orderBy('last_message_at', 'desc')
             ->limit(50)
-            ->get()
-            ->map(function ($conversation) {
+            ->get();
+
+        $unreadMap = $this->inboxMetricsService->unreadCountMap($updatedConversations->pluck('id')->all());
+
+        $updatedConversations = $updatedConversations
+            ->map(function ($conversation) use ($unreadMap) {
                 if (! $conversation->contact || ! $conversation->connection) {
                     return null;
                 }
+                $unreadCount = (int) ($unreadMap[(int) $conversation->id] ?? 0);
+                $latestAudit = $conversation->latestAuditEvent;
 
                 return [
                     'id' => $conversation->id,
@@ -59,6 +77,13 @@ class InboxStreamController extends Controller
                         'wa_id' => $conversation->contact->wa_id,
                         'name' => $conversation->contact->name ?? $conversation->contact->wa_id],
                     'status' => $conversation->status,
+                    'unread_count' => $unreadCount,
+                    'has_unread' => $unreadCount > 0,
+                    'activity' => $latestAudit ? [
+                        'event_type' => $latestAudit->event_type,
+                        'description' => $latestAudit->description,
+                        'created_at' => $latestAudit->created_at?->toIso8601String(),
+                    ] : null,
                     'customer_care_window' => $this->formatCustomerCareWindowState(
                         $this->customerCareWindowService->forConversation($conversation)
                     ),
@@ -113,14 +138,28 @@ class InboxStreamController extends Controller
             abort(404);
         }
 
-        $afterMessageId = (int) $request->query('after_message_id', 0);
-        $afterNoteId = $request->query('after_note_id', 0);
-        $afterAuditId = $request->query('after_audit_id', 0);
-        $afterUpdatedAt = $request->query('after_updated_at');
+        $validated = $request->validate([
+            'after_message_id' => 'nullable|integer|min:0',
+            'after_note_id' => 'nullable|integer|min:0',
+            'after_audit_id' => 'nullable|integer|min:0',
+            'after_updated_at' => 'nullable|date',
+        ]);
+
+        $afterMessageId = (int) ($validated['after_message_id'] ?? 0);
+        $afterNoteId = (int) ($validated['after_note_id'] ?? 0);
+        $afterAuditId = (int) ($validated['after_audit_id'] ?? 0);
+        $afterUpdatedAt = $validated['after_updated_at'] ?? null;
         try {
             $afterUpdatedAtDate = $afterUpdatedAt ? Carbon::parse($afterUpdatedAt) : Carbon::now()->subMinutes(5);
         } catch (\Throwable $e) {
             $afterUpdatedAtDate = Carbon::now()->subMinutes(5);
+        }
+        $now = Carbon::now();
+        if ($afterUpdatedAtDate->lt($now->copy()->subDay())) {
+            $afterUpdatedAtDate = $now->copy()->subDay();
+        }
+        if ($afterUpdatedAtDate->gt($now)) {
+            $afterUpdatedAtDate = $now;
         }
         $messageBatchSize = 200;
 

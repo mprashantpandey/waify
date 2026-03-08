@@ -37,6 +37,13 @@ interface Conversation {
     };
     assigned_to?: number | null;
     priority?: string | null;
+    unread_count?: number;
+    has_unread?: boolean;
+    activity?: {
+        event_type?: string | null;
+        description?: string | null;
+        created_at?: string | null;
+    } | null;
 }
 
 const normalizeConversation = (value: any): Conversation | null => {
@@ -68,6 +75,15 @@ const normalizeConversation = (value: any): Conversation | null => {
         },
         assigned_to: value.assigned_to == null ? null : Number(value.assigned_to),
         priority: value.priority ?? null,
+        unread_count: Math.max(0, Number(value.unread_count ?? 0) || 0),
+        has_unread: Boolean(value.has_unread ?? (Number(value.unread_count ?? 0) > 0)),
+        activity: value.activity
+            ? {
+                  event_type: value.activity.event_type ?? null,
+                  description: value.activity.description ?? null,
+                  created_at: value.activity.created_at ?? null,
+              }
+            : null,
     };
 };
 
@@ -116,9 +132,14 @@ export default function ConversationsIndex({
         (initialFilters?.assignee as 'all' | 'me' | 'unassigned') ?? 'all'
     );
     const [assigningId, setAssigningId] = useState<number | null>(null);
+    const [isTabVisible, setIsTabVisible] = useState<boolean>(
+        typeof document === 'undefined' ? true : !document.hidden
+    );
     const agents: Agent[] = Array.isArray(initialAgents) ? initialAgents : [];
     const lastPollRef = useRef<Date>(new Date());
     const processedMessageIds = useRef<Set<string>>(new Set());
+    const pollFailureCountRef = useRef<number>(0);
+    const pollErrorToastAtRef = useRef<number>(0);
     const assignmentStateRef = useRef<Map<number, number | null>>(
         new Map(normalizeConversationList(initialConversations?.data).map((c) => [c.id, c.assigned_to ?? null]))
     );
@@ -149,40 +170,70 @@ export default function ConversationsIndex({
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     };
 
+    const formatRelativeTime = (value: string | null | undefined) => {
+        if (!value) return '';
+        const date = new Date(value);
+        const now = Date.now();
+        const diffMinutes = Math.max(0, Math.floor((now - date.getTime()) / 60000));
+        if (diffMinutes < 1) return 'just now';
+        if (diffMinutes < 60) return `${diffMinutes}m ago`;
+        const diffHours = Math.floor(diffMinutes / 60);
+        if (diffHours < 24) return `${diffHours}h ago`;
+        const diffDays = Math.floor(diffHours / 24);
+        return `${diffDays}d ago`;
+    };
+
     const api = typeof window !== 'undefined' && (window as any).axios ? (window as any).axios : axios;
 
     const fetchInboxStreamAndMerge = useCallback(() => {
         if (!account?.id) return;
-        const since = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+        const lastPollTime = lastPollRef.current?.getTime?.() ?? 0;
+        const safeSince = lastPollTime > 0 ? new Date(Math.max(0, lastPollTime - 5000)) : new Date(Date.now() - 2 * 60 * 1000);
+        const since = safeSince.toISOString();
         api.get(route('app.whatsapp.inbox.stream', {}), { params: { since } })
             .then((response: any) => {
                 const list = response.data?.updated_conversations;
-                if (!list?.length) return;
                 const currentAccountId = account?.id;
-                setConversations((prev) => {
-                    const byId = new Map(prev.map((c) => [c.id, c]));
-                    list.forEach((conv: any) => {
-                        const normalized = normalizeConversation(conv);
-                        if (!normalized) return;
-                        if (
-                            currentAccountId != null &&
-                            normalized.account_id != null &&
-                            !isSameAccountId(normalized.account_id, currentAccountId)
-                        ) {
-                            return;
-                        }
-                        byId.set(normalized.id, normalized);
+                if (Array.isArray(list) && list.length > 0) {
+                    setConversations((prev) => {
+                        const byId = new Map(prev.map((c) => [c.id, c]));
+                        list.forEach((conv: any) => {
+                            const normalized = normalizeConversation(conv);
+                            if (!normalized) return;
+                            if (
+                                currentAccountId != null &&
+                                normalized.account_id != null &&
+                                !isSameAccountId(normalized.account_id, currentAccountId)
+                            ) {
+                                return;
+                            }
+                            byId.set(normalized.id, normalized);
+                        });
+                        return Array.from(byId.values()).sort((a, b) => {
+                            const timeA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+                            const timeB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+                            return timeB - timeA;
+                        });
                     });
-                    return Array.from(byId.values()).sort((a, b) => {
-                        const timeA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
-                        const timeB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
-                        return timeB - timeA;
-                    });
-                });
+                }
+                pollFailureCountRef.current = 0;
                 lastPollRef.current = new Date(response.data?.server_time || new Date());
             })
-            .catch((err: any) => console.warn('[Inbox] Stream fetch failed:', err?.message));
-    }, [account?.id]);
+            .catch((err: any) => {
+                console.warn('[Inbox] Stream fetch failed:', err?.message);
+                pollFailureCountRef.current = Math.min(pollFailureCountRef.current + 1, 6);
+                const now = Date.now();
+                if (now - pollErrorToastAtRef.current > 60_000) {
+                    addToast({
+                        title: 'Inbox sync delayed',
+                        description: 'Realtime sync is retrying in the background.',
+                        variant: 'warning',
+                        duration: 3000,
+                    });
+                    pollErrorToastAtRef.current = now;
+                }
+            });
+    }, [account?.id, addToast]);
 
     // Keep state in sync with server payload (in case of hydration/props mismatch)
     useEffect(() => {
@@ -290,6 +341,14 @@ export default function ConversationsIndex({
             const updated = { ...prev[index] };
             updated.last_message_preview = data.message?.text_body ?? data.message?.text ?? data.message?.body ?? 'New message';
             updated.last_message_at = data.message?.created_at ?? data.message?.timestamp ?? new Date().toISOString();
+            if (data.message?.direction === 'inbound') {
+                const nextUnread = Math.max(0, Number(updated.unread_count ?? 0) + 1);
+                updated.unread_count = nextUnread;
+                updated.has_unread = nextUnread > 0;
+            } else if (data.message?.direction === 'outbound') {
+                updated.unread_count = 0;
+                updated.has_unread = false;
+            }
             const newList = [...prev];
             newList[index] = updated;
             return newList.sort((a, b) => {
@@ -390,11 +449,23 @@ export default function ConversationsIndex({
     useEffect(() => {
         if (!account?.id) return;
 
-        const interval = setInterval(fetchInboxStreamAndMerge, 20000);
+        const intervalMs = isTabVisible
+            ? (connected ? 20000 : 12000)
+            : 60000;
+        const interval = setInterval(fetchInboxStreamAndMerge, intervalMs);
         fetchInboxStreamAndMerge();
 
         return () => clearInterval(interval);
-    }, [account?.id, fetchInboxStreamAndMerge]);
+    }, [account?.id, connected, isTabVisible, fetchInboxStreamAndMerge]);
+
+    useEffect(() => {
+        if (typeof document === 'undefined') return;
+        const onVisibility = () => {
+            setIsTabVisible(!document.hidden);
+        };
+        document.addEventListener('visibilitychange', onVisibility);
+        return () => document.removeEventListener('visibilitychange', onVisibility);
+    }, []);
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -577,15 +648,32 @@ export default function ConversationsIndex({
                                                             <p className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
                                                                 {conversation.contact.name || conversation.contact.wa_id}
                                                             </p>
-                                                            <span className="text-[11px] text-gray-500 dark:text-gray-400 shrink-0 ml-1">
-                                                                {formatTime(conversation.last_message_at)}
-                                                            </span>
+                                                            <div className="ml-2 flex shrink-0 items-center gap-1">
+                                                                {conversation.has_unread && (conversation.unread_count ?? 0) > 0 && (
+                                                                    <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-[#25D366] px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                                                                        {conversation.unread_count}
+                                                                    </span>
+                                                                )}
+                                                                <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                                                                    {formatTime(conversation.last_message_at)}
+                                                                </span>
+                                                            </div>
                                                         </div>
                                                         <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                                                             <span className="truncate">
                                                                 {conversation.last_message_preview || 'No messages yet'}
                                                             </span>
                                                         </div>
+                                                        {conversation.activity?.description && (
+                                                            <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400 truncate">
+                                                                {conversation.activity.description}
+                                                                {conversation.activity.created_at && (
+                                                                    <span className="ml-1 text-gray-400">
+                                                                        · {formatRelativeTime(conversation.activity.created_at)}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                         <div className="mt-1 flex items-center gap-2 flex-wrap">
                                                             <Badge variant={conversation.status === 'open' ? 'success' : 'default'} className="px-2 py-0.5 text-[10px]">
                                                                 {conversation.status}
@@ -614,6 +702,7 @@ export default function ConversationsIndex({
                                                             onChange={(e) => {
                                                                 const val = e.target.value;
                                                                 const assignedTo = val === '' ? null : Number(val);
+                                                                const previousAssignedTo = conversation.assigned_to ?? null;
                                                                 setAssigningId(conversation.id);
                                                                 setConversations((prev) =>
                                                                     prev.map((c) =>
@@ -626,6 +715,21 @@ export default function ConversationsIndex({
                                                                     {
                                                                         preserveState: true,
                                                                         preserveScroll: true,
+                                                                        onError: () => {
+                                                                            setConversations((prev) =>
+                                                                                prev.map((c) =>
+                                                                                    c.id === conversation.id
+                                                                                        ? { ...c, assigned_to: previousAssignedTo }
+                                                                                        : c
+                                                                                )
+                                                                            );
+                                                                            addToast({
+                                                                                title: 'Assignment failed',
+                                                                                description: 'Could not update assignee. Please retry.',
+                                                                                variant: 'error',
+                                                                                duration: 3000,
+                                                                            });
+                                                                        },
                                                                         onFinish: () => setAssigningId(null),
                                                                     }
                                                                 );

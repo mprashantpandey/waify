@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class WhatsAppConversation extends Model
 {
@@ -77,5 +78,11 @@ class WhatsAppConversation extends Model
     {
         return $this->hasMany(WhatsAppConversationAuditEvent::class, 'whatsapp_conversation_id')
             ->orderBy('created_at', 'desc');
+    }
+
+    public function latestAuditEvent(): HasOne
+    {
+        return $this->hasOne(WhatsAppConversationAuditEvent::class, 'whatsapp_conversation_id')
+            ->latestOfMany('id');
     }
 }

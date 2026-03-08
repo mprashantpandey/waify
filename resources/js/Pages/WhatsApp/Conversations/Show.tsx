@@ -289,6 +289,7 @@ export default function ConversationsShow({
     const [initialSyncPending, setInitialSyncPending] = useState<boolean>(
         normalizedMessages.length === 0 && initialTotalMessages > 0
     );
+    const [streamSyncError, setStreamSyncError] = useState<string | null>(null);
     const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
     const [showEmojiBar, setShowEmojiBar] = useState(false);
     const [showQuickReplies, setShowQuickReplies] = useState(false);
@@ -330,6 +331,9 @@ export default function ConversationsShow({
     const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const pollFailureCountRef = useRef(0);
     const pollErrorToastAtRef = useRef(0);
+    const [isTabVisible, setIsTabVisible] = useState<boolean>(
+        typeof document === 'undefined' ? true : !document.hidden
+    );
     const lastMessageIdRef = useRef<number>(maxId(normalizedMessages));
     const processedMessageIds = useRef<Set<number>>(new Set(normalizedMessages.map((m) => m.id)));
     const lastMessageUpdatedAtRef = useRef<string>(
@@ -843,8 +847,10 @@ export default function ConversationsShow({
                 }
             }
             setInitialSyncPending(false);
+            setStreamSyncError(null);
         } catch (error) {
             console.error('[Conversation] History recovery failed:', error);
+            setStreamSyncError('Could not recover conversation history. Please retry.');
         } finally {
             historyBootstrapAttemptedRef.current = true;
             setLoading(false);
@@ -1019,7 +1025,9 @@ export default function ConversationsShow({
         }
 
         let cancelled = false;
-        const baseIntervalMs = connected ? 12000 : 7000;
+        const baseIntervalMs = isTabVisible
+            ? (connected ? 12000 : 7000)
+            : 45000;
 
         const scheduleNextPoll = (delayMs: number) => {
             if (cancelled) return;
@@ -1134,6 +1142,9 @@ export default function ConversationsShow({
                     lastMessageUpdatedAtRef.current = response.data.server_time;
                 }
                 pollFailureCountRef.current = 0;
+                if (streamSyncError) {
+                    setStreamSyncError(null);
+                }
                 setLoading(false);
                 scheduleNextPoll(baseIntervalMs);
             } catch (error) {
@@ -1153,6 +1164,9 @@ export default function ConversationsShow({
 
                 const backoffMultiplier = Math.pow(2, Math.max(0, pollFailureCountRef.current - 1));
                 const nextDelay = Math.min(60000, baseIntervalMs * backoffMultiplier);
+                if (pollFailureCountRef.current >= 3) {
+                    setStreamSyncError('Realtime sync is unstable. Messages may appear with delay.');
+                }
                 scheduleNextPoll(nextDelay);
                 setLoading(false);
             }
@@ -1167,7 +1181,7 @@ export default function ConversationsShow({
                 pollTimerRef.current = null;
             }
         };
-    }, [connected, account?.id, conversation?.id, addToast, initialSyncPending, initialTotalMessages, recoverHistory]);
+    }, [connected, isTabVisible, account?.id, conversation?.id, addToast, initialSyncPending, initialTotalMessages, recoverHistory, streamSyncError]);
 
     const handleSend = useCallback(async () => {
         if (processing || textSending || attachmentsSending) return;
@@ -1349,6 +1363,13 @@ export default function ConversationsShow({
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [mobileDrawerOpen, handleSend]);
+
+    useEffect(() => {
+        if (typeof document === 'undefined') return;
+        const onVisibility = () => setIsTabVisible(!document.hidden);
+        document.addEventListener('visibilitychange', onVisibility);
+        return () => document.removeEventListener('visibilitychange', onVisibility);
+    }, []);
 
     const getStatusIcon = (message: Message) => {
         if (message.direction === 'inbound') return null;
@@ -1607,6 +1628,16 @@ export default function ConversationsShow({
                         backgroundSize: '16px 16px'}}
                     tabIndex={0}
                 >
+                        {streamSyncError && (
+                            <div className="sticky top-0 z-10 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 shadow-sm dark:border-amber-700/50 dark:bg-amber-500/10 dark:text-amber-100">
+                                <div className="flex items-center justify-between gap-2">
+                                    <span>{streamSyncError}</span>
+                                    <Button type="button" variant="secondary" size="sm" onClick={recoverHistory}>
+                                        Retry now
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
                         {loading ? (
                             <>
                                 {[...Array(3)].map((_, i) => (

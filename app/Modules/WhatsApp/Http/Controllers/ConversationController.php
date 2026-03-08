@@ -21,6 +21,7 @@ use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use App\Modules\WhatsApp\Models\WhatsAppTemplateSend;
 use App\Modules\WhatsApp\Services\TemplateComposer;
 use App\Modules\WhatsApp\Services\CustomerCareWindowService;
+use App\Modules\WhatsApp\Services\InboxMetricsService;
 use App\Modules\WhatsApp\Services\TemplateManagementService;
 use App\Modules\WhatsApp\Services\WhatsAppClient;
 use App\Services\AI\ConversationAssistantService;
@@ -43,6 +44,7 @@ class ConversationController extends Controller
         protected WhatsAppClient $whatsappClient,
         protected TemplateComposer $templateComposer,
         protected CustomerCareWindowService $customerCareWindowService,
+        protected InboxMetricsService $inboxMetricsService,
         protected TemplateManagementService $templateManagementService,
         protected EntitlementService $entitlementService,
         protected UsageService $usageService,
@@ -73,7 +75,9 @@ class ConversationController extends Controller
             ->whereHas('connection')
             ->with([
                 'contact:id,account_id,wa_id,name',
-                'connection:id,account_id,name']);
+                'connection:id,account_id,name',
+                'latestAuditEvent:id,whatsapp_conversation_id,event_type,description,created_at',
+            ]);
 
         if ($request->filled('search')) {
             $search = $request->input('search');
@@ -106,8 +110,15 @@ class ConversationController extends Controller
         $conversations = $query
             ->orderBy('last_message_at', 'desc')
             ->orderBy('id', 'desc') // Secondary sort for consistent ordering
-            ->paginate(20)
-            ->through(function ($conversation) {
+            ->paginate(20);
+
+        $conversationIds = $conversations->getCollection()->pluck('id')->all();
+        $unreadMap = $this->inboxMetricsService->unreadCountMap($conversationIds);
+
+        $conversations->setCollection(
+            $conversations->getCollection()->map(function ($conversation) use ($unreadMap) {
+                $unreadCount = (int) ($unreadMap[(int) $conversation->id] ?? 0);
+                $latestAudit = $conversation->latestAuditEvent;
                 return [
                     'id' => $conversation->id,
                     'account_id' => $conversation->account_id,
@@ -127,8 +138,16 @@ class ConversationController extends Controller
                     'priority' => Schema::hasColumn('whatsapp_conversations', 'priority')
                         ? $conversation->priority
                         : null,
+                    'unread_count' => $unreadCount,
+                    'has_unread' => $unreadCount > 0,
+                    'activity' => $latestAudit ? [
+                        'event_type' => $latestAudit->event_type,
+                        'description' => $latestAudit->description,
+                        'created_at' => $latestAudit->created_at?->toIso8601String(),
+                    ] : null,
                 ];
-            });
+            })
+        );
 
         $connections = \App\Modules\WhatsApp\Models\WhatsAppConnection::where('account_id', $account->id)
             ->where('is_active', true)

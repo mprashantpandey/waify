@@ -3,6 +3,7 @@
 namespace App\Modules\WhatsApp\Events\Inbox;
 
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
+use App\Modules\WhatsApp\Services\InboxMetricsService;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
@@ -49,7 +50,9 @@ class ConversationUpdated implements ShouldBroadcast
     public function broadcastWith(): array
     {
         $conversation = $this->conversation;
-        $conversation->loadMissing(['contact', 'connection']);
+        $conversation->loadMissing(['contact', 'connection', 'latestAuditEvent']);
+        $unreadCount = app(InboxMetricsService::class)->unreadCountForConversation((int) $conversation->id);
+        $latestAudit = $conversation->latestAuditEvent;
 
         $tags = [];
         if ($conversation->contact && $conversation->contact->relationLoaded('tags')) {
@@ -84,6 +87,13 @@ class ConversationUpdated implements ShouldBroadcast
                 'last_activity_at' => $conversation->last_message_at?->toIso8601String(),
                 'last_message_at' => $conversation->last_message_at?->toIso8601String(),
                 'last_message_preview' => $conversation->last_message_preview,
+                'unread_count' => $unreadCount,
+                'has_unread' => $unreadCount > 0,
+                'activity' => $latestAudit ? [
+                    'event_type' => $latestAudit->event_type,
+                    'description' => $latestAudit->description,
+                    'created_at' => $latestAudit->created_at?->toIso8601String(),
+                ] : null,
                 'contact' => $conversation->contact ? [
                     'id' => $conversation->contact->id,
                     'wa_id' => $conversation->contact->wa_id,
