@@ -53,15 +53,32 @@ interface Conversation {
     };
 }
 
+interface RecentSend {
+    id: number;
+    to_wa_id: string;
+    status: string;
+    error_message?: string | null;
+    sent_at?: string | null;
+    created_at?: string | null;
+    message?: {
+        id: number;
+        status: string;
+        error_message?: string | null;
+        meta_message_id?: string | null;
+    } | null;
+}
+
 export default function TemplatesSend({
     account,
     template,
     contacts,
-    conversations}: {
+    conversations,
+    recent_sends = []}: {
     account: any;
     template: Template;
     contacts: Contact[];
     conversations: Conversation[];
+    recent_sends?: RecentSend[];
 }) {
     const [recipientType, setRecipientType] = useState<'contact' | 'conversation' | 'manual'>('conversation');
     const [selectedContact, setSelectedContact] = useState<string>('');
@@ -415,6 +432,54 @@ export default function TemplatesSend({
                                     </div>
                                 )}
                             </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-0 shadow-lg">
+                        <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-100 dark:from-amber-900/20 dark:to-orange-800/20">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-amber-500 rounded-xl">
+                                    <Eye className="h-5 w-5 text-white" />
+                                </div>
+                                <div>
+                                    <CardTitle className="text-xl font-bold">Recent Send Attempts</CardTitle>
+                                    <CardDescription>Latest status and exact Meta/API error details</CardDescription>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="p-4">
+                            {recent_sends.length === 0 ? (
+                                <p className="text-sm text-gray-500 dark:text-gray-400">No send attempts yet for this template.</p>
+                            ) : (
+                                <div className="space-y-3">
+                                    {recent_sends.map((send) => {
+                                        const isFailed = String(send.status).toLowerCase() === 'failed'
+                                            || String(send.message?.status || '').toLowerCase() === 'failed';
+                                        const errorText = send.error_message || send.message?.error_message || null;
+                                        return (
+                                            <div key={send.id} className="rounded-xl border border-gray-200 dark:border-gray-700 p-3 bg-white dark:bg-gray-900">
+                                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{send.to_wa_id}</div>
+                                                    <Badge variant={isFailed ? 'danger' : 'success'} className="px-2 py-1 text-[10px] w-fit">
+                                                        {isFailed ? 'Failed' : send.status}
+                                                    </Badge>
+                                                </div>
+                                                <div className="mt-2 text-xs font-mono text-gray-500 break-all">
+                                                    {send.message?.meta_message_id || '-'}
+                                                </div>
+                                                {errorText && (
+                                                    <div className="mt-2 text-xs text-red-600 dark:text-red-400 break-words">
+                                                        {errorText}
+                                                    </div>
+                                                )}
+                                                <div className="mt-2 text-[11px] text-gray-500">
+                                                    {(send.sent_at || send.created_at) ? new Date(send.sent_at || send.created_at || '').toLocaleString() : '-'}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </div>

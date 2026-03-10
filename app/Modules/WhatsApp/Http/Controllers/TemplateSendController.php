@@ -76,6 +76,29 @@ class TemplateSendController extends Controller
             ->filter()
             ->values();
 
+        $recentSends = $template->sends()
+            ->with('message')
+            ->latest('id')
+            ->limit(10)
+            ->get()
+            ->map(function ($send) {
+                return [
+                    'id' => $send->id,
+                    'to_wa_id' => $send->to_wa_id,
+                    'status' => $send->status,
+                    'error_message' => $send->error_message,
+                    'sent_at' => $send->sent_at?->toIso8601String(),
+                    'created_at' => $send->created_at?->toIso8601String(),
+                    'message' => $send->message ? [
+                        'id' => $send->message->id,
+                        'status' => $send->message->status,
+                        'error_message' => $send->message->error_message,
+                        'meta_message_id' => $send->message->meta_message_id,
+                    ] : null,
+                ];
+            })
+            ->values();
+
         return \Inertia\Inertia::render('WhatsApp/Templates/Send', [
             'account' => $account,
             'template' => [
@@ -92,7 +115,9 @@ class TemplateSendController extends Controller
                 'variable_count' => $template->variable_count,
                 'required_variables' => $requiredVars],
             'contacts' => $contacts,
-            'conversations' => $conversations]);
+            'conversations' => $conversations,
+            'recent_sends' => $recentSends,
+        ]);
     }
 
     /**

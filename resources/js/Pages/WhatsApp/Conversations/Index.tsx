@@ -2,7 +2,7 @@ import { Link, usePage, router } from '@inertiajs/react';
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import AppShell from '@/Layouts/AppShell';
 import { Badge } from '@/Components/UI/Badge';
-import { MessageSquare, Search, X, Phone, Wifi, WifiOff, Plus } from 'lucide-react';
+import { MessageSquare, Search, X, Phone, Wifi, WifiOff, Plus, UserPlus, UserMinus, Flag, RefreshCw, Activity } from 'lucide-react';
 import { useRealtime } from '@/Providers/RealtimeProvider';
 import { ConversationSkeleton } from '@/Components/UI/Skeleton';
 import { EmptyState } from '@/Components/UI/EmptyState';
@@ -135,6 +135,8 @@ export default function ConversationsIndex({
     const [isTabVisible, setIsTabVisible] = useState<boolean>(
         typeof document === 'undefined' ? true : !document.hidden
     );
+    const [syncDegraded, setSyncDegraded] = useState(false);
+    const [syncErrorMessage, setSyncErrorMessage] = useState<string | null>(null);
     const agents: Agent[] = Array.isArray(initialAgents) ? initialAgents : [];
     const lastPollRef = useRef<Date>(new Date());
     const processedMessageIds = useRef<Set<string>>(new Set());
@@ -217,11 +219,17 @@ export default function ConversationsIndex({
                     });
                 }
                 pollFailureCountRef.current = 0;
+                setSyncDegraded(false);
+                setSyncErrorMessage(null);
                 lastPollRef.current = new Date(response.data?.server_time || new Date());
             })
             .catch((err: any) => {
                 console.warn('[Inbox] Stream fetch failed:', err?.message);
                 pollFailureCountRef.current = Math.min(pollFailureCountRef.current + 1, 6);
+                if (pollFailureCountRef.current >= 2) {
+                    setSyncDegraded(true);
+                    setSyncErrorMessage(err?.response?.data?.message || err?.message || 'Sync retry in progress');
+                }
                 const now = Date.now();
                 if (now - pollErrorToastAtRef.current > 60_000) {
                     addToast({
@@ -341,13 +349,16 @@ export default function ConversationsIndex({
             const updated = { ...prev[index] };
             updated.last_message_preview = data.message?.text_body ?? data.message?.text ?? data.message?.body ?? 'New message';
             updated.last_message_at = data.message?.created_at ?? data.message?.timestamp ?? new Date().toISOString();
-            if (data.message?.direction === 'inbound') {
+            const reportedUnread = data?.conversation?.unread_count ?? data?.unread_count;
+            const reportedHasUnread = data?.conversation?.has_unread ?? data?.has_unread;
+            if (Number.isFinite(Number(reportedUnread))) {
+                const safeUnread = Math.max(0, Number(reportedUnread));
+                updated.unread_count = safeUnread;
+                updated.has_unread = typeof reportedHasUnread === 'boolean' ? reportedHasUnread : safeUnread > 0;
+            } else if (data.message?.direction === 'inbound') {
                 const nextUnread = Math.max(0, Number(updated.unread_count ?? 0) + 1);
                 updated.unread_count = nextUnread;
                 updated.has_unread = nextUnread > 0;
-            } else if (data.message?.direction === 'outbound') {
-                updated.unread_count = 0;
-                updated.has_unread = false;
             }
             const newList = [...prev];
             newList[index] = updated;
@@ -413,7 +424,9 @@ export default function ConversationsIndex({
             channel,
             '.whatsapp.message.created',
             (data: any) => {
-                const eventId = `msg-created-${data.message?.id}-${data.conversation_id}`;
+                const eventId = `msg-created-${
+                    data.message?.id ?? data.message?.meta_message_id ?? data.message?.timestamp ?? 'unknown'
+                }-${data.conversation_id}`;
                 if (!processedMessageIds.current.has(eventId)) {
                     processedMessageIds.current.add(eventId);
                     setConversations((prev) => {
@@ -480,6 +493,20 @@ export default function ConversationsIndex({
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
+
+    const activityMeta = (eventType?: string | null) => {
+        const event = String(eventType ?? '').toLowerCase();
+        if (event.includes('assign')) {
+            return { Icon: UserPlus, className: 'text-blue-600 dark:text-blue-400', label: 'Assignment' };
+        }
+        if (event.includes('unassign') || event.includes('remove')) {
+            return { Icon: UserMinus, className: 'text-amber-600 dark:text-amber-400', label: 'Unassigned' };
+        }
+        if (event.includes('priority')) {
+            return { Icon: Flag, className: 'text-purple-600 dark:text-purple-400', label: 'Priority' };
+        }
+        return { Icon: Activity, className: 'text-gray-500 dark:text-gray-400', label: 'Activity' };
+    };
 
     return (
         <AppShell>
@@ -580,6 +607,26 @@ export default function ConversationsIndex({
                                     </button>
                                 )}
                             </div>
+                            {syncDegraded && (
+                                <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                        <span>
+                                            Realtime sync is unstable. Updates may be delayed.
+                                            {syncErrorMessage ? ` ${syncErrorMessage}` : ''}
+                                        </span>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="secondary"
+                                            className="w-full sm:w-auto"
+                                            onClick={() => fetchInboxStreamAndMerge()}
+                                        >
+                                            <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                                            Retry now
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="flex-1 overflow-y-auto">
@@ -665,10 +712,15 @@ export default function ConversationsIndex({
                                                             </span>
                                                         </div>
                                                         {conversation.activity?.description && (
-                                                            <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400 truncate">
-                                                                {conversation.activity.description}
+                                                            <div className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                                                                {(() => {
+                                                                    const meta = activityMeta(conversation.activity?.event_type);
+                                                                    const Icon = meta.Icon;
+                                                                    return <Icon className={`h-3 w-3 shrink-0 ${meta.className}`} />;
+                                                                })()}
+                                                                <span className="truncate">{conversation.activity.description}</span>
                                                                 {conversation.activity.created_at && (
-                                                                    <span className="ml-1 text-gray-400">
+                                                                    <span className="shrink-0 text-gray-400">
                                                                         · {formatRelativeTime(conversation.activity.created_at)}
                                                                     </span>
                                                                 )}

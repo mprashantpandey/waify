@@ -46,18 +46,26 @@ export default function BillingTab() {
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                         View your current plan, manage billing, and upgrade or downgrade your subscription.
                     </p>
-                    <div className="flex flex-wrap gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                         <Link href={route('app.billing.index', {})}>
-                            <Button variant="secondary" className="rounded-xl group">
+                            <Button variant="secondary" className="w-full rounded-xl group justify-between">
                                 <CreditCard className="h-4 w-4 mr-2" />
-                                Open Billing
+                                <span>Open Billing</span>
                                 <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
                             </Button>
                         </Link>
                         <Link href={route('app.billing.transactions', {})}>
-                            <Button variant="secondary" className="rounded-xl group">
+                            <Button variant="secondary" className="w-full rounded-xl group justify-between">
                                 <Receipt className="h-4 w-4 mr-2" />
-                                Transactions
+                                <span>Transactions</span>
+                                <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                            </Button>
+                        </Link>
+                        <Link href={route('app.billing.history', {})}>
+                            <Button variant="secondary" className="w-full rounded-xl group justify-between">
+                                <Wallet className="h-4 w-4 mr-2" />
+                                <span>Invoices</span>
+                                <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
                             </Button>
                         </Link>
                     </div>
@@ -80,16 +88,16 @@ export default function BillingTab() {
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
                         Monitor your usage across messages, templates, connections, and more.
                     </p>
-                    <div className="flex flex-wrap gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <Link href={route('app.billing.usage', { })}>
-                            <Button variant="secondary" className="rounded-xl group">
+                            <Button variant="secondary" className="w-full rounded-xl group justify-between">
                                 <TrendingUp className="h-4 w-4 mr-2" />
-                                View Usage Details
+                                <span>View Usage Details</span>
                                 <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
                             </Button>
                         </Link>
                         <Link href={route('app.billing.history', {})}>
-                            <Button variant="secondary" className="rounded-xl">
+                            <Button variant="secondary" className="w-full rounded-xl">
                                 <Wallet className="h-4 w-4 mr-2" />
                                 Payment History
                             </Button>

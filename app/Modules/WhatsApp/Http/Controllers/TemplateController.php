@@ -31,6 +31,11 @@ class TemplateController extends Controller
 
         $query = WhatsAppTemplate::where('account_id', $account->id)
             ->with('connection')
+            ->withCount([
+                'sends as sends_failed_count' => function ($q) {
+                    $q->where('status', 'failed');
+                },
+            ])
             ->where(function ($q) {
                 // Legacy rows may have NULL is_archived.
                 $q->where('is_archived', false)
@@ -80,7 +85,10 @@ class TemplateController extends Controller
                     'connection' => [
                         'id' => $template->connection->id,
                         'name' => $template->connection->name],
-                    'last_synced_at' => $template->last_synced_at?->toIso8601String()];
+                    'last_synced_at' => $template->last_synced_at?->toIso8601String(),
+                    'last_meta_error' => $template->last_meta_error,
+                    'sends_failed_count' => (int) ($template->sends_failed_count ?? 0),
+                ];
             });
 
         $connectionColumns = ['id', 'name'];
@@ -129,6 +137,28 @@ class TemplateController extends Controller
         }
 
         $template->load('connection');
+        $recentSends = $template->sends()
+            ->with('message')
+            ->latest('id')
+            ->limit(12)
+            ->get()
+            ->map(function ($send) {
+                return [
+                    'id' => $send->id,
+                    'to_wa_id' => $send->to_wa_id,
+                    'status' => $send->status,
+                    'error_message' => $send->error_message,
+                    'sent_at' => $send->sent_at?->toIso8601String(),
+                    'created_at' => $send->created_at?->toIso8601String(),
+                    'message' => $send->message ? [
+                        'id' => $send->message->id,
+                        'status' => $send->message->status,
+                        'error_message' => $send->message->error_message,
+                        'meta_message_id' => $send->message->meta_message_id,
+                    ] : null,
+                ];
+            })
+            ->values();
 
         return Inertia::render('WhatsApp/Templates/Show', [
             'account' => $account,
@@ -152,7 +182,9 @@ class TemplateController extends Controller
                 'last_meta_error' => $template->last_meta_error,
                 'connection' => [
                     'id' => $template->connection->id,
-                    'name' => $template->connection->name]]]);
+                    'name' => $template->connection->name]],
+            'recent_sends' => $recentSends,
+        ]);
     }
 
     /**

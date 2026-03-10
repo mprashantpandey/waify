@@ -1,5 +1,6 @@
 import { Head, router } from '@inertiajs/react';
 import AppShell from '@/Layouts/AppShell';
+import Modal from '@/Components/Modal';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
 import Button from '@/Components/UI/Button';
@@ -212,10 +213,10 @@ export default function TeamIndex({
     return (
         <AppShell>
             <Head title="Team" />
-            <div className="space-y-8">
+            <div className="space-y-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
+                        <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
                             Team
                         </h1>
                         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
@@ -233,17 +234,19 @@ export default function TeamIndex({
                     )}
                 </div>
 
-                {/* Invite Dialog */}
-                {showInviteDialog && (
-                    <Card className="border-0 shadow-xl">
-                        <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20">
-                            <CardTitle className="flex items-center gap-2">
-                                <Sparkles className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                                Invite Team Member
-                            </CardTitle>
-                            <CardDescription>Invite a user to join your account</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-5 pt-6">
+                <Modal show={showInviteDialog} onClose={() => !inviteSubmitting && setShowInviteDialog(false)} maxWidth="md">
+                    <div className="p-5 sm:p-6">
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                                    <Sparkles className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                    Invite Team Member
+                                </h2>
+                                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Invite a user to join your account</p>
+                            </div>
+                        </div>
+
+                        <div className="mt-5 space-y-5">
                             <div>
                                 <Label htmlFor="email" className="text-sm font-semibold">Email Address</Label>
                                 <Input
@@ -281,9 +284,9 @@ export default function TeamIndex({
                                     Cancel
                                 </Button>
                             </div>
-                        </CardContent>
-                    </Card>
-                )}
+                        </div>
+                    </div>
+                </Modal>
 
                 {can_manage && pending_invites && pending_invites.length > 0 && (
                     <Card className="border-0 shadow-xl">
@@ -366,7 +369,7 @@ export default function TeamIndex({
                             </div>
                         </div>
                     </CardHeader>
-                    <CardContent className="p-6">
+                    <CardContent className="p-4 sm:p-6">
                         <div className="space-y-3">
                             {members.map((member) => (
                                 <div
@@ -403,7 +406,7 @@ export default function TeamIndex({
                                     <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                                         {getRoleBadge(member.role, member.is_owner)}
                                         {can_manage && !member.is_owner && member.id !== current_user_id && (
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
                                                 {editingMember?.id === member.id ? (
                                                     <select
                                                         value={member.role}
@@ -425,20 +428,22 @@ export default function TeamIndex({
                                                         <button
                                                             onClick={() => setEditingMember(member)}
                                                             disabled={memberActionKey !== null}
-                                                            className="p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 transition-colors"
+                                                            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-900/20 transition-colors"
                                                         >
                                                             <Edit className="h-4 w-4" />
+                                                            <span>Edit</span>
                                                         </button>
                                                         <button
                                                             onClick={() => handleRemove(member)}
                                                             disabled={memberActionKey !== null}
-                                                            className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 transition-colors"
+                                                            className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20 transition-colors"
                                                         >
                                                             {memberActionKey === `remove:${member.id}` ? (
                                                                 <Loader2 className="h-4 w-4 animate-spin" />
                                                             ) : (
                                                                 <Trash2 className="h-4 w-4" />
                                                             )}
+                                                            <span>{memberActionKey === `remove:${member.id}` ? 'Removing' : 'Remove'}</span>
                                                         </button>
                                                     </>
                                                 )}

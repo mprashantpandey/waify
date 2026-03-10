@@ -23,14 +23,24 @@ function nodeHasInlineIcon(node: ReactNode): boolean {
         return false;
     }
 
+    const nodeType = node.type as any;
+    const typeName = typeof nodeType === 'function'
+        ? (nodeType.displayName || nodeType.name || '')
+        : typeof nodeType === 'string'
+            ? nodeType
+            : '';
+
     const className = typeof (node.props as any)?.className === 'string'
         ? (node.props as any).className
         : '';
 
     const hasIconClass =
         /\blucide\b/.test(className)
+        || /\bsize-\d+(\.\d+)?\b/.test(className)
         || (/\bh-\d+(\.\d+)?\b/.test(className) && /\bw-\d+(\.\d+)?\b/.test(className))
-        || (node.props as any)?.['data-lucide'] !== undefined;
+        || (node.props as any)?.['data-lucide'] !== undefined
+        || typeName === 'svg'
+        || /(Icon|Circle|Triangle|Square|Check|X|Alert|Info|Mail|User|Lock)$/.test(typeName);
 
     if (hasIconClass) {
         return true;

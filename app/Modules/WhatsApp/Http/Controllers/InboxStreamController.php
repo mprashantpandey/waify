@@ -198,10 +198,12 @@ class InboxStreamController extends Controller
                 return [
                     'id' => $message->id,
                     'direction' => $message->direction,
+                    'meta_message_id' => $message->meta_message_id,
                     'type' => $message->type,
                     'text_body' => $message->text_body,
                     'payload' => $message->payload,
                     'status' => $message->status,
+                    'error_message' => $message->error_message,
                     'created_at' => $message->created_at->toIso8601String(),
                     'updated_at' => $message->updated_at?->toIso8601String(),
                     'sent_at' => $message->sent_at?->toIso8601String(),
@@ -231,6 +233,7 @@ class InboxStreamController extends Controller
                 return [
                     'id' => $message->id,
                     'status' => $message->status,
+                    'error_message' => $message->error_message,
                     'updated_at' => $message->updated_at?->toIso8601String(),
                     'sent_at' => $message->sent_at?->toIso8601String(),
                     'delivered_at' => $message->delivered_at?->toIso8601String(),

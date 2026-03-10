@@ -26,6 +26,8 @@ interface Template {
         name: string;
     };
     last_synced_at: string | null;
+    last_meta_error?: string | null;
+    sends_failed_count?: number;
 }
 
 interface Filters {
@@ -386,6 +388,9 @@ export default function TemplatesIndex({
                                             <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                                 Connection
                                             </th>
+                                            <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                Diagnostics
+                                            </th>
                                             <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                                 Actions
                                             </th>
@@ -452,6 +457,24 @@ export default function TemplatesIndex({
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
                                                     {template.connection.name}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <div className="max-w-[220px] space-y-1">
+                                                        {(template.sends_failed_count ?? 0) > 0 ? (
+                                                            <Badge variant="danger" className="px-2 py-1 text-[10px]">
+                                                                {(template.sends_failed_count ?? 0)} failed send{(template.sends_failed_count ?? 0) === 1 ? '' : 's'}
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge variant="success" className="px-2 py-1 text-[10px]">
+                                                                No recent send failures
+                                                            </Badge>
+                                                        )}
+                                                        {template.last_meta_error && (
+                                                            <p className="text-[11px] text-red-600 dark:text-red-400 truncate" title={template.last_meta_error}>
+                                                                {template.last_meta_error}
+                                                            </p>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right">
                                                     <div className="flex items-center justify-end gap-2">

@@ -1,7 +1,7 @@
 import { Link, router } from '@inertiajs/react';
 import { usePage } from '@inertiajs/react';
 import axios from 'axios';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
@@ -148,6 +148,11 @@ export default function BillingIndex({
     const trialDays = subscription ? getTrialDaysRemaining(subscription.trial_ends_at) : null;
     const estimatedMetaCost = (meta_billing?.estimated_cost_minor ?? usage.meta_estimated_cost_minor ?? 0) / 100;
     const walletBalance = (wallet?.balance_minor ?? 0) / 100;
+    const latestPayment = useMemo(() => recent_payments[0] ?? null, [recent_payments]);
+    const latestFailedPayment = useMemo(
+        () => recent_payments.find((payment) => ['failed', 'past_due'].includes(String(payment.status).toLowerCase())) ?? null,
+        [recent_payments]
+    );
     const canRenewNow = Boolean(
         isOwner
             && subscription?.status === 'past_due'
@@ -155,6 +160,15 @@ export default function BillingIndex({
             && (plan.price_monthly ?? 0) > 0
             && razorpayEnabled
     );
+    const renewalUnavailableReason = !isOwner
+        ? 'Only the account owner can renew this subscription.'
+        : !plan
+        ? 'Plan details are unavailable right now.'
+        : (plan.price_monthly ?? 0) <= 0
+        ? 'This plan is free. No payment is required.'
+        : !razorpayEnabled
+        ? 'Online checkout is currently unavailable. Contact support to renew.'
+        : null;
 
     const loadRazorpay = () =>
         new Promise<void>((resolve, reject) => {
@@ -276,7 +290,7 @@ export default function BillingIndex({
             <Head title="Billing Overview" />
             <div className="space-y-8">
                 <div>
-                    <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
+                    <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
                         Billing Overview
                     </h1>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
@@ -303,17 +317,67 @@ export default function BillingIndex({
                             <p className="text-xs text-yellow-700 dark:text-yellow-300 mb-3">
                                 Renew now to restore full access immediately and prevent workflow interruption.
                             </p>
-                            {canRenewNow ? (
-                                <Button variant="secondary" size="sm" className="rounded-xl" onClick={handleRenewNow} disabled={renewing}>
-                                    {renewing ? 'Opening Checkout...' : 'Renew Now'}
-                                </Button>
-                            ) : (
-                                <Link href={route('app.billing.plans', {})}>
-                                    <Button variant="secondary" size="sm" className="rounded-xl">
-                                        Open Renewal Options
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                {canRenewNow ? (
+                                    <Button variant="secondary" size="sm" className="rounded-xl w-full sm:w-auto" onClick={handleRenewNow} disabled={renewing}>
+                                        {renewing ? 'Opening Checkout...' : 'Renew Now'}
+                                    </Button>
+                                ) : (
+                                    <Link href={route('app.billing.plans', {})}>
+                                        <Button variant="secondary" size="sm" className="rounded-xl w-full sm:w-auto">
+                                            Open Renewal Options
+                                        </Button>
+                                    </Link>
+                                )}
+                                {latestPayment && (
+                                    <Link href={route('app.billing.history.show', { paymentOrder: latestPayment.id })}>
+                                        <Button variant="secondary" size="sm" className="rounded-xl w-full sm:w-auto">
+                                            View Latest Invoice
+                                        </Button>
+                                    </Link>
+                                )}
+                                <Link href={route('app.billing.transactions', {})}>
+                                    <Button variant="secondary" size="sm" className="rounded-xl w-full sm:w-auto">
+                                        Open Transactions
                                     </Button>
                                 </Link>
+                            </div>
+                            {renewalUnavailableReason && (
+                                <p className="mt-2 text-xs text-yellow-700 dark:text-yellow-300">
+                                    {renewalUnavailableReason}
+                                </p>
                             )}
+                        </div>
+                    </Alert>
+                )}
+
+                {latestFailedPayment && subscription?.status === 'past_due' && (
+                    <Alert variant="error" className="border-red-200 dark:border-red-800">
+                        <AlertCircle className="h-5 w-5" />
+                        <div className="flex-1">
+                            <h3 className="font-semibold text-red-800 dark:text-red-200 mb-1">
+                                Last Payment Attempt Failed
+                            </h3>
+                            <p className="text-sm text-red-700 dark:text-red-300 mb-3">
+                                Invoice <span className="font-semibold">{latestFailedPayment.invoice_no}</span> is marked <span className="font-semibold">{String(latestFailedPayment.status).replace('_', ' ')}</span>. Review details and retry renewal.
+                            </p>
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <Link href={route('app.billing.history.show', { paymentOrder: latestFailedPayment.id })}>
+                                    <Button variant="secondary" size="sm" className="rounded-xl w-full sm:w-auto">
+                                        Review Failed Invoice
+                                    </Button>
+                                </Link>
+                                <Link href={route('app.billing.transactions', {})}>
+                                    <Button variant="secondary" size="sm" className="rounded-xl w-full sm:w-auto">
+                                        Open Transactions
+                                    </Button>
+                                </Link>
+                                {canRenewNow && (
+                                    <Button size="sm" className="rounded-xl w-full sm:w-auto" onClick={handleRenewNow} disabled={renewing}>
+                                        {renewing ? 'Opening Checkout...' : 'Retry Renewal'}
+                                    </Button>
+                                )}
+                            </div>
                         </div>
                     </Alert>
                 )}
@@ -406,7 +470,7 @@ export default function BillingIndex({
                                         </p>
                                     </div>
                                 )}
-                                <div className="flex items-center gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                                <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
                                     {subscription?.status === 'past_due' && (
                                         canRenewNow ? (
                                             <Button
@@ -423,6 +487,20 @@ export default function BillingIndex({
                                                 </Button>
                                             </Link>
                                         )
+                                    )}
+                                    {latestFailedPayment && (
+                                        <Link href={route('app.billing.history.show', { paymentOrder: latestFailedPayment.id })}>
+                                            <Button variant="secondary" className="rounded-xl">
+                                                Review Failed Payment
+                                            </Button>
+                                        </Link>
+                                    )}
+                                    {latestPayment && (
+                                        <Link href={route('app.billing.history.download', { paymentOrder: latestPayment.id })}>
+                                            <Button variant="secondary" className="rounded-xl">
+                                                Download Latest Invoice
+                                            </Button>
+                                        </Link>
                                     )}
                                     <Link href={route('app.billing.plans', {})}>
                                         <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50 rounded-xl">
@@ -467,17 +545,17 @@ export default function BillingIndex({
 
                 <Card className="border-0 shadow-lg">
                     <CardHeader className="bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900">
-                        <div className="flex items-center justify-between gap-3">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
                                 <CardTitle className="text-xl font-bold">Invoices & Transactions</CardTitle>
                                 <CardDescription>Latest billing activity with quick access</CardDescription>
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                                 <Link href={route('app.billing.history', {})}>
-                                    <Button variant="secondary" size="sm" className="rounded-xl">Invoices</Button>
+                                    <Button variant="secondary" size="sm" className="rounded-xl w-full sm:w-auto">Invoices</Button>
                                 </Link>
                                 <Link href={route('app.billing.transactions', {})}>
-                                    <Button variant="secondary" size="sm" className="rounded-xl">Transactions</Button>
+                                    <Button variant="secondary" size="sm" className="rounded-xl w-full sm:w-auto">Transactions</Button>
                                 </Link>
                             </div>
                         </div>
@@ -492,12 +570,13 @@ export default function BillingIndex({
                                         <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
                                         <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
                                         <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
+                                        <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-gray-900">
                                     {recent_payments.length === 0 ? (
                                         <tr>
-                                            <td colSpan={5} className="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                                            <td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                                                 No invoice records yet.
                                             </td>
                                         </tr>
@@ -508,6 +587,16 @@ export default function BillingIndex({
                                             <td className="px-6 py-4 text-sm font-semibold text-gray-900 dark:text-gray-100">{formatPrice(payment.amount, payment.currency)}</td>
                                             <td className="px-6 py-4 text-sm">{getStatusBadge(payment.status)}</td>
                                             <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">{new Date(payment.created_at).toLocaleString()}</td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <Link href={route('app.billing.history.show', { paymentOrder: payment.id })}>
+                                                        <Button size="sm" variant="secondary" className="rounded-lg">View</Button>
+                                                    </Link>
+                                                    <Link href={route('app.billing.history.download', { paymentOrder: payment.id })}>
+                                                        <Button size="sm" variant="secondary" className="rounded-lg">Download</Button>
+                                                    </Link>
+                                                </div>
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>

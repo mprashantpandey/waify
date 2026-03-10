@@ -271,7 +271,21 @@ class ConversationController extends Controller
 
         // Load last 50 messages for initial render (optimized query)
         $messages = WhatsAppMessage::where('whatsapp_conversation_id', $conversation->id)
-            ->select(['id', 'direction', 'type', 'text_body', 'payload', 'status', 'created_at', 'sent_at', 'delivered_at', 'read_at'])
+            ->select([
+                'id',
+                'direction',
+                'meta_message_id',
+                'type',
+                'text_body',
+                'payload',
+                'status',
+                'error_message',
+                'created_at',
+                'updated_at',
+                'sent_at',
+                'delivered_at',
+                'read_at',
+            ])
             ->orderBy('created_at', 'desc')
             ->limit(50)
             ->get()
@@ -281,10 +295,12 @@ class ConversationController extends Controller
                 return [
                     'id' => $message->id,
                     'direction' => $message->direction,
+                    'meta_message_id' => $message->meta_message_id,
                     'type' => $message->type,
                     'text_body' => $message->text_body,
                     'payload' => $message->payload,
                     'status' => $message->status,
+                    'error_message' => $message->error_message,
                     'created_at' => $message->created_at->toIso8601String(),
                     'updated_at' => $message->updated_at?->toIso8601String(),
                     'sent_at' => $message->sent_at?->toIso8601String(),
@@ -446,7 +462,21 @@ class ConversationController extends Controller
 
         $messages = WhatsAppMessage::where('whatsapp_conversation_id', $conversation->id)
             ->where('id', '<', $validated['before_message_id'])
-            ->select(['id', 'direction', 'type', 'text_body', 'payload', 'status', 'created_at', 'sent_at', 'delivered_at', 'read_at'])
+            ->select([
+                'id',
+                'direction',
+                'meta_message_id',
+                'type',
+                'text_body',
+                'payload',
+                'status',
+                'error_message',
+                'created_at',
+                'updated_at',
+                'sent_at',
+                'delivered_at',
+                'read_at',
+            ])
             ->orderBy('created_at', 'desc')
             ->limit(50)
             ->get()
@@ -456,10 +486,12 @@ class ConversationController extends Controller
                 return [
                     'id' => $message->id,
                     'direction' => $message->direction,
+                    'meta_message_id' => $message->meta_message_id,
                     'type' => $message->type,
                     'text_body' => $message->text_body,
                     'payload' => $message->payload,
                     'status' => $message->status,
+                    'error_message' => $message->error_message,
                     'created_at' => $message->created_at->toIso8601String(),
                     'updated_at' => $message->updated_at?->toIso8601String(),
                     'sent_at' => $message->sent_at?->toIso8601String(),

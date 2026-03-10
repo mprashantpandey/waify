@@ -40,11 +40,28 @@ interface Template {
     };
 }
 
+interface RecentSend {
+    id: number;
+    to_wa_id: string;
+    status: string;
+    error_message?: string | null;
+    sent_at?: string | null;
+    created_at?: string | null;
+    message?: {
+        id: number;
+        status: string;
+        error_message?: string | null;
+        meta_message_id?: string | null;
+    } | null;
+}
+
 export default function TemplatesShow({
     account,
-    template}: {
+    template,
+    recent_sends = []}: {
     account: any;
     template: Template;
+    recent_sends?: RecentSend[];
 }) {
     const confirm = useConfirm();
     const { subscribe } = useRealtime();
@@ -283,6 +300,72 @@ export default function TemplatesShow({
                         </div>
                     </Alert>
                 )}
+
+                <Card className="border-0 shadow-lg">
+                    <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-100 dark:from-amber-900/20 dark:to-orange-900/20">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-amber-500 rounded-xl">
+                                <Clock className="h-5 w-5 text-white" />
+                            </div>
+                            <div>
+                                <CardTitle className="text-xl font-bold">Recent Send Diagnostics</CardTitle>
+                                <CardDescription>Latest send attempts and exact provider error details</CardDescription>
+                            </div>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        {recent_sends.length === 0 ? (
+                            <div className="p-6 text-sm text-gray-500 dark:text-gray-400">No send history yet for this template.</div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                                        <tr>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Recipient</th>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Status</th>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Message ID</th>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Error</th>
+                                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Time</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                                        {recent_sends.map((send) => {
+                                            const isFailed = String(send.status).toLowerCase() === 'failed' || String(send.message?.status || '').toLowerCase() === 'failed';
+                                            const effectiveError = send.error_message || send.message?.error_message || null;
+                                            return (
+                                                <tr key={send.id} className="align-top">
+                                                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{send.to_wa_id}</td>
+                                                    <td className="px-4 py-3">
+                                                        <Badge variant={isFailed ? 'danger' : 'success'} className="px-2 py-1 text-[10px]">
+                                                            {isFailed ? 'Failed' : send.status}
+                                                        </Badge>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-xs font-mono text-gray-600 dark:text-gray-300 break-all">
+                                                        {send.message?.meta_message_id || '-'}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-xs text-red-600 dark:text-red-400 max-w-[420px]">
+                                                        {effectiveError ? (
+                                                            <span title={effectiveError}>{effectiveError}</span>
+                                                        ) : (
+                                                            <span className="text-gray-400">-</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                                                        {send.sent_at
+                                                            ? new Date(send.sent_at).toLocaleString()
+                                                            : send.created_at
+                                                            ? new Date(send.created_at).toLocaleString()
+                                                            : '-'}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
 
                 {/* Template Preview */}
                 <Card className="border-0 shadow-lg">

@@ -2,10 +2,11 @@ import { useForm, Link, router, usePage } from '@inertiajs/react';
 import { FormEventHandler, useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import AppShell from '@/Layouts/AppShell';
 import Button from '@/Components/UI/Button';
+import Modal from '@/Components/Modal';
 import TextInput from '@/Components/TextInput';
 import { Textarea } from '@/Components/UI/Textarea';
 import { Badge } from '@/Components/UI/Badge';
-import { ArrowLeft, Send, Check, CheckCheck, Clock, Menu, Phone, Wifi, WifiOff, X, Smile, Paperclip, Image as ImageIcon, MapPin, FileText, Zap, List, Square, Plus, Sparkles, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { ArrowLeft, Send, Check, CheckCheck, Clock, Menu, Phone, Wifi, WifiOff, X, Smile, Paperclip, Image as ImageIcon, MapPin, FileText, Zap, List, Square, Plus, Sparkles, ThumbsUp, ThumbsDown, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRealtime } from '@/Providers/RealtimeProvider';
 import { MessageSkeleton } from '@/Components/UI/Skeleton';
@@ -16,10 +17,12 @@ import { Head } from '@inertiajs/react';
 interface Message {
     id: number;
     direction: 'inbound' | 'outbound';
+    meta_message_id?: string | null;
     type: string;
     text_body: string | null;
     payload?: any;
     status: string;
+    error_message?: string | null;
     created_at: string;
     updated_at?: string | null;
     sent_at: string | null;
@@ -165,10 +168,12 @@ const normalizeMessage = (value: any): Message | null => {
     return {
         id,
         direction: value.direction === 'inbound' ? 'inbound' : 'outbound',
+        meta_message_id: value.meta_message_id ?? null,
         type: String(value.type ?? 'text'),
         text_body: value.text_body ?? null,
         payload: value.payload ?? null,
         status: String(value.status ?? 'queued'),
+        error_message: value.error_message ?? null,
         created_at: String(value.created_at),
         updated_at: value.updated_at ?? null,
         sent_at: value.sent_at ?? null,
@@ -318,6 +323,7 @@ export default function ConversationsShow({
     const [selectedTemplate, setSelectedTemplate] = useState<TemplateItem | null>(null);
     const [templateVariables, setTemplateVariables] = useState<string[]>([]);
     const [templateSending, setTemplateSending] = useState(false);
+    const [diagnosticMessage, setDiagnosticMessage] = useState<Message | null>(null);
     const [emojiSearch, setEmojiSearch] = useState('');
     const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
     const [notes, setNotes] = useState<NoteItem[]>(normalizedNotes);
@@ -909,6 +915,7 @@ export default function ConversationsShow({
                             ? {
                                   ...msg,
                                   status: data.message.status ?? msg.status,
+                                  error_message: data.message.error_message ?? msg.error_message,
                                   updated_at: updatedAt,
                                   sent_at: data.message.sent_at ?? msg.sent_at,
                                   delivered_at: data.message.delivered_at ?? msg.delivered_at,
@@ -1086,6 +1093,7 @@ export default function ConversationsShow({
                                 ? {
                                       ...msg,
                                       status: updated.status ?? msg.status,
+                                      error_message: updated.error_message ?? msg.error_message,
                                       updated_at: updated.updated_at ?? msg.updated_at,
                                       sent_at: updated.sent_at ?? msg.sent_at,
                                       delivered_at: updated.delivered_at ?? msg.delivered_at,
@@ -1407,6 +1415,21 @@ export default function ConversationsShow({
         }
     };
 
+    const getStatusBadgeClassName = (message: Message): string => {
+        if (message.status === 'read') return 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300';
+        if (message.status === 'delivered') return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300';
+        if (message.status === 'sent') return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
+        if (message.status === 'failed') return 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300';
+        return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300';
+    };
+
+    const formatDiagnosticTime = (value?: string | null): string => {
+        if (!value) return '-';
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) return '-';
+        return parsed.toLocaleString();
+    };
+
     const getDeliveryLatencyLabel = (message: Message): string | null => {
         if (message.direction !== 'outbound' || !message.sent_at) return null;
 
@@ -1699,14 +1722,32 @@ export default function ConversationsShow({
                                                 {renderMessageBody(message)}
                                                 <div className="flex items-center justify-end gap-1.5 mt-2">
                                                     {message.direction === 'outbound' && getStatusLabel(message) && (
-                                                        <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setDiagnosticMessage(message)}
+                                                            className={cn(
+                                                                'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold transition hover:opacity-90',
+                                                                getStatusBadgeClassName(message)
+                                                            )}
+                                                            title="Open delivery diagnostics"
+                                                        >
+                                                            <Info className="h-3 w-3" />
                                                             {getStatusLabel(message)}
-                                                        </span>
+                                                        </button>
                                                     )}
                                                     {message.direction === 'outbound' && getDeliveryLatencyLabel(message) && (
                                                         <span className="text-[11px] text-gray-400 dark:text-gray-500">
                                                             {getDeliveryLatencyLabel(message)}
                                                         </span>
+                                                    )}
+                                                    {message.direction === 'outbound' && message.status === 'failed' && message.error_message && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setDiagnosticMessage(message)}
+                                                            className="text-[11px] font-medium text-red-600 underline decoration-dotted underline-offset-2 dark:text-red-400"
+                                                        >
+                                                            View error
+                                                        </button>
                                                     )}
                                                     <span className={cn(
                                                         'text-[11px]',
@@ -2579,6 +2620,79 @@ export default function ConversationsShow({
                     )}
                 </div>
             </div>
+
+            <Modal
+                show={Boolean(diagnosticMessage)}
+                onClose={() => setDiagnosticMessage(null)}
+                maxWidth="xl"
+            >
+                <div className="p-5 sm:p-6">
+                    <div className="flex items-start justify-between gap-3">
+                        <div>
+                            <h3 className="text-lg font-semibold text-gray-900">Delivery Diagnostics</h3>
+                            <p className="mt-1 text-sm text-gray-600">
+                                Message #{diagnosticMessage?.id ?? '-'} delivery and provider status details.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setDiagnosticMessage(null)}
+                            className="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                            aria-label="Close diagnostics"
+                        >
+                            <X className="h-4 w-4" />
+                        </button>
+                    </div>
+
+                    {diagnosticMessage && (
+                        <div className="mt-5 space-y-5">
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div className="rounded-xl border border-gray-200 p-3">
+                                    <div className="text-xs font-medium uppercase tracking-wide text-gray-500">Status</div>
+                                    <div className={cn('mt-1 inline-flex rounded-full px-2 py-1 text-xs font-semibold', getStatusBadgeClassName(diagnosticMessage))}>
+                                        {getStatusLabel(diagnosticMessage) ?? diagnosticMessage.status}
+                                    </div>
+                                </div>
+                                <div className="rounded-xl border border-gray-200 p-3">
+                                    <div className="text-xs font-medium uppercase tracking-wide text-gray-500">Type</div>
+                                    <div className="mt-1 text-sm font-medium text-gray-900">{diagnosticMessage.type}</div>
+                                </div>
+                                <div className="rounded-xl border border-gray-200 p-3 sm:col-span-2">
+                                    <div className="text-xs font-medium uppercase tracking-wide text-gray-500">Meta Message ID</div>
+                                    <div className="mt-1 break-all font-mono text-xs text-gray-700">{diagnosticMessage.meta_message_id || '-'}</div>
+                                </div>
+                            </div>
+
+                            <div className="rounded-xl border border-gray-200 p-3">
+                                <div className="text-xs font-medium uppercase tracking-wide text-gray-500">Timeline</div>
+                                <div className="mt-2 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                                    <div><span className="text-gray-500">Created:</span> {formatDiagnosticTime(diagnosticMessage.created_at)}</div>
+                                    <div><span className="text-gray-500">Accepted:</span> {formatDiagnosticTime(diagnosticMessage.sent_at)}</div>
+                                    <div><span className="text-gray-500">Delivered:</span> {formatDiagnosticTime(diagnosticMessage.delivered_at)}</div>
+                                    <div><span className="text-gray-500">Read:</span> {formatDiagnosticTime(diagnosticMessage.read_at)}</div>
+                                </div>
+                                {getDeliveryLatencyLabel(diagnosticMessage) && (
+                                    <div className="mt-2 text-xs font-medium text-emerald-700">{getDeliveryLatencyLabel(diagnosticMessage)}</div>
+                                )}
+                            </div>
+
+                            <div className="rounded-xl border border-gray-200 p-3">
+                                <div className="text-xs font-medium uppercase tracking-wide text-gray-500">Error</div>
+                                <div className="mt-1 text-sm text-gray-800">
+                                    {diagnosticMessage.error_message || 'No provider error captured.'}
+                                </div>
+                            </div>
+
+                            <div className="rounded-xl border border-gray-200 p-3">
+                                <div className="text-xs font-medium uppercase tracking-wide text-gray-500">Payload Snapshot</div>
+                                <pre className="mt-2 max-h-48 overflow-auto rounded-lg bg-gray-50 p-3 text-xs text-gray-700">
+                                    {JSON.stringify(diagnosticMessage.payload ?? {}, null, 2)}
+                                </pre>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </Modal>
         </AppShell>
     );
 }

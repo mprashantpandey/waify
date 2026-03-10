@@ -114,9 +114,9 @@ export default function SettingsIndex() {
                 </Card>
 
                 <Tabs value={activeTab} onValueChange={setActiveTab}>
-                    <div className="grid grid-cols-1 xl:grid-cols-[260px_minmax(0,1fr)] gap-6 items-start">
+                    <div className="grid grid-cols-1 xl:grid-cols-[260px_minmax(0,1fr)] gap-4 sm:gap-6 items-start min-w-0">
                         <Card className="border-0 shadow-sm xl:sticky xl:top-20">
-                            <CardContent className="p-3">
+                            <CardContent className="p-2 sm:p-3">
                                 <div className="xl:hidden">
                                     <TabsList className="w-full h-auto justify-start gap-2 p-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 overflow-x-auto whitespace-nowrap">
                                         {tabs.map((tab) => {
@@ -170,11 +170,11 @@ export default function SettingsIndex() {
                             </CardContent>
                         </Card>
 
-                        <div className="space-y-4">
+                        <div className="space-y-4 min-w-0">
                             <Card className="border-0 shadow-sm">
                                 <CardContent className="p-4 sm:p-5">
-                                    <div className="flex items-center gap-3">
-                                        <div className="rounded-lg bg-blue-600 p-2 text-white">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                                        <div className="inline-flex rounded-lg bg-blue-600 p-2 text-white">
                                             <ActiveIcon className="h-4 w-4" />
                                         </div>
                                         <div>

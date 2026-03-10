@@ -6,7 +6,9 @@
         "build": "tsc && vite build && vite build --ssr",
         "dev": "vite",
         "lint": "eslint . --ext .ts,.tsx",
-        "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\""
+        "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
+        "pull:safe": "bash scripts/ops/safe-pull.sh",
+        "check:source-only": "bash scripts/ops/check-source-only.sh"
     },
     "devDependencies": {
         "@headlessui/react": "^2.0.0",

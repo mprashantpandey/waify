@@ -78,6 +78,27 @@ npm run dev
 npm run build
 ```
 
+### 4.1 Safe Pull On Live Servers
+
+If your server builds assets locally, `git pull` may fail due to modified `public/build/*` or `bootstrap/ssr/*` files.
+Use this helper before pulling:
+
+```bash
+npm run pull:safe
+```
+
+Equivalent direct command:
+
+```bash
+bash scripts/ops/safe-pull.sh main
+```
+
+Before creating a source-only commit, validate staged files:
+
+```bash
+npm run check:source-only
+```
+
 ### 5. Start Development Server
 
 ```bash
