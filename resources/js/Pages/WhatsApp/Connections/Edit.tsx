@@ -545,12 +545,19 @@ export default function ConnectionsEdit({
                             </div>
 
                             <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
-                                <Link href={route('app.whatsapp.connections.health', { connection: connection.slug ?? connection.id })}>
-                                    <Button type="button" variant="secondary" className="rounded-xl bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30">
-                                        <Activity className="h-4 w-4 mr-2" />
-                                        Health Check
-                                    </Button>
-                                </Link>
+                                <div className="flex items-center gap-3">
+                                    <Link href={route('app.whatsapp.connections.health', { connection: connection.slug ?? connection.id })}>
+                                        <Button type="button" variant="secondary" className="rounded-xl bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30">
+                                            <Activity className="h-4 w-4 mr-2" />
+                                            Health Check
+                                        </Button>
+                                    </Link>
+                                    <Link href={route('app.whatsapp.connections.webhook-diagnostics', { connection: connection.slug ?? connection.id })}>
+                                        <Button type="button" variant="secondary" className="rounded-xl">
+                                            Webhook Diagnostics
+                                        </Button>
+                                    </Link>
+                                </div>
                                 <div className="flex items-center gap-4">
                                     <Link href={route('app.whatsapp.connections.index', { })}>
                                         <Button type="button" variant="secondary" className="rounded-xl">

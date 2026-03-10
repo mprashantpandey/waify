@@ -21,6 +21,9 @@ interface WebhookHealth {
     subscribed: number;
     with_errors: number;
     recent_activity: number;
+    consecutive_failures?: number;
+    avg_lag_seconds?: number;
+    last_processed_at?: string | null;
 }
 
 interface ConnectionDetail {
@@ -31,6 +34,9 @@ interface ConnectionDetail {
     webhook_subscribed: boolean;
     has_error: boolean;
     last_received_at: string | null;
+    last_processed_at?: string | null;
+    consecutive_failures?: number;
+    last_lag_seconds?: number | null;
     last_error: string | null;
     is_healthy: boolean;
 }
@@ -74,8 +80,13 @@ interface RecentWebhookEvent {
     connection_name: string | null;
     payload_size: number;
     replay_count: number;
+    retry_count?: number;
+    event_type?: string | null;
+    object_type?: string | null;
+    signature_valid?: boolean | null;
     error_message: string | null;
     processed_at: string | null;
+    failed_at?: string | null;
     last_replayed_at: string | null;
     created_at: string | null;
 }
@@ -176,7 +187,7 @@ export default function SystemHealth({
                         <CardDescription>WhatsApp webhook subscription and activity status</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
                             <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Total Connections</p>
                                 <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{webhook_health.total}</p>
@@ -192,6 +203,14 @@ export default function SystemHealth({
                             <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
                                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">With Errors</p>
                                 <p className="text-2xl font-bold text-red-600 dark:text-red-400">{webhook_health.with_errors}</p>
+                            </div>
+                            <div className="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                                <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Consecutive Failures</p>
+                                <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{webhook_health.consecutive_failures ?? 0}</p>
+                            </div>
+                            <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
+                                <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Avg Lag</p>
+                                <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{webhook_health.avg_lag_seconds ?? 0}s</p>
                             </div>
                         </div>
 
@@ -226,6 +245,16 @@ export default function SystemHealth({
                                                     <p className="text-xs font-medium text-gray-900 dark:text-gray-100">
                                                         {new Date(conn.last_received_at).toLocaleString()}
                                                     </p>
+                                                    {conn.last_processed_at && (
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                            Processed: {new Date(conn.last_processed_at).toLocaleString()}
+                                                        </p>
+                                                    )}
+                                                    {(conn.consecutive_failures ?? 0) > 0 && (
+                                                        <p className="text-xs text-red-600 dark:text-red-400">
+                                                            Failures: {conn.consecutive_failures}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             )}
                                             {getHealthStatus(conn.is_healthy)}
@@ -506,6 +535,14 @@ export default function SystemHealth({
                                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                                     Event #{event.id} • {event.correlation_id || 'n/a'} • {event.payload_size} bytes
                                                 </p>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                    {(event.event_type || 'unknown')} / {(event.object_type || 'unknown')} • retry {event.retry_count ?? 0}
+                                                </p>
+                                                {event.signature_valid === false && (
+                                                    <p className="text-xs text-red-600 dark:text-red-400">
+                                                        Signature validation failed
+                                                    </p>
+                                                )}
                                             </div>
                                             <Badge
                                                 variant={event.status === 'processed' ? 'success' : event.status === 'failed' ? 'danger' : 'warning'}
@@ -520,6 +557,9 @@ export default function SystemHealth({
                                                 )}
                                                 {event.last_replayed_at && (
                                                     <p>Last replay: {new Date(event.last_replayed_at).toLocaleString()} ({event.replay_count} total)</p>
+                                                )}
+                                                {event.failed_at && (
+                                                    <p className="text-red-600 dark:text-red-400">Failed at: {new Date(event.failed_at).toLocaleString()}</p>
                                                 )}
                                             </div>
                                         )}

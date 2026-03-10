@@ -26,7 +26,10 @@ class WhatsAppConnection extends Model
         'webhook_verify_token',
         'webhook_subscribed',
         'webhook_last_received_at',
+        'webhook_last_processed_at',
         'webhook_last_error',
+        'webhook_consecutive_failures',
+        'webhook_last_lag_seconds',
         'is_active',
         'throughput_cap_per_minute',
         'quiet_hours_start',
@@ -84,6 +87,9 @@ class WhatsAppConnection extends Model
         'webhook_subscribed' => 'boolean',
         'is_active' => 'boolean',
         'webhook_last_received_at' => 'datetime',
+        'webhook_last_processed_at' => 'datetime',
+        'webhook_consecutive_failures' => 'integer',
+        'webhook_last_lag_seconds' => 'integer',
         'throughput_cap_per_minute' => 'integer'];
 
     /**

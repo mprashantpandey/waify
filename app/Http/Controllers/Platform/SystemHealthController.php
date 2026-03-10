@@ -3,26 +3,20 @@
 namespace App\Http\Controllers\Platform;
 
 use App\Http\Controllers\Controller;
+use App\Modules\WhatsApp\Jobs\ProcessWebhookEventJob;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppWebhookEvent;
-use App\Modules\WhatsApp\Services\WebhookProcessor;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class SystemHealthController extends Controller
 {
-    public function __construct(
-        protected WebhookProcessor $webhookProcessor
-    ) {
-    }
-
     /**
      * Display system health dashboard.
      */
@@ -34,6 +28,12 @@ class SystemHealthController extends Controller
             'total' => $connections->count(),
             'subscribed' => $connections->where('webhook_subscribed', true)->count(),
             'with_errors' => $connections->whereNotNull('webhook_last_error')->count(),
+            'consecutive_failures' => (int) $connections->sum('webhook_consecutive_failures'),
+            'avg_lag_seconds' => (int) round(
+                (float) $connections->filter(fn ($conn) => !is_null($conn->webhook_last_lag_seconds))
+                    ->avg('webhook_last_lag_seconds') ?: 0
+            ),
+            'last_processed_at' => $connections->max('webhook_last_processed_at')?->toIso8601String(),
             'recent_activity' => $connections->filter(function ($conn) {
                 return $conn->webhook_last_received_at && 
                        $conn->webhook_last_received_at->isAfter(now()->subHours(24));
@@ -54,6 +54,9 @@ class SystemHealthController extends Controller
                 'webhook_subscribed' => $conn->webhook_subscribed,
                 'has_error' => !empty($conn->webhook_last_error),
                 'last_received_at' => $conn->webhook_last_received_at?->toIso8601String(),
+                'last_processed_at' => $conn->webhook_last_processed_at?->toIso8601String(),
+                'consecutive_failures' => (int) $conn->webhook_consecutive_failures,
+                'last_lag_seconds' => $conn->webhook_last_lag_seconds,
                 'last_error' => $conn->webhook_last_error,
                 'is_healthy' => $isHealthy];
         });
@@ -156,8 +159,13 @@ class SystemHealthController extends Controller
                         'connection_name' => $event->connection?->name,
                         'payload_size' => (int) $event->payload_size,
                         'replay_count' => (int) $event->replay_count,
+                        'retry_count' => (int) ($event->retry_count ?? 0),
+                        'event_type' => $event->event_type,
+                        'object_type' => $event->object_type,
+                        'signature_valid' => $event->signature_valid,
                         'error_message' => $event->error_message,
                         'processed_at' => $event->processed_at?->toIso8601String(),
+                        'failed_at' => $event->failed_at?->toIso8601String(),
                         'last_replayed_at' => $event->last_replayed_at?->toIso8601String(),
                         'created_at' => $event->created_at?->toIso8601String(),
                     ];
@@ -287,17 +295,21 @@ class SystemHealthController extends Controller
 
         $replayCorrelationId = ($event->correlation_id ?: 'wh_replay_'.$event->id).'-replay-'.now()->timestamp;
         try {
-            $this->webhookProcessor->process($payload, $connection, $replayCorrelationId);
             $event->update([
-                'status' => 'processed',
-                'processed_at' => now(),
+                'status' => 'received',
                 'error_message' => null,
                 'replay_count' => (int) $event->replay_count + 1,
                 'last_replayed_at' => now(),
+                'correlation_id' => $replayCorrelationId,
+            ]);
+
+            ProcessWebhookEventJob::dispatch($event->id);
+            $event->update([
+                'status' => 'queued',
             ]);
 
             optional($lock)->release();
-            return back()->with('success', 'Webhook event replayed successfully.');
+            return back()->with('success', 'Webhook event queued for replay.');
         } catch (\Throwable $e) {
             $event->update([
                 'status' => 'failed',

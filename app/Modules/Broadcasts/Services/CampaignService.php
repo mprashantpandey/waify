@@ -11,6 +11,7 @@ use App\Modules\Broadcasts\Models\CampaignMessage;
 use App\Modules\Broadcasts\Models\CampaignRecipient;
 use App\Modules\Contacts\Models\ContactSegment;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
+use App\Modules\WhatsApp\Services\OutboundMessagePipelineService;
 use App\Modules\WhatsApp\Services\TemplateComposer;
 use App\Modules\WhatsApp\Services\WhatsAppClient;
 use Illuminate\Support\Arr;
@@ -24,6 +25,7 @@ class CampaignService
 {
     public function __construct(
         protected WhatsAppClient $whatsappClient,
+        protected OutboundMessagePipelineService $outboundPipeline,
         protected TemplateComposer $templateComposer,
         protected PlanResolver $planResolver,
         protected UsageService $usageService,
@@ -329,6 +331,10 @@ class CampaignService
         }
 
         try {
+            if ($campaign->account && $campaign->connection) {
+                $this->outboundPipeline->assertRateLimits($campaign->account, $campaign->connection, (int) $campaign->id);
+            }
+
             $response = null;
 
             switch ($campaign->type) {

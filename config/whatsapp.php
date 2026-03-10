@@ -87,5 +87,31 @@ return [
         |
         */
         'rate_limit_decay' => env('WHATSAPP_WEBHOOK_RATE_LIMIT_DECAY', 1),
+
+        /*
+        |--------------------------------------------------------------------------
+        | Webhook Idempotency TTL (seconds)
+        |--------------------------------------------------------------------------
+        */
+        'dedupe_ttl' => env('WHATSAPP_WEBHOOK_DEDUPE_TTL', 300),
+
+        /*
+        |--------------------------------------------------------------------------
+        | Consecutive Failure Alert Threshold
+        |--------------------------------------------------------------------------
+        */
+        'failure_alert_threshold' => env('WHATSAPP_WEBHOOK_FAILURE_ALERT_THRESHOLD', 5),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Outbound Pipeline Throttles
+    |--------------------------------------------------------------------------
+    */
+    'outbound' => [
+        'global_per_minute' => env('WHATSAPP_OUTBOUND_GLOBAL_PER_MINUTE', 0), // 0 = disabled
+        'per_tenant_per_minute' => env('WHATSAPP_OUTBOUND_TENANT_PER_MINUTE', 120),
+        'per_connection_per_minute' => env('WHATSAPP_OUTBOUND_CONNECTION_PER_MINUTE', 60),
+        'per_campaign_per_minute' => env('WHATSAPP_OUTBOUND_CAMPAIGN_PER_MINUTE', 40),
     ],
 ];

@@ -20,6 +20,7 @@ class WebhookSecurity
         $appSecret = config('whatsapp.meta.app_secret');
         $signatureHeader = $request->header('X-Hub-Signature-256');
         $requireSignature = config('whatsapp.tech_provider.verified_mode', false);
+        $signatureValid = null;
 
         if ($request->isMethod('post')) {
             if ($requireSignature && empty($appSecret)) {
@@ -36,12 +37,15 @@ class WebhookSecurity
 
                 $rawBody = $request->getContent();
                 $expected = 'sha256=' . hash_hmac('sha256', $rawBody, $appSecret);
+                $signatureValid = hash_equals($expected, $signatureHeader);
 
-                if (!hash_equals($expected, $signatureHeader)) {
+                if (!$signatureValid) {
                     Log::warning('[Meta-WhatsApp-Webhook] POST rejected: invalid signature (check META_APP_SECRET matches Meta App Secret)');
                     Log::channel('whatsapp')->warning('Webhook POST rejected: invalid signature (check META_APP_SECRET matches Meta App Secret)');
                     abort(401, 'Invalid signature');
                 }
+            } else {
+                $signatureValid = null;
             }
         }
 
@@ -84,6 +88,7 @@ class WebhookSecurity
         // Generate correlation ID for request tracking
         $correlationId = uniqid('wh_', true);
         $request->attributes->set('webhook_correlation_id', $correlationId);
+        $request->attributes->set('webhook_signature_valid', $signatureValid);
 
         // Log request (truncated payload) - log early to catch all requests
         $connectionParam = $request->route('connection');

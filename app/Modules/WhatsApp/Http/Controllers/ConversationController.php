@@ -22,6 +22,7 @@ use App\Modules\WhatsApp\Models\WhatsAppTemplateSend;
 use App\Modules\WhatsApp\Services\TemplateComposer;
 use App\Modules\WhatsApp\Services\CustomerCareWindowService;
 use App\Modules\WhatsApp\Services\InboxMetricsService;
+use App\Modules\WhatsApp\Services\OutboundMessagePipelineService;
 use App\Modules\WhatsApp\Services\TemplateManagementService;
 use App\Modules\WhatsApp\Services\WhatsAppClient;
 use App\Services\AI\ConversationAssistantService;
@@ -46,6 +47,7 @@ class ConversationController extends Controller
         protected CustomerCareWindowService $customerCareWindowService,
         protected InboxMetricsService $inboxMetricsService,
         protected TemplateManagementService $templateManagementService,
+        protected OutboundMessagePipelineService $outboundPipeline,
         protected EntitlementService $entitlementService,
         protected UsageService $usageService,
         protected ConversationAssistantService $conversationAssistant,
@@ -904,6 +906,30 @@ class ConversationController extends Controller
             return $respondSuccess('Duplicate send request ignored. Message is already being processed.');
         }
 
+        $this->outboundPipeline->assertRateLimits($account, $conversation->connection);
+        $pipelineIdempotencyKey = $this->outboundPipeline->buildIdempotencyKey(
+            (int) $account->id,
+            (int) $conversation->id,
+            'text',
+            $clientRequestId,
+            $messageFingerprint
+        );
+        $outboundJob = $this->outboundPipeline->begin([
+            'account_id' => $account->id,
+            'whatsapp_connection_id' => $conversation->whatsapp_connection_id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'message_type' => 'text',
+            'to_wa_id' => $conversation->contact->wa_id,
+            'client_request_id' => $clientRequestId,
+            'idempotency_key' => $pipelineIdempotencyKey,
+            'request_payload' => [
+                'message' => $messageBody,
+            ],
+        ]);
+        if ($outboundJob) {
+            $this->outboundPipeline->markValidating($outboundJob);
+        }
+
         // Check message limit before sending
         $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
 
@@ -926,6 +952,9 @@ class ConversationController extends Controller
         event(new MessageCreated($message));
 
         try {
+            if ($outboundJob) {
+                $this->outboundPipeline->markSending($outboundJob);
+            }
             // Send via WhatsApp API
             $response = $this->whatsappClient->sendTextMessage(
                 $conversation->connection,
@@ -940,6 +969,10 @@ class ConversationController extends Controller
                 'status' => 'sent',
                 'sent_at' => now(),
                 'payload' => $response]);
+            if ($outboundJob) {
+                $this->outboundPipeline->markSentToProvider($outboundJob, $metaMessageId, $response);
+                $outboundJob->update(['whatsapp_message_id' => $message->id]);
+            }
 
             // Increment usage counter
             $this->usageService->incrementMessages($account, 1);
@@ -960,6 +993,14 @@ class ConversationController extends Controller
             $message->update([
                 'status' => 'failed',
                 'error_message' => $e->getMessage()]);
+            if ($outboundJob) {
+                $this->outboundPipeline->markFailed(
+                    $outboundJob,
+                    $e->getMessage(),
+                    $this->outboundPipeline->safeSerializeProviderError($e)
+                );
+                $outboundJob->update(['whatsapp_message_id' => $message->id]);
+            }
 
             // Broadcast failed status
             event(new MessageUpdated($message));
@@ -1097,6 +1138,33 @@ class ConversationController extends Controller
             return $respondSuccess('Duplicate send request ignored. Message is already being processed.');
         }
 
+        $this->outboundPipeline->assertRateLimits($account, $conversation->connection);
+        $pipelineIdempotencyKey = $this->outboundPipeline->buildIdempotencyKey(
+            (int) $account->id,
+            (int) $conversation->id,
+            'template',
+            $clientRequestId,
+            $templateFingerprint
+        );
+        $outboundJob = $this->outboundPipeline->begin([
+            'account_id' => $account->id,
+            'whatsapp_connection_id' => $conversation->whatsapp_connection_id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'message_type' => 'template',
+            'to_wa_id' => $conversation->contact->wa_id,
+            'client_request_id' => $clientRequestId,
+            'idempotency_key' => $pipelineIdempotencyKey,
+            'request_payload' => [
+                'template_id' => $template->id,
+                'template_name' => $template->name,
+                'language' => $template->language,
+                'variables' => $variables,
+            ],
+        ]);
+        if ($outboundJob) {
+            $this->outboundPipeline->markValidating($outboundJob);
+        }
+
         $nonEmptyCount = count(array_filter($variables, static fn (string $value) => $value !== ''));
         if ($nonEmptyCount < (int) ($requiredVars['total'] ?? 0)) {
             return $respondError("Template requires {$requiredVars['total']} variable(s), but only {$nonEmptyCount} non-empty value(s) were provided.");
@@ -1137,6 +1205,9 @@ class ConversationController extends Controller
             $message->load('conversation.contact');
             event(new MessageCreated($message));
 
+            if ($outboundJob) {
+                $this->outboundPipeline->markSending($outboundJob);
+            }
             $response = $this->whatsappClient->sendTemplateMessage(
                 $conversation->connection,
                 $conversation->contact->wa_id,
@@ -1150,6 +1221,10 @@ class ConversationController extends Controller
                 'meta_message_id' => $metaMessageId,
                 'status' => 'sent',
                 'sent_at' => now()]);
+            if ($outboundJob) {
+                $this->outboundPipeline->markSentToProvider($outboundJob, $metaMessageId, $response);
+                $outboundJob->update(['whatsapp_message_id' => $message->id]);
+            }
 
             $templateSend->update([
                 'status' => 'sent',
@@ -1178,12 +1253,23 @@ class ConversationController extends Controller
                     'status' => 'failed',
                     'error_message' => $e->getMessage()]);
                 event(new MessageUpdated($message));
+                if ($outboundJob) {
+                    $outboundJob->update(['whatsapp_message_id' => $message->id]);
+                }
             }
 
             if (isset($templateSend)) {
                 $templateSend->update([
                     'status' => 'failed',
                     'error_message' => $e->getMessage()]);
+            }
+
+            if (isset($outboundJob) && $outboundJob) {
+                $this->outboundPipeline->markFailed(
+                    $outboundJob,
+                    $e->getMessage(),
+                    $this->outboundPipeline->safeSerializeProviderError($e)
+                );
             }
 
             return $respondError('Failed to send template: '.$e->getMessage());

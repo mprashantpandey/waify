@@ -11,6 +11,7 @@ use App\Modules\WhatsApp\Models\WhatsAppContact;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use App\Modules\WhatsApp\Models\WhatsAppConversationAuditEvent;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
+use App\Modules\WhatsApp\Models\WhatsAppOutboundMessageJob;
 use App\Modules\WhatsApp\Models\WhatsAppMessageBilling;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use App\Modules\WhatsApp\Models\WhatsAppTemplateSend;
@@ -507,6 +508,26 @@ class WebhookProcessor
                 // Update campaign message via service to maintain consistency
                 $campaignService = app(\App\Modules\Broadcasts\Services\CampaignService::class);
                 $campaignService->updateMessageStatus($metaMessageId, $status, $statusAt);
+            }
+
+            $pipelineJob = WhatsAppOutboundMessageJob::where('meta_message_id', $metaMessageId)
+                ->latest('id')
+                ->first();
+            if ($pipelineJob && $status) {
+                $normalizedStatus = strtolower(trim((string) $status));
+                if ($normalizedStatus === 'delivered') {
+                    $pipelineJob->update(['status' => 'delivered', 'delivered_at' => $statusAt]);
+                } elseif ($normalizedStatus === 'read') {
+                    $pipelineJob->update(['status' => 'read', 'read_at' => $statusAt]);
+                } elseif ($normalizedStatus === 'failed') {
+                    $errors = $statusData['errors'][0] ?? null;
+                    $pipelineJob->update([
+                        'status' => 'failed',
+                        'failed_at' => $statusAt,
+                        'error_message' => $errors['title'] ?? $errors['message'] ?? 'Delivery failed',
+                        'provider_error_payload' => $statusData,
+                    ]);
+                }
             }
 
             $this->recordMetaBillingUsage(

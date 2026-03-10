@@ -4,6 +4,7 @@ use App\Modules\WhatsApp\Http\Controllers\ConnectionController;
 use App\Modules\WhatsApp\Http\Controllers\ConnectionHealthController;
 use App\Modules\WhatsApp\Http\Controllers\ConversationController;
 use App\Modules\WhatsApp\Http\Controllers\TemplateController;
+use App\Modules\WhatsApp\Http\Controllers\WebhookDiagnosticsController;
 use App\Modules\WhatsApp\Http\Controllers\TemplateSendController;
 use App\Modules\WhatsApp\Http\Controllers\TemplateSyncController;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
@@ -34,6 +35,8 @@ Route::middleware(['module.entitled:whatsapp.cloud'])->group(function () {
     Route::put('/connections/{connection}', [ConnectionController::class, 'update'])->name('whatsapp.connections.update');
     Route::post('/connections/{connection}/rotate-verify-token', [ConnectionController::class, 'rotateVerifyToken'])->name('whatsapp.connections.rotate-verify-token');
     Route::post('/connections/{connection}/webhook/test', [ConnectionController::class, 'testWebhook'])->name('whatsapp.connections.webhook.test');
+    Route::get('/connections/{connection}/webhook-diagnostics', [WebhookDiagnosticsController::class, 'index'])->name('whatsapp.connections.webhook-diagnostics');
+    Route::post('/connections/{connection}/webhook-diagnostics/{eventId}/reprocess', [WebhookDiagnosticsController::class, 'reprocess'])->name('whatsapp.connections.webhook-diagnostics.reprocess');
 
     // Conversations (static path before {conversation} so "by-contact" is not matched as conversation id)
     Route::get('/conversations', [ConversationController::class, 'index'])->name('whatsapp.conversations.index');
