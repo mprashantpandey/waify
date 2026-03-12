@@ -1,16 +1,14 @@
 <?php
 
-namespace App\Http\Controllers\Platform;
+namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Models\OperationalAlertEvent;
 use App\Services\DiagnosticsBundleService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Artisan;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class OperationalAlertsController extends Controller
 {
@@ -21,59 +19,61 @@ class OperationalAlertsController extends Controller
 
     public function index(Request $request): Response
     {
+        $account = $request->attributes->get('account') ?? current_account();
+        abort_unless($account, 404, 'Account not found.');
+
         $status = (string) $request->query('status', '');
         $severity = (string) $request->query('severity', '');
         $ack = (string) $request->query('ack', '');
         $search = trim((string) $request->query('q', ''));
-        $accountId = (int) $request->query('account_id', 0);
 
         $query = $this->applyFilters(
-            OperationalAlertEvent::query()->latest('id'),
+            OperationalAlertEvent::query()
+                ->where('account_id', $account->id)
+                ->latest('id'),
             $status,
             $severity,
             $ack,
-            $search,
-            $accountId > 0 ? $accountId : null
+            $search
         );
 
         $events = $query
             ->paginate(30)
             ->through(function (OperationalAlertEvent $event) {
+                $context = (array) ($event->context ?? []);
                 return [
                     'id' => $event->id,
                     'event_key' => $event->event_key,
                     'title' => $event->title,
-                    'account_id' => $event->account_id,
                     'severity' => $event->severity,
                     'scope' => $event->scope,
                     'correlation_id' => $event->correlation_id,
                     'status' => $event->status,
                     'channels' => $event->channels ?? [],
-                    'context' => $event->context ?? [],
+                    'context' => $context,
                     'error_message' => $event->error_message,
-                    'troubleshoot_link' => $this->resolveTroubleshootLink($event->scope, (array) ($event->context ?? []), (int) ($event->account_id ?? 0)),
                     'acknowledged_at' => $event->acknowledged_at?->toIso8601String(),
                     'acknowledged_by' => $event->acknowledged_by,
                     'resolve_note' => $event->resolve_note,
                     'sent_at' => $event->sent_at?->toIso8601String(),
                     'created_at' => $event->created_at?->toIso8601String(),
+                    'troubleshoot_link' => $this->resolveTroubleshootLink($event->scope, $context),
                 ];
             });
 
-        return Inertia::render('Platform/OperationalAlerts/Index', [
+        return Inertia::render('OperationalAlerts/Index', [
             'filters' => [
                 'status' => $status,
                 'severity' => $severity,
                 'ack' => $ack,
                 'q' => $search,
-                'account_id' => $accountId > 0 ? $accountId : '',
             ],
             'events' => $events,
             'stats' => [
-                'total' => OperationalAlertEvent::query()->count(),
-                'failed' => OperationalAlertEvent::query()->where('status', 'failed')->count(),
-                'skipped' => OperationalAlertEvent::query()->where('status', 'skipped')->count(),
+                'total' => OperationalAlertEvent::query()->where('account_id', $account->id)->count(),
+                'failed' => OperationalAlertEvent::query()->where('account_id', $account->id)->where('status', 'failed')->count(),
                 'critical_24h' => OperationalAlertEvent::query()
+                    ->where('account_id', $account->id)
                     ->where('severity', 'critical')
                     ->where('created_at', '>=', now()->subDay())
                     ->count(),
@@ -83,6 +83,9 @@ class OperationalAlertsController extends Controller
 
     public function acknowledge(Request $request, OperationalAlertEvent $event): RedirectResponse
     {
+        $account = $request->attributes->get('account') ?? current_account();
+        abort_unless($account && (int) $event->account_id === (int) $account->id, 404);
+
         $validated = $request->validate([
             'resolve_note' => ['nullable', 'string', 'max:2000'],
         ]);
@@ -95,54 +98,33 @@ class OperationalAlertsController extends Controller
                 'resolve_note' => $resolveNote !== '' ? $resolveNote : null,
             ])->save();
         } elseif ($resolveNote !== '') {
-            $event->forceFill([
-                'resolve_note' => $resolveNote,
-            ])->save();
+            $event->forceFill(['resolve_note' => $resolveNote])->save();
         }
 
-        return back()->with('success', 'Operational alert acknowledged.');
-    }
-
-    public function bulkAcknowledge(Request $request): RedirectResponse
-    {
-        $validated = $request->validate([
-            'ids' => ['required', 'array', 'min:1'],
-            'ids.*' => ['integer', 'exists:operational_alert_events,id'],
-            'resolve_note' => ['nullable', 'string', 'max:2000'],
-        ]);
-
-        $resolveNote = trim((string) ($validated['resolve_note'] ?? ''));
-        $updated = OperationalAlertEvent::query()
-            ->whereIn('id', $validated['ids'])
-            ->whereNull('acknowledged_at')
-            ->update([
-                'acknowledged_at' => now(),
-                'acknowledged_by' => $request->user()?->id,
-                'resolve_note' => $resolveNote !== '' ? $resolveNote : null,
-                'updated_at' => now(),
-            ]);
-
-        return back()->with('success', "Acknowledged {$updated} alert(s).");
+        return back()->with('success', 'Alert acknowledged.');
     }
 
     public function export(Request $request): StreamedResponse
     {
+        $account = $request->attributes->get('account') ?? current_account();
+        abort_unless($account, 404, 'Account not found.');
+
         $status = (string) $request->query('status', '');
         $severity = (string) $request->query('severity', '');
         $ack = (string) $request->query('ack', '');
         $search = trim((string) $request->query('q', ''));
-        $accountId = (int) $request->query('account_id', 0);
 
         $query = $this->applyFilters(
-            OperationalAlertEvent::query()->latest('id'),
+            OperationalAlertEvent::query()
+                ->where('account_id', $account->id)
+                ->latest('id'),
             $status,
             $severity,
             $ack,
-            $search,
-            $accountId > 0 ? $accountId : null
+            $search
         );
 
-        $filename = 'operational-alerts-'.now()->format('Ymd-His').'.csv';
+        $filename = 'tenant-alerts-' . now()->format('Ymd-His') . '.csv';
 
         return response()->streamDownload(function () use ($query) {
             $handle = fopen('php://output', 'w');
@@ -152,10 +134,8 @@ class OperationalAlertsController extends Controller
                 'title',
                 'severity',
                 'status',
-                'account_id',
                 'scope',
                 'correlation_id',
-                'channels',
                 'error_message',
                 'acknowledged_at',
                 'resolve_note',
@@ -170,10 +150,8 @@ class OperationalAlertsController extends Controller
                         $event->title,
                         $event->severity,
                         $event->status,
-                        $event->account_id,
                         $event->scope,
                         $event->correlation_id,
-                        json_encode($event->channels ?? [], JSON_UNESCAPED_SLASHES),
                         $event->error_message,
                         $event->acknowledged_at?->toIso8601String(),
                         $event->resolve_note,
@@ -188,27 +166,21 @@ class OperationalAlertsController extends Controller
         ]);
     }
 
-    public function sendTest(Request $request): RedirectResponse
-    {
-        Artisan::call('ops:alert:test', [
-            '--scope' => 'platform-ui-'.now()->format('YmdHis'),
-        ]);
-
-        return back()->with('success', 'Test operational alert dispatched.');
-    }
-
     public function diagnosticsBundle(Request $request): StreamedResponse
     {
-        $eventId = (int) $request->query('event_id', 0);
-        $accountId = (int) $request->query('account_id', 0) ?: null;
+        $account = $request->attributes->get('account') ?? current_account();
+        abort_unless($account, 404, 'Account not found.');
 
+        $eventId = (int) $request->query('event_id', 0);
         $alert = null;
         if ($eventId > 0) {
-            $alert = OperationalAlertEvent::query()->findOrFail($eventId);
+            $alert = OperationalAlertEvent::query()
+                ->where('account_id', $account->id)
+                ->findOrFail($eventId);
             $bundle = $this->diagnosticsBundleService->buildForAlert($alert, (int) ($request->user()?->id ?? 0));
         } else {
             $targets = [
-                'account_id' => $accountId,
+                'account_id' => $account->id,
                 'connection_id' => (int) $request->query('connection_id', 0) ?: null,
                 'campaign_id' => (int) $request->query('campaign_id', 0) ?: null,
                 'conversation_id' => (int) $request->query('conversation_id', 0) ?: null,
@@ -222,12 +194,12 @@ class OperationalAlertsController extends Controller
 
             $bundle = $this->diagnosticsBundleService->buildForTargets(
                 targets: $targets,
-                accountId: $accountId,
+                accountId: (int) $account->id,
                 actorUserId: (int) ($request->user()?->id ?? 0),
             );
         }
 
-        $filename = 'platform-diagnostics-' . ($alert?->id ? "alert-{$alert->id}-" : '') . now()->format('Ymd-His') . '.json';
+        $filename = 'tenant-diagnostics-' . ($alert?->id ? "alert-{$alert->id}-" : '') . now()->format('Ymd-His') . '.json';
         $json = json_encode($bundle, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         return response()->streamDownload(function () use ($json) {
@@ -237,12 +209,8 @@ class OperationalAlertsController extends Controller
         ]);
     }
 
-    protected function applyFilters($query, string $status, string $severity, string $ack, string $search, ?int $accountId = null)
+    protected function applyFilters($query, string $status, string $severity, string $ack, string $search)
     {
-        if ($accountId && $accountId > 0) {
-            $query->where('account_id', $accountId);
-        }
-
         if (in_array($status, ['sent', 'skipped', 'failed'], true)) {
             $query->where('status', $status);
         }
@@ -271,33 +239,54 @@ class OperationalAlertsController extends Controller
     }
 
     /**
-     * @param array<string,mixed> $context
+     * @param  array<string,mixed>  $context
      */
-    protected function resolveTroubleshootLink(?string $scope, array $context, int $accountId = 0): ?string
+    protected function resolveTroubleshootLink(?string $scope, array $context): ?string
     {
         $scopeValue = (string) ($scope ?? '');
 
-        if ($accountId > 0) {
-            return route('platform.accounts.show', ['account' => $accountId]);
+        if (str_starts_with($scopeValue, 'connection:')) {
+            $id = (int) substr($scopeValue, strlen('connection:'));
+            if ($id > 0) {
+                return route('app.whatsapp.connections.edit', ['connection' => $id]);
+            }
         }
 
         if (str_starts_with($scopeValue, 'campaign:')) {
             $id = (int) substr($scopeValue, strlen('campaign:'));
             if ($id > 0) {
-                return route('platform.transactions.index') . '?campaign_id=' . $id;
+                return route('app.broadcasts.show', ['campaign' => $id]);
             }
         }
 
-        if (str_starts_with($scopeValue, 'connection:')) {
-            $id = (int) substr($scopeValue, strlen('connection:'));
-            if ($id > 0) {
-                return route('platform.system-health') . '?connection_id=' . $id;
-            }
+        $conversationId = (int) ($context['conversation_id'] ?? 0);
+        if ($conversationId > 0) {
+            return route('app.whatsapp.conversations.show', ['conversation' => $conversationId]);
         }
 
-        $correlationId = trim((string) ($context['correlation_id'] ?? ''));
-        if ($correlationId !== '') {
-            return route('platform.operational-alerts.index') . '?q=' . urlencode($correlationId);
+        $messageId = (int) ($context['message_id'] ?? $context['whatsapp_message_id'] ?? 0);
+        if ($messageId > 0) {
+            return route('app.whatsapp.conversations.index') . '?message_id=' . $messageId;
+        }
+
+        $templateId = (int) ($context['template_id'] ?? 0);
+        if ($templateId > 0) {
+            return route('app.whatsapp.templates.show', ['template' => $templateId]);
+        }
+
+        $connectionId = (int) ($context['connection_id'] ?? 0);
+        if ($connectionId > 0) {
+            return route('app.whatsapp.connections.edit', ['connection' => $connectionId]);
+        }
+
+        $campaignId = (int) ($context['campaign_id'] ?? 0);
+        if ($campaignId > 0) {
+            return route('app.broadcasts.show', ['campaign' => $campaignId]);
+        }
+
+        $webhookEventId = (int) ($context['webhook_event_id'] ?? 0);
+        if ($webhookEventId > 0 && $connectionId > 0) {
+            return route('app.whatsapp.connections.webhook-diagnostics', ['connection' => $connectionId]) . '?event_id=' . $webhookEventId;
         }
 
         return null;

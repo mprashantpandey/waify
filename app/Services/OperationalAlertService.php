@@ -13,16 +13,21 @@ class OperationalAlertService
 {
     public function send(string $eventKey, string $title, array $context = [], string $severity = 'warning'): void
     {
+        $accountId = $this->extractAccountId($context);
+        $correlationId = $this->extractCorrelationId($context);
         $errorFingerprint = substr((string) ($context['error'] ?? ''), 0, 160);
-        $dedupeKey = 'ops-alert:' . sha1($eventKey . '|' . ($context['scope'] ?? 'global') . '|' . $errorFingerprint);
+        $scope = (string) ($context['scope'] ?? 'global');
+        $dedupeKey = 'ops-alert:' . sha1($eventKey . '|' . $scope . '|' . $errorFingerprint . '|' . ($accountId ?: 'global'));
         $ttlMinutes = max(1, (int) PlatformSetting::get('alerts.dedupe_minutes', 15));
         if (!cache()->add($dedupeKey, now()->timestamp, now()->addMinutes($ttlMinutes))) {
             $this->recordEvent([
+                'account_id' => $accountId,
                 'event_key' => $eventKey,
                 'title' => $title,
                 'severity' => $severity,
-                'scope' => (string) ($context['scope'] ?? 'global'),
+                'scope' => $scope,
                 'dedupe_key' => $dedupeKey,
+                'correlation_id' => $correlationId,
                 'status' => 'skipped',
                 'channels' => ['dedupe' => 'skipped'],
                 'context' => $context,
@@ -49,11 +54,13 @@ class OperationalAlertService
             : 'failed';
 
         $this->recordEvent([
+            'account_id' => $accountId,
             'event_key' => $eventKey,
             'title' => $title,
             'severity' => $severity,
-            'scope' => (string) ($context['scope'] ?? 'global'),
+            'scope' => $scope,
             'dedupe_key' => $dedupeKey,
+            'correlation_id' => $correlationId,
             'status' => $status,
             'channels' => $channels,
             'context' => $context,
@@ -136,5 +143,27 @@ class OperationalAlertService
         } catch (\Throwable $e) {
             Log::warning('Failed to record operational alert event', ['error' => $e->getMessage()]);
         }
+    }
+
+    protected function extractAccountId(array $context): ?int
+    {
+        $raw = $context['account_id'] ?? $context['tenant_id'] ?? null;
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
+        $id = (int) $raw;
+        return $id > 0 ? $id : null;
+    }
+
+    protected function extractCorrelationId(array $context): ?string
+    {
+        $raw = (string) ($context['correlation_id'] ?? $context['request_id'] ?? request()?->attributes->get('request_id') ?? '');
+        $raw = trim($raw);
+        if ($raw === '') {
+            return null;
+        }
+
+        return mb_substr($raw, 0, 120);
     }
 }

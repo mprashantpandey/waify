@@ -10,12 +10,15 @@ type AlertEvent = {
     id: number;
     event_key: string;
     title: string;
+    account_id: number | null;
     severity: 'info' | 'warning' | 'critical';
     scope: string | null;
+    correlation_id: string | null;
     status: 'sent' | 'skipped' | 'failed';
     channels: Record<string, string>;
     context: Record<string, any>;
     error_message: string | null;
+    troubleshoot_link?: string | null;
     acknowledged_at: string | null;
     acknowledged_by: number | null;
     resolve_note: string | null;
@@ -68,8 +71,19 @@ export default function OperationalAlertsIndex({
             severity: String(filters?.severity || ''),
             ack: String(filters?.ack || ''),
             q: String(filters?.q || ''),
+            account_id: String(filters?.account_id || ''),
         });
         window.location.href = `${route('platform.operational-alerts.export')}?${params.toString()}`;
+    };
+
+    const downloadBundle = (row?: AlertEvent) => {
+        const params = new URLSearchParams();
+        if (row?.id) {
+            params.set('event_id', String(row.id));
+        } else if (filters?.account_id) {
+            params.set('account_id', String(filters.account_id));
+        }
+        window.location.href = `${route('platform.operational-alerts.bundle')}?${params.toString()}`;
     };
 
     const openDetails = (row: AlertEvent) => {
@@ -97,6 +111,7 @@ export default function OperationalAlertsIndex({
                 severity: form.get('severity') || '',
                 ack: form.get('ack') || '',
                 q: form.get('q') || '',
+                account_id: form.get('account_id') || '',
             },
             { preserveState: true, preserveScroll: true, replace: true },
         );
@@ -143,7 +158,7 @@ export default function OperationalAlertsIndex({
                         <CardTitle>Filters</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <form onSubmit={onFilterSubmit} className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                        <form onSubmit={onFilterSubmit} className="grid grid-cols-1 md:grid-cols-6 gap-3">
                             <select
                                 name="status"
                                 defaultValue={filters?.status || ''}
@@ -165,6 +180,7 @@ export default function OperationalAlertsIndex({
                                 <option value="critical">critical</option>
                             </select>
                             <TextInput name="q" defaultValue={filters?.q || ''} placeholder="Search event/scope/error..." />
+                            <TextInput name="account_id" defaultValue={filters?.account_id || ''} placeholder="Tenant account ID" />
                             <select
                                 name="ack"
                                 defaultValue={filters?.ack || ''}
@@ -193,6 +209,9 @@ export default function OperationalAlertsIndex({
                         <div className="flex items-center justify-between gap-3">
                             <CardTitle>Recent Events</CardTitle>
                             <div className="flex items-center gap-2">
+                                <Button type="button" variant="secondary" onClick={() => downloadBundle()}>
+                                    Diagnostics Bundle
+                                </Button>
                                 <TextInput
                                     value={bulkResolveNote}
                                     onChange={(e) => setBulkResolveNote(e.target.value)}
@@ -223,7 +242,9 @@ export default function OperationalAlertsIndex({
                                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Severity</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Status</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Ack</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Tenant</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Scope</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Correlation</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Channels</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-500">Time</th>
                                     </tr>
@@ -231,7 +252,7 @@ export default function OperationalAlertsIndex({
                                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                                     {rows.length === 0 && (
                                         <tr>
-                                            <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">No alert events found.</td>
+                                            <td colSpan={10} className="px-4 py-8 text-center text-sm text-gray-500">No alert events found.</td>
                                         </tr>
                                     )}
                                     {rows.map((row) => (
@@ -249,10 +270,18 @@ export default function OperationalAlertsIndex({
                                                 {row.error_message && (
                                                     <div className="mt-1 text-xs text-red-600 dark:text-red-400 max-w-md break-words">{row.error_message}</div>
                                                 )}
-                                                <div className="mt-2">
+                                                <div className="mt-2 flex items-center gap-2">
                                                     <Button size="sm" variant="secondary" onClick={() => openDetails(row)}>
                                                         View Details
                                                     </Button>
+                                                    <Button size="sm" variant="secondary" onClick={() => downloadBundle(row)}>
+                                                        Download Bundle
+                                                    </Button>
+                                                    {row.troubleshoot_link && (
+                                                        <Link href={row.troubleshoot_link}>
+                                                            <Button size="sm" variant="secondary">Troubleshoot</Button>
+                                                        </Link>
+                                                    )}
                                                 </div>
                                             </td>
                                             <td className="px-4 py-3">{severityBadge(row.severity)}</td>
@@ -275,7 +304,9 @@ export default function OperationalAlertsIndex({
                                                     </Button>
                                                 )}
                                             </td>
+                                            <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-300">{row.account_id ?? '-'}</td>
                                             <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-300">{row.scope || '-'}</td>
+                                            <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-300">{row.correlation_id || '-'}</td>
                                             <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-300">
                                                 {Object.entries(row.channels || {}).map(([k, v]) => (
                                                     <div key={`${row.id}-${k}`}>
@@ -334,6 +365,26 @@ export default function OperationalAlertsIndex({
                                 <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Scope</div>
                                 <div className="text-sm text-gray-900 dark:text-gray-100">{detailEvent.scope || '-'}</div>
                             </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Acknowledged At</div>
+                                    <div className="text-sm text-gray-900 dark:text-gray-100">
+                                        {detailEvent.acknowledged_at ? new Date(detailEvent.acknowledged_at).toLocaleString() : '-'}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Acknowledged By</div>
+                                    <div className="text-sm text-gray-900 dark:text-gray-100">
+                                        {detailEvent.acknowledged_by ? `User #${detailEvent.acknowledged_by}` : '-'}
+                                    </div>
+                                </div>
+                            </div>
+                            {detailEvent.correlation_id && (
+                                <div>
+                                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Correlation ID</div>
+                                    <div className="text-sm text-gray-900 dark:text-gray-100">{detailEvent.correlation_id}</div>
+                                </div>
+                            )}
                             <div>
                                 <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Channels</div>
                                 <pre className="mt-1 text-xs bg-gray-100 dark:bg-gray-800 p-3 rounded overflow-x-auto">
@@ -360,7 +411,18 @@ export default function OperationalAlertsIndex({
                                     placeholder="Optional note for audit trail..."
                                 />
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <Button type="button" variant="secondary" onClick={() => downloadBundle(detailEvent)}>
+                                        Download Bundle
+                                    </Button>
+                                    {detailEvent.troubleshoot_link && (
+                                        <Link href={detailEvent.troubleshoot_link}>
+                                            <Button type="button" variant="secondary">Troubleshoot</Button>
+                                        </Link>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-2">
                                 <Button
                                     onClick={acknowledgeFromDrawer}
                                     disabled={!!detailEvent.acknowledged_at && detailResolveNote === (detailEvent.resolve_note || '')}
@@ -368,6 +430,7 @@ export default function OperationalAlertsIndex({
                                     {detailEvent.acknowledged_at ? 'Update Note' : 'Acknowledge'}
                                 </Button>
                                 <Button variant="secondary" onClick={() => setDetailEvent(null)}>Done</Button>
+                                </div>
                             </div>
                         </div>
                     </div>
