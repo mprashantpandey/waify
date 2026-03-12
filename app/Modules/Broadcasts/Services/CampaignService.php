@@ -275,6 +275,17 @@ class CampaignService
             throw new \Exception('Campaign cannot be started in its current state.');
         }
 
+        $guardResult = $this->applyRecipientPolicyGuards($campaign);
+        if (($guardResult['skipped_total'] ?? 0) > 0) {
+            $metadata = $campaign->metadata ?? [];
+            $metadata['preflight_blocked_recipients'] = [
+                'at' => now()->toIso8601String(),
+                'skipped_total' => (int) ($guardResult['skipped_total'] ?? 0),
+                'by_reason' => $guardResult['by_reason'] ?? [],
+            ];
+            $campaign->update(['metadata' => $metadata]);
+        }
+
         $preflight = $this->runPreflightChecks($campaign);
         if (!$preflight['ok']) {
             throw new \RuntimeException('Campaign preflight failed: ' . implode(' | ', $preflight['errors']));
@@ -772,6 +783,7 @@ class CampaignService
     {
         $errors = [];
         $warnings = [];
+        $recipientRisk = $this->recipientRiskSummary($campaign);
 
         $connection = $campaign->connection;
         if (!$connection) {
@@ -833,9 +845,13 @@ class CampaignService
             }
         }
 
-        $pendingCount = (int) $campaign->recipients()->where('status', 'pending')->count();
+        $pendingCount = (int) ($recipientRisk['pending'] ?? 0);
         if ($pendingCount <= 0) {
             $errors[] = 'No pending recipients to send.';
+        }
+
+        if (($recipientRisk['skipped_total'] ?? 0) > 0) {
+            $warnings[] = "Some recipients are already blocked by policy ({$recipientRisk['skipped_total']} skipped).";
         }
 
         if (config('queue.default') === 'database' && Schema::hasTable('jobs')) {
@@ -887,6 +903,102 @@ class CampaignService
             'errors' => $errors,
             'warnings' => $warnings,
             'pending_recipients' => $pendingCount,
+            'recipient_risk' => $recipientRisk,
+        ];
+    }
+
+    /**
+     * @return array{skipped_total:int,by_reason:array<string,int>}
+     */
+    public function applyRecipientPolicyGuards(Campaign $campaign): array
+    {
+        $byReason = [];
+        $cache = [];
+        $isFreeFormCampaign = in_array((string) $campaign->type, ['text', 'media'], true);
+
+        $campaign->recipients()
+            ->where('status', 'pending')
+            ->orderBy('id')
+            ->chunkById(200, function ($recipients) use ($campaign, &$byReason, &$cache, $isFreeFormCampaign) {
+                foreach ($recipients as $recipient) {
+                    $reason = null;
+
+                    if ($campaign->respect_opt_out && $recipient->whatsapp_contact_id) {
+                        $contact = WhatsAppContact::find($recipient->whatsapp_contact_id);
+                        if ($contact && ((bool) ($contact->do_not_contact ?? false) || in_array($contact->status ?? 'active', ['opt_out', 'blocked'], true))) {
+                            $reason = 'Contact is suppressed (opted out/blocked/do-not-contact).';
+                        }
+                    }
+
+                    if ($reason === null && !preg_match('/^\d{6,20}$/', (string) $recipient->phone_number)) {
+                        $reason = 'Recipient phone/wa_id format is invalid.';
+                    }
+
+                    if ($reason === null && $isFreeFormCampaign) {
+                        $waId = (string) $recipient->phone_number;
+                        if (array_key_exists($waId, $cache)) {
+                            $policy = $cache[$waId];
+                        } else {
+                            $policy = $this->sendPolicyService->evaluateRecipientFreeForm(
+                                (int) $campaign->account_id,
+                                (int) $campaign->whatsapp_connection_id,
+                                $waId
+                            );
+                            $cache[$waId] = $policy;
+                        }
+
+                        if (!($policy['allowed'] ?? false)) {
+                            $reason = (string) ($policy['reason_message'] ?? 'Recipient requires an approved template message.');
+                        }
+                    }
+
+                    if ($reason !== null) {
+                        $updated = CampaignRecipient::whereKey($recipient->id)
+                            ->where('status', 'pending')
+                            ->update([
+                                'status' => 'skipped',
+                                'failure_reason' => $reason,
+                            ]);
+
+                        if ($updated > 0) {
+                            $byReason[$reason] = ($byReason[$reason] ?? 0) + 1;
+                        }
+                    }
+                }
+            }, 'id');
+
+        return [
+            'skipped_total' => array_sum($byReason),
+            'by_reason' => $byReason,
+        ];
+    }
+
+    /**
+     * @return array{
+     *   pending:int,
+     *   skipped_total:int,
+     *   skipped_by_reason:array<string,int>
+     * }
+     */
+    protected function recipientRiskSummary(Campaign $campaign): array
+    {
+        $pending = (int) $campaign->recipients()->where('status', 'pending')->count();
+        $skippedRows = $campaign->recipients()
+            ->where('status', 'skipped')
+            ->selectRaw('COALESCE(failure_reason, "Unknown reason") as reason, COUNT(*) as aggregate')
+            ->groupBy('reason')
+            ->get();
+
+        $byReason = [];
+        foreach ($skippedRows as $row) {
+            $reason = (string) ($row->reason ?? 'Unknown reason');
+            $byReason[$reason] = (int) ($row->aggregate ?? 0);
+        }
+
+        return [
+            'pending' => $pending,
+            'skipped_total' => array_sum($byReason),
+            'skipped_by_reason' => $byReason,
         ];
     }
 
