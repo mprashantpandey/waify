@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Platform;
 use App\Http\Controllers\Controller;
 use App\Modules\WhatsApp\Jobs\ProcessWebhookEventJob;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
+use App\Modules\WhatsApp\Models\WhatsAppConnectionHealthSnapshot;
 use App\Modules\WhatsApp\Models\WhatsAppWebhookEvent;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
@@ -58,8 +59,57 @@ class SystemHealthController extends Controller
                 'consecutive_failures' => (int) $conn->webhook_consecutive_failures,
                 'last_lag_seconds' => $conn->webhook_last_lag_seconds,
                 'last_error' => $conn->webhook_last_error,
-                'is_healthy' => $isHealthy];
+                'is_healthy' => $isHealthy,
+                'quality_rating' => $conn->quality_rating,
+                'messaging_limit_tier' => $conn->messaging_limit_tier,
+                'health_state' => $conn->health_state,
+                'restriction_state' => $conn->restriction_state,
+                'warning_state' => $conn->warning_state,
+                'health_last_synced_at' => $conn->health_last_synced_at?->toIso8601String(),
+            ];
         });
+
+        $healthRiskSummary = [
+            'total_active' => $connections->where('is_active', true)->count(),
+            'restricted' => $connections->where('health_state', 'restricted')->count(),
+            'warning' => $connections->where('health_state', 'warning')->count(),
+            'unknown' => $connections->where('health_state', 'unknown')->count(),
+            'at_risk' => $connections
+                ->filter(fn ($conn) => in_array((string) $conn->health_state, ['restricted', 'warning'], true))
+                ->sortByDesc(fn ($conn) => $conn->health_last_synced_at ?? $conn->updated_at)
+                ->take(10)
+                ->map(fn ($conn) => [
+                    'id' => $conn->id,
+                    'name' => $conn->name,
+                    'account_id' => $conn->account_id,
+                    'health_state' => $conn->health_state ?: 'unknown',
+                    'quality_rating' => $conn->quality_rating,
+                    'messaging_limit_tier' => $conn->messaging_limit_tier,
+                    'restriction_state' => $conn->restriction_state,
+                    'warning_state' => $conn->warning_state,
+                    'health_last_synced_at' => $conn->health_last_synced_at?->toIso8601String(),
+                ])
+                ->values(),
+            'failed_syncs' => collect(),
+        ];
+
+        if (DB::getSchemaBuilder()->hasTable('whatsapp_connection_health_snapshots')) {
+            $healthRiskSummary['failed_syncs'] = WhatsAppConnectionHealthSnapshot::query()
+                ->where('health_state', 'unknown')
+                ->where('source', 'scheduled_sync')
+                ->where('created_at', '>=', now()->subHours(6))
+                ->orderByDesc('created_at')
+                ->limit(15)
+                ->get()
+                ->map(fn (WhatsAppConnectionHealthSnapshot $snapshot) => [
+                    'id' => $snapshot->id,
+                    'connection_id' => $snapshot->whatsapp_connection_id,
+                    'account_id' => $snapshot->account_id,
+                    'source' => $snapshot->source,
+                    'created_at' => $snapshot->created_at?->toIso8601String(),
+                    'notes' => $snapshot->health_notes,
+                ]);
+        }
 
         // Queue Status
         $queueStatus = [
@@ -187,6 +237,7 @@ class SystemHealthController extends Controller
             'database_status' => $databaseStatus,
             'recent_errors' => $recentErrors,
             'recent_webhook_events' => $recentWebhookEvents,
+            'connection_health_risks' => $healthRiskSummary,
             'production_readiness' => $productionReadiness,
             'production_readiness_summary' => $productionReadinessSummary,
         ]);

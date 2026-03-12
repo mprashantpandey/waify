@@ -9,13 +9,15 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 class TemplateSyncService
 {
     protected string $baseUrl;
-    protected ?bool $connectionHasSyncColumns = null;
 
-    public function __construct()
+    public function __construct(
+        protected TemplateLifecycleService $templateLifecycle
+    )
     {
         $this->baseUrl = rtrim(config('whatsapp.meta.base_url', 'https://graph.facebook.com'), '/');
     }
@@ -133,10 +135,17 @@ class TemplateSyncService
         $created = 0;
         $updated = 0;
         $errors = [];
+        $seenMetaTemplateIds = [];
+        $missingRemote = 0;
 
-        \DB::transaction(function () use ($connection, $allTemplates, &$created, &$updated, &$errors) {
+        DB::transaction(function () use ($connection, $allTemplates, &$created, &$updated, &$errors, &$seenMetaTemplateIds, &$missingRemote) {
             foreach ($allTemplates as $templateData) {
                 try {
+                    $metaId = (string) ($templateData['id'] ?? '');
+                    if ($metaId !== '') {
+                        $seenMetaTemplateIds[] = $metaId;
+                    }
+
                     $existing = WhatsAppTemplate::where('account_id', $connection->account_id)
                         ->where('whatsapp_connection_id', $connection->id)
                         ->where('meta_template_id', $templateData['id'] ?? null)
@@ -159,6 +168,8 @@ class TemplateSyncService
                         'error' => $e->getMessage()]);
                 }
             }
+
+            $missingRemote = $this->markMissingRemoteTemplates($connection, $seenMetaTemplateIds);
         });
 
         $this->persistConnectionSyncState($connection, $errors);
@@ -166,6 +177,7 @@ class TemplateSyncService
         return [
             'created' => $created,
             'updated' => $updated,
+            'missing_remote' => $missingRemote,
             'errors' => $errors,
             'total' => count($allTemplates)];
     }
@@ -197,6 +209,7 @@ class TemplateSyncService
         $name = $templateData['name'] ?? '';
         $language = $templateData['language'] ?? 'en_US';
         $status = strtolower($templateData['status'] ?? 'unknown');
+        $normalizedStatus = $this->templateLifecycle->normalizeStatus($status);
         $category = $templateData['category'] ?? '';
 
         // Extract components
@@ -244,7 +257,8 @@ class TemplateSyncService
             'name' => $name,
             'language' => $language,
             'category' => $category,
-            'status' => $status,
+            'status' => $normalizedStatus,
+            'remote_status' => $normalizedStatus,
             'quality_score' => $templateData['quality_score'] ?? null,
             'body_text' => $bodyText,
             'header_type' => $headerType,
@@ -252,9 +266,22 @@ class TemplateSyncService
             'footer_text' => $footerText,
             'buttons' => $normalizedButtons,
             'components' => $components,
+            'remote_components' => $components,
+            'draft_components' => $components,
             'last_synced_at' => now(),
+            'last_meta_sync_at' => now(),
             'last_meta_error' => null,
+            'meta_rejection_reason' => $templateData['rejected_reason'] ?? $templateData['rejection_reason'] ?? null,
+            'is_remote_deleted' => false,
+            'remote_deleted_at' => null,
         ];
+
+        $values['sync_state'] = $this->templateLifecycle->computeSyncState(
+            $normalizedStatus,
+            now(),
+            false,
+            null
+        );
 
         $template = WhatsAppTemplate::updateOrCreate($match, $values);
 
@@ -267,18 +294,58 @@ class TemplateSyncService
      */
     protected function persistConnectionSyncState(WhatsAppConnection $connection, array $errors): void
     {
-        if ($this->connectionHasSyncColumns === null) {
-            $this->connectionHasSyncColumns = Schema::hasColumn('whatsapp_connections', 'last_synced_at')
-                && Schema::hasColumn('whatsapp_connections', 'last_meta_error');
+        $updates = [];
+        if (Schema::hasColumn('whatsapp_connections', 'templates_last_synced_at')) {
+            $updates['templates_last_synced_at'] = now();
+        } elseif (Schema::hasColumn('whatsapp_connections', 'last_synced_at')) {
+            $updates['last_synced_at'] = now();
         }
 
-        if (!$this->connectionHasSyncColumns) {
-            return;
+        $errorPayload = count($errors) > 0 ? json_encode($errors) : null;
+        if (Schema::hasColumn('whatsapp_connections', 'templates_last_sync_error')) {
+            $updates['templates_last_sync_error'] = $errorPayload;
+        } elseif (Schema::hasColumn('whatsapp_connections', 'last_meta_error')) {
+            $updates['last_meta_error'] = $errorPayload;
         }
 
-        $connection->update([
-            'last_synced_at' => now(),
-            'last_meta_error' => count($errors) > 0 ? json_encode($errors) : null,
-        ]);
+        if (!empty($updates)) {
+            $connection->update($updates);
+        }
+    }
+
+    protected function markMissingRemoteTemplates(WhatsAppConnection $connection, array $seenMetaTemplateIds): int
+    {
+        $query = WhatsAppTemplate::query()
+            ->where('account_id', $connection->account_id)
+            ->where('whatsapp_connection_id', $connection->id)
+            ->whereNotNull('meta_template_id');
+
+        if (!empty($seenMetaTemplateIds)) {
+            $query->whereNotIn('meta_template_id', array_values(array_unique($seenMetaTemplateIds)));
+        }
+
+        $count = (int) (clone $query)->count();
+
+        $query->chunkById(100, function ($templates) {
+            foreach ($templates as $template) {
+                $status = $this->templateLifecycle->normalizeStatus((string) $template->status);
+                $syncError = 'Template not found in latest Meta sync result.';
+                $template->update([
+                    'is_remote_deleted' => true,
+                    'remote_deleted_at' => now(),
+                    'last_meta_error' => $syncError,
+                    'sync_state' => $this->templateLifecycle->computeSyncState(
+                        $status,
+                        $template->last_meta_sync_at ?? $template->last_synced_at,
+                        true,
+                        $syncError
+                    ),
+                    // Keep history but mark non-sendable locally.
+                    'status' => in_array($status, ['approved', 'active'], true) ? 'disabled' : $status,
+                ]);
+            }
+        });
+
+        return $count;
     }
 }

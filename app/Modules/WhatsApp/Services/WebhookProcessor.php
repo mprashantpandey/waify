@@ -20,6 +20,7 @@ use App\Models\Account;
 use App\Models\PlatformSetting;
 use App\Models\User;
 use App\Core\Billing\MetaPricingResolver;
+use App\Core\Billing\UsageLedgerService;
 use App\Core\Billing\UsageService;
 use App\Services\NotificationDispatchService;
 use Illuminate\Support\Facades\Cache;
@@ -31,8 +32,12 @@ class WebhookProcessor
 {
     public function __construct(
         protected UsageService $usageService,
+        protected UsageLedgerService $usageLedgerService,
         protected MetaPricingResolver $metaPricingResolver,
-        protected NotificationDispatchService $notificationDispatchService
+        protected NotificationDispatchService $notificationDispatchService,
+        protected ConnectionHealthSyncService $connectionHealthSyncService,
+        protected TemplateLifecycleService $templateLifecycleService,
+        protected ContactComplianceService $contactComplianceService
     ) {
     }
 
@@ -394,6 +399,23 @@ class WebhookProcessor
                 'last_seen_at' => now(),
             ])->save();
 
+            // Compliance safety: process tenant/global opt-out keywords from inbound text.
+            if (!empty($textBody)) {
+                $accountForCompliance = $connection->account ?? Account::find($connection->account_id);
+                if ($accountForCompliance) {
+                    $matchedKeyword = $this->contactComplianceService->detectOptOutKeyword($accountForCompliance, $textBody);
+                    if ($matchedKeyword) {
+                        $this->contactComplianceService->applyOptOut(
+                            $contact,
+                            "Inbound opt-out keyword '{$matchedKeyword}'",
+                            'inbound_keyword',
+                            $matchedKeyword,
+                            $message->id
+                        );
+                    }
+                }
+            }
+
             // Auto-assign if enabled and conversation is unassigned
             $this->autoAssignConversation($conversation, $connection);
 
@@ -640,6 +662,26 @@ class WebhookProcessor
             return;
         }
 
+        try {
+            $this->usageLedgerService->recordFromMessageBilling(
+                $billing,
+                $message,
+                [
+                    'pricing' => $pricing,
+                    'conversation' => $conversation,
+                    'status' => $statusData['status'] ?? null,
+                    'meta_message_id' => $metaMessageId,
+                ]
+            );
+        } catch (\Throwable $e) {
+            Log::channel('whatsapp')->warning('Failed to record usage ledger event', [
+                'account_id' => $connection->account_id,
+                'meta_message_id' => $metaMessageId,
+                'billing_id' => $billing->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         if (!$account) {
             return;
         }
@@ -724,10 +766,14 @@ class WebhookProcessor
                 return;
             }
 
+            $normalizedStatus = $this->templateLifecycleService->normalizeStatus($event);
             $updates = [
-                'status' => $event,
+                'status' => $normalizedStatus,
+                'remote_status' => $normalizedStatus,
                 'last_synced_at' => now(),
+                'last_meta_sync_at' => now(),
                 'last_meta_error' => $reason !== '' ? $reason : null,
+                'meta_rejection_reason' => $reason !== '' ? $reason : null,
             ];
             if ($category !== '') {
                 $updates['category'] = $category;
@@ -735,6 +781,12 @@ class WebhookProcessor
 
             $templates = $query->get();
             foreach ($templates as $template) {
+                $updates['sync_state'] = $this->templateLifecycleService->computeSyncState(
+                    $normalizedStatus,
+                    now(),
+                    (bool) ($template->is_remote_deleted ?? false),
+                    $updates['last_meta_error'] ?? null
+                );
                 $template->update($updates);
                 event(new TemplateStatusUpdated($template->fresh()));
             }
@@ -818,6 +870,16 @@ class WebhookProcessor
             'account_id' => $connection->account_id,
             'summary' => $payloadSummary,
         ]);
+
+        try {
+            $this->connectionHealthSyncService->syncFromWebhook($connection, $normalizedField, $value);
+        } catch (\Throwable $e) {
+            Log::channel('whatsapp')->warning('Failed to apply webhook connection health snapshot', [
+                'connection_id' => $connection->id,
+                'field' => $normalizedField,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         if ($looksCritical) {
             $message = sprintf(

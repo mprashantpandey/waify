@@ -39,6 +39,30 @@ interface ConnectionDetail {
     last_lag_seconds?: number | null;
     last_error: string | null;
     is_healthy: boolean;
+    quality_rating?: string | null;
+    messaging_limit_tier?: string | null;
+    health_state?: string | null;
+    restriction_state?: string | null;
+    warning_state?: string | null;
+    health_last_synced_at?: string | null;
+}
+
+interface ConnectionHealthRiskSummary {
+    total_active: number;
+    restricted: number;
+    warning: number;
+    unknown: number;
+    at_risk: Array<{
+        id: number;
+        name: string;
+        account_id: number;
+        health_state: string;
+        quality_rating: string | null;
+        messaging_limit_tier: string | null;
+        restriction_state: string | null;
+        warning_state: string | null;
+        health_last_synced_at: string | null;
+    }>;
 }
 
 interface QueueStatus {
@@ -113,6 +137,7 @@ export default function SystemHealth({
     database_status,
     recent_errors,
     recent_webhook_events,
+    connection_health_risks,
     production_readiness,
     production_readiness_summary}: {
     webhook_health: WebhookHealth;
@@ -122,6 +147,7 @@ export default function SystemHealth({
     database_status: DatabaseStatus;
     recent_errors: RecentError[];
     recent_webhook_events: RecentWebhookEvent[];
+    connection_health_risks: ConnectionHealthRiskSummary;
     production_readiness: ProductionReadinessCheck[];
     production_readiness_summary: ProductionReadinessSummary;
 }) {
@@ -145,6 +171,16 @@ export default function SystemHealth({
 
     const replayWebhookEvent = (id: number) => {
         router.post(route('platform.system-health.webhook-events.replay', { id }));
+    };
+
+    const downloadBundle = (params: Record<string, string | number | null | undefined>) => {
+        const query = new URLSearchParams();
+        Object.entries(params).forEach(([key, value]) => {
+            if (value !== null && value !== undefined && value !== '') {
+                query.set(key, String(value));
+            }
+        });
+        window.location.href = `${route('platform.operational-alerts.bundle')}?${query.toString()}`;
     };
 
     const formatBytes = (bytes: number | null) => {
@@ -267,11 +303,67 @@ export default function SystemHealth({
                                                     Clear Error
                                                 </Button>
                                             )}
+                                            <Button
+                                                size="sm"
+                                                variant="secondary"
+                                                onClick={() => downloadBundle({ connection_id: conn.id, account_id: conn.account_id })}
+                                            >
+                                                Diagnostics
+                                            </Button>
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Connection Health Risks</CardTitle>
+                        <CardDescription>Quality/tier/verification risk detection from latest health snapshots</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                                <p className="text-xs text-gray-500 dark:text-gray-400">Active</p>
+                                <p className="text-xl font-semibold text-gray-900 dark:text-gray-100">{connection_health_risks.total_active}</p>
+                            </div>
+                            <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                                <p className="text-xs text-red-600 dark:text-red-300">Restricted</p>
+                                <p className="text-xl font-semibold text-red-700 dark:text-red-300">{connection_health_risks.restricted}</p>
+                            </div>
+                            <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+                                <p className="text-xs text-amber-600 dark:text-amber-300">Warning</p>
+                                <p className="text-xl font-semibold text-amber-700 dark:text-amber-300">{connection_health_risks.warning}</p>
+                            </div>
+                            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                                <p className="text-xs text-blue-600 dark:text-blue-300">Unknown</p>
+                                <p className="text-xl font-semibold text-blue-700 dark:text-blue-300">{connection_health_risks.unknown}</p>
+                            </div>
+                        </div>
+
+                        {connection_health_risks.at_risk.length > 0 && (
+                            <div className="mt-4 space-y-2">
+                                {connection_health_risks.at_risk.map((row) => (
+                                    <div key={row.id} className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-900/20 p-3">
+                                        <div className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                                            {row.name} (Tenant {row.account_id}) · {row.health_state.toUpperCase()}
+                                        </div>
+                                        <div className="text-xs text-amber-700 dark:text-amber-300">
+                                            Quality: {row.quality_rating || 'Unknown'} · Tier: {row.messaging_limit_tier || 'Unknown'}
+                                            {row.warning_state ? ` · Warning: ${row.warning_state}` : ''}
+                                            {row.restriction_state ? ` · Restriction: ${row.restriction_state}` : ''}
+                                        </div>
+                                        {row.health_last_synced_at && (
+                                            <div className="text-xs text-amber-700 dark:text-amber-300">
+                                                Synced: {new Date(row.health_last_synced_at).toLocaleString()}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 
@@ -564,9 +656,22 @@ export default function SystemHealth({
                                             </div>
                                         )}
                                         <div className="mt-3">
-                                            <Button size="sm" onClick={() => replayWebhookEvent(event.id)}>
-                                                Replay Event
-                                            </Button>
+                                            <div className="flex items-center gap-2">
+                                                <Button size="sm" onClick={() => replayWebhookEvent(event.id)}>
+                                                    Replay Event
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="secondary"
+                                                    onClick={() => downloadBundle({
+                                                        webhook_event_id: event.id,
+                                                        connection_id: event.connection_id,
+                                                        correlation_id: event.correlation_id,
+                                                    })}
+                                                >
+                                                    Diagnostics
+                                                </Button>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}

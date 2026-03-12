@@ -10,6 +10,8 @@ use App\Modules\WhatsApp\Models\WhatsAppContact;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use App\Modules\WhatsApp\Models\WhatsAppMessageBilling;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
+use App\Modules\WhatsApp\Models\WhatsAppContactPolicyEvent;
+use App\Modules\WhatsApp\Models\WhatsAppUsageEvent;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -241,5 +243,57 @@ class WebhookTest extends TestCase
             'category' => 'marketing',
         ]);
         $this->assertSame(1, WhatsAppMessageBilling::where('meta_message_id', 'wamid.bill123')->count());
+        $this->assertDatabaseHas('whatsapp_usage_events', [
+            'account_id' => $this->account->id,
+            'meta_message_id' => 'wamid.bill123',
+            'billable' => 1,
+            'pricing_category' => 'marketing',
+        ]);
+        $this->assertSame(1, WhatsAppUsageEvent::where('meta_message_id', 'wamid.bill123')->count());
+    }
+
+    public function test_inbound_opt_out_keyword_suppresses_contact_and_writes_policy_event(): void
+    {
+        PlatformSetting::set('integrations.whatsapp_opt_out_keywords', 'STOP,UNSUBSCRIBE', 'string', 'integrations');
+
+        $payload = [
+            'entry' => [[
+                'changes' => [[
+                    'field' => 'messages',
+                    'value' => [
+                        'messages' => [[
+                            'id' => 'wamid.optout001',
+                            'from' => '9000000001',
+                            'type' => 'text',
+                            'text' => ['body' => 'STOP'],
+                        ]],
+                        'contacts' => [[
+                            'profile' => ['name' => 'Consent User'],
+                        ]],
+                    ],
+                ]],
+            ]],
+        ];
+
+        $this->postJson(
+            route('webhooks.whatsapp.receive', ['connection' => $this->connection->slug]),
+            $payload
+        )->assertStatus(200);
+
+        $contact = WhatsAppContact::where('account_id', $this->account->id)
+            ->where('wa_id', '9000000001')
+            ->firstOrFail();
+
+        $this->assertTrue((bool) $contact->do_not_contact);
+        $this->assertSame('opt_out', $contact->status);
+        $this->assertNotNull($contact->opted_out_at);
+        $this->assertDatabaseHas('whatsapp_contact_policy_events', [
+            'account_id' => $this->account->id,
+            'whatsapp_contact_id' => $contact->id,
+            'event_type' => 'opt_out',
+            'keyword' => 'STOP',
+            'source' => 'inbound_keyword',
+        ]);
+        $this->assertSame(1, WhatsAppContactPolicyEvent::where('whatsapp_contact_id', $contact->id)->count());
     }
 }

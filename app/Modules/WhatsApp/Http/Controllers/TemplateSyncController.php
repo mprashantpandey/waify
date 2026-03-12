@@ -36,14 +36,16 @@ class TemplateSyncController extends Controller
             $result = $this->syncService->sync($connection);
 
             return redirect()->back()->with('success', sprintf(
-                'Synced %d templates (%d created, %d updated)',
+                'Synced %d templates (%d created, %d updated, %d missing on Meta)',
                 $result['total'],
                 $result['created'],
-                $result['updated']
+                $result['updated'],
+                (int) ($result['missing_remote'] ?? 0)
             ))->with('sync_report', [
                 'total' => $result['total'],
                 'created' => $result['created'],
                 'updated' => $result['updated'],
+                'missing_remote' => (int) ($result['missing_remote'] ?? 0),
                 'errors_count' => count($result['errors'] ?? []),
                 'errors' => array_slice($result['errors'] ?? [], 0, 5),
             ]);

@@ -17,6 +17,14 @@ interface Template {
     language: string;
     category: string;
     status: string;
+    sync_state?: string;
+    is_remote_deleted?: boolean;
+    is_stale?: boolean;
+    sendability?: {
+        ok: boolean;
+        reason?: string | null;
+        code?: string | null;
+    };
     quality_score: string | null;
     body_text: string | null;
     header_type: string | null;
@@ -31,8 +39,10 @@ interface Template {
     variable_count: number;
     has_buttons: boolean;
     last_synced_at: string | null;
+    last_meta_sync_at?: string | null;
     last_meta_error: string | null;
     rejection_reason?: string | null;
+    meta_rejection_reason?: string | null;
     meta_template_id?: string | null;
     connection: {
         id: number;
@@ -100,9 +110,14 @@ export default function TemplatesShow({
             setLiveTemplate((prev) => ({
                 ...prev,
                 status: incoming.status ?? prev.status,
+                sync_state: incoming.sync_state ?? prev.sync_state,
+                is_remote_deleted: incoming.is_remote_deleted ?? prev.is_remote_deleted,
+                is_stale: incoming.is_stale ?? prev.is_stale,
                 last_meta_error: incoming.last_meta_error ?? prev.last_meta_error,
-                rejection_reason: incoming.rejection_reason ?? prev.rejection_reason,
+                rejection_reason: incoming.rejection_reason ?? incoming.meta_rejection_reason ?? prev.rejection_reason,
+                meta_rejection_reason: incoming.meta_rejection_reason ?? prev.meta_rejection_reason,
                 last_synced_at: incoming.last_synced_at ?? prev.last_synced_at,
+                last_meta_sync_at: incoming.last_meta_sync_at ?? prev.last_meta_sync_at,
             }));
         });
 
@@ -291,12 +306,40 @@ export default function TemplatesShow({
                     </Alert>
                 )}
 
+                {liveTemplate.meta_rejection_reason && liveTemplate.meta_rejection_reason !== liveTemplate.rejection_reason && (
+                    <Alert variant="error" className="border-red-200 dark:border-red-800">
+                        <AlertCircle className="h-5 w-5" />
+                        <div>
+                            <h3 className="font-semibold text-red-800 dark:text-red-200 mb-1">Meta Rejection Detail</h3>
+                            <p className="text-sm text-red-600 dark:text-red-400">{liveTemplate.meta_rejection_reason}</p>
+                        </div>
+                    </Alert>
+                )}
+
                 {liveTemplate.last_meta_error && (
                     <Alert variant="error" className="border-red-200 dark:border-red-800">
                         <AlertCircle className="h-5 w-5" />
                         <div>
                             <h3 className="font-semibold text-red-800 dark:text-red-200 mb-1">Meta Error</h3>
                             <p className="text-sm text-red-600 dark:text-red-400">{liveTemplate.last_meta_error}</p>
+                        </div>
+                    </Alert>
+                )}
+
+                {(liveTemplate.is_remote_deleted || liveTemplate.is_stale || (liveTemplate.sendability && !liveTemplate.sendability.ok)) && (
+                    <Alert variant="warning">
+                        <AlertCircle className="h-5 w-5" />
+                        <div className="space-y-1">
+                            <h3 className="font-semibold text-amber-900 dark:text-amber-100">Template Sendability Warning</h3>
+                            {liveTemplate.is_remote_deleted && (
+                                <p className="text-sm text-amber-800 dark:text-amber-200">This template was not found in the latest Meta sync. Run Sync from Meta before sending.</p>
+                            )}
+                            {liveTemplate.is_stale && !liveTemplate.is_remote_deleted && (
+                                <p className="text-sm text-amber-800 dark:text-amber-200">Template status is stale. Refresh status or run Sync from Meta before sending.</p>
+                            )}
+                            {liveTemplate.sendability && !liveTemplate.sendability.ok && liveTemplate.sendability.reason && (
+                                <p className="text-sm text-amber-800 dark:text-amber-200">{liveTemplate.sendability.reason}</p>
+                            )}
                         </div>
                     </Alert>
                 )}

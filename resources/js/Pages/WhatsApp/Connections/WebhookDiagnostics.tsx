@@ -44,6 +44,16 @@ export default function WebhookDiagnostics({
     connection: ConnectionSummary;
     events: PaginatedEvents;
 }) {
+    const downloadBundle = (params: Record<string, string | number | null | undefined>) => {
+        const query = new URLSearchParams();
+        Object.entries(params).forEach(([key, value]) => {
+            if (value !== null && value !== undefined && value !== '') {
+                query.set(key, String(value));
+            }
+        });
+        window.location.href = `${route('app.alerts.bundle')}?${query.toString()}`;
+    };
+
     const reprocess = (eventId: number) => {
         router.post(route('app.whatsapp.connections.webhook-diagnostics.reprocess', {
             connection: connection.slug ?? connection.id,
@@ -76,6 +86,13 @@ export default function WebhookDiagnostics({
                         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Webhook Diagnostics</h1>
                         <p className="text-sm text-gray-500 dark:text-gray-400">{connection.name}</p>
                     </div>
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => downloadBundle({ connection_id: connection.id })}
+                    >
+                        Download Diagnostics Bundle
+                    </Button>
                 </div>
 
                 <Card>
@@ -154,16 +171,29 @@ export default function WebhookDiagnostics({
                                             <p className="text-xs text-red-600 break-words">{event.error_message}</p>
                                         ) : null}
                                     </div>
-                                    {(event.status === 'failed' || event.status === 'duplicate') ? (
+                                    <div className="flex items-center gap-2">
+                                        {(event.status === 'failed' || event.status === 'duplicate') ? (
+                                            <Button
+                                                size="sm"
+                                                variant="secondary"
+                                                onClick={() => reprocess(event.id)}
+                                            >
+                                                <RotateCcw className="mr-1 h-3 w-3" />
+                                                Reprocess
+                                            </Button>
+                                        ) : null}
                                         <Button
                                             size="sm"
                                             variant="secondary"
-                                            onClick={() => reprocess(event.id)}
+                                            onClick={() => downloadBundle({
+                                                connection_id: connection.id,
+                                                webhook_event_id: event.id,
+                                                correlation_id: event.correlation_id,
+                                            })}
                                         >
-                                            <RotateCcw className="mr-1 h-3 w-3" />
-                                            Reprocess
+                                            Diagnostics
                                         </Button>
-                                    ) : null}
+                                    </div>
                                 </div>
                             </div>
                         ))}
@@ -173,4 +203,3 @@ export default function WebhookDiagnostics({
         </AppShell>
     );
 }
-

@@ -5,11 +5,12 @@ import InputError from '@/Components/InputError';
 import { Inbox, Sparkles } from 'lucide-react';
 
 export default function InboxTab() {
-    const { account } = usePage().props as any;
+    const { account, inboxSettings } = usePage().props as any;
 
     const { data, setData, post, processing, errors } = useForm({
         auto_assign_enabled: Boolean(account?.auto_assign_enabled),
         auto_assign_strategy: account?.auto_assign_strategy || 'round_robin',
+        tenant_opt_out_keywords: inboxSettings?.tenant_opt_out_keywords || '',
     });
 
     const submit = (e: React.FormEvent) => {
@@ -93,6 +94,23 @@ export default function InboxTab() {
                             <InputError message={errors.auto_assign_strategy} className="mt-2" />
                             <p className="text-xs text-gray-500 dark:text-gray-400">
                                 Round robin rotates assignments evenly across owners, admins, and members.
+                            </p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                Tenant opt-out keywords
+                            </label>
+                            <textarea
+                                value={data.tenant_opt_out_keywords}
+                                onChange={(e) => setData('tenant_opt_out_keywords', e.target.value)}
+                                rows={3}
+                                className="mt-1 block w-full rounded-xl border-gray-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:ring-emerald-500 dark:border-gray-700 dark:bg-gray-800"
+                                placeholder="BAHAR, BAND, DONT MESSAGE"
+                            />
+                            <InputError message={errors.tenant_opt_out_keywords} className="mt-2" />
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                Add local-language stop keywords (comma/newline separated). These are combined with platform global keywords.
                             </p>
                         </div>
 

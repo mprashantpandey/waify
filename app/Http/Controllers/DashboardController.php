@@ -178,6 +178,43 @@ class DashboardController extends Controller
             'latest_received_at' => $latestHeartbeatAt?->toIso8601String(),
         ];
 
+        $healthRows = WhatsAppConnection::where('account_id', $account->id)
+            ->where('is_active', true)
+            ->get([
+                'id',
+                'slug',
+                'name',
+                'health_state',
+                'quality_rating',
+                'messaging_limit_tier',
+                'warning_state',
+                'restriction_state',
+                'health_last_synced_at',
+            ]);
+
+        $connectionsAtRisk = $healthRows
+            ->filter(fn ($row) => in_array((string) $row->health_state, ['warning', 'restricted'], true))
+            ->values();
+
+        $connectionHealthSummary = [
+            'total_active' => $healthRows->count(),
+            'healthy' => $healthRows->where('health_state', 'healthy')->count(),
+            'warning' => $healthRows->where('health_state', 'warning')->count(),
+            'restricted' => $healthRows->where('health_state', 'restricted')->count(),
+            'unknown' => $healthRows->where('health_state', 'unknown')->count(),
+            'last_synced_at' => $healthRows->max('health_last_synced_at')?->toIso8601String(),
+            'at_risk' => $connectionsAtRisk->take(3)->map(fn ($row) => [
+                'id' => $row->id,
+                'slug' => $row->slug ?? (string) $row->id,
+                'name' => $row->name,
+                'health_state' => $row->health_state ?: 'unknown',
+                'quality_rating' => $row->quality_rating,
+                'messaging_limit_tier' => $row->messaging_limit_tier,
+                'warning_state' => $row->warning_state,
+                'restriction_state' => $row->restriction_state,
+            ])->all(),
+        ];
+
         $customerStartConversation = null;
         $widgetsModuleEnabled = $this->moduleRegistry->getEnabledForAccount($account)
             ->contains(fn ($module) => ($module['key'] ?? null) === 'floaters');
@@ -233,6 +270,7 @@ class DashboardController extends Controller
             'onboarding_checklist' => $onboardingChecklist,
             'connection_alerts' => $connectionAlerts,
             'connection_heartbeat' => $connectionHeartbeat,
+            'connection_health_summary' => $connectionHealthSummary,
             'customer_start_conversation' => $customerStartConversation,
             'message_trends' => $messageTrends,
             'recent_conversations' => $recentConversations]);
@@ -266,7 +304,7 @@ class DashboardController extends Controller
             [
                 'key' => 'profile',
                 'label' => 'Complete your profile',
-                'description' => 'Add required contact details so your workspace is fully operational.',
+                'description' => 'Add required contact details so your tenant account is fully operational.',
                 'done' => $isProfileComplete,
                 'href' => route('profile.edit'),
                 'cta' => 'Complete profile',

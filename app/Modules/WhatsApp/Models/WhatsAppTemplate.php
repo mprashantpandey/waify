@@ -23,6 +23,10 @@ class WhatsAppTemplate extends Model
         'language',
         'category',
         'status',
+        'remote_status',
+        'sync_state',
+        'is_remote_deleted',
+        'remote_deleted_at',
         'quality_score',
         'body_text',
         'header_type',
@@ -31,8 +35,12 @@ class WhatsAppTemplate extends Model
         'footer_text',
         'buttons',
         'components',
+        'remote_components',
+        'draft_components',
         'last_synced_at',
+        'last_meta_sync_at',
         'last_meta_error',
+        'meta_rejection_reason',
         'is_archived'];
 
     protected static function boot()
@@ -82,7 +90,12 @@ class WhatsAppTemplate extends Model
     protected $casts = [
         'buttons' => 'array',
         'components' => 'array',
+        'remote_components' => 'array',
+        'draft_components' => 'array',
         'last_synced_at' => 'datetime',
+        'last_meta_sync_at' => 'datetime',
+        'remote_deleted_at' => 'datetime',
+        'is_remote_deleted' => 'boolean',
         'is_archived' => 'boolean'];
 
     /**
@@ -136,5 +149,11 @@ class WhatsAppTemplate extends Model
     public function getHasButtonsAttribute(): bool
     {
         return !empty($this->buttons) && is_array($this->buttons) && count($this->buttons) > 0;
+    }
+
+    public function getResolvedStatusAttribute(): string
+    {
+        $status = strtolower(trim((string) ($this->status ?: $this->remote_status)));
+        return $status !== '' ? $status : 'unknown';
     }
 }

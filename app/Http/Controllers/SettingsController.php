@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Services\TwoFactorService;
 use App\Services\PhoneVerificationService;
 use App\Services\PlatformSettingsService;
+use App\Models\AccountModule;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Http\Request;
@@ -22,6 +23,11 @@ class SettingsController extends Controller
         $user = $request->user();
         $security = app(PlatformSettingsService::class)->getSecurity();
         $emailVerificationEnabled = app(PlatformSettingsService::class)->isFeatureEnabled('email_verification');
+        $whatsAppModule = AccountModule::query()
+            ->where('account_id', $account?->id)
+            ->where('module_key', 'whatsapp')
+            ->first();
+        $tenantOptOutKeywords = data_get($whatsAppModule?->config, 'compliance.opt_out_keywords', []);
 
         $sessionRows = collect();
         if (DB::getSchemaBuilder()->hasTable('sessions')) {
@@ -74,6 +80,11 @@ class SettingsController extends Controller
                 'max_login_attempts' => (int) ($security['max_login_attempts'] ?? 5),
                 'lockout_duration' => (int) ($security['lockout_duration'] ?? 15),
             ],
+            'inboxSettings' => [
+                'tenant_opt_out_keywords' => is_array($tenantOptOutKeywords)
+                    ? implode(', ', array_filter(array_map('strval', $tenantOptOutKeywords)))
+                    : '',
+            ],
             'sessions' => $sessions,
         ]);
     }
@@ -88,12 +99,28 @@ class SettingsController extends Controller
         $validated = $request->validate([
             'auto_assign_enabled' => 'required|boolean',
             'auto_assign_strategy' => 'required|in:round_robin',
+            'tenant_opt_out_keywords' => 'nullable|string|max:2000',
         ]);
 
         $account->update([
             'auto_assign_enabled' => $validated['auto_assign_enabled'],
             'auto_assign_strategy' => $validated['auto_assign_strategy'],
         ]);
+
+        $module = AccountModule::query()->firstOrCreate(
+            ['account_id' => $account->id, 'module_key' => 'whatsapp'],
+            ['enabled' => true, 'config' => []]
+        );
+
+        $keywords = preg_split('/[\n,]+/', (string) ($validated['tenant_opt_out_keywords'] ?? '')) ?: [];
+        $normalizedKeywords = array_values(array_filter(array_unique(array_map(
+            static fn (string $keyword) => strtoupper(trim($keyword)),
+            $keywords
+        ))));
+
+        $config = (array) ($module->config ?? []);
+        $config['compliance']['opt_out_keywords'] = $normalizedKeywords;
+        $module->update(['config' => $config]);
 
         return back()->with('success', 'Inbox settings updated.');
     }

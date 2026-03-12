@@ -83,6 +83,10 @@ class PlatformSettingsController extends Controller
             'whatsapp_error_rate_threshold_percent' => (float) $get('integrations.whatsapp_error_rate_threshold_percent', 20),
             'whatsapp_error_rate_window_minutes' => (int) $get('integrations.whatsapp_error_rate_window_minutes', 15),
             'whatsapp_error_rate_minimum_messages' => (int) $get('integrations.whatsapp_error_rate_minimum_messages', 20),
+            'whatsapp_opt_out_keywords' => $get(
+                'integrations.whatsapp_opt_out_keywords',
+                implode(',', (array) config('whatsapp.compliance.global_opt_out_keywords', []))
+            ),
         ];
 
         $alertsSettings = [
@@ -321,6 +325,7 @@ class PlatformSettingsController extends Controller
             'integrations.whatsapp_error_rate_threshold_percent' => 'nullable|numeric|min:1|max:100',
             'integrations.whatsapp_error_rate_window_minutes' => 'nullable|integer|min:1|max:1440',
             'integrations.whatsapp_error_rate_minimum_messages' => 'nullable|integer|min:1|max:10000',
+            'integrations.whatsapp_opt_out_keywords' => 'nullable|string|max:5000',
             // Operational Alerts
             'alerts.queue_failure_enabled' => 'nullable|boolean',
             'alerts.email_to' => 'nullable|email',

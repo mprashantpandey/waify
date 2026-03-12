@@ -116,12 +116,32 @@ interface CustomerStartConversation {
     start_link: string | null;
 }
 
+interface ConnectionHealthSummary {
+    total_active: number;
+    healthy: number;
+    warning: number;
+    restricted: number;
+    unknown: number;
+    last_synced_at: string | null;
+    at_risk: Array<{
+        id: number;
+        slug: string;
+        name: string;
+        health_state: string;
+        quality_rating: string | null;
+        messaging_limit_tier: string | null;
+        warning_state: string | null;
+        restriction_state: string | null;
+    }>;
+}
+
 export default function Dashboard({ 
     account, 
     stats, 
     onboarding_checklist,
     connection_alerts = [],
     connection_heartbeat = null,
+    connection_health_summary = null,
     customer_start_conversation = null,
     message_trends, 
     recent_conversations 
@@ -131,6 +151,7 @@ export default function Dashboard({
     onboarding_checklist?: OnboardingChecklist;
     connection_alerts?: ConnectionAlert[];
     connection_heartbeat?: ConnectionHeartbeat | null;
+    connection_health_summary?: ConnectionHealthSummary | null;
     customer_start_conversation?: CustomerStartConversation | null;
     message_trends: MessageTrend[];
     recent_conversations: RecentConversation[];
@@ -305,6 +326,54 @@ export default function Dashboard({
                                             : 'No webhook events yet'}
                                     </div>
                                 </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {connection_health_summary && connection_health_summary.total_active > 0 && (
+                    <Card className="border-0 shadow-lg">
+                        <CardHeader className="bg-gradient-to-r from-violet-50 to-fuchsia-100 dark:from-violet-900/20 dark:to-fuchsia-800/20">
+                            <CardTitle className="text-base font-semibold">Connection Quality Health</CardTitle>
+                            <CardDescription>
+                                Quality rating, verification, and messaging tier overview.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="p-4 space-y-3">
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                                <div className="rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 p-3">
+                                    <div className="text-xs text-green-700 dark:text-green-300">Healthy</div>
+                                    <div className="text-lg font-semibold text-green-800 dark:text-green-200">{connection_health_summary.healthy}</div>
+                                </div>
+                                <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3">
+                                    <div className="text-xs text-amber-700 dark:text-amber-300">Warning</div>
+                                    <div className="text-lg font-semibold text-amber-800 dark:text-amber-200">{connection_health_summary.warning}</div>
+                                </div>
+                                <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-3">
+                                    <div className="text-xs text-red-700 dark:text-red-300">Restricted</div>
+                                    <div className="text-lg font-semibold text-red-800 dark:text-red-200">{connection_health_summary.restricted}</div>
+                                </div>
+                                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3">
+                                    <div className="text-xs text-gray-600 dark:text-gray-400">Unknown</div>
+                                    <div className="text-lg font-semibold text-gray-800 dark:text-gray-200">{connection_health_summary.unknown}</div>
+                                </div>
+                                <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-3">
+                                    <div className="text-xs text-blue-700 dark:text-blue-300">Total Active</div>
+                                    <div className="text-lg font-semibold text-blue-800 dark:text-blue-200">{connection_health_summary.total_active}</div>
+                                </div>
+                            </div>
+                            {connection_health_summary.at_risk.length > 0 && (
+                                <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-900/20 p-3">
+                                    <div className="text-xs font-semibold text-amber-800 dark:text-amber-200 mb-1">Connections at Risk</div>
+                                    {connection_health_summary.at_risk.map((row) => (
+                                        <div key={row.id} className="text-xs text-amber-800 dark:text-amber-200">
+                                            {row.name}: {row.health_state.toUpperCase()} · Quality {row.quality_rating || 'Unknown'} · Tier {row.messaging_limit_tier || 'Unknown'}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                                Last synced: {connection_health_summary.last_synced_at ? new Date(connection_health_summary.last_synced_at).toLocaleString() : 'Never'}
                             </div>
                         </CardContent>
                     </Card>

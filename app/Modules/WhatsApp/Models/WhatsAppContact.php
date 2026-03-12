@@ -25,6 +25,14 @@ class WhatsAppContact extends Model
         'company',
         'notes',
         'status',
+        'opted_in_at',
+        'opt_in_source',
+        'opt_in_notes',
+        'opted_out_at',
+        'opt_out_reason',
+        'opt_out_channel',
+        'do_not_contact',
+        'last_policy_event_at',
         'source',
         'last_seen_at',
         'last_contacted_at',
@@ -35,6 +43,10 @@ class WhatsAppContact extends Model
     protected $casts = [
         'last_seen_at' => 'datetime',
         'last_contacted_at' => 'datetime',
+        'opted_in_at' => 'datetime',
+        'opted_out_at' => 'datetime',
+        'last_policy_event_at' => 'datetime',
+        'do_not_contact' => 'boolean',
         'metadata' => 'array',
         'custom_fields' => 'array',
         'message_count' => 'integer',
@@ -135,5 +147,13 @@ class WhatsAppContact extends Model
     public function activities(): HasMany
     {
         return $this->hasMany(\App\Modules\Contacts\Models\ContactActivity::class, 'contact_id');
+    }
+
+    /**
+     * Get policy events (opt-in/opt-out/suppression changes) for this contact.
+     */
+    public function policyEvents(): HasMany
+    {
+        return $this->hasMany(WhatsAppContactPolicyEvent::class, 'whatsapp_contact_id');
     }
 }

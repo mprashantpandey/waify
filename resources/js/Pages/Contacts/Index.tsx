@@ -18,6 +18,8 @@ interface Contact {
     phone: string | null;
     company: string | null;
     status: string;
+    do_not_contact?: boolean;
+    opted_out_at?: string | null;
     message_count: number;
     last_seen_at: string | null;
     tags: Array<{ id: number; name: string; color: string }>;
@@ -196,6 +198,7 @@ export default function ContactsIndex({
                                                     {contact.name || contact.wa_id}
                                                 </Link>
                                                 {getStatusBadge(contact.status)}
+                                                {contact.do_not_contact ? <Badge variant="danger">Do Not Contact</Badge> : null}
                                             </div>
                                             <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-400 mb-2">
                                                 {contact.wa_id && (

@@ -8,7 +8,9 @@ use App\Modules\Contacts\Models\ContactSegment;
 use App\Modules\Contacts\Models\ContactTag;
 use App\Modules\Contacts\Services\ContactService;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
+use App\Modules\WhatsApp\Models\WhatsAppContactPolicyEvent;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
+use App\Modules\WhatsApp\Services\ContactComplianceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
@@ -18,7 +20,8 @@ use Inertia\Response;
 class ContactController extends Controller
 {
     public function __construct(
-        protected ContactService $contactService
+        protected ContactService $contactService,
+        protected ContactComplianceService $contactComplianceService
     ) {
     }
 
@@ -75,6 +78,8 @@ class ContactController extends Controller
                     'phone' => $contact->phone,
                     'company' => $contact->company,
                     'status' => $contact->status ?? 'active',
+                    'do_not_contact' => (bool) ($contact->do_not_contact ?? false),
+                    'opted_out_at' => $contact->opted_out_at?->toIso8601String(),
                     'message_count' => $contact->message_count ?? 0,
                     'last_seen_at' => $contact->last_seen_at?->toIso8601String(),
                     'last_contacted_at' => $contact->last_contacted_at?->toIso8601String(),
@@ -144,6 +149,11 @@ class ContactController extends Controller
             'company' => 'nullable|string|max:255',
             'notes' => 'nullable|string',
             'status' => 'nullable|in:active,inactive,blocked,opt_out',
+            'do_not_contact' => 'nullable|boolean',
+            'opt_in_source' => 'nullable|string|max:100',
+            'opt_in_notes' => 'nullable|string|max:1000',
+            'opt_out_reason' => 'nullable|string|max:255',
+            'opt_out_channel' => 'nullable|string|max:100',
             'tags' => 'nullable|array',
             'tags.*' => 'exists:contact_tags,id']);
 
@@ -236,6 +246,21 @@ class ContactController extends Controller
                     'created_at' => $activity->created_at->toIso8601String()];
             });
 
+        $policyEvents = WhatsAppContactPolicyEvent::query()
+            ->where('whatsapp_contact_id', $contact->id)
+            ->latest('id')
+            ->limit(50)
+            ->get()
+            ->map(fn ($event) => [
+                'id' => $event->id,
+                'event_type' => $event->event_type,
+                'source' => $event->source,
+                'keyword' => $event->keyword,
+                'channel' => $event->channel,
+                'reason' => $event->reason,
+                'created_at' => $event->created_at?->toIso8601String(),
+            ]);
+
         $tags = ContactTag::where('account_id', $account->id)
             ->orderBy('name')
             ->get(['id', 'name', 'color']);
@@ -256,6 +281,14 @@ class ContactController extends Controller
                 'company' => $contact->company,
                 'notes' => $contact->notes,
                 'status' => $contact->status ?? 'active',
+                'do_not_contact' => (bool) ($contact->do_not_contact ?? false),
+                'opted_in_at' => $contact->opted_in_at?->toIso8601String(),
+                'opt_in_source' => $contact->opt_in_source,
+                'opt_in_notes' => $contact->opt_in_notes,
+                'opted_out_at' => $contact->opted_out_at?->toIso8601String(),
+                'opt_out_reason' => $contact->opt_out_reason,
+                'opt_out_channel' => $contact->opt_out_channel,
+                'last_policy_event_at' => $contact->last_policy_event_at?->toIso8601String(),
                 'source' => $contact->source,
                 'message_count' => $computedMessageCount,
                 'last_seen_at' => $computedLastSeenAt?->toIso8601String(),
@@ -273,6 +306,7 @@ class ContactController extends Controller
                 }),
                 'created_at' => $contact->created_at->toIso8601String()],
             'activities' => $activities,
+            'policyEvents' => $policyEvents,
             'tags' => $tags,
             'segments' => $segments]);
     }
@@ -295,12 +329,28 @@ class ContactController extends Controller
             'company' => 'nullable|string|max:255',
             'notes' => 'nullable|string',
             'status' => 'nullable|in:active,inactive,blocked,opt_out',
+            'do_not_contact' => 'nullable|boolean',
+            'opt_in_source' => 'nullable|string|max:100',
+            'opt_in_notes' => 'nullable|string|max:1000',
+            'opt_out_reason' => 'nullable|string|max:255',
+            'opt_out_channel' => 'nullable|string|max:100',
             'tags' => 'nullable|array',
             'tags.*' => 'exists:contact_tags,id',
             'segments' => 'nullable|array',
             'segments.*' => 'exists:contact_segments,id']);
+        $beforeSuppressed = $this->contactComplianceService->isSuppressed($contact);
+        $contactUpdate = \Illuminate\Support\Arr::except($validated, ['tags', 'segments']);
+        if (($contactUpdate['status'] ?? null) === 'opt_out') {
+            $contactUpdate['do_not_contact'] = true;
+            $contactUpdate['opted_out_at'] = $contact->opted_out_at ?? now();
+            $contactUpdate['last_policy_event_at'] = now();
+        }
+        if (($contactUpdate['status'] ?? null) === 'active' && array_key_exists('do_not_contact', $contactUpdate) && !$contactUpdate['do_not_contact']) {
+            $contactUpdate['opted_in_at'] = $contact->opted_in_at ?? now();
+            $contactUpdate['last_policy_event_at'] = now();
+        }
 
-        $contact->update(\Illuminate\Support\Arr::except($validated, ['tags', 'segments']));
+        $contact->update($contactUpdate);
 
         // Sync tags
         if (array_key_exists('tags', $validated)) {
@@ -319,6 +369,19 @@ class ContactController extends Controller
             'type' => 'contact_updated',
             'title' => 'Contact updated',
             'description' => 'Contact information was updated']);
+
+        $afterSuppressed = $this->contactComplianceService->isSuppressed($contact->fresh());
+        if ($beforeSuppressed !== $afterSuppressed) {
+            WhatsAppContactPolicyEvent::create([
+                'account_id' => $account->id,
+                'whatsapp_contact_id' => $contact->id,
+                'user_id' => $request->user()->id,
+                'event_type' => $afterSuppressed ? 'suppression_enabled' : 'suppression_disabled',
+                'source' => 'manual',
+                'channel' => 'ui',
+                'reason' => $afterSuppressed ? 'Contact suppression enabled from contact profile' : 'Contact suppression removed from contact profile',
+            ]);
+        }
 
         return back()->with('success', 'Contact updated successfully.');
     }

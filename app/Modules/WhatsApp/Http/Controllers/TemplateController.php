@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\WhatsApp\Events\Templates\TemplateStatusUpdated;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
+use App\Modules\WhatsApp\Services\TemplateLifecycleService;
 use App\Modules\WhatsApp\Services\TemplateManagementService;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
@@ -19,7 +20,8 @@ use Inertia\Response;
 class TemplateController extends Controller
 {
     public function __construct(
-        protected TemplateManagementService $templateManagementService
+        protected TemplateManagementService $templateManagementService,
+        protected TemplateLifecycleService $templateLifecycleService
     ) {
     }
     /**
@@ -79,6 +81,8 @@ class TemplateController extends Controller
                     'language' => $template->language,
                     'category' => $template->category,
                     'status' => $template->status,
+                    'sync_state' => $template->sync_state,
+                    'is_remote_deleted' => (bool) ($template->is_remote_deleted ?? false),
                     'body_text' => $template->body_text,
                     'has_buttons' => $template->has_buttons,
                     'variable_count' => $template->variable_count,
@@ -86,16 +90,28 @@ class TemplateController extends Controller
                         'id' => $template->connection->id,
                         'name' => $template->connection->name],
                     'last_synced_at' => $template->last_synced_at?->toIso8601String(),
+                    'last_meta_sync_at' => $template->last_meta_sync_at?->toIso8601String(),
                     'last_meta_error' => $template->last_meta_error,
+                    'meta_rejection_reason' => $template->meta_rejection_reason,
+                    'is_stale' => $this->templateLifecycleService->isTemplateStale(
+                        $template->last_meta_sync_at ?? $template->last_synced_at,
+                        (string) $template->status,
+                        (bool) ($template->is_remote_deleted ?? false)
+                    ),
+                    'sendability' => $this->templateLifecycleService->evaluateSendability($template),
                     'sends_failed_count' => (int) ($template->sends_failed_count ?? 0),
                 ];
             });
 
         $connectionColumns = ['id', 'name'];
-        if (Schema::hasColumn('whatsapp_connections', 'last_synced_at')) {
+        if (Schema::hasColumn('whatsapp_connections', 'templates_last_synced_at')) {
+            $connectionColumns[] = 'templates_last_synced_at';
+        } elseif (Schema::hasColumn('whatsapp_connections', 'last_synced_at')) {
             $connectionColumns[] = 'last_synced_at';
         }
-        if (Schema::hasColumn('whatsapp_connections', 'last_meta_error')) {
+        if (Schema::hasColumn('whatsapp_connections', 'templates_last_sync_error')) {
+            $connectionColumns[] = 'templates_last_sync_error';
+        } elseif (Schema::hasColumn('whatsapp_connections', 'last_meta_error')) {
             $connectionColumns[] = 'last_meta_error';
         }
 
@@ -106,8 +122,8 @@ class TemplateController extends Controller
                 return [
                     'id' => $connection->id,
                     'name' => $connection->name,
-                    'last_synced_at' => $connection->last_synced_at?->toIso8601String(),
-                    'last_sync_error' => $connection->last_meta_error,
+                    'last_synced_at' => ($connection->templates_last_synced_at ?? $connection->last_synced_at)?->toIso8601String(),
+                    'last_sync_error' => $connection->templates_last_sync_error ?? $connection->last_meta_error,
                 ];
             });
 
@@ -169,6 +185,8 @@ class TemplateController extends Controller
                 'language' => $template->language,
                 'category' => $template->category,
                 'status' => $template->status,
+                'sync_state' => $template->sync_state,
+                'is_remote_deleted' => (bool) ($template->is_remote_deleted ?? false),
                 'quality_score' => $template->quality_score,
                 'body_text' => $template->body_text,
                 'header_type' => $template->header_type,
@@ -179,7 +197,15 @@ class TemplateController extends Controller
                 'variable_count' => $template->variable_count,
                 'has_buttons' => $template->has_buttons,
                 'last_synced_at' => $template->last_synced_at?->toIso8601String(),
+                'last_meta_sync_at' => $template->last_meta_sync_at?->toIso8601String(),
                 'last_meta_error' => $template->last_meta_error,
+                'meta_rejection_reason' => $template->meta_rejection_reason,
+                'is_stale' => $this->templateLifecycleService->isTemplateStale(
+                    $template->last_meta_sync_at ?? $template->last_synced_at,
+                    (string) $template->status,
+                    (bool) ($template->is_remote_deleted ?? false)
+                ),
+                'sendability' => $this->templateLifecycleService->evaluateSendability($template),
                 'connection' => [
                     'id' => $template->connection->id,
                     'name' => $template->connection->name]],
@@ -386,14 +412,20 @@ class TemplateController extends Controller
                     $template->connection,
                     $template->meta_template_id
                 );
-                $metaStatus = strtolower($statusData['status'] ?? $template->status);
+                $metaStatus = $this->templateLifecycleService->normalizeStatus((string) ($statusData['status'] ?? $template->status));
                 $rejectionReason = $statusData['rejection_reason'] ?? null;
                 
                 // Update local status if different
                 if ($metaStatus !== strtolower($template->status)) {
                     $template->update([
                         'status' => $metaStatus,
-                        'last_synced_at' => now()]);
+                        'remote_status' => $metaStatus,
+                        'last_synced_at' => now(),
+                        'last_meta_sync_at' => now(),
+                        'meta_rejection_reason' => $rejectionReason,
+                        'last_meta_error' => $rejectionReason,
+                        'sync_state' => $this->templateLifecycleService->computeSyncState($metaStatus, now(), false, $rejectionReason),
+                    ]);
                 }
             }
         } catch (\Exception $e) {
@@ -547,11 +579,17 @@ class TemplateController extends Controller
 
             $metaStatus = strtolower($statusData['status'] ?? $template->status);
             $rejectionReason = $statusData['rejection_reason'] ?? null;
+            $normalizedStatus = $this->templateLifecycleService->normalizeStatus($metaStatus);
 
             $template->update([
-                'status' => $metaStatus,
+                'status' => $normalizedStatus,
+                'remote_status' => $normalizedStatus,
                 'last_synced_at' => now(),
-                'last_meta_error' => $rejectionReason]);
+                'last_meta_sync_at' => now(),
+                'last_meta_error' => $rejectionReason,
+                'meta_rejection_reason' => $rejectionReason,
+                'sync_state' => $this->templateLifecycleService->computeSyncState($normalizedStatus, now(), (bool) ($template->is_remote_deleted ?? false), $rejectionReason),
+            ]);
 
             $template->refresh();
             event(new TemplateStatusUpdated($template));
@@ -587,13 +625,17 @@ class TemplateController extends Controller
                     $template->meta_template_id
                 );
 
-                $metaStatus = strtolower((string) ($statusData['status'] ?? $template->status));
+                $metaStatus = $this->templateLifecycleService->normalizeStatus((string) ($statusData['status'] ?? $template->status));
                 $rejectionReason = $statusData['rejection_reason'] ?? null;
 
                 $template->update([
                     'status' => $metaStatus,
+                    'remote_status' => $metaStatus,
                     'last_synced_at' => now(),
+                    'last_meta_sync_at' => now(),
                     'last_meta_error' => $rejectionReason,
+                    'meta_rejection_reason' => $rejectionReason,
+                    'sync_state' => $this->templateLifecycleService->computeSyncState($metaStatus, now(), (bool) ($template->is_remote_deleted ?? false), $rejectionReason),
                 ]);
 
                 $template->refresh();
@@ -611,9 +653,17 @@ class TemplateController extends Controller
             'template' => [
                 'id' => $template->id,
                 'status' => $template->status,
+                'sync_state' => $template->sync_state,
                 'last_meta_error' => $template->last_meta_error,
                 'rejection_reason' => $template->rejection_reason,
                 'last_synced_at' => $template->last_synced_at?->toIso8601String(),
+                'last_meta_sync_at' => $template->last_meta_sync_at?->toIso8601String(),
+                'is_remote_deleted' => (bool) ($template->is_remote_deleted ?? false),
+                'is_stale' => $this->templateLifecycleService->isTemplateStale(
+                    $template->last_meta_sync_at ?? $template->last_synced_at,
+                    (string) $template->status,
+                    (bool) ($template->is_remote_deleted ?? false)
+                ),
             ],
         ]);
     }

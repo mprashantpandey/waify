@@ -59,3 +59,13 @@ Schedule::command('ops:queue:scan-failures --limit=100')
     ->everyFiveMinutes()
     ->withoutOverlapping()
     ->runInBackground();
+
+Schedule::command('whatsapp:sync-connection-health')
+    ->everyThirtyMinutes()
+    ->withoutOverlapping()
+    ->runInBackground();
+
+Schedule::command('whatsapp:sync-templates')
+    ->hourly()
+    ->withoutOverlapping()
+    ->runInBackground();

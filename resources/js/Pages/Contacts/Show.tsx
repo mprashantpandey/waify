@@ -19,6 +19,14 @@ interface Contact {
     company: string | null;
     notes: string | null;
     status: string;
+    do_not_contact?: boolean;
+    opted_in_at?: string | null;
+    opt_in_source?: string | null;
+    opt_in_notes?: string | null;
+    opted_out_at?: string | null;
+    opt_out_reason?: string | null;
+    opt_out_channel?: string | null;
+    last_policy_event_at?: string | null;
     source: string | null;
     message_count: number;
     last_seen_at: string | null;
@@ -37,15 +45,27 @@ interface Activity {
     created_at: string;
 }
 
+interface PolicyEvent {
+    id: number;
+    event_type: string;
+    source?: string | null;
+    keyword?: string | null;
+    channel?: string | null;
+    reason?: string | null;
+    created_at: string;
+}
+
 export default function ContactsShow({
     account,
     contact: contactProp,
     activities = [],
+    policyEvents = [],
     tags: tagsProp = [],
     segments: availableSegments = []}: {
     account: any;
     contact: Contact;
     activities?: Activity[];
+    policyEvents?: PolicyEvent[];
     tags?: Array<{ id: number; name: string; color: string }>;
     segments?: Array<{ id: number; name: string }>;
 }) {
@@ -69,6 +89,11 @@ export default function ContactsShow({
         company: contact.company || '',
         notes: contact.notes || '',
         status: contact.status,
+        do_not_contact: Boolean(contact.do_not_contact),
+        opt_in_source: contact.opt_in_source || '',
+        opt_in_notes: contact.opt_in_notes || '',
+        opt_out_reason: contact.opt_out_reason || '',
+        opt_out_channel: contact.opt_out_channel || '',
         tags: (contact.tags || []).map((t) => t.id),
         segments: (contact.segments || []).map((s) => s.id)});
 
@@ -255,6 +280,64 @@ export default function ContactsShow({
                                         <option value="blocked">Blocked</option>
                                         <option value="opt_out">Opt Out</option>
                                     </select>
+                                </div>
+
+                                <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 dark:border-amber-900/40 dark:bg-amber-900/10">
+                                    <label className="flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-gray-100">
+                                        <input
+                                            type="checkbox"
+                                            checked={Boolean(contactData.do_not_contact)}
+                                            onChange={(e) => setContactData('do_not_contact', e.target.checked as any)}
+                                        />
+                                        Do not contact (suppression)
+                                    </label>
+                                    <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                                        Blocks campaign/template sends to this contact unless suppression is removed.
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <InputLabel htmlFor="opt_in_source" value="Opt-in Source" />
+                                    <TextInput
+                                        id="opt_in_source"
+                                        type="text"
+                                        value={contactData.opt_in_source}
+                                        onChange={(e) => setContactData('opt_in_source', e.target.value as any)}
+                                        className="mt-1 block w-full"
+                                    />
+                                </div>
+
+                                <div>
+                                    <InputLabel htmlFor="opt_in_notes" value="Opt-in Notes" />
+                                    <textarea
+                                        id="opt_in_notes"
+                                        value={contactData.opt_in_notes}
+                                        onChange={(e) => setContactData('opt_in_notes', e.target.value as any)}
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700"
+                                        rows={2}
+                                    />
+                                </div>
+
+                                <div>
+                                    <InputLabel htmlFor="opt_out_reason" value="Opt-out Reason" />
+                                    <TextInput
+                                        id="opt_out_reason"
+                                        type="text"
+                                        value={contactData.opt_out_reason}
+                                        onChange={(e) => setContactData('opt_out_reason', e.target.value as any)}
+                                        className="mt-1 block w-full"
+                                    />
+                                </div>
+
+                                <div>
+                                    <InputLabel htmlFor="opt_out_channel" value="Opt-out Channel" />
+                                    <TextInput
+                                        id="opt_out_channel"
+                                        type="text"
+                                        value={contactData.opt_out_channel}
+                                        onChange={(e) => setContactData('opt_out_channel', e.target.value as any)}
+                                        className="mt-1 block w-full"
+                                    />
                                 </div>
 
                                 <div>
@@ -482,6 +565,35 @@ export default function ContactsShow({
                         </CardContent>
                     </Card>
                 </div>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Consent & Policy Timeline</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {policyEvents.length === 0 ? (
+                            <p className="text-sm text-gray-500 dark:text-gray-400">No policy events yet.</p>
+                        ) : (
+                            <div className="space-y-3">
+                                {policyEvents.map((event) => (
+                                    <div key={event.id} className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <Badge variant={event.event_type.includes('opt_out') || event.event_type.includes('suppression_enabled') ? 'warning' : 'success'}>
+                                                {event.event_type.replace(/_/g, ' ')}
+                                            </Badge>
+                                            <span className="text-xs text-gray-500">{formatDate(event.created_at)}</span>
+                                        </div>
+                                        {event.keyword ? <p className="mt-1 text-sm">Keyword: <span className="font-medium">{event.keyword}</span></p> : null}
+                                        {event.reason ? <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{event.reason}</p> : null}
+                                        <p className="mt-1 text-xs text-gray-500">
+                                            Source: {event.source || 'unknown'}{event.channel ? ` • Channel: ${event.channel}` : ''}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
             </div>
         </AppShell>
     );

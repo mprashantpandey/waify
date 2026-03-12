@@ -210,4 +210,104 @@ class TemplateTest extends TestCase
 
         $response->assertStatus(302);
     }
+
+    public function test_sync_marks_missing_remote_templates_as_non_sendable(): void
+    {
+        $template = WhatsAppTemplate::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_connection_id' => $this->connection->id,
+            'meta_template_id' => 'meta_template_old',
+            'name' => 'legacy_template',
+            'language' => 'en_US',
+            'status' => 'approved',
+            'is_remote_deleted' => false,
+            'sync_state' => 'synced',
+        ]);
+
+        Http::fake([
+            'graph.facebook.com/*' => Http::response([
+                'data' => [],
+            ], 200),
+        ]);
+
+        $this->actingAs($this->user)
+            ->post(route('app.whatsapp.templates.sync', ['account' => $this->account->slug]), [
+                'connection_id' => $this->connection->id,
+            ])
+            ->assertRedirect();
+
+        $template->refresh();
+
+        $this->assertTrue((bool) $template->is_remote_deleted);
+        $this->assertSame('missing_remote', $template->sync_state);
+        $this->assertSame('disabled', $template->status);
+        $this->assertNotNull($template->remote_deleted_at);
+    }
+
+    public function test_send_blocks_non_sendable_template_before_provider_call(): void
+    {
+        $template = WhatsAppTemplate::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_connection_id' => $this->connection->id,
+            'name' => 'pending_template',
+            'language' => 'en_US',
+            'body_text' => 'Hello {{1}}',
+            'status' => 'pending',
+            'meta_template_id' => 'meta_pending_1',
+            'is_remote_deleted' => false,
+            'last_meta_sync_at' => now(),
+            'sync_state' => 'pending_review',
+        ]);
+
+        Http::fake();
+
+        $response = $this->actingAs($this->user)
+            ->post(route('app.whatsapp.templates.send.store', [
+                'account' => $this->account->slug,
+                'template' => $template->id,
+            ]), [
+                'to_wa_id' => '1234567890',
+                'variables' => ['Test'],
+            ]);
+
+        $response->assertSessionHasErrors('template');
+        Http::assertNothingSent();
+    }
+
+    public function test_send_blocks_suppressed_contact(): void
+    {
+        $template = WhatsAppTemplate::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_connection_id' => $this->connection->id,
+            'name' => 'approved_template',
+            'language' => 'en_US',
+            'body_text' => 'Hello {{1}}',
+            'status' => 'approved',
+            'meta_template_id' => 'meta_ok_1',
+            'last_meta_sync_at' => now(),
+            'sync_state' => 'synced',
+        ]);
+
+        \App\Modules\WhatsApp\Models\WhatsAppContact::factory()->create([
+            'account_id' => $this->account->id,
+            'wa_id' => '1234567890',
+            'status' => 'opt_out',
+            'do_not_contact' => true,
+            'opted_out_at' => now(),
+        ]);
+
+        Http::fake();
+
+        $response = $this->actingAs($this->user)
+            ->post(route('app.whatsapp.templates.send.store', [
+                'account' => $this->account->slug,
+                'template' => $template->id,
+            ]), [
+                'to_wa_id' => '1234567890',
+                'variables' => ['Test'],
+            ]);
+
+        $response->assertSessionHasErrors('to_wa_id');
+        Http::assertNothingSent();
+    }
 }

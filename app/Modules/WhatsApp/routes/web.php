@@ -25,6 +25,7 @@ Route::middleware(['module.entitled:whatsapp.cloud'])->group(function () {
     Route::post('/connections', [ConnectionController::class, 'store'])->name('whatsapp.connections.store');
     Route::post('/connections/test', [ConnectionController::class, 'testConnection'])->name('whatsapp.connections.test');
     Route::post('/connections/{connection}/test', [ConnectionController::class, 'testSavedConnection'])->name('whatsapp.connections.test-saved');
+    Route::post('/connections/{connection}/sync-health', [ConnectionController::class, 'syncHealth'])->name('whatsapp.connections.sync-health');
     Route::get('/connections/{connection}/meta-insights', [ConnectionController::class, 'metaInsights'])->name('whatsapp.connections.meta-insights');
     Route::post('/connections/embedded', [ConnectionController::class, 'storeEmbedded'])->name('whatsapp.connections.store-embedded');
     Route::post('/connections/embedded/telemetry', [ConnectionController::class, 'embeddedTelemetry'])->name('whatsapp.connections.embedded-telemetry');

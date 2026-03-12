@@ -18,6 +18,8 @@ interface Template {
     language: string;
     category: string;
     status: string;
+    sync_state?: string;
+    is_remote_deleted?: boolean;
     body_text: string | null;
     has_buttons: boolean;
     variable_count: number;
@@ -26,7 +28,15 @@ interface Template {
         name: string;
     };
     last_synced_at: string | null;
+    last_meta_sync_at?: string | null;
     last_meta_error?: string | null;
+    meta_rejection_reason?: string | null;
+    is_stale?: boolean;
+    sendability?: {
+        ok: boolean;
+        reason?: string | null;
+        code?: string | null;
+    };
     sends_failed_count?: number;
 }
 
@@ -56,6 +66,7 @@ export default function TemplatesIndex({
         total: number;
         created: number;
         updated: number;
+        missing_remote?: number;
         errors_count: number;
         errors?: Array<{ template: string; error: string }>;
     } | null;
@@ -165,6 +176,20 @@ export default function TemplatesIndex({
 
         const config = statusMap[status.toLowerCase()] || { variant: 'default' as const, label: status };
         return <Badge variant={config.variant} className="px-3 py-1">{config.label}</Badge>;
+    };
+
+    const getSyncStateBadge = (syncState?: string) => {
+        const state = String(syncState || 'unknown').toLowerCase();
+        const stateMap: Record<string, { variant: 'success' | 'warning' | 'danger' | 'default' | 'info'; label: string }> = {
+            synced: { variant: 'success', label: 'Synced' },
+            stale: { variant: 'warning', label: 'Stale' },
+            pending_review: { variant: 'info', label: 'Pending Review' },
+            missing_remote: { variant: 'danger', label: 'Missing On Meta' },
+            sync_error: { variant: 'danger', label: 'Sync Error' },
+        };
+
+        const config = stateMap[state] || { variant: 'default' as const, label: state.replace('_', ' ') };
+        return <Badge variant={config.variant} className="px-2 py-0.5 text-[10px]">{config.label}</Badge>;
     };
 
     return (
@@ -312,7 +337,7 @@ export default function TemplatesIndex({
                             {sync_report && (
                                 <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
                                     <p>
-                                        Last run: {sync_report.total} total, {sync_report.created} created, {sync_report.updated} updated, {sync_report.errors_count} errors.
+                                        Last run: {sync_report.total} total, {sync_report.created} created, {sync_report.updated} updated, {sync_report.missing_remote ?? 0} missing on Meta, {sync_report.errors_count} errors.
                                     </p>
                                     {Array.isArray(sync_report.errors) && sync_report.errors.length > 0 && (
                                         <ul className="mt-2 space-y-1 text-red-600 dark:text-red-400">
@@ -460,6 +485,29 @@ export default function TemplatesIndex({
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <div className="max-w-[220px] space-y-1">
+                                                        <div className="flex flex-wrap items-center gap-1">
+                                                            {getSyncStateBadge(template.sync_state)}
+                                                            {template.is_stale ? (
+                                                                <Badge variant="warning" className="px-2 py-0.5 text-[10px]">
+                                                                    Stale
+                                                                </Badge>
+                                                            ) : null}
+                                                            {template.is_remote_deleted ? (
+                                                                <Badge variant="danger" className="px-2 py-0.5 text-[10px]">
+                                                                    Remote Deleted
+                                                                </Badge>
+                                                            ) : null}
+                                                        </div>
+                                                        {template.last_meta_sync_at && (
+                                                            <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                                                                Meta sync: {new Date(template.last_meta_sync_at).toLocaleString()}
+                                                            </p>
+                                                        )}
+                                                        {template.sendability && !template.sendability.ok && (
+                                                            <p className="text-[11px] text-amber-600 dark:text-amber-400 truncate" title={template.sendability.reason || ''}>
+                                                                Send blocked: {template.sendability.reason}
+                                                            </p>
+                                                        )}
                                                         {(template.sends_failed_count ?? 0) > 0 ? (
                                                             <Badge variant="danger" className="px-2 py-1 text-[10px]">
                                                                 {(template.sends_failed_count ?? 0)} failed send{(template.sends_failed_count ?? 0) === 1 ? '' : 's'}
@@ -472,6 +520,11 @@ export default function TemplatesIndex({
                                                         {template.last_meta_error && (
                                                             <p className="text-[11px] text-red-600 dark:text-red-400 truncate" title={template.last_meta_error}>
                                                                 {template.last_meta_error}
+                                                            </p>
+                                                        )}
+                                                        {template.meta_rejection_reason && template.meta_rejection_reason !== template.last_meta_error && (
+                                                            <p className="text-[11px] text-red-600 dark:text-red-400 truncate" title={template.meta_rejection_reason}>
+                                                                Rejection: {template.meta_rejection_reason}
                                                             </p>
                                                         )}
                                                     </div>

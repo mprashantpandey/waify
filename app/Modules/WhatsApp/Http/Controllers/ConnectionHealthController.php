@@ -198,6 +198,34 @@ class ConnectionHealthController extends Controller
                 'details' => []];
         }
 
+        // Check 7: Connection health metadata (snapshot-driven)
+        $healthState = (string) ($connection->health_state ?? 'unknown');
+        $healthStatus = $healthState === 'restricted'
+            ? 'unhealthy'
+            : ($healthState === 'warning' ? 'warning' : ($healthState === 'healthy' ? 'healthy' : 'unknown'));
+
+        $health['checks']['health_metadata'] = [
+            'status' => $healthStatus,
+            'message' => sprintf(
+                'Health state: %s%s%s',
+                strtoupper($healthState),
+                $connection->quality_rating ? " · quality {$connection->quality_rating}" : '',
+                $connection->messaging_limit_tier ? " · tier {$connection->messaging_limit_tier}" : ''
+            ),
+            'details' => [
+                'health_state' => $connection->health_state,
+                'quality_rating' => $connection->quality_rating,
+                'messaging_limit_tier' => $connection->messaging_limit_tier,
+                'account_review_status' => $connection->account_review_status,
+                'business_verification_status' => $connection->business_verification_status,
+                'code_verification_status' => $connection->code_verification_status,
+                'display_name_status' => $connection->display_name_status,
+                'restriction_state' => $connection->restriction_state,
+                'warning_state' => $connection->warning_state,
+                'health_last_synced_at' => $connection->health_last_synced_at?->toIso8601String(),
+            ],
+        ];
+
         // Calculate overall status
         $statuses = array_column($health['checks'], 'status');
         $hasUnhealthy = in_array('unhealthy', $statuses);
@@ -248,6 +276,12 @@ class ConnectionHealthController extends Controller
             'has_access_token' => !empty($connection->access_token),
             'has_phone_number_id' => !empty($connection->phone_number_id),
             'status' => $connection->is_active && $connection->webhook_subscribed ? 'healthy' : 'warning',
+            'health_state' => $connection->health_state,
+            'quality_rating' => $connection->quality_rating,
+            'messaging_limit_tier' => $connection->messaging_limit_tier,
+            'restriction_state' => $connection->restriction_state,
+            'warning_state' => $connection->warning_state,
+            'health_last_synced_at' => $connection->health_last_synced_at?->toIso8601String(),
             'timestamp' => now()->toIso8601String()]);
     }
 }
