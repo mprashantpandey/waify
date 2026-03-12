@@ -6,6 +6,7 @@ use App\Models\Account;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Crypt;
 
@@ -30,11 +31,28 @@ class WhatsAppConnection extends Model
         'webhook_last_error',
         'webhook_consecutive_failures',
         'webhook_last_lag_seconds',
+        'quality_rating',
+        'messaging_limit_tier',
+        'account_review_status',
+        'business_verification_status',
+        'code_verification_status',
+        'display_name_status',
+        'restriction_state',
+        'warning_state',
+        'health_state',
+        'health_last_synced_at',
+        'templates_last_synced_at',
+        'templates_last_sync_error',
         'is_active',
+        'activation_state',
+        'activation_last_error',
+        'activation_updated_at',
         'throughput_cap_per_minute',
         'quiet_hours_start',
         'quiet_hours_end',
-        'quiet_hours_timezone'];
+        'quiet_hours_timezone',
+        'metadata_sync_status',
+        'metadata_last_sync_error'];
 
     protected static function boot()
     {
@@ -90,6 +108,9 @@ class WhatsAppConnection extends Model
         'webhook_last_processed_at' => 'datetime',
         'webhook_consecutive_failures' => 'integer',
         'webhook_last_lag_seconds' => 'integer',
+        'health_last_synced_at' => 'datetime',
+        'activation_updated_at' => 'datetime',
+        'templates_last_synced_at' => 'datetime',
         'throughput_cap_per_minute' => 'integer'];
 
     /**
@@ -134,6 +155,22 @@ class WhatsAppConnection extends Model
     public function conversations(): HasMany
     {
         return $this->hasMany(WhatsAppConversation::class);
+    }
+
+    /**
+     * Historical health snapshots for this connection.
+     */
+    public function healthSnapshots(): HasMany
+    {
+        return $this->hasMany(WhatsAppConnectionHealthSnapshot::class, 'whatsapp_connection_id');
+    }
+
+    /**
+     * Latest captured health snapshot.
+     */
+    public function latestHealthSnapshot(): HasOne
+    {
+        return $this->hasOne(WhatsAppConnectionHealthSnapshot::class, 'whatsapp_connection_id')->latestOfMany('captured_at');
     }
 
     /**

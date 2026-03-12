@@ -114,4 +114,38 @@ return [
         'per_connection_per_minute' => env('WHATSAPP_OUTBOUND_CONNECTION_PER_MINUTE', 60),
         'per_campaign_per_minute' => env('WHATSAPP_OUTBOUND_CAMPAIGN_PER_MINUTE', 40),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Template Sync Lifecycle
+    |--------------------------------------------------------------------------
+    */
+    'templates' => [
+        'stale_after_hours' => env('WHATSAPP_TEMPLATE_STALE_AFTER_HOURS', 24),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Connection Health Sync
+    |--------------------------------------------------------------------------
+    */
+    'connection' => [
+        'health_stale_after_hours' => env('WHATSAPP_CONNECTION_HEALTH_STALE_AFTER_HOURS', 24),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Compliance / Consent
+    |--------------------------------------------------------------------------
+    */
+    'compliance' => [
+        'global_opt_out_keywords' => array_values(array_filter(array_map('trim', explode(',', (string) env(
+            'WHATSAPP_GLOBAL_OPT_OUT_KEYWORDS',
+            'STOP,UNSUBSCRIBE,CANCEL,QUIT,END'
+        ))))),
+        'global_opt_in_keywords' => array_values(array_filter(array_map('trim', explode(',', (string) env(
+            'WHATSAPP_GLOBAL_OPT_IN_KEYWORDS',
+            'START,UNSTOP,SUBSCRIBE'
+        ))))),
+    ],
 ];

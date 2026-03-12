@@ -17,6 +17,19 @@ interface Connection {
     is_active: boolean;
     webhook_subscribed: boolean;
     webhook_last_received_at: string | null;
+    quality_rating?: string | null;
+    messaging_limit_tier?: string | null;
+    health_state?: string | null;
+    restriction_state?: string | null;
+    warning_state?: string | null;
+    health_last_synced_at?: string | null;
+    metadata_sync_status?: string | null;
+    metadata_last_sync_error?: string | null;
+    metadata_stale?: boolean;
+    metadata_stale_after_hours?: number;
+    activation_state?: string | null;
+    activation_last_error?: string | null;
+    activation_updated_at?: string | null;
     webhook_url: string;
     created_at: string;
 }
@@ -226,6 +239,11 @@ export default function ConnectionsIndex({
                                                     Webhook idle
                                                 </Badge>
                                             )}
+                                            {connection.metadata_stale && (
+                                                <Badge variant="warning" className="flex items-center gap-1.5 px-3 py-1">
+                                                    Metadata stale
+                                                </Badge>
+                                            )}
                                         </div>
                                     </div>
                                 </CardHeader>
@@ -282,6 +300,36 @@ export default function ConnectionsIndex({
                                         {!connection.webhook_last_received_at && (
                                             <div className="text-xs text-gray-500 dark:text-gray-400">
                                                 No webhook events received yet.
+                                            </div>
+                                        )}
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                                            Health: <span className="font-semibold uppercase">{connection.health_state || 'UNKNOWN'}</span>
+                                            {connection.warning_state ? ` · Warning: ${connection.warning_state}` : ''}
+                                            {connection.restriction_state ? ` · Restriction: ${connection.restriction_state}` : ''}
+                                        </div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                                            Quality: {connection.quality_rating || 'Unknown'} · Tier: {connection.messaging_limit_tier || 'Unknown'}
+                                        </div>
+                                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                                            Metadata sync: <span className="font-semibold uppercase">{connection.metadata_sync_status || 'PENDING'}</span>
+                                            {connection.metadata_stale && connection.metadata_stale_after_hours
+                                                ? ` · stale > ${connection.metadata_stale_after_hours}h`
+                                                : ''}
+                                        </div>
+                                        {connection.metadata_last_sync_error && (
+                                            <div className="text-xs text-amber-600 dark:text-amber-400">
+                                                Last sync error: {connection.metadata_last_sync_error}
+                                            </div>
+                                        )}
+                                        {connection.activation_state && connection.activation_state !== 'active' && (
+                                            <div className="text-xs text-amber-600 dark:text-amber-400">
+                                                Activation: {connection.activation_state.toUpperCase()}
+                                                {connection.activation_last_error ? ` · ${connection.activation_last_error}` : ''}
+                                            </div>
+                                        )}
+                                        {connection.health_last_synced_at && (
+                                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                                                Health synced: {new Date(connection.health_last_synced_at).toLocaleString()}
                                             </div>
                                         )}
                                         <div className="text-xs text-gray-500 dark:text-gray-400">

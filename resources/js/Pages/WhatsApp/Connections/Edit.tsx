@@ -28,6 +28,22 @@ interface Connection {
     webhook_subscribed: boolean;
     webhook_last_received_at: string | null;
     webhook_last_error: string | null;
+    quality_rating?: string | null;
+    messaging_limit_tier?: string | null;
+    account_review_status?: string | null;
+    business_verification_status?: string | null;
+    display_name_status?: string | null;
+    health_state?: string | null;
+    restriction_state?: string | null;
+    warning_state?: string | null;
+    health_last_synced_at?: string | null;
+    metadata_sync_status?: string | null;
+    metadata_last_sync_error?: string | null;
+    metadata_stale?: boolean;
+    metadata_stale_after_hours?: number;
+    activation_state?: string | null;
+    activation_last_error?: string | null;
+    activation_updated_at?: string | null;
     throughput_cap_per_minute?: number | null;
     quiet_hours_start?: string | null;
     quiet_hours_end?: string | null;
@@ -201,6 +217,16 @@ export default function ConnectionsEdit({
         } finally {
             setWebhookLoading(false);
         }
+    };
+
+    const runHealthSync = () => {
+        router.post(route('app.whatsapp.connections.sync-health', {
+            connection: connection.slug ?? connection.id,
+        }), {}, {
+            preserveScroll: true,
+            onSuccess: () => toast.success('Health synced successfully.'),
+            onError: () => toast.error('Health sync failed. Please verify token and try again.'),
+        });
     };
 
     return (
@@ -540,6 +566,45 @@ export default function ConnectionsEdit({
                                                 </div>
                                             </Alert>
                                         )}
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                            <div className="text-xs text-gray-600 dark:text-gray-300">
+                                                Health: <span className="font-semibold uppercase">{connection.health_state || 'UNKNOWN'}</span>
+                                            </div>
+                                            <div className="text-xs text-gray-600 dark:text-gray-300">
+                                                Quality: <span className="font-semibold">{connection.quality_rating || 'Unknown'}</span>
+                                            </div>
+                                            <div className="text-xs text-gray-600 dark:text-gray-300">
+                                                Limit tier: <span className="font-semibold">{connection.messaging_limit_tier || 'Unknown'}</span>
+                                            </div>
+                                            <div className="text-xs text-gray-600 dark:text-gray-300">
+                                                Last synced: <span className="font-semibold">{connection.health_last_synced_at ? new Date(connection.health_last_synced_at).toLocaleString() : 'Never'}</span>
+                                            </div>
+                                            <div className="text-xs text-gray-600 dark:text-gray-300">
+                                                Metadata sync: <span className="font-semibold uppercase">{connection.metadata_sync_status || 'PENDING'}</span>
+                                            </div>
+                                            <div className="text-xs text-gray-600 dark:text-gray-300">
+                                                Activation: <span className="font-semibold uppercase">{connection.activation_state || 'ACTIVE'}</span>
+                                            </div>
+                                        </div>
+
+                                        {connection.metadata_stale && (
+                                            <Alert variant="warning" className="border-amber-200 dark:border-amber-800">
+                                                Metadata appears stale{connection.metadata_stale_after_hours ? ` (>${connection.metadata_stale_after_hours}h)` : ''}. Run Sync Health to refresh account/phone status.
+                                            </Alert>
+                                        )}
+
+                                        {connection.metadata_last_sync_error && (
+                                            <Alert variant="warning" className="border-amber-200 dark:border-amber-800">
+                                                Last metadata sync error: {connection.metadata_last_sync_error}
+                                            </Alert>
+                                        )}
+
+                                        {connection.activation_last_error && connection.activation_state !== 'active' && (
+                                            <Alert variant="warning" className="border-amber-200 dark:border-amber-800">
+                                                Activation issue: {connection.activation_last_error}
+                                            </Alert>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -557,6 +622,9 @@ export default function ConnectionsEdit({
                                             Webhook Diagnostics
                                         </Button>
                                     </Link>
+                                    <Button type="button" variant="secondary" className="rounded-xl" onClick={runHealthSync}>
+                                        Sync Health
+                                    </Button>
                                 </div>
                                 <div className="flex items-center gap-4">
                                     <Link href={route('app.whatsapp.connections.index', { })}>

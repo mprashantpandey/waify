@@ -7,6 +7,8 @@ use App\Core\Billing\EntitlementService;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Models\PlatformSetting;
 use App\Modules\WhatsApp\Services\ConnectionService;
+use App\Modules\WhatsApp\Services\ConnectionHealthSyncService;
+use App\Modules\WhatsApp\Services\ConnectionLifecycleService;
 use App\Modules\WhatsApp\Services\MetaGraphService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,7 +24,9 @@ class ConnectionController extends Controller
     public function __construct(
         protected ConnectionService $connectionService,
         protected EntitlementService $entitlementService,
-        protected MetaGraphService $metaGraphService
+        protected MetaGraphService $metaGraphService,
+        protected ConnectionHealthSyncService $connectionHealthSyncService,
+        protected ConnectionLifecycleService $connectionLifecycleService
     ) {
     }
 
@@ -32,11 +36,16 @@ class ConnectionController extends Controller
     public function index(Request $request): Response
     {
         $account = $request->attributes->get('account') ?? current_account();
+        $staleAfterHours = (int) config('whatsapp.connection.health_stale_after_hours', 24);
+        $staleCutoff = now()->subHours(max(1, $staleAfterHours));
 
         $connections = WhatsAppConnection::where('account_id', $account->id)
             ->orderBy('created_at', 'desc')
             ->get()
-            ->map(function ($connection) {
+            ->map(function ($connection) use ($staleCutoff, $staleAfterHours) {
+                $lastSyncedAt = $connection->health_last_synced_at;
+                $isStale = !$lastSyncedAt || $lastSyncedAt->lt($staleCutoff);
+
                 return [
                     'id' => $connection->id,
                     'slug' => $connection->slug ?? (string) $connection->id,
@@ -50,6 +59,19 @@ class ConnectionController extends Controller
                     'quiet_hours_timezone' => $connection->quiet_hours_timezone,
                     'webhook_subscribed' => $connection->webhook_subscribed,
                     'webhook_last_received_at' => $connection->webhook_last_received_at?->toIso8601String(),
+                    'quality_rating' => $connection->quality_rating,
+                    'messaging_limit_tier' => $connection->messaging_limit_tier,
+                    'health_state' => $connection->health_state,
+                    'restriction_state' => $connection->restriction_state,
+                    'warning_state' => $connection->warning_state,
+                    'health_last_synced_at' => $connection->health_last_synced_at?->toIso8601String(),
+                    'metadata_sync_status' => $connection->metadata_sync_status ?: ($isStale ? 'stale' : 'fresh'),
+                    'metadata_last_sync_error' => $connection->metadata_last_sync_error,
+                    'metadata_stale' => $isStale,
+                    'metadata_stale_after_hours' => $staleAfterHours,
+                    'activation_state' => $connection->activation_state ?: 'active',
+                    'activation_last_error' => $connection->activation_last_error,
+                    'activation_updated_at' => $connection->activation_updated_at?->toIso8601String(),
                     'webhook_url' => $this->connectionService->getWebhookUrl($connection),
                     'created_at' => $connection->created_at->toIso8601String()];
             });
@@ -149,6 +171,7 @@ class ConnectionController extends Controller
         $phoneNumberId = $validated['phone_number_id'];
         $wabaId = $validated['waba_id'] ?? null;
 
+        $targetConnection = null;
         try {
             $details = $this->metaGraphService->getPhoneNumberDetails($phoneNumberId, $accessToken);
 
@@ -201,6 +224,7 @@ class ConnectionController extends Controller
                 'embedded' => 'Missing Meta OAuth code or access token.']);
         }
 
+        $targetConnection = null;
         try {
             $accessToken = $validated['access_token'] ?? null;
             if (!$accessToken && !empty($validated['code'])) {
@@ -229,6 +253,12 @@ class ConnectionController extends Controller
                 }
 
                 if (!$accessToken && $lastExchangeError) {
+                    if ($this->isRedirectUriMismatchError($lastExchangeError)) {
+                        throw new \RuntimeException(
+                            'Embedded signup could not complete because the OAuth redirect URI did not match exactly. '.
+                            'Use the same redirect URI in Meta App settings and in the signup flow (including trailing slash/query).'
+                        );
+                    }
                     throw $lastExchangeError;
                 }
             }
@@ -265,6 +295,18 @@ class ConnectionController extends Controller
             if (!$wabaId || !$phoneNumberId) {
                 throw new \RuntimeException('Unable to resolve WABA ID and Phone Number ID from Embedded Signup.');
             }
+
+            // Prevent duplicate assets in the same tenant when reconnecting/re-authorizing.
+            $existingByAssets = WhatsAppConnection::query()
+                ->where('account_id', $account->id)
+                ->where(function ($query) use ($phoneNumberId, $wabaId) {
+                    $query->where('phone_number_id', $phoneNumberId);
+                    if (!empty($wabaId)) {
+                        $query->orWhere('waba_id', $wabaId);
+                    }
+                })
+                ->orderByDesc('updated_at')
+                ->first();
 
             // Tech-provider provisioning: assign partner system user and attach partner credit line.
             $this->provisionTechProviderOwnership(
@@ -307,32 +349,69 @@ class ConnectionController extends Controller
             }
 
             $connectionName = $validated['name'] ?: ($businessPhone ? "WhatsApp {$businessPhone}" : 'WhatsApp Connection');
-
-            $existing = WhatsAppConnection::where('account_id', $account->id)
-                ->where('phone_number_id', $phoneNumberId)
-                ->first();
-
-            if ($existing) {
-                $this->connectionService->update($existing, [
+            $targetConnection = $existingByAssets;
+            if ($targetConnection) {
+                $this->connectionLifecycleService->transition($targetConnection, 'provisioning', null, [
+                    'source' => 'embedded_signup_reauth',
+                ]);
+                $this->connectionService->update($targetConnection, [
                     'name' => $connectionName,
                     'waba_id' => $wabaId,
                     'business_phone' => $businessPhone,
                     'access_token' => $effectiveToken,
                     'api_version' => $this->metaGraphService->getApiVersion()]);
-
-                return redirect()->route('app.whatsapp.connections.index')->with('success', 'Connection updated successfully.');
+                $targetConnection->refresh();
+            } else {
+                $targetConnection = $this->connectionService->create($account, [
+                    'name' => $connectionName,
+                    'waba_id' => $wabaId,
+                    'phone_number_id' => $phoneNumberId,
+                    'business_phone' => $businessPhone,
+                    'access_token' => $effectiveToken,
+                    'api_version' => $this->metaGraphService->getApiVersion(),
+                    'activation_state' => 'provisioning',
+                    'activation_updated_at' => now(),
+                    'metadata_sync_status' => 'pending',
+                ]);
             }
 
-            $this->connectionService->create($account, [
-                'name' => $connectionName,
-                'waba_id' => $wabaId,
-                'phone_number_id' => $phoneNumberId,
-                'business_phone' => $businessPhone,
-                'access_token' => $effectiveToken,
-                'api_version' => $this->metaGraphService->getApiVersion()]);
+            try {
+                $snapshot = $this->connectionHealthSyncService->syncConnection($targetConnection, 'embedded_signup');
+                if ($snapshot) {
+                    $this->connectionLifecycleService->transition($targetConnection, 'active', null, [
+                        'source' => 'embedded_signup',
+                        'snapshot_id' => $snapshot->id,
+                    ]);
+                } else {
+                    $this->connectionLifecycleService->transition($targetConnection, 'degraded', null, [
+                        'source' => 'embedded_signup',
+                        'reason' => 'no_snapshot',
+                    ]);
+                }
+            } catch (\Throwable $syncError) {
+                $this->connectionLifecycleService->markMetadataSync($targetConnection, 'error', $syncError->getMessage(), [
+                    'source' => 'embedded_signup',
+                ]);
+                $this->connectionLifecycleService->transition($targetConnection, 'degraded', $syncError->getMessage(), [
+                    'source' => 'embedded_signup',
+                    'phase' => 'metadata_sync',
+                ]);
+            }
 
-            return redirect()->route('app.whatsapp.connections.index')->with('success', 'Connection created successfully.');
+            return redirect()->route('app.whatsapp.connections.index')->with('success', $existingByAssets
+                ? 'Connection re-authorized and synced successfully.'
+                : 'Connection created successfully.');
         } catch (\Throwable $e) {
+            if ($targetConnection instanceof WhatsAppConnection) {
+                $this->connectionLifecycleService->markMetadataSync($targetConnection, 'error', $e->getMessage(), [
+                    'source' => 'embedded_signup',
+                    'phase' => 'store_embedded',
+                ]);
+                $this->connectionLifecycleService->transition($targetConnection, 'failed', $e->getMessage(), [
+                    'source' => 'embedded_signup',
+                    'phase' => 'store_embedded',
+                ]);
+            }
             Log::channel('whatsapp')->error('Embedded signup failed', [
                 'account_id' => $account?->id,
                 'error' => $e->getMessage()]);
@@ -632,6 +711,9 @@ class ConnectionController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
         $connection = $this->resolveConnection($connection, $account);
+        $staleAfterHours = (int) config('whatsapp.connection.health_stale_after_hours', 24);
+        $staleCutoff = now()->subHours(max(1, $staleAfterHours));
+        $metadataStale = !$connection->health_last_synced_at || $connection->health_last_synced_at->lt($staleCutoff);
 
         Gate::authorize('update', $connection);
 
@@ -655,6 +737,22 @@ class ConnectionController extends Controller
                 'webhook_subscribed' => $connection->webhook_subscribed,
                 'webhook_last_received_at' => $connection->webhook_last_received_at?->toIso8601String(),
                 'webhook_last_error' => $connection->webhook_last_error,
+                'quality_rating' => $connection->quality_rating,
+                'messaging_limit_tier' => $connection->messaging_limit_tier,
+                'account_review_status' => $connection->account_review_status,
+                'business_verification_status' => $connection->business_verification_status,
+                'display_name_status' => $connection->display_name_status,
+                'health_state' => $connection->health_state,
+                'restriction_state' => $connection->restriction_state,
+                'warning_state' => $connection->warning_state,
+                'health_last_synced_at' => $connection->health_last_synced_at?->toIso8601String(),
+                'metadata_sync_status' => $connection->metadata_sync_status ?: ($metadataStale ? 'stale' : 'fresh'),
+                'metadata_last_sync_error' => $connection->metadata_last_sync_error,
+                'metadata_stale' => $metadataStale,
+                'metadata_stale_after_hours' => $staleAfterHours,
+                'activation_state' => $connection->activation_state ?: 'active',
+                'activation_last_error' => $connection->activation_last_error,
+                'activation_updated_at' => $connection->activation_updated_at?->toIso8601String(),
                 'throughput_cap_per_minute' => $connection->throughput_cap_per_minute,
                 'quiet_hours_start' => $connection->quiet_hours_start,
                 'quiet_hours_end' => $connection->quiet_hours_end,
@@ -662,6 +760,40 @@ class ConnectionController extends Controller
             'canViewSecrets' => $account->isOwnedBy($request->user()) || 
                                $account->users()->where('user_id', $request->user()->id)->where('role', 'admin')->exists() ||
                                Gate::allows('update', $connection)]);
+    }
+
+    public function syncHealth(Request $request, $connection)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+        $connection = $this->resolveConnection($connection, $account);
+
+        Gate::authorize('update', $connection);
+
+        try {
+            $snapshot = $this->connectionHealthSyncService->syncConnection($connection, 'manual_sync');
+            if (!$snapshot) {
+                $this->connectionLifecycleService->markMetadataSync($connection, 'stale', 'No metadata returned from Meta during manual sync.', [
+                    'source' => 'manual_sync',
+                ]);
+                return redirect()->back()->withErrors([
+                    'error' => 'Unable to sync health right now. Confirm access token and phone number are configured.',
+                ]);
+            }
+
+            return redirect()->back()->with('success', 'Connection health synced successfully.');
+        } catch (\Throwable $e) {
+            Log::channel('whatsapp')->warning('Manual connection health sync failed', [
+                'connection_id' => $connection->id,
+                'error' => $e->getMessage(),
+            ]);
+            $this->connectionLifecycleService->markMetadataSync($connection, 'error', $e->getMessage(), [
+                'source' => 'manual_sync',
+            ]);
+
+            return redirect()->back()->withErrors([
+                'error' => 'Failed to sync connection health: '.$e->getMessage(),
+            ]);
+        }
     }
 
     /**

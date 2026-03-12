@@ -16,6 +16,9 @@ class ConnectionService
         $data['account_id'] = $account->id;
         $data['webhook_verify_token'] = WhatsAppConnection::generateVerifyToken();
         $data['api_version'] = $data['api_version'] ?? config('whatsapp.meta.api_version', 'v21.0');
+        $data['activation_state'] = $data['activation_state'] ?? 'active';
+        $data['activation_updated_at'] = $data['activation_updated_at'] ?? now();
+        $data['metadata_sync_status'] = $data['metadata_sync_status'] ?? 'pending';
         $data = $this->normalizeCampaignSafetySettings($data);
 
         // Encrypt access token if provided

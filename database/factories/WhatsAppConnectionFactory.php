@@ -29,6 +29,9 @@ class WhatsAppConnectionFactory extends Factory
             'webhook_verify_token' => WhatsAppConnection::generateVerifyToken(),
             'webhook_subscribed' => false,
             'is_active' => true,
+            'activation_state' => 'active',
+            'activation_updated_at' => now(),
+            'metadata_sync_status' => 'pending',
         ];
     }
 }

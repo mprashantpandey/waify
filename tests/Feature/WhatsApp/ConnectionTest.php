@@ -6,7 +6,11 @@ use App\Models\User;
 use App\Models\Account;
 use App\Models\Plan;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
+use App\Modules\WhatsApp\Models\WhatsAppConnectionHealthSnapshot;
+use App\Modules\WhatsApp\Services\ConnectionHealthSyncService;
+use App\Modules\WhatsApp\Services\MetaGraphService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Mockery;
 use Tests\TestCase;
 
 class ConnectionTest extends TestCase
@@ -130,5 +134,84 @@ class ConnectionTest extends TestCase
         $connection->refresh();
         $this->assertNotEquals($originalToken, $connection->webhook_verify_token);
         $this->assertFalse($connection->webhook_subscribed);
+    }
+
+    public function test_embedded_signup_reuses_existing_connection_for_same_assets(): void
+    {
+        config([
+            'whatsapp.meta.app_id' => 'app-id',
+            'whatsapp.meta.embedded_signup_config_id' => 'config-id',
+        ]);
+
+        $existing = WhatsAppConnection::factory()->create([
+            'account_id' => $this->account->id,
+            'name' => 'Old Name',
+            'waba_id' => 'waba-1',
+            'phone_number_id' => 'pn-1',
+            'is_active' => true,
+        ]);
+
+        $meta = Mockery::mock(MetaGraphService::class);
+        $meta->shouldReceive('subscribeAppToWaba')->once()->andReturn(['success' => true]);
+        $meta->shouldReceive('getApiVersion')->andReturn('v21.0');
+        $meta->shouldReceive('getPhoneNumberDetails')->once()->andReturn([
+            'display_phone_number' => '+91 99999 00000',
+        ]);
+        $this->instance(MetaGraphService::class, $meta);
+
+        $sync = Mockery::mock(ConnectionHealthSyncService::class);
+        $sync->shouldReceive('syncConnection')->once()->andReturnUsing(function (WhatsAppConnection $connection) {
+            return WhatsAppConnectionHealthSnapshot::create([
+                'account_id' => $connection->account_id,
+                'whatsapp_connection_id' => $connection->id,
+                'source' => 'embedded_signup',
+                'health_state' => 'healthy',
+                'captured_at' => now(),
+            ]);
+        });
+        $this->instance(ConnectionHealthSyncService::class, $sync);
+
+        $response = $this->actingAs($this->user)
+            ->post(route('app.whatsapp.connections.store-embedded', ['account' => $this->account->slug]), [
+                'name' => 'Reauthorized Connection',
+                'waba_id' => 'waba-1',
+                'phone_number_id' => 'pn-1',
+                'access_token' => 'embedded-token',
+            ]);
+
+        $response->assertRedirect(route('app.whatsapp.connections.index'));
+
+        $this->assertSame(1, WhatsAppConnection::where('account_id', $this->account->id)->count());
+        $existing->refresh();
+        $this->assertSame('Reauthorized Connection', $existing->name);
+        $this->assertSame('active', $existing->activation_state);
+        $this->assertSame('pending', $existing->metadata_sync_status);
+    }
+
+    public function test_embedded_signup_redirect_uri_mismatch_returns_clear_error(): void
+    {
+        config([
+            'whatsapp.meta.app_id' => 'app-id',
+            'whatsapp.meta.embedded_signup_config_id' => 'config-id',
+        ]);
+
+        $meta = Mockery::mock(MetaGraphService::class);
+        $meta->shouldReceive('exchangeCodeForToken')
+            ->atLeast()
+            ->once()
+            ->andThrow(new \RuntimeException('Error validating verification code. Please make sure your redirect_uri is identical to the one you used in the OAuth dialog request'));
+        $this->instance(MetaGraphService::class, $meta);
+
+        $response = $this->actingAs($this->user)
+            ->from(route('app.whatsapp.connections.create', ['account' => $this->account->slug]))
+            ->post(route('app.whatsapp.connections.store-embedded', ['account' => $this->account->slug]), [
+                'code' => 'auth-code',
+                'redirect_uri' => 'https://zyptos.com/app/connections/create',
+            ]);
+
+        $response->assertRedirect(route('app.whatsapp.connections.create', ['account' => $this->account->slug]));
+        $response->assertSessionHasErrors([
+            'embedded' => 'Embedded signup could not complete because the OAuth redirect URI did not match exactly. Use the same redirect URI in Meta App settings and in the signup flow (including trailing slash/query).',
+        ]);
     }
 }
