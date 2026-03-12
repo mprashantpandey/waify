@@ -134,6 +134,7 @@ Route::middleware(['auth', 'super.admin'])->prefix('/platform')->name('platform.
     Route::post('/operational-alerts/{event}/acknowledge', [\App\Http\Controllers\Platform\OperationalAlertsController::class, 'acknowledge'])->name('operational-alerts.acknowledge');
     Route::post('/operational-alerts/acknowledge', [\App\Http\Controllers\Platform\OperationalAlertsController::class, 'bulkAcknowledge'])->name('operational-alerts.acknowledge.bulk');
     Route::get('/operational-alerts/export', [\App\Http\Controllers\Platform\OperationalAlertsController::class, 'export'])->name('operational-alerts.export');
+    Route::get('/operational-alerts/diagnostics-bundle', [\App\Http\Controllers\Platform\OperationalAlertsController::class, 'diagnosticsBundle'])->name('operational-alerts.bundle');
     Route::post('/system-health/failed-jobs/retry-all', [\App\Http\Controllers\Platform\SystemHealthController::class, 'retryAllFailedJobs'])->name('system-health.failed-jobs.retry-all');
     Route::post('/system-health/failed-jobs/{id}/retry', [\App\Http\Controllers\Platform\SystemHealthController::class, 'retryFailedJob'])->name('system-health.failed-jobs.retry');
     Route::delete('/system-health/failed-jobs/{id}', [\App\Http\Controllers\Platform\SystemHealthController::class, 'forgetFailedJob'])->name('system-health.failed-jobs.forget');
@@ -143,6 +144,10 @@ Route::middleware(['auth', 'super.admin'])->prefix('/platform')->name('platform.
         ->middleware('feature.enabled:analytics')
         ->name('analytics');
     Route::get('/activity-logs', [\App\Http\Controllers\Platform\ActivityLogController::class, 'index'])->name('activity-logs');
+    Route::get('/activity-logs/export', [\App\Http\Controllers\Platform\ActivityLogController::class, 'export'])->name('activity-logs.export');
+    Route::post('/activity-logs/saved-views', [\App\Http\Controllers\Platform\ActivityLogController::class, 'storeSavedView'])->name('activity-logs.saved-views.store');
+    Route::patch('/activity-logs/saved-views/{savedView}', [\App\Http\Controllers\Platform\ActivityLogController::class, 'updateSavedView'])->name('activity-logs.saved-views.update');
+    Route::delete('/activity-logs/saved-views/{savedView}', [\App\Http\Controllers\Platform\ActivityLogController::class, 'deleteSavedView'])->name('activity-logs.saved-views.delete');
     Route::get('/templates', [\App\Http\Controllers\Platform\TemplateController::class, 'index'])->name('templates.index');
     Route::get('/templates/{template}', [\App\Http\Controllers\Platform\TemplateController::class, 'show'])->name('templates.show');
 });
@@ -226,6 +231,14 @@ Route::middleware(['auth', 'account.resolve', 'account.active', 'account.subscri
     
     // Activity Logs
     Route::get('/activity-logs', [\App\Http\Controllers\ActivityLogController::class, 'index'])->name('activity-logs');
+    Route::get('/activity-logs/export', [\App\Http\Controllers\ActivityLogController::class, 'export'])->name('activity-logs.export');
+    Route::post('/activity-logs/saved-views', [\App\Http\Controllers\ActivityLogController::class, 'storeSavedView'])->name('activity-logs.saved-views.store');
+    Route::patch('/activity-logs/saved-views/{savedView}', [\App\Http\Controllers\ActivityLogController::class, 'updateSavedView'])->name('activity-logs.saved-views.update');
+    Route::delete('/activity-logs/saved-views/{savedView}', [\App\Http\Controllers\ActivityLogController::class, 'deleteSavedView'])->name('activity-logs.saved-views.delete');
+    Route::get('/alerts', [\App\Http\Controllers\OperationalAlertsController::class, 'index'])->name('alerts.index');
+    Route::post('/alerts/{event}/acknowledge', [\App\Http\Controllers\OperationalAlertsController::class, 'acknowledge'])->name('alerts.acknowledge');
+    Route::get('/alerts/export', [\App\Http\Controllers\OperationalAlertsController::class, 'export'])->name('alerts.export');
+    Route::get('/alerts/diagnostics-bundle', [\App\Http\Controllers\OperationalAlertsController::class, 'diagnosticsBundle'])->name('alerts.bundle');
 
     // Core Support Tickets (tenant-facing)
     Route::prefix('/support')->name('support.')->group(function () {
