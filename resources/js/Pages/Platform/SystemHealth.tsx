@@ -129,6 +129,18 @@ interface ProductionReadinessSummary {
     fail: number;
 }
 
+interface MetaReadinessCheck {
+    name: string;
+    status: 'pass' | 'warn' | 'fail';
+    detail: string;
+    meta: Record<string, any>;
+}
+
+interface MetaReadinessResult {
+    summary: ProductionReadinessSummary;
+    checks: MetaReadinessCheck[];
+}
+
 export default function SystemHealth({
     webhook_health,
     connection_details,
@@ -139,7 +151,9 @@ export default function SystemHealth({
     recent_webhook_events,
     connection_health_risks,
     production_readiness,
-    production_readiness_summary}: {
+    production_readiness_summary,
+    meta_readiness,
+    meta_readiness_generated_at}: {
     webhook_health: WebhookHealth;
     connection_details: ConnectionDetail[];
     queue_status: QueueStatus;
@@ -150,6 +164,8 @@ export default function SystemHealth({
     connection_health_risks: ConnectionHealthRiskSummary;
     production_readiness: ProductionReadinessCheck[];
     production_readiness_summary: ProductionReadinessSummary;
+    meta_readiness: MetaReadinessResult;
+    meta_readiness_generated_at?: string | null;
 }) {
     const { auth } = usePage().props as any;
 
@@ -402,6 +418,54 @@ export default function SystemHealth({
                                             {check.status.toUpperCase()}
                                         </Badge>
                                     </div>
+                                </div>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Meta Readiness</CardTitle>
+                        <CardDescription>
+                            WhatsApp/Meta-specific reliability checks from connections, webhooks, templates, queue failures, and pricing snapshots.
+                            {meta_readiness_generated_at ? ` Last generated: ${new Date(meta_readiness_generated_at).toLocaleString()}.` : ''}
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                            <div className="rounded-lg bg-green-50 p-3 dark:bg-green-900/20">
+                                <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Pass</p>
+                                <p className="text-xl font-bold text-green-700 dark:text-green-300">{meta_readiness.summary.pass}</p>
+                            </div>
+                            <div className="rounded-lg bg-yellow-50 p-3 dark:bg-yellow-900/20">
+                                <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Warn</p>
+                                <p className="text-xl font-bold text-yellow-700 dark:text-yellow-300">{meta_readiness.summary.warn}</p>
+                            </div>
+                            <div className="rounded-lg bg-red-50 p-3 dark:bg-red-900/20">
+                                <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Fail</p>
+                                <p className="text-xl font-bold text-red-700 dark:text-red-300">{meta_readiness.summary.fail}</p>
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            {meta_readiness.checks.map((check) => (
+                                <div key={check.name} className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{check.name.replace(/_/g, ' ')}</p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">{check.detail}</p>
+                                        </div>
+                                        <Badge
+                                            variant={check.status === 'pass' ? 'success' : check.status === 'warn' ? 'warning' : 'danger'}
+                                        >
+                                            {check.status.toUpperCase()}
+                                        </Badge>
+                                    </div>
+                                    {check.meta && Object.keys(check.meta).length > 0 && (
+                                        <pre className="mt-2 overflow-x-auto rounded-md bg-gray-50 p-2 text-xs text-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                                            {JSON.stringify(check.meta, null, 2)}
+                                        </pre>
+                                    )}
                                 </div>
                             ))}
                         </div>

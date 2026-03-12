@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Platform;
 
 use App\Http\Controllers\Controller;
+use App\Services\Operations\MetaReadinessCheckService;
 use App\Modules\WhatsApp\Jobs\ProcessWebhookEventJob;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppConnectionHealthSnapshot;
@@ -228,6 +229,7 @@ class SystemHealthController extends Controller
             'warn' => collect($productionReadiness)->where('status', 'warn')->count(),
             'fail' => collect($productionReadiness)->where('status', 'fail')->count(),
         ];
+        $metaReadiness = app(MetaReadinessCheckService::class)->run();
 
         return Inertia::render('Platform/SystemHealth', [
             'webhook_health' => $webhookHealth,
@@ -240,6 +242,8 @@ class SystemHealthController extends Controller
             'connection_health_risks' => $healthRiskSummary,
             'production_readiness' => $productionReadiness,
             'production_readiness_summary' => $productionReadinessSummary,
+            'meta_readiness' => $metaReadiness,
+            'meta_readiness_generated_at' => now()->toIso8601String(),
         ]);
     }
 
