@@ -3,6 +3,7 @@
 namespace App\Modules\WhatsApp\Services;
 
 use App\Models\Account;
+use App\Modules\WhatsApp\Exceptions\WhatsAppApiException;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppOutboundMessageJob;
 use Illuminate\Support\Facades\Cache;
@@ -59,16 +60,27 @@ class OutboundMessagePipelineService
             'error_message' => null,
             'provider_error_payload' => null,
             'failed_at' => null,
+            'is_retryable' => false,
+            'next_retry_at' => null,
         ]);
     }
 
-    public function markFailed(WhatsAppOutboundMessageJob $job, string $errorMessage, ?array $providerErrorPayload = null): void
+    public function markFailed(
+        WhatsAppOutboundMessageJob $job,
+        string $errorMessage,
+        ?array $providerErrorPayload = null,
+        ?bool $isRetryable = null,
+        ?int $retryAfterSeconds = null
+    ): void
     {
+        $retryAfterSeconds = $retryAfterSeconds !== null ? max(0, $retryAfterSeconds) : null;
         $job->update([
             'status' => 'failed',
             'error_message' => mb_substr($errorMessage, 0, 2000),
             'provider_error_payload' => $providerErrorPayload,
             'failed_at' => now(),
+            'is_retryable' => (bool) $isRetryable,
+            'next_retry_at' => $isRetryable && $retryAfterSeconds !== null ? now()->addSeconds($retryAfterSeconds) : null,
         ]);
     }
 
@@ -160,6 +172,62 @@ class OutboundMessagePipelineService
         }
     }
 
+    public function assertSendPrerequisites(WhatsAppConnection $connection, string $toWaId, string $messageType): void
+    {
+        if (!(bool) $connection->is_active) {
+            throw new \RuntimeException('Connection is inactive. Reconnect the WhatsApp account and retry.');
+        }
+
+        if (trim((string) $connection->phone_number_id) === '') {
+            throw new \RuntimeException('Connection is missing phone number ID.');
+        }
+
+        if (trim((string) $connection->access_token) === '') {
+            throw new \RuntimeException('Connection is missing access token.');
+        }
+
+        $normalizedToWaId = preg_replace('/\D+/', '', $toWaId) ?? '';
+        if ($normalizedToWaId === '' || strlen($normalizedToWaId) < 6 || strlen($normalizedToWaId) > 20) {
+            throw new \RuntimeException("Invalid recipient format for {$messageType} send.");
+        }
+    }
+
+    /**
+     * @return array{retryable: bool, retry_after_seconds: int|null}
+     */
+    public function classifyFailure(\Throwable $exception): array
+    {
+        $message = strtolower($exception->getMessage());
+        $code = (int) $exception->getCode();
+
+        $rateLimited = $code === 4 || $code === 429 || str_contains($message, 'rate limit') || str_contains($message, 'throttle');
+        $temporary = $rateLimited
+            || str_contains($message, 'timeout')
+            || str_contains($message, 'temporar')
+            || str_contains($message, 'connection reset')
+            || str_contains($message, 'service unavailable')
+            || str_contains($message, 'gateway timeout');
+
+        if ($exception instanceof WhatsAppApiException) {
+            $response = method_exists($exception, 'getResponseData')
+                ? $exception->getResponseData()
+                : (method_exists($exception, 'getResponseBody') ? $exception->getResponseBody() : []);
+            $providerCode = (int) ($response['error']['code'] ?? 0);
+            $subCode = (int) ($response['error']['error_subcode'] ?? 0);
+            if (in_array($providerCode, [1, 2, 4, 17, 32, 613, 80007], true)) {
+                $temporary = true;
+            }
+            if (in_array($providerCode, [131026, 131047, 132000, 132001, 132012], true) || in_array($subCode, [2494073, 36008], true)) {
+                $temporary = false;
+            }
+        }
+
+        return [
+            'retryable' => $temporary,
+            'retry_after_seconds' => $temporary ? ($rateLimited ? 120 : 45) : null,
+        ];
+    }
+
     public function buildIdempotencyKey(
         int $accountId,
         int $conversationId,
@@ -177,9 +245,11 @@ class OutboundMessagePipelineService
     public function safeSerializeProviderError(\Throwable $exception): array
     {
         $payload = ['message' => $exception->getMessage()];
-        if (method_exists($exception, 'getResponseData')) {
+        if (method_exists($exception, 'getResponseData') || method_exists($exception, 'getResponseBody')) {
             try {
-                $responseData = $exception->getResponseData();
+                $responseData = method_exists($exception, 'getResponseData')
+                    ? $exception->getResponseData()
+                    : $exception->getResponseBody();
                 if (is_array($responseData)) {
                     $payload['provider'] = $responseData;
                 }
@@ -191,4 +261,3 @@ class OutboundMessagePipelineService
         return $payload;
     }
 }
-

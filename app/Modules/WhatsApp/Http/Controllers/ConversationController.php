@@ -20,9 +20,11 @@ use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use App\Modules\WhatsApp\Models\WhatsAppTemplateSend;
 use App\Modules\WhatsApp\Services\TemplateComposer;
+use App\Modules\WhatsApp\Services\ContactComplianceService;
 use App\Modules\WhatsApp\Services\CustomerCareWindowService;
 use App\Modules\WhatsApp\Services\InboxMetricsService;
 use App\Modules\WhatsApp\Services\OutboundMessagePipelineService;
+use App\Modules\WhatsApp\Services\TemplateLifecycleService;
 use App\Modules\WhatsApp\Services\TemplateManagementService;
 use App\Modules\WhatsApp\Services\WhatsAppClient;
 use App\Services\AI\ConversationAssistantService;
@@ -47,6 +49,8 @@ class ConversationController extends Controller
         protected CustomerCareWindowService $customerCareWindowService,
         protected InboxMetricsService $inboxMetricsService,
         protected TemplateManagementService $templateManagementService,
+        protected TemplateLifecycleService $templateLifecycleService,
+        protected ContactComplianceService $contactComplianceService,
         protected OutboundMessagePipelineService $outboundPipeline,
         protected EntitlementService $entitlementService,
         protected UsageService $usageService,
@@ -886,6 +890,7 @@ class ConversationController extends Controller
         $messageBody = trim((string) ($validated['message'] ?? ''));
         $clientRequestId = $this->normalizeClientRequestId($validated['client_request_id'] ?? null);
         $conversation->load(['connection', 'contact']);
+        $this->outboundPipeline->assertSendPrerequisites($conversation->connection, (string) $conversation->contact->wa_id, 'text');
         $windowGuard = $this->ensureCustomerCareWindowOpen($conversation, $respondError);
         if ($windowGuard !== null) {
             return $windowGuard;
@@ -994,10 +999,13 @@ class ConversationController extends Controller
                 'status' => 'failed',
                 'error_message' => $e->getMessage()]);
             if ($outboundJob) {
+                $failure = $this->outboundPipeline->classifyFailure($e);
                 $this->outboundPipeline->markFailed(
                     $outboundJob,
                     $e->getMessage(),
-                    $this->outboundPipeline->safeSerializeProviderError($e)
+                    $this->outboundPipeline->safeSerializeProviderError($e),
+                    $failure['retryable'],
+                    $failure['retry_after_seconds']
                 );
                 $outboundJob->update(['whatsapp_message_id' => $message->id]);
             }
@@ -1021,7 +1029,7 @@ class ConversationController extends Controller
                 );
             }
 
-            return $respondError('Failed to send message: ' . $e->getMessage());
+            return $respondError('Failed to send message.', $e->getMessage());
         }
     }
 
@@ -1061,29 +1069,44 @@ class ConversationController extends Controller
 
         $template = WhatsAppTemplate::where('account_id', $account->id)
             ->where('whatsapp_connection_id', $conversation->whatsapp_connection_id)
-            ->whereRaw('LOWER(TRIM(status)) = ?', ['approved'])
             ->where(function ($query) {
                 $query->where('is_archived', false)
                     ->orWhereNull('is_archived');
             })
             ->findOrFail($validated['template_id']);
 
-        if (empty($template->meta_template_id)) {
-            return $respondError('Template is missing Meta template ID. Sync templates from Meta and try again.');
+        $conversationContact = $conversation->contact ?: WhatsAppContact::find($conversation->whatsapp_contact_id);
+        if ($this->contactComplianceService->isSuppressed($conversationContact)) {
+            return $respondError('This contact is suppressed (opted out/blocked/do-not-contact).');
+        }
+
+        $sendability = $this->templateLifecycleService->evaluateSendability($template);
+        if (!$sendability['ok']) {
+            return $respondError($sendability['reason'] ?? 'Template is not sendable.');
         }
 
         // Re-validate live status from Meta to avoid stale local status sending outdated versions.
         try {
             $statusData = $this->templateManagementService->getTemplateStatus($conversation->connection, (string) $template->meta_template_id);
-            $liveStatus = strtolower(trim((string) ($statusData['status'] ?? $template->status ?? '')));
+            $liveStatus = $this->templateLifecycleService->normalizeStatus((string) ($statusData['status'] ?? $template->status ?? ''));
             $liveName = strtolower(trim((string) ($statusData['name'] ?? '')));
             $localName = strtolower(trim((string) $template->name));
             $liveLanguage = strtolower(trim((string) ($statusData['language'] ?? '')));
             $localLanguage = strtolower(trim((string) $template->language));
+            $rejectionReason = $statusData['rejected_reason'] ?? $statusData['rejection_reason'] ?? null;
             $template->update([
                 'status' => $liveStatus ?: $template->status,
+                'remote_status' => $liveStatus ?: $template->remote_status,
                 'last_synced_at' => now(),
-                'last_meta_error' => $statusData['rejected_reason'] ?? $statusData['rejection_reason'] ?? null,
+                'last_meta_sync_at' => now(),
+                'last_meta_error' => $rejectionReason,
+                'meta_rejection_reason' => $rejectionReason,
+                'sync_state' => $this->templateLifecycleService->computeSyncState(
+                    $liveStatus ?: (string) $template->status,
+                    now(),
+                    (bool) ($template->is_remote_deleted ?? false),
+                    $rejectionReason
+                ),
             ]);
 
             if ($liveName !== '' && $liveName !== $localName) {
@@ -1094,7 +1117,7 @@ class ConversationController extends Controller
                 return $respondError('Template language mismatch detected on Meta. Please re-sync templates and try again.');
             }
 
-            if (!in_array($liveStatus, ['approved', 'active'], true)) {
+            if (!$this->templateLifecycleService->isSendableStatus($liveStatus)) {
                 return $respondError('Template is not approved on Meta yet (current status: '.$liveStatus.').');
             }
 
@@ -1173,6 +1196,7 @@ class ConversationController extends Controller
         $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
 
         $conversation->load(['connection', 'contact']);
+        $this->outboundPipeline->assertSendPrerequisites($conversation->connection, (string) $conversation->contact->wa_id, 'template');
 
         try {
             DB::beginTransaction();
@@ -1265,10 +1289,13 @@ class ConversationController extends Controller
             }
 
             if (isset($outboundJob) && $outboundJob) {
+                $failure = $this->outboundPipeline->classifyFailure($e);
                 $this->outboundPipeline->markFailed(
                     $outboundJob,
                     $e->getMessage(),
-                    $this->outboundPipeline->safeSerializeProviderError($e)
+                    $this->outboundPipeline->safeSerializeProviderError($e),
+                    $failure['retryable'],
+                    $failure['retry_after_seconds']
                 );
             }
 
@@ -1322,6 +1349,7 @@ class ConversationController extends Controller
             'attachment' => $mimeRules[$validated['type']] ?? 'file']);
 
         $conversation->load(['connection', 'contact']);
+        $this->outboundPipeline->assertSendPrerequisites($conversation->connection, (string) $conversation->contact->wa_id, 'media');
         $windowGuard = $this->ensureCustomerCareWindowOpen($conversation, $respondError);
         if ($windowGuard !== null) {
             return $windowGuard;
@@ -1349,6 +1377,32 @@ class ConversationController extends Controller
             return $respondSuccess('Duplicate send request ignored. Message is already being processed.');
         }
 
+        $this->outboundPipeline->assertRateLimits($account, $conversation->connection);
+        $pipelineIdempotencyKey = $this->outboundPipeline->buildIdempotencyKey(
+            (int) $account->id,
+            (int) $conversation->id,
+            'media',
+            $clientRequestId,
+            $mediaFingerprint
+        );
+        $outboundJob = $this->outboundPipeline->begin([
+            'account_id' => $account->id,
+            'whatsapp_connection_id' => $conversation->whatsapp_connection_id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'message_type' => 'media',
+            'to_wa_id' => $conversation->contact->wa_id,
+            'client_request_id' => $clientRequestId,
+            'idempotency_key' => $pipelineIdempotencyKey,
+            'request_payload' => [
+                'type' => $type,
+                'caption' => $caption,
+                'filename' => $filename,
+            ],
+        ]);
+        if ($outboundJob) {
+            $this->outboundPipeline->markValidating($outboundJob);
+        }
+
         $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
 
         $path = $file->store('whatsapp-media', 'public');
@@ -1371,6 +1425,9 @@ class ConversationController extends Controller
         event(new MessageCreated($message));
 
         try {
+            if ($outboundJob) {
+                $this->outboundPipeline->markSending($outboundJob);
+            }
             $response = $this->whatsappClient->sendMediaMessage(
                 $conversation->connection,
                 $conversation->contact->wa_id,
@@ -1386,6 +1443,10 @@ class ConversationController extends Controller
                 'status' => 'sent',
                 'sent_at' => now(),
                 'payload' => array_merge($message->payload ?? [], ['response' => $response])]);
+            if ($outboundJob) {
+                $this->outboundPipeline->markSentToProvider($outboundJob, $metaMessageId, $response);
+                $outboundJob->update(['whatsapp_message_id' => $message->id]);
+            }
 
             $this->usageService->incrementMessages($account, 1);
 
@@ -1404,8 +1465,19 @@ class ConversationController extends Controller
                 'status' => 'failed',
                 'error_message' => $e->getMessage()]);
             event(new MessageUpdated($message));
+            if (isset($outboundJob) && $outboundJob) {
+                $failure = $this->outboundPipeline->classifyFailure($e);
+                $this->outboundPipeline->markFailed(
+                    $outboundJob,
+                    $e->getMessage(),
+                    $this->outboundPipeline->safeSerializeProviderError($e),
+                    $failure['retryable'],
+                    $failure['retry_after_seconds']
+                );
+                $outboundJob->update(['whatsapp_message_id' => $message->id]);
+            }
 
-            return $respondError('Failed to send media. Please try again.');
+            return $respondError('Failed to send media.', $e->getMessage());
         }
     }
 
@@ -1447,6 +1519,7 @@ class ConversationController extends Controller
         ]);
 
         $conversation->load(['connection', 'contact']);
+        $this->outboundPipeline->assertSendPrerequisites($conversation->connection, (string) $conversation->contact->wa_id, 'location');
         $windowGuard = $this->ensureCustomerCareWindowOpen($conversation, $respondError);
         if ($windowGuard !== null) {
             return $windowGuard;
@@ -1471,6 +1544,33 @@ class ConversationController extends Controller
             return $respondSuccess('Duplicate send request ignored. Message is already being processed.');
         }
 
+        $this->outboundPipeline->assertRateLimits($account, $conversation->connection);
+        $pipelineIdempotencyKey = $this->outboundPipeline->buildIdempotencyKey(
+            (int) $account->id,
+            (int) $conversation->id,
+            'location',
+            $clientRequestId,
+            $locationFingerprint
+        );
+        $outboundJob = $this->outboundPipeline->begin([
+            'account_id' => $account->id,
+            'whatsapp_connection_id' => $conversation->whatsapp_connection_id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'message_type' => 'location',
+            'to_wa_id' => $conversation->contact->wa_id,
+            'client_request_id' => $clientRequestId,
+            'idempotency_key' => $pipelineIdempotencyKey,
+            'request_payload' => [
+                'latitude' => $validated['latitude'],
+                'longitude' => $validated['longitude'],
+                'name' => $validated['name'] ?? null,
+                'address' => $validated['address'] ?? null,
+            ],
+        ]);
+        if ($outboundJob) {
+            $this->outboundPipeline->markValidating($outboundJob);
+        }
+
         $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
 
         $message = WhatsAppMessage::lockForUpdate()->create([
@@ -1490,6 +1590,9 @@ class ConversationController extends Controller
         event(new MessageCreated($message));
 
         try {
+            if ($outboundJob) {
+                $this->outboundPipeline->markSending($outboundJob);
+            }
             $response = $this->whatsappClient->sendLocationMessage(
                 $conversation->connection,
                 $conversation->contact->wa_id,
@@ -1506,6 +1609,10 @@ class ConversationController extends Controller
                 'status' => 'sent',
                 'sent_at' => now(),
                 'payload' => array_merge($message->payload ?? [], ['response' => $response])]);
+            if ($outboundJob) {
+                $this->outboundPipeline->markSentToProvider($outboundJob, $metaMessageId, $response);
+                $outboundJob->update(['whatsapp_message_id' => $message->id]);
+            }
 
             $this->usageService->incrementMessages($account, 1);
 
@@ -1524,8 +1631,19 @@ class ConversationController extends Controller
                 'status' => 'failed',
                 'error_message' => $e->getMessage()]);
             event(new MessageUpdated($message));
+            if (isset($outboundJob) && $outboundJob) {
+                $failure = $this->outboundPipeline->classifyFailure($e);
+                $this->outboundPipeline->markFailed(
+                    $outboundJob,
+                    $e->getMessage(),
+                    $this->outboundPipeline->safeSerializeProviderError($e),
+                    $failure['retryable'],
+                    $failure['retry_after_seconds']
+                );
+                $outboundJob->update(['whatsapp_message_id' => $message->id]);
+            }
 
-            return $respondError('Failed to send location. Please try again.');
+            return $respondError('Failed to send location.', $e->getMessage());
         }
     }
 
@@ -1576,6 +1694,7 @@ class ConversationController extends Controller
         }
 
         $conversation->load(['connection', 'contact']);
+        $this->outboundPipeline->assertSendPrerequisites($conversation->connection, (string) $conversation->contact->wa_id, 'list');
         $windowGuard = $this->ensureCustomerCareWindowOpen($conversation, $respondError);
         if ($windowGuard !== null) {
             return $windowGuard;
@@ -1595,6 +1714,31 @@ class ConversationController extends Controller
             $listFingerprint
         )) {
             return $respondSuccess('Duplicate send request ignored. Message is already being processed.');
+        }
+
+        $this->outboundPipeline->assertRateLimits($account, $conversation->connection);
+        $pipelineIdempotencyKey = $this->outboundPipeline->buildIdempotencyKey(
+            (int) $account->id,
+            (int) $conversation->id,
+            'list',
+            $clientRequestId,
+            $listFingerprint
+        );
+        $outboundJob = $this->outboundPipeline->begin([
+            'account_id' => $account->id,
+            'whatsapp_connection_id' => $conversation->whatsapp_connection_id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'message_type' => 'list',
+            'to_wa_id' => $conversation->contact->wa_id,
+            'client_request_id' => $clientRequestId,
+            'idempotency_key' => $pipelineIdempotencyKey,
+            'request_payload' => [
+                'list_id' => $list->id,
+                'list_name' => $list->name,
+            ],
+        ]);
+        if ($outboundJob) {
+            $this->outboundPipeline->markValidating($outboundJob);
         }
 
         $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
@@ -1618,6 +1762,9 @@ class ConversationController extends Controller
         event(new MessageCreated($message));
 
         try {
+            if ($outboundJob) {
+                $this->outboundPipeline->markSending($outboundJob);
+            }
             $response = $this->whatsappClient->sendListMessage(
                 $conversation->connection,
                 $conversation->contact->wa_id,
@@ -1634,6 +1781,10 @@ class ConversationController extends Controller
                 'status' => 'sent',
                 'sent_at' => now(),
                 'payload' => array_merge($message->payload ?? [], ['response' => $response])]);
+            if ($outboundJob) {
+                $this->outboundPipeline->markSentToProvider($outboundJob, $metaMessageId, $response);
+                $outboundJob->update(['whatsapp_message_id' => $message->id]);
+            }
 
             $this->usageService->incrementMessages($account, 1);
 
@@ -1652,6 +1803,17 @@ class ConversationController extends Controller
                 'status' => 'failed',
                 'error_message' => $e->getMessage()]);
             event(new MessageUpdated($message));
+            if (isset($outboundJob) && $outboundJob) {
+                $failure = $this->outboundPipeline->classifyFailure($e);
+                $this->outboundPipeline->markFailed(
+                    $outboundJob,
+                    $e->getMessage(),
+                    $this->outboundPipeline->safeSerializeProviderError($e),
+                    $failure['retryable'],
+                    $failure['retry_after_seconds']
+                );
+                $outboundJob->update(['whatsapp_message_id' => $message->id]);
+            }
 
             return $respondError('Failed to send list: ' . $e->getMessage());
         }
@@ -1700,6 +1862,7 @@ class ConversationController extends Controller
         ]);
 
         $conversation->load(['connection', 'contact']);
+        $this->outboundPipeline->assertSendPrerequisites($conversation->connection, (string) $conversation->contact->wa_id, 'buttons');
         $windowGuard = $this->ensureCustomerCareWindowOpen($conversation, $respondError);
         if ($windowGuard !== null) {
             return $windowGuard;
@@ -1724,6 +1887,33 @@ class ConversationController extends Controller
             return $respondSuccess('Duplicate send request ignored. Message is already being processed.');
         }
 
+        $this->outboundPipeline->assertRateLimits($account, $conversation->connection);
+        $pipelineIdempotencyKey = $this->outboundPipeline->buildIdempotencyKey(
+            (int) $account->id,
+            (int) $conversation->id,
+            'buttons',
+            $clientRequestId,
+            $buttonsFingerprint
+        );
+        $outboundJob = $this->outboundPipeline->begin([
+            'account_id' => $account->id,
+            'whatsapp_connection_id' => $conversation->whatsapp_connection_id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'message_type' => 'buttons',
+            'to_wa_id' => $conversation->contact->wa_id,
+            'client_request_id' => $clientRequestId,
+            'idempotency_key' => $pipelineIdempotencyKey,
+            'request_payload' => [
+                'body_text' => $validated['body_text'],
+                'buttons' => $validated['buttons'],
+                'header_text' => $validated['header_text'] ?? null,
+                'footer_text' => $validated['footer_text'] ?? null,
+            ],
+        ]);
+        if ($outboundJob) {
+            $this->outboundPipeline->markValidating($outboundJob);
+        }
+
         $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
 
         $message = WhatsAppMessage::lockForUpdate()->create([
@@ -1744,6 +1934,9 @@ class ConversationController extends Controller
         event(new MessageCreated($message));
 
         try {
+            if ($outboundJob) {
+                $this->outboundPipeline->markSending($outboundJob);
+            }
             $response = $this->whatsappClient->sendInteractiveButtons(
                 $conversation->connection,
                 $conversation->contact->wa_id,
@@ -1759,6 +1952,10 @@ class ConversationController extends Controller
                 'status' => 'sent',
                 'sent_at' => now(),
                 'payload' => array_merge($message->payload ?? [], ['response' => $response])]);
+            if ($outboundJob) {
+                $this->outboundPipeline->markSentToProvider($outboundJob, $metaMessageId, $response);
+                $outboundJob->update(['whatsapp_message_id' => $message->id]);
+            }
 
             $this->usageService->incrementMessages($account, 1);
 
@@ -1777,6 +1974,17 @@ class ConversationController extends Controller
                 'status' => 'failed',
                 'error_message' => $e->getMessage()]);
             event(new MessageUpdated($message));
+            if (isset($outboundJob) && $outboundJob) {
+                $failure = $this->outboundPipeline->classifyFailure($e);
+                $this->outboundPipeline->markFailed(
+                    $outboundJob,
+                    $e->getMessage(),
+                    $this->outboundPipeline->safeSerializeProviderError($e),
+                    $failure['retryable'],
+                    $failure['retry_after_seconds']
+                );
+                $outboundJob->update(['whatsapp_message_id' => $message->id]);
+            }
 
             return $respondError('Failed to send interactive buttons: ' . $e->getMessage());
         }

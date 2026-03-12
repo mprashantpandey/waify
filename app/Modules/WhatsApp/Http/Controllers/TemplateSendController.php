@@ -14,6 +14,9 @@ use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use App\Modules\WhatsApp\Models\WhatsAppTemplateSend;
 use App\Modules\WhatsApp\Services\TemplateComposer;
+use App\Modules\WhatsApp\Services\ContactComplianceService;
+use App\Modules\WhatsApp\Services\OutboundMessagePipelineService;
+use App\Modules\WhatsApp\Services\TemplateLifecycleService;
 use App\Modules\WhatsApp\Services\TemplateManagementService;
 use App\Modules\WhatsApp\Services\WhatsAppClient;
 use Illuminate\Http\Request;
@@ -25,6 +28,9 @@ class TemplateSendController extends Controller
         protected TemplateComposer $composer,
         protected WhatsAppClient $whatsappClient,
         protected TemplateManagementService $templateManagementService,
+        protected TemplateLifecycleService $templateLifecycleService,
+        protected ContactComplianceService $contactComplianceService,
+        protected OutboundMessagePipelineService $outboundPipeline,
         protected EntitlementService $entitlementService,
         protected UsageService $usageService
     ) {
@@ -150,10 +156,23 @@ class TemplateSendController extends Controller
         $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
         $this->entitlementService->assertWithinLimit($account, 'template_sends_monthly', 1);
 
-        $templateStatus = strtoupper((string) ($template->status ?? ''));
-        if ($templateStatus !== '' && !in_array($templateStatus, ['APPROVED', 'ACTIVE'], true)) {
+        $sendability = $this->templateLifecycleService->evaluateSendability($template);
+        if (!$sendability['ok']) {
             return redirect()->back()->withErrors([
-                'template' => 'Only approved templates can be sent.',
+                'template' => $sendability['reason'] ?? 'Template is not sendable.',
+            ]);
+        }
+
+        // Check suppression early so we do not call Meta status APIs for blocked recipients.
+        $basicRecipient = $request->validate([
+            'to_wa_id' => 'required|string',
+        ]);
+        $targetContact = WhatsAppContact::where('account_id', $account->id)
+            ->where('wa_id', $basicRecipient['to_wa_id'])
+            ->first();
+        if ($this->contactComplianceService->isSuppressed($targetContact)) {
+            return redirect()->back()->withErrors([
+                'to_wa_id' => 'This contact is suppressed (opted out/blocked/do-not-contact).',
             ]);
         }
 
@@ -162,15 +181,25 @@ class TemplateSendController extends Controller
         if (!empty($template->meta_template_id)) {
             try {
                 $statusData = $this->templateManagementService->getTemplateStatus($template->connection, (string) $template->meta_template_id);
-                $liveStatus = strtolower(trim((string) ($statusData['status'] ?? $template->status ?? '')));
+                $liveStatus = $this->templateLifecycleService->normalizeStatus((string) ($statusData['status'] ?? $template->status ?? ''));
                 $liveName = strtolower(trim((string) ($statusData['name'] ?? '')));
                 $localName = strtolower(trim((string) $template->name));
                 $liveLanguage = strtolower(trim((string) ($statusData['language'] ?? '')));
                 $localLanguage = strtolower(trim((string) $template->language));
+                $rejectionReason = $statusData['rejected_reason'] ?? $statusData['rejection_reason'] ?? null;
                 $template->update([
                     'status' => $liveStatus ?: $template->status,
+                    'remote_status' => $liveStatus ?: $template->remote_status,
                     'last_synced_at' => now(),
-                    'last_meta_error' => $statusData['rejected_reason'] ?? $statusData['rejection_reason'] ?? null,
+                    'last_meta_sync_at' => now(),
+                    'last_meta_error' => $rejectionReason,
+                    'meta_rejection_reason' => $rejectionReason,
+                    'sync_state' => $this->templateLifecycleService->computeSyncState(
+                        $liveStatus ?: (string) $template->status,
+                        now(),
+                        (bool) ($template->is_remote_deleted ?? false),
+                        $rejectionReason
+                    ),
                 ]);
 
                 if ($liveName !== '' && $liveName !== $localName) {
@@ -185,7 +214,7 @@ class TemplateSendController extends Controller
                     ]);
                 }
 
-                if (!in_array($liveStatus, ['approved', 'active'], true)) {
+                if (!$this->templateLifecycleService->isSendableStatus($liveStatus)) {
                     return redirect()->back()->withErrors([
                         'template' => 'Template is not approved on Meta yet (current status: '.$liveStatus.').',
                     ]);
@@ -231,11 +260,13 @@ class TemplateSendController extends Controller
             'variables' => 'sometimes|array',
             'variables.*' => 'nullable|string|max:1024',
             'header_media_url' => 'nullable|url|max:2048',
+            'client_request_id' => 'nullable|string|max:120',
         ]);
 
         // Validate variables count
         $requiredVars = $this->composer->extractRequiredVariables($template);
         $variables = $this->normalizeTemplateVariables($validated['variables'] ?? []);
+        $clientRequestId = $this->normalizeClientRequestId($validated['client_request_id'] ?? null);
 
         $nonEmptyCount = count(array_filter($variables, static fn (string $value) => $value !== ''));
         if ($nonEmptyCount < $requiredVars['total']) {
@@ -245,6 +276,40 @@ class TemplateSendController extends Controller
 
         try {
             DB::beginTransaction();
+
+            $this->outboundPipeline->assertSendPrerequisites($template->connection, (string) $validated['to_wa_id'], 'template');
+            $this->outboundPipeline->assertRateLimits($account, $template->connection);
+
+            $templateFingerprint = hash('sha256', implode('|', [
+                'template',
+                (string) $template->id,
+                (string) $validated['to_wa_id'],
+                json_encode($variables, JSON_UNESCAPED_UNICODE) ?: '',
+            ]));
+            $pipelineIdempotencyKey = $this->outboundPipeline->buildIdempotencyKey(
+                (int) $account->id,
+                0,
+                'template',
+                $clientRequestId,
+                $templateFingerprint
+            );
+            $outboundJob = $this->outboundPipeline->begin([
+                'account_id' => $account->id,
+                'whatsapp_connection_id' => $template->whatsapp_connection_id,
+                'message_type' => 'template',
+                'to_wa_id' => $validated['to_wa_id'],
+                'client_request_id' => $clientRequestId,
+                'idempotency_key' => $pipelineIdempotencyKey,
+                'request_payload' => [
+                    'template_id' => $template->id,
+                    'template_name' => $template->name,
+                    'language' => $template->language,
+                    'variables' => $variables,
+                ],
+            ]);
+            if ($outboundJob) {
+                $this->outboundPipeline->markValidating($outboundJob);
+            }
 
             // Prepare payload
             $payload = $this->composer->preparePayload(
@@ -281,6 +346,13 @@ class TemplateSendController extends Controller
             
             // Broadcast optimistic message created
             event(new MessageCreated($message));
+            if ($outboundJob) {
+                $outboundJob->update([
+                    'whatsapp_conversation_id' => $conversation->id,
+                    'whatsapp_message_id' => $message->id,
+                ]);
+                $this->outboundPipeline->markSending($outboundJob);
+            }
 
             // Send via WhatsApp API
             $response = $this->whatsappClient->sendTemplateMessage(
@@ -297,6 +369,9 @@ class TemplateSendController extends Controller
                 'meta_message_id' => $metaMessageId,
                 'status' => 'sent',
                 'sent_at' => now()]);
+            if ($outboundJob) {
+                $this->outboundPipeline->markSentToProvider($outboundJob, $metaMessageId, $response);
+            }
 
             // Update template send
             $templateSend->update([
@@ -335,6 +410,16 @@ class TemplateSendController extends Controller
                 $templateSend->update([
                     'status' => 'failed',
                     'error_message' => $e->getMessage()]);
+            }
+            if (isset($outboundJob) && $outboundJob) {
+                $failure = $this->outboundPipeline->classifyFailure($e);
+                $this->outboundPipeline->markFailed(
+                    $outboundJob,
+                    $e->getMessage(),
+                    $this->outboundPipeline->safeSerializeProviderError($e),
+                    $failure['retryable'],
+                    $failure['retry_after_seconds']
+                );
             }
 
             return redirect()->back()->withErrors([
@@ -385,5 +470,23 @@ class TemplateSendController extends Controller
             static fn ($value) => is_scalar($value) ? trim((string) $value) : '',
             $variables
         ));
+    }
+
+    private function normalizeClientRequestId(mixed $raw): ?string
+    {
+        if (!is_scalar($raw)) {
+            return null;
+        }
+
+        $value = trim((string) $raw);
+        if ($value === '') {
+            return null;
+        }
+
+        if (!preg_match('/^[A-Za-z0-9:_\-]{8,120}$/', $value)) {
+            return null;
+        }
+
+        return $value;
     }
 }

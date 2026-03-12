@@ -35,6 +35,8 @@ class WhatsAppOutboundMessageJob extends Model
         'provider_response',
         'provider_error_payload',
         'error_message',
+        'is_retryable',
+        'next_retry_at',
     ];
 
     protected function casts(): array
@@ -43,6 +45,7 @@ class WhatsAppOutboundMessageJob extends Model
             'request_payload' => 'array',
             'provider_response' => 'array',
             'provider_error_payload' => 'array',
+            'is_retryable' => 'boolean',
             'queued_at' => 'datetime',
             'validated_at' => 'datetime',
             'sending_at' => 'datetime',
@@ -50,6 +53,7 @@ class WhatsAppOutboundMessageJob extends Model
             'delivered_at' => 'datetime',
             'read_at' => 'datetime',
             'failed_at' => 'datetime',
+            'next_retry_at' => 'datetime',
         ];
     }
 
@@ -68,4 +72,3 @@ class WhatsAppOutboundMessageJob extends Model
         return $this->belongsTo(WhatsAppMessage::class, 'whatsapp_message_id');
     }
 }
-

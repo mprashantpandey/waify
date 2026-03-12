@@ -6,6 +6,7 @@ use App\Core\Billing\PlanResolver;
 use App\Core\Billing\UsageService;
 use App\Models\PlatformSetting;
 use App\Services\OperationalAlertService;
+use App\Modules\Developer\Services\TenantWebhookService;
 use App\Modules\Broadcasts\Models\Campaign;
 use App\Modules\Broadcasts\Models\CampaignMessage;
 use App\Modules\Broadcasts\Models\CampaignRecipient;
@@ -13,6 +14,7 @@ use App\Modules\Contacts\Models\ContactSegment;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
 use App\Modules\WhatsApp\Services\OutboundMessagePipelineService;
 use App\Modules\WhatsApp\Services\TemplateComposer;
+use App\Modules\WhatsApp\Services\TemplateLifecycleService;
 use App\Modules\WhatsApp\Services\WhatsAppClient;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
@@ -27,9 +29,11 @@ class CampaignService
         protected WhatsAppClient $whatsappClient,
         protected OutboundMessagePipelineService $outboundPipeline,
         protected TemplateComposer $templateComposer,
+        protected TemplateLifecycleService $templateLifecycleService,
         protected PlanResolver $planResolver,
         protected UsageService $usageService,
-        protected OperationalAlertService $alertService
+        protected OperationalAlertService $alertService,
+        protected TenantWebhookService $tenantWebhookService
     ) {
     }
 
@@ -76,12 +80,12 @@ class CampaignService
                 break;
         }
 
-        // Filter out opt-out and blocked contacts if respect_opt_out is enabled
+        // Filter out suppressed contacts if respect_opt_out is enabled
         if ($campaign->respect_opt_out) {
             $recipients = array_filter($recipients, function ($recipient) use ($campaign) {
                 if (isset($recipient['contact_id'])) {
                     $contact = WhatsAppContact::find($recipient['contact_id']);
-                    if ($contact && in_array($contact->status ?? 'active', ['opt_out', 'blocked'])) {
+                    if ($contact && ((bool) ($contact->do_not_contact ?? false) || in_array($contact->status ?? 'active', ['opt_out', 'blocked']))) {
                         return false;
                     }
                 }
@@ -132,9 +136,12 @@ class CampaignService
     {
         $query = WhatsAppContact::where('account_id', $campaign->account_id);
 
-        // Exclude opt-out and blocked contacts by default
+        // Exclude suppressed contacts by default
         if ($campaign->respect_opt_out) {
-            $query->whereNotIn('status', ['opt_out', 'blocked']);
+            $query->whereNotIn('status', ['opt_out', 'blocked'])
+                ->where(function ($q) {
+                    $q->where('do_not_contact', false)->orWhereNull('do_not_contact');
+                });
         }
 
         // Apply filters if provided
@@ -234,7 +241,10 @@ class CampaignService
             $query = $segment->contactsQuery();
 
             if ($campaign->respect_opt_out) {
-                $query->whereNotIn('status', ['opt_out', 'blocked']);
+                $query->whereNotIn('status', ['opt_out', 'blocked'])
+                    ->where(function ($q) {
+                        $q->where('do_not_contact', false)->orWhereNull('do_not_contact');
+                    });
             }
 
             $segmentContacts = $query->get(['id', 'wa_id', 'name']);
@@ -295,6 +305,7 @@ class CampaignService
             'completed_at' => null,
             'metadata' => array_merge($campaign->metadata ?? [], ['last_preflight' => $preflight]),
         ]);
+        $this->dispatchTenantWebhookEvent($campaign, 'campaign.started');
 
         // Dispatch job to send campaign messages (on dedicated queue)
         $this->dispatchNextSend($campaign->id);
@@ -319,19 +330,20 @@ class CampaignService
             return false;
         }
 
-        // Check if contact has opted out or is blocked (if respect_opt_out is enabled)
+        // Check if contact is suppressed (if respect_opt_out is enabled)
         if ($campaign->respect_opt_out && $recipient->whatsapp_contact_id) {
             $contact = WhatsAppContact::find($recipient->whatsapp_contact_id);
-            if ($contact && in_array($contact->status ?? 'active', ['opt_out', 'blocked'])) {
+            if ($contact && ((bool) ($contact->do_not_contact ?? false) || in_array($contact->status ?? 'active', ['opt_out', 'blocked']))) {
                 CampaignRecipient::whereKey($recipient->id)->lockForUpdate()->update([
                     'status' => 'skipped',
-                    'failure_reason' => "Contact has {$contact->status} status"]);
+                    'failure_reason' => 'Contact is suppressed (opted out/blocked/do-not-contact).']);
                 return false;
             }
         }
 
         try {
             if ($campaign->account && $campaign->connection) {
+                $this->outboundPipeline->assertSendPrerequisites($campaign->connection, (string) $recipient->phone_number, (string) $campaign->type);
                 $this->outboundPipeline->assertRateLimits($campaign->account, $campaign->connection, (int) $campaign->id);
             }
 
@@ -391,11 +403,12 @@ class CampaignService
                 'recipient_id' => $recipient->id,
                 'error' => $e->getMessage()]);
 
-            if ($this->isRateLimitError($e->getMessage())) {
+            $failure = $this->outboundPipeline->classifyFailure($e);
+            if (($failure['retryable'] ?? false) === true || $this->isRateLimitError($e->getMessage())) {
                 $this->applyConnectionBackoff($campaign, $e->getMessage());
                 $recipient->update([
                     'status' => 'pending',
-                    'failure_reason' => 'Rate limited by provider. Retrying with adaptive delay.',
+                    'failure_reason' => 'Temporary provider failure. Retrying automatically.',
                 ]);
                 return false;
             }
@@ -638,6 +651,7 @@ class CampaignService
             $campaign->update([
                 'status' => 'completed',
                 'completed_at' => now()]);
+            $this->dispatchTenantWebhookEvent($campaign, 'campaign.completed');
         }
     }
 
@@ -715,6 +729,30 @@ class CampaignService
             ->onQueue('campaigns');
     }
 
+    protected function dispatchTenantWebhookEvent(Campaign $campaign, string $eventKey): void
+    {
+        if (!$campaign->account) {
+            return;
+        }
+
+        $this->tenantWebhookService->dispatchEvent($campaign->account, $eventKey, [
+            'campaign_id' => $campaign->id,
+            'name' => $campaign->name,
+            'status' => $campaign->status,
+            'type' => $campaign->type,
+            'connection_id' => $campaign->whatsapp_connection_id,
+            'template_id' => $campaign->whatsapp_template_id,
+            'recipient_type' => $campaign->recipient_type,
+            'sent_count' => (int) $campaign->sent_count,
+            'delivered_count' => (int) $campaign->delivered_count,
+            'read_count' => (int) $campaign->read_count,
+            'failed_count' => (int) $campaign->failed_count,
+            'started_at' => $campaign->started_at?->toIso8601String(),
+            'completed_at' => $campaign->completed_at?->toIso8601String(),
+            'updated_at' => $campaign->updated_at?->toIso8601String(),
+        ], "campaign_{$eventKey}_{$campaign->id}_{$campaign->updated_at?->timestamp}");
+    }
+
     public function runPreflightChecks(Campaign $campaign): array
     {
         $errors = [];
@@ -747,11 +785,21 @@ class CampaignService
                 $errors[] = 'Template campaign requires an approved template.';
             } else {
                 $status = strtolower(trim((string) $template->status));
-                if ($status !== 'approved') {
-                    $errors[] = 'Template is not approved.';
+                if (!$this->templateLifecycleService->isSendableStatus($status)) {
+                    $errors[] = "Template is not sendable (status: {$status}).";
                 }
                 if ((bool) $template->is_archived) {
                     $errors[] = 'Template is archived.';
+                }
+                if ((bool) ($template->is_remote_deleted ?? false)) {
+                    $errors[] = 'Template no longer exists on Meta. Run template sync.';
+                }
+                if ($this->templateLifecycleService->isTemplateStale(
+                    $template->last_meta_sync_at ?? $template->last_synced_at,
+                    $status,
+                    (bool) ($template->is_remote_deleted ?? false)
+                )) {
+                    $warnings[] = 'Template metadata is stale. Sync templates before large send.';
                 }
                 if (
                     $campaign->whatsapp_connection_id
