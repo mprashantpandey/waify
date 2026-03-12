@@ -263,15 +263,17 @@ class TemplateSendController extends Controller
             'client_request_id' => 'nullable|string|max:120',
         ]);
 
-        // Validate variables count
-        $requiredVars = $this->composer->extractRequiredVariables($template);
         $variables = $this->normalizeTemplateVariables($validated['variables'] ?? []);
         $clientRequestId = $this->normalizeClientRequestId($validated['client_request_id'] ?? null);
-
-        $nonEmptyCount = count(array_filter($variables, static fn (string $value) => $value !== ''));
-        if ($nonEmptyCount < $requiredVars['total']) {
+        $sendPayloadCheck = $this->templateLifecycleService->evaluateSendPayload(
+            $template,
+            $variables,
+            $validated['header_media_url'] ?? null
+        );
+        if (!$sendPayloadCheck['ok']) {
             return redirect()->back()->withErrors([
-                'variables' => "Template requires {$requiredVars['total']} variable(s), but only {$nonEmptyCount} non-empty value(s) were provided."]);
+                'variables' => $sendPayloadCheck['reason'] ?? 'Template payload validation failed.',
+            ]);
         }
 
         try {

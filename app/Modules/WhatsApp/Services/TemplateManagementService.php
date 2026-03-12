@@ -15,7 +15,9 @@ class TemplateManagementService
 {
     protected string $baseUrl;
 
-    public function __construct()
+    public function __construct(
+        protected TemplateLifecycleService $templateLifecycle
+    )
     {
         $this->baseUrl = rtrim(config('whatsapp.meta.base_url', 'https://graph.facebook.com'), '/');
     }
@@ -32,6 +34,11 @@ class TemplateManagementService
         }
 
         $url = $this->resolveTemplateCreateUrl($connection, $wabaId);
+        $this->ensureLocalTemplateNameAvailable(
+            $connection,
+            (string) ($templateData['name'] ?? ''),
+            (string) ($templateData['language'] ?? '')
+        );
 
         // If header is media (IMAGE/VIDEO/DOCUMENT), we must provide an example. Prefer Meta upload handle over URL.
         if (!empty($templateData['header_type']) && in_array($templateData['header_type'], ['IMAGE', 'VIDEO', 'DOCUMENT'])) {
@@ -158,6 +165,12 @@ class TemplateManagementService
         // Prefer user-provided name, otherwise fallback to current name.
         $requestedName = trim((string) ($templateData['name'] ?? ''));
         $templateData['name'] = $requestedName !== '' ? $requestedName : $template->name;
+        $this->ensureLocalTemplateNameAvailable(
+            $connection,
+            (string) $templateData['name'],
+            (string) ($templateData['language'] ?? $template->language),
+            (int) $template->id
+        );
 
         // Keep existing media sample for media-header templates when edit form does not re-send it.
         if (
@@ -225,6 +238,37 @@ class TemplateManagementService
         }
 
         return '';
+    }
+
+    protected function ensureLocalTemplateNameAvailable(
+        WhatsAppConnection $connection,
+        string $name,
+        string $language,
+        ?int $ignoreTemplateId = null
+    ): void {
+        $name = trim($name);
+        $language = trim($language);
+        if ($name === '' || $language === '') {
+            return;
+        }
+
+        $query = WhatsAppTemplate::query()
+            ->where('account_id', $connection->account_id)
+            ->where('whatsapp_connection_id', $connection->id)
+            ->where('name', $name)
+            ->where('language', $language)
+            ->where(function ($subQuery) {
+                $subQuery->whereNull('is_archived')
+                    ->orWhere('is_archived', false);
+            });
+
+        if ($ignoreTemplateId) {
+            $query->where('id', '!=', $ignoreTemplateId);
+        }
+
+        if ($query->exists()) {
+            throw new \InvalidArgumentException("Template '{$name}' with language '{$language}' already exists for this connection.");
+        }
     }
 
     protected function adoptCreatedTemplateAsUpdate(
@@ -665,6 +709,7 @@ class TemplateManagementService
             }
         }
 
+        $normalizedStatus = $this->templateLifecycle->normalizeStatus((string) ($metaResponse['status'] ?? 'PENDING'));
         return WhatsAppTemplate::create([
             'account_id' => $connection->account_id,
             'whatsapp_connection_id' => $connection->id,
@@ -672,7 +717,8 @@ class TemplateManagementService
             'name' => $templateData['name'],
             'language' => $templateData['language'],
             'category' => strtoupper($templateData['category']),
-            'status' => strtolower(trim((string) ($metaResponse['status'] ?? 'PENDING'))),
+            'status' => $normalizedStatus,
+            'remote_status' => $normalizedStatus,
             'quality_score' => $metaResponse['quality_score'] ?? null,
             'body_text' => $bodyText,
             'header_type' => $headerType,
@@ -681,8 +727,16 @@ class TemplateManagementService
             'footer_text' => $footerText,
             'buttons' => $buttons,
             'components' => $components,
+            'remote_components' => $components,
+            'draft_components' => $components,
             'last_synced_at' => now(),
-            'last_meta_error' => null]);
+            'last_meta_sync_at' => now(),
+            'sync_state' => $this->templateLifecycle->computeSyncState($normalizedStatus, now(), false, null),
+            'is_remote_deleted' => false,
+            'remote_deleted_at' => null,
+            'last_meta_error' => null,
+            'meta_rejection_reason' => $metaResponse['rejection_reason'] ?? $metaResponse['rejected_reason'] ?? null,
+        ]);
     }
 
     /**

@@ -1135,8 +1135,12 @@ class ConversationController extends Controller
             return $respondError('Could not verify latest template status from Meta. Please try again after template sync.');
         }
 
-        $requiredVars = $this->templateComposer->extractRequiredVariables($template);
         $variables = $this->normalizeTemplateVariables($validated['variables'] ?? []);
+        $payloadValidation = $this->templateLifecycleService->evaluateSendPayload($template, $variables);
+        if (!$payloadValidation['ok']) {
+            return $respondError($payloadValidation['reason'] ?? 'Template payload validation failed.');
+        }
+
         $clientRequestId = $this->normalizeClientRequestId($validated['client_request_id'] ?? null);
         $templateFingerprint = hash('sha256', implode('|', [
             'template',
@@ -1179,11 +1183,6 @@ class ConversationController extends Controller
         ]);
         if ($outboundJob) {
             $this->outboundPipeline->markValidating($outboundJob);
-        }
-
-        $nonEmptyCount = count(array_filter($variables, static fn (string $value) => $value !== ''));
-        if ($nonEmptyCount < (int) ($requiredVars['total'] ?? 0)) {
-            return $respondError("Template requires {$requiredVars['total']} variable(s), but only {$nonEmptyCount} non-empty value(s) were provided.");
         }
 
         $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);

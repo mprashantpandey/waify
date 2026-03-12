@@ -454,12 +454,9 @@ class CampaignService
         $recipientParams = $this->normalizeTemplateParams($recipient->template_params);
         $params = $this->mergeTemplateParamsWithRecipientOverride($campaignParams, $recipientParams);
 
-        $requiredVars = (int) ($this->templateComposer->extractRequiredVariables($template)['total'] ?? 0);
-        if ($requiredVars > 0) {
-            $filledCount = $this->countNonEmptyTemplateParams($params);
-            if ($filledCount < $requiredVars) {
-                throw new \Exception("Template requires {$requiredVars} variables, but only {$filledCount} non-empty value(s) were provided.");
-            }
+        $payloadValidation = $this->templateLifecycleService->evaluateSendPayload($template, $params);
+        if (!$payloadValidation['ok']) {
+            throw new \Exception((string) ($payloadValidation['reason'] ?? 'Template payload validation failed.'));
         }
 
         // Extract components from prepared payload (composer will validate placeholders as well).
@@ -1094,6 +1091,10 @@ class CampaignService
         $template = $campaign->template;
         $components = [];
         $params = $campaign->template_params ?? [];
+        $payloadValidation = $this->templateLifecycleService->evaluateSendPayload($template, $params);
+        if (!$payloadValidation['ok']) {
+            throw new \RuntimeException((string) ($payloadValidation['reason'] ?? 'Template payload validation failed.'));
+        }
         if (!empty($params)) {
             $payload = $this->templateComposer->preparePayload($template, $targetWaId, $params);
             $components = $payload['template']['components'] ?? [];
