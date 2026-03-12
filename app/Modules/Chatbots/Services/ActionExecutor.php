@@ -10,6 +10,7 @@ use App\Modules\WhatsApp\Events\Inbox\ConversationUpdated;
 use App\Modules\WhatsApp\Events\Inbox\MessageCreated;
 use App\Modules\WhatsApp\Models\WhatsAppList;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
+use App\Modules\WhatsApp\Services\SendPolicyService;
 use App\Modules\WhatsApp\Services\TemplateComposer;
 use App\Modules\WhatsApp\Services\WhatsAppClient;
 use Illuminate\Support\Facades\Cache;
@@ -22,6 +23,7 @@ class ActionExecutor
     public function __construct(
         protected WhatsAppClient $whatsappClient,
         protected TemplateComposer $templateComposer,
+        protected SendPolicyService $sendPolicyService,
         protected EntitlementService $entitlementService,
         protected UsageService $usageService
     ) {}
@@ -68,6 +70,11 @@ class ActionExecutor
     protected function sendTextMessage(array $config, BotContext $context): array
     {
         try {
+            $policy = $this->sendPolicyService->evaluateConversationFreeForm($context->conversation);
+            if (!($policy['allowed'] ?? false)) {
+                return ['success' => false, 'error' => (string) ($policy['reason_message'] ?? '24-hour customer care window is closed.')];
+            }
+
             // Check message limit
             $this->entitlementService->assertWithinLimit($context->account, 'messages_monthly', 1);
 
@@ -214,6 +221,11 @@ class ActionExecutor
     protected function sendButtonsMessage(array $config, BotContext $context): array
     {
         try {
+            $policy = $this->sendPolicyService->evaluateConversationFreeForm($context->conversation);
+            if (!($policy['allowed'] ?? false)) {
+                return ['success' => false, 'error' => (string) ($policy['reason_message'] ?? '24-hour customer care window is closed.')];
+            }
+
             $this->entitlementService->assertWithinLimit($context->account, 'messages_monthly', 1);
 
             $bodyText = trim((string) ($config['body_text'] ?? $config['message'] ?? ''));
@@ -308,6 +320,11 @@ class ActionExecutor
     protected function sendListMessage(array $config, BotContext $context): array
     {
         try {
+            $policy = $this->sendPolicyService->evaluateConversationFreeForm($context->conversation);
+            if (!($policy['allowed'] ?? false)) {
+                return ['success' => false, 'error' => (string) ($policy['reason_message'] ?? '24-hour customer care window is closed.')];
+            }
+
             $this->entitlementService->assertWithinLimit($context->account, 'messages_monthly', 1);
 
             $listId = $config['list_id'] ?? null;

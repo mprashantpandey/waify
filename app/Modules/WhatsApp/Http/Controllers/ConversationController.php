@@ -24,6 +24,7 @@ use App\Modules\WhatsApp\Services\ContactComplianceService;
 use App\Modules\WhatsApp\Services\CustomerCareWindowService;
 use App\Modules\WhatsApp\Services\InboxMetricsService;
 use App\Modules\WhatsApp\Services\OutboundMessagePipelineService;
+use App\Modules\WhatsApp\Services\SendPolicyService;
 use App\Modules\WhatsApp\Services\TemplateLifecycleService;
 use App\Modules\WhatsApp\Services\TemplateManagementService;
 use App\Modules\WhatsApp\Services\WhatsAppClient;
@@ -52,6 +53,7 @@ class ConversationController extends Controller
         protected TemplateLifecycleService $templateLifecycleService,
         protected ContactComplianceService $contactComplianceService,
         protected OutboundMessagePipelineService $outboundPipeline,
+        protected SendPolicyService $sendPolicyService,
         protected EntitlementService $entitlementService,
         protected UsageService $usageService,
         protected ConversationAssistantService $conversationAssistant,
@@ -1013,16 +1015,7 @@ class ConversationController extends Controller
             // Broadcast failed status
             event(new MessageUpdated($message));
 
-            $msg = $e->getMessage();
-            $is24hWindow = $e->getCode() === 131047
-                || stripos($msg, '131047') !== false
-                || stripos($msg, 'recovery') !== false
-                || stripos($msg, 'template') !== false
-                || stripos($msg, 'session') !== false
-                || stripos($msg, '24 hour') !== false
-                || stripos($msg, 'message outside') !== false;
-
-            if ($is24hWindow) {
+            if ($this->sendPolicyService->isProvider24HourPolicyError($e)) {
                 return $respondError(
                     'outside_24h',
                     'You can only send a template message to reopen this conversation. Use the template button above.'
@@ -2061,14 +2054,14 @@ class ConversationController extends Controller
 
     private function ensureCustomerCareWindowOpen(WhatsAppConversation $conversation, callable $respondError): mixed
     {
-        $windowState = $this->customerCareWindowService->forConversation($conversation);
-        if (($windowState['is_open'] ?? false) === true) {
+        $evaluation = $this->sendPolicyService->evaluateConversationFreeForm($conversation);
+        if (($evaluation['allowed'] ?? false) === true) {
             return null;
         }
 
         return $respondError(
-            'outside_24h',
-            '24-hour customer care window is closed. Send an approved template message to reopen the conversation.',
+            (string) ($evaluation['reason_code'] ?? 'outside_24h'),
+            (string) ($evaluation['reason_message'] ?? '24-hour customer care window is closed. Send an approved template message to reopen the conversation.'),
             422
         );
     }

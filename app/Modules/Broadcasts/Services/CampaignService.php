@@ -13,6 +13,7 @@ use App\Modules\Broadcasts\Models\CampaignRecipient;
 use App\Modules\Contacts\Models\ContactSegment;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
 use App\Modules\WhatsApp\Services\OutboundMessagePipelineService;
+use App\Modules\WhatsApp\Services\SendPolicyService;
 use App\Modules\WhatsApp\Services\TemplateComposer;
 use App\Modules\WhatsApp\Services\TemplateLifecycleService;
 use App\Modules\WhatsApp\Services\WhatsAppClient;
@@ -28,6 +29,7 @@ class CampaignService
     public function __construct(
         protected WhatsAppClient $whatsappClient,
         protected OutboundMessagePipelineService $outboundPipeline,
+        protected SendPolicyService $sendPolicyService,
         protected TemplateComposer $templateComposer,
         protected TemplateLifecycleService $templateLifecycleService,
         protected PlanResolver $planResolver,
@@ -345,6 +347,22 @@ class CampaignService
             if ($campaign->account && $campaign->connection) {
                 $this->outboundPipeline->assertSendPrerequisites($campaign->connection, (string) $recipient->phone_number, (string) $campaign->type);
                 $this->outboundPipeline->assertRateLimits($campaign->account, $campaign->connection, (int) $campaign->id);
+            }
+
+            if (in_array((string) $campaign->type, ['text', 'media'], true)) {
+                $policy = $this->sendPolicyService->evaluateRecipientFreeForm(
+                    (int) $campaign->account_id,
+                    (int) $campaign->whatsapp_connection_id,
+                    (string) $recipient->phone_number
+                );
+
+                if (!($policy['allowed'] ?? false)) {
+                    CampaignRecipient::whereKey($recipient->id)->lockForUpdate()->update([
+                        'status' => 'skipped',
+                        'failure_reason' => (string) ($policy['reason_message'] ?? 'Recipient requires an approved template message.'),
+                    ]);
+                    return false;
+                }
             }
 
             $response = null;

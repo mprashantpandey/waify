@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Mobile;
 
 use App\Http\Controllers\Controller;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
+use App\Modules\WhatsApp\Services\SendPolicyService;
 use App\Modules\WhatsApp\Services\WhatsAppClient;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -12,10 +13,12 @@ use Illuminate\Support\Str;
 class InboxController extends Controller
 {
     protected WhatsAppClient $whatsappClient;
+    protected SendPolicyService $sendPolicyService;
     
-    public function __construct(WhatsAppClient $whatsappClient)
+    public function __construct(WhatsAppClient $whatsappClient, SendPolicyService $sendPolicyService)
     {
         $this->whatsappClient = $whatsappClient;
+        $this->sendPolicyService = $sendPolicyService;
     }
 
     protected function getAccountId(Request $request): int
@@ -117,8 +120,18 @@ class InboxController extends Controller
             ->with(['contact', 'connection'])
             ->findOrFail($id);
 
-        if ($conversation->status === 'closed') {
-            return response()->json(['message' => 'Cannot send messages to a closed conversation without a template.'], 422);
+        $policy = $this->sendPolicyService->evaluateConversationFreeForm($conversation);
+        if (!($policy['allowed'] ?? false)) {
+            return response()->json([
+                'message' => (string) ($policy['reason_code'] ?? 'outside_24h'),
+                'message_detail' => (string) ($policy['reason_message'] ?? '24-hour customer care window is closed. Send an approved template message to reopen the conversation.'),
+                'customer_care_window' => [
+                    'is_open' => (bool) (($policy['window']['is_open'] ?? false)),
+                    'last_inbound_at' => ($policy['window']['last_inbound_at'] ?? null)?->toIso8601String(),
+                    'expires_at' => ($policy['window']['expires_at'] ?? null)?->toIso8601String(),
+                    'seconds_remaining' => (int) ($policy['window']['seconds_remaining'] ?? 0),
+                ],
+            ], 422);
         }
 
         try {
@@ -127,7 +140,7 @@ class InboxController extends Controller
             // 1. Send via API
             $response = $this->whatsappClient->sendTextMessage(
                 $conversation->connection,
-                $conversation->contact->phone_number,
+                $conversation->contact->wa_id,
                 $validated['text']
             );
             
