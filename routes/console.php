@@ -69,3 +69,8 @@ Schedule::command('whatsapp:sync-templates')
     ->hourly()
     ->withoutOverlapping()
     ->runInBackground();
+
+Schedule::command('platform:meta-readiness-check')
+    ->dailyAt('04:30')
+    ->withoutOverlapping()
+    ->runInBackground();
