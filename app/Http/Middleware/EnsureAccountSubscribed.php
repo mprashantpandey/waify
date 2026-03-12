@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Core\Billing\SubscriptionService;
+use App\Core\Billing\SubscriptionAccessService;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -10,7 +11,8 @@ use Symfony\Component\HttpFoundation\Response;
 class EnsureAccountSubscribed
 {
     public function __construct(
-        protected SubscriptionService $subscriptionService
+        protected SubscriptionService $subscriptionService,
+        protected SubscriptionAccessService $subscriptionAccessService
     ) {
     }
 
@@ -32,39 +34,31 @@ class EnsureAccountSubscribed
             $subscription = $this->subscriptionService->syncAndNormalize($subscription);
         }
 
-        // Allow access to billing pages always
+        $gate = $this->subscriptionAccessService->evaluate($account, $subscription);
         $route = $request->route()?->getName();
-        if ($route && (str_contains($route, 'billing') || str_contains($route, 'settings'))) {
-            return $next($request);
-        }
 
-        // If no subscription, redirect to plan selection (except for billing routes)
-        if (!$subscription) {
-            $route = $request->route()?->getName();
-            // Allow access to billing pages, onboarding, and profile
-            if ($route && (
-                str_contains($route, 'billing') || 
-                str_contains($route, 'settings') ||
-                str_contains($route, 'onboarding') ||
-                str_contains($route, 'profile')
-            )) {
+        if ($gate['state'] === 'no_subscription') {
+            if ($this->subscriptionAccessService->routeAllowedWhenBlocked($route)) {
                 return $next($request);
             }
-            
-            // Redirect to plan selection page with message
             return redirect()->route('app.billing.plans')
-                ->with('message', 'Please select a plan to continue using the platform.');
+                ->with('warning', $gate['reason']);
         }
 
-        // Block if past_due or canceled (no grace period for now)
-        if ($subscription->isPastDue() || $subscription->isCanceled()) {
+        if (($gate['blocked'] ?? false) === true && !$this->subscriptionAccessService->routeAllowedWhenBlocked($route)) {
             return inertia('Billing/PastDue', [
                 'account' => [
                     'name' => $account->name,
                     'slug' => $account->slug],
                 'subscription' => [
-                    'status' => $subscription->status,
-                    'last_error' => $subscription->last_error]])->toResponse($request)->setStatusCode(402);
+                    'status' => $subscription?->status,
+                    'last_error' => $gate['reason']],
+                'gate' => [
+                    'state' => $gate['state'] ?? 'unknown',
+                    'reason' => $gate['reason'] ?? null,
+                    'recovery_actions' => $gate['recovery_actions'] ?? [],
+                ],
+            ])->toResponse($request)->setStatusCode(402);
         }
 
         return $next($request);

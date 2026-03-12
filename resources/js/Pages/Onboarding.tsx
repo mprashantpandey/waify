@@ -130,7 +130,7 @@ export default function Onboarding({ plans = [], defaultPlanKey = 'free' }: { pl
                     <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-full mb-4">
                         <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-                            Choose Your Plan • Start Free Trial
+                            Choose Your Plan • Setup Your Account
                         </span>
                     </div>
                     <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
@@ -246,11 +246,6 @@ export default function Onboarding({ plans = [], defaultPlanKey = 'free' }: { pl
                                             </div>
                                         </div>
 
-                                        {plan.trial_days > 0 && (
-                                            <Badge variant="success" className="mb-4">
-                                                {plan.trial_days}-Day Free Trial
-                                            </Badge>
-                                        )}
                                         {plan.key.toLowerCase() === 'pro' && (
                                             <Badge variant="info" className="mb-4 ml-2">Recommended</Badge>
                                         )}
@@ -391,11 +386,6 @@ export default function Onboarding({ plans = [], defaultPlanKey = 'free' }: { pl
                                     )}
                                 </div>
                                 {errors.plan_key && <p className="text-sm text-red-600 dark:text-red-400">{errors.plan_key}</p>}
-                                {selectedPlanKey && (plans.find((p) => p.key === selectedPlanKey)?.trial_days ?? 0) > 0 && (
-                                    <p className="mt-2 text-center text-xs text-gray-500 dark:text-gray-400">
-                                        You'll start with a {plans.find((p) => p.key === selectedPlanKey)?.trial_days}-day free trial
-                                    </p>
-                                )}
                             </div>
                         </CardContent>
                     </Card>
