@@ -6,6 +6,7 @@ use App\Modules\Contacts\Models\ContactActivity;
 use App\Modules\Contacts\Models\ContactSegment;
 use App\Modules\Contacts\Models\ContactTag;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -16,6 +17,15 @@ class ContactService
      */
     public function createOrUpdateContact(array $data, int $accountId, ?int $userId = null): WhatsAppContact
     {
+        $data = $this->applyConsentRules($data);
+        if (($data['status'] ?? null) === 'opt_out') {
+            $data['do_not_contact'] = true;
+            $data['opted_out_at'] = $data['opted_out_at'] ?? now();
+        }
+        if (($data['status'] ?? null) === 'active' && ($data['do_not_contact'] ?? null) === false) {
+            $data['opted_in_at'] = $data['opted_in_at'] ?? now();
+        }
+
         $contact = WhatsAppContact::updateOrCreate(
             [
                 'account_id' => $accountId,
@@ -222,7 +232,17 @@ class ContactService
             'email' => ['email', 'email_address'],
             'phone' => ['phone', 'phone_number', 'mobile'],
             'company' => ['company', 'organization', 'org'],
-            'notes' => ['notes', 'note', 'description']];
+            'notes' => ['notes', 'note', 'description'],
+            'status' => ['status'],
+            'do_not_contact' => ['do_not_contact', 'dnc', 'suppressed'],
+            'opted_in_at' => ['opted_in_at', 'opt_in_at'],
+            'opt_in_source' => ['opt_in_source'],
+            'opt_in_notes' => ['opt_in_notes'],
+            'opted_out_at' => ['opted_out_at', 'opt_out_at'],
+            'opt_out_reason' => ['opt_out_reason'],
+            'opt_out_channel' => ['opt_out_channel'],
+            'consent_status' => ['consent_status', 'consent', 'opt_status'],
+        ];
 
         $columnIndexes = [];
         foreach ($headerMap as $field => $possibleHeaders) {
@@ -247,12 +267,45 @@ class ContactService
                     }
                 }
 
+                if (isset($data['status'])) {
+                    $status = strtolower(trim((string) $data['status']));
+                    if (!in_array($status, ['active', 'inactive', 'blocked', 'opt_out'], true)) {
+                        unset($data['status']);
+                    } else {
+                        $data['status'] = $status;
+                    }
+                }
+
+                if (isset($data['do_not_contact'])) {
+                    $parsed = $this->parseBoolean((string) $data['do_not_contact']);
+                    if ($parsed === null) {
+                        unset($data['do_not_contact']);
+                    } else {
+                        $data['do_not_contact'] = $parsed;
+                    }
+                }
+
+                foreach (['opted_in_at', 'opted_out_at'] as $dateField) {
+                    if (isset($data[$dateField])) {
+                        try {
+                            $data[$dateField] = Carbon::parse((string) $data[$dateField]);
+                        } catch (\Throwable $e) {
+                            unset($data[$dateField]);
+                        }
+                    }
+                }
+
                 if (empty($data['wa_id']) && empty($data['phone'])) {
                     $errors[] = "Row {$rowNumber}: Missing phone number or WhatsApp ID";
                     continue;
                 }
 
-                $data['wa_id'] = $data['wa_id'] ?? $data['phone'] ?? null;
+                $data['wa_id'] = $this->normalizeWaId((string) ($data['wa_id'] ?? $data['phone'] ?? ''));
+                if ($data['wa_id'] === null) {
+                    $errors[] = "Row {$rowNumber}: Invalid phone number/WhatsApp ID format";
+                    continue;
+                }
+                $data = $this->applyConsentRules($data);
                 $data['source'] = 'csv_import';
 
                 // Use transaction and lock to prevent race conditions
@@ -335,7 +388,23 @@ class ContactService
         $handle = fopen($filename, 'w');
 
         // Write header
-        fputcsv($handle, ['wa_id', 'name', 'email', 'phone', 'company', 'status', 'tags', 'notes', 'created_at']);
+        fputcsv($handle, [
+            'wa_id',
+            'name',
+            'email',
+            'phone',
+            'company',
+            'status',
+            'do_not_contact',
+            'opted_in_at',
+            'opt_in_source',
+            'opted_out_at',
+            'opt_out_reason',
+            'opt_out_channel',
+            'tags',
+            'notes',
+            'created_at',
+        ]);
 
         // Write rows
         foreach ($contacts as $contact) {
@@ -347,6 +416,12 @@ class ContactService
                 $contact->phone ?? '',
                 $contact->company ?? '',
                 $contact->status ?? 'active',
+                $contact->do_not_contact ? '1' : '0',
+                optional($contact->opted_in_at)->toDateTimeString(),
+                $contact->opt_in_source ?? '',
+                optional($contact->opted_out_at)->toDateTimeString(),
+                $contact->opt_out_reason ?? '',
+                $contact->opt_out_channel ?? '',
                 $tags,
                 $contact->notes ?? '',
                 $contact->created_at->toDateTimeString()]);
@@ -404,5 +479,87 @@ class ContactService
             $lock->release();
         }
     }
-}
 
+    protected function normalizeWaId(string $value): ?string
+    {
+        $digits = preg_replace('/\D+/', '', trim($value)) ?? '';
+        if ($digits === '') {
+            return null;
+        }
+
+        if (str_starts_with($digits, '00')) {
+            $digits = ltrim(substr($digits, 2), '0');
+        }
+
+        if (strlen($digits) < 6 || strlen($digits) > 20) {
+            return null;
+        }
+
+        return $digits;
+    }
+
+    protected function parseBoolean(string $value): ?bool
+    {
+        $normalized = strtolower(trim($value));
+        if ($normalized === '') {
+            return null;
+        }
+
+        return match ($normalized) {
+            '1', 'true', 'yes', 'y', 'opt_out', 'opted_out', 'suppressed', 'dnc' => true,
+            '0', 'false', 'no', 'n', 'opt_in', 'opted_in', 'active' => false,
+            default => null,
+        };
+    }
+
+    /**
+     * @param array<string,mixed> $data
+     * @return array<string,mixed>
+     */
+    protected function applyConsentRules(array $data): array
+    {
+        $status = strtolower(trim((string) ($data['status'] ?? '')));
+        $consentStatus = strtolower(trim((string) ($data['consent_status'] ?? '')));
+        $doNotContact = array_key_exists('do_not_contact', $data) ? (bool) $data['do_not_contact'] : null;
+
+        if (in_array($consentStatus, ['opted_out', 'opt_out', 'suppressed', 'unsubscribed', 'dnc'], true)) {
+            $status = 'opt_out';
+            $doNotContact = true;
+        } elseif (in_array($consentStatus, ['opted_in', 'opt_in', 'consented'], true)) {
+            $status = $status !== '' ? $status : 'active';
+            $doNotContact = false;
+        } elseif ($consentStatus === 'inactive' && $status === '') {
+            $status = 'inactive';
+        }
+
+        if ($status === 'blocked') {
+            $doNotContact = true;
+        }
+
+        if ($doNotContact === true && $status === '') {
+            $status = 'opt_out';
+        }
+
+        if ($status === 'opt_out') {
+            $data['do_not_contact'] = true;
+            $data['opted_out_at'] = $data['opted_out_at'] ?? now();
+            $data['opted_in_at'] = null;
+        } elseif ($status === 'active' && $doNotContact === false) {
+            $data['do_not_contact'] = false;
+            $data['opted_in_at'] = $data['opted_in_at'] ?? now();
+            $data['opted_out_at'] = null;
+            $data['opt_out_reason'] = null;
+            $data['opt_out_channel'] = null;
+        } elseif ($doNotContact !== null) {
+            $data['do_not_contact'] = $doNotContact;
+        }
+
+        if ($status !== '' && in_array($status, ['active', 'inactive', 'blocked', 'opt_out'], true)) {
+            $data['status'] = $status;
+        }
+
+        unset($data['consent_status']);
+
+        return $data;
+    }
+}
