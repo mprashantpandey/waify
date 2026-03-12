@@ -3,10 +3,7 @@
 namespace App\Http\Controllers\Billing;
 
 use App\Core\Billing\BillingProviderManager;
-use App\Core\Billing\SubscriptionService;
 use App\Http\Controllers\Controller;
-use App\Models\PaymentOrder;
-use App\Models\Plan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -14,8 +11,7 @@ use Illuminate\Support\Facades\Log;
 class RazorpayWebhookController extends Controller
 {
     public function __construct(
-        protected BillingProviderManager $providerManager,
-        protected SubscriptionService $subscriptionService
+        protected BillingProviderManager $providerManager
     ) {
         // Disable CSRF for webhooks
         $this->middleware(\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class)->except(['handle']);
@@ -39,47 +35,26 @@ class RazorpayWebhookController extends Controller
         }
 
         $data = $request->json()->all();
-        $provider->handleWebhook($data);
-
         $event = $data['event'] ?? null;
         if ($event === 'payment.captured' || $event === 'order.paid') {
             $orderId = $data['payload']['order']['entity']['id'] ?? $data['payload']['payment']['entity']['order_id'] ?? null;
             $paymentId = $data['payload']['payment']['entity']['id'] ?? null;
+            $deliveryId = $request->header('X-Razorpay-Event-Id') ?? null;
 
-            $idempotencyKey = 'razorpay_webhook:' . ($event ?? '') . ':' . ($orderId ?? '') . ':' . ($paymentId ?? '');
+            $idempotencyKey = 'razorpay_webhook:' . ($deliveryId ?: ($event ?? '') . ':' . ($orderId ?? '') . ':' . ($paymentId ?? ''));
             if (!Cache::add($idempotencyKey, true, now()->addDays(7))) {
+                Log::channel('stack')->info('Skipping duplicate Razorpay webhook event', [
+                    'event' => $event,
+                    'order_id' => $orderId,
+                    'payment_id' => $paymentId,
+                    'event_id' => $deliveryId,
+                ]);
                 return response()->json(['success' => true]);
             }
-
-            if ($orderId) {
-                $paymentOrder = PaymentOrder::where('provider', 'razorpay')
-                    ->where('provider_order_id', $orderId)
-                    ->first();
-
-                if ($paymentOrder) {
-                    $plan = Plan::find($paymentOrder->plan_id);
-                    $account = $paymentOrder->account;
-                    if ($plan && $account) {
-                        try {
-                            $this->subscriptionService->changePlan(
-                                $account,
-                                $plan,
-                                $account->owner,
-                                'razorpay',
-                                [
-                                    'payment_id' => $paymentId,
-                                    'order_id' => $orderId,
-                                    'paid_at' => now()]
-                            );
-                        } catch (\Throwable $e) {
-                            Log::channel('stack')->error('Razorpay webhook plan activation failed', [
-                                'order_id' => $orderId,
-                                'error' => $e->getMessage()]);
-                        }
-                    }
-                }
-            }
         }
+
+        // Keep provider webhook handling as the single source of truth for payment-order state transitions.
+        $provider->handleWebhook($data);
 
         return response()->json(['success' => true]);
     }

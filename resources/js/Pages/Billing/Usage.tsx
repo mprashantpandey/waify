@@ -203,7 +203,7 @@ export default function BillingUsage({
                             </div>
                             <div className="mt-2 text-xs text-gray-600 dark:text-gray-400 space-y-1">
                                 <p>Free tier remaining: {(meta_billing?.free_tier_remaining ?? 0).toLocaleString()} / {(meta_billing?.free_tier_limit ?? 1000).toLocaleString()}</p>
-                                <p>Paid conversations: {(current_usage.meta_conversations_paid ?? 0).toLocaleString()} | Free conversations: {(current_usage.meta_conversations_free_used ?? 0).toLocaleString()}</p>
+                                <p>Paid billable messages: {(current_usage.meta_conversations_paid ?? 0).toLocaleString()} | Free tier messages: {(current_usage.meta_conversations_free_used ?? 0).toLocaleString()}</p>
                                 <p>By category: Marketing {(current_usage.meta_conversations_marketing ?? 0).toLocaleString()}, Utility {(current_usage.meta_conversations_utility ?? 0).toLocaleString()}, Authentication {(current_usage.meta_conversations_authentication ?? 0).toLocaleString()}, Service {(current_usage.meta_conversations_service ?? 0).toLocaleString()}</p>
                                 <p>
                                     Pricing source: {meta_billing?.pricing_source === 'table' ? 'Versioned Meta pricing table' : 'Legacy platform settings'}

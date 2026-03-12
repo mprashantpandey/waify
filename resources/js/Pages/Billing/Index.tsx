@@ -592,9 +592,9 @@ export default function BillingIndex({
                                                     <Link href={route('app.billing.history.show', { paymentOrder: payment.id })}>
                                                         <Button size="sm" variant="secondary" className="rounded-lg">View</Button>
                                                     </Link>
-                                                    <Link href={route('app.billing.history.download', { paymentOrder: payment.id })}>
+                                                    <a href={route('app.billing.history.download', { paymentOrder: payment.id })}>
                                                         <Button size="sm" variant="secondary" className="rounded-lg">Download</Button>
-                                                    </Link>
+                                                    </a>
                                                 </div>
                                             </td>
                                         </tr>
@@ -656,7 +656,7 @@ export default function BillingIndex({
                             </div>
                             <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
                                 <p>Free tier used: {(meta_billing?.free_tier_used ?? usage.meta_conversations_free_used ?? 0).toLocaleString()} / {(meta_billing?.free_tier_limit ?? 1000).toLocaleString()}</p>
-                                <p>Paid conversations: {(usage.meta_conversations_paid ?? 0).toLocaleString()}</p>
+                                <p>Paid billable messages: {(usage.meta_conversations_paid ?? 0).toLocaleString()}</p>
                                 <p>{meta_billing?.note ?? 'Meta charges are separate from your app plan. These values are usage estimates based on webhook data.'}</p>
                             </div>
                         </div>

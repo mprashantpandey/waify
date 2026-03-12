@@ -84,4 +84,81 @@ class RazorpayBillingSafetyTest extends TestCase
             'status' => 'created',
         ]);
     }
+
+    public function test_razorpay_paid_webhook_is_idempotent_by_event_id(): void
+    {
+        $account = $this->createAccountWithPlan('free');
+        $owner = $account->owner;
+        $starterPlan = Plan::where('key', 'starter')->firstOrFail();
+
+        PlatformSetting::set('payment.razorpay_enabled', true, 'boolean', 'payment');
+        PlatformSetting::set('payment.razorpay_key_id', 'rzp_test_123', 'string', 'payment');
+        PlatformSetting::set('payment.razorpay_key_secret', 'secret_123', 'string', 'payment');
+        PlatformSetting::set('payment.razorpay_webhook_secret', 'whsec_123', 'string', 'payment');
+
+        $orderId = 'order_webhook_123';
+        PaymentOrder::create([
+            'account_id' => $account->id,
+            'plan_id' => $starterPlan->id,
+            'provider' => 'razorpay',
+            'provider_order_id' => $orderId,
+            'amount' => (int) $starterPlan->price_monthly,
+            'currency' => 'INR',
+            'status' => 'created',
+            'created_by' => $owner->id,
+        ]);
+
+        $payloadFirst = [
+            'event' => 'payment.captured',
+            'payload' => [
+                'payment' => [
+                    'entity' => [
+                        'id' => 'pay_webhook_1',
+                        'order_id' => $orderId,
+                    ],
+                ],
+            ],
+        ];
+
+        $signatureFirst = hash_hmac('sha256', json_encode($payloadFirst, JSON_UNESCAPED_UNICODE), 'whsec_123');
+
+        $this->postJson(route('webhooks.razorpay'), $payloadFirst, [
+            'X-Razorpay-Signature' => $signatureFirst,
+            'X-Razorpay-Event-Id' => 'evt_1',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('payment_orders', [
+            'provider_order_id' => $orderId,
+            'status' => 'paid',
+            'provider_payment_id' => 'pay_webhook_1',
+        ]);
+
+        $account->refresh();
+        $this->assertSame($starterPlan->id, (int) optional($account->subscription)->plan_id);
+
+        $payloadDuplicate = [
+            'event' => 'payment.captured',
+            'payload' => [
+                'payment' => [
+                    'entity' => [
+                        'id' => 'pay_webhook_2',
+                        'order_id' => $orderId,
+                    ],
+                ],
+            ],
+        ];
+
+        $signatureDuplicate = hash_hmac('sha256', json_encode($payloadDuplicate, JSON_UNESCAPED_UNICODE), 'whsec_123');
+
+        $this->postJson(route('webhooks.razorpay'), $payloadDuplicate, [
+            'X-Razorpay-Signature' => $signatureDuplicate,
+            'X-Razorpay-Event-Id' => 'evt_1',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('payment_orders', [
+            'provider_order_id' => $orderId,
+            'status' => 'paid',
+            'provider_payment_id' => 'pay_webhook_1',
+        ]);
+    }
 }

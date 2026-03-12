@@ -14,6 +14,7 @@ use App\Models\WalletTransaction;
 use App\Models\WalletTopupOrder;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use App\Modules\WhatsApp\Models\WhatsAppMessageBilling;
+use App\Modules\WhatsApp\Models\WhatsAppUsageEvent;
 use App\Services\PlatformSettingsService;
 use App\Services\WalletService;
 use Illuminate\Http\Request;
@@ -504,6 +505,7 @@ class BillingController extends Controller
                 'status' => 'paid',
                 'provider_payment_id' => $validated['payment_id'],
                 'paid_at' => now(),
+                'failed_at' => null,
             ]);
 
             $plan = Plan::find($paymentOrder->plan_id);
@@ -959,18 +961,31 @@ class BillingController extends Controller
         if ($account) {
             $periodStart = now()->startOfMonth();
             $periodEnd = now()->endOfMonth();
-
-            $rows = WhatsAppMessageBilling::query()
-                ->where('account_id', $account->id)
-                ->whereBetween('created_at', [$periodStart, $periodEnd])
-                ->select(
-                    DB::raw('COALESCE(NULLIF(category, \'\'), \'uncategorized\') as category'),
-                    'billable',
-                    DB::raw('COUNT(*) as conversations_count'),
-                    DB::raw('SUM(COALESCE(estimated_cost_minor, 0)) as estimated_cost_minor')
-                )
-                ->groupBy('category', 'billable')
-                ->get();
+            if (\Illuminate\Support\Facades\Schema::hasTable('whatsapp_usage_events')) {
+                $rows = WhatsAppUsageEvent::query()
+                    ->where('account_id', $account->id)
+                    ->whereBetween('occurred_at', [$periodStart, $periodEnd])
+                    ->select(
+                        DB::raw("COALESCE(NULLIF(pricing_category, ''), 'uncategorized') as category"),
+                        'billable',
+                        DB::raw('SUM(COALESCE(billable_unit, 1)) as conversations_count'),
+                        DB::raw('SUM(COALESCE(estimated_cost_minor, 0)) as estimated_cost_minor')
+                    )
+                    ->groupBy('category', 'billable')
+                    ->get();
+            } else {
+                $rows = WhatsAppMessageBilling::query()
+                    ->where('account_id', $account->id)
+                    ->whereBetween('created_at', [$periodStart, $periodEnd])
+                    ->select(
+                        DB::raw('COALESCE(NULLIF(category, \'\'), \'uncategorized\') as category'),
+                        'billable',
+                        DB::raw('COUNT(*) as conversations_count'),
+                        DB::raw('SUM(COALESCE(estimated_cost_minor, 0)) as estimated_cost_minor')
+                    )
+                    ->groupBy('category', 'billable')
+                    ->get();
+            }
 
             $monthEstimatedFromBillings = (int) $rows
                 ->where('billable', true)
@@ -997,6 +1012,7 @@ class BillingController extends Controller
                 \Illuminate\Support\Facades\Schema::hasTable('whatsapp_messages')
                 && \Illuminate\Support\Facades\Schema::hasTable('whatsapp_conversations')
                 && \Illuminate\Support\Facades\Schema::hasTable('whatsapp_connections')
+                && \Illuminate\Support\Facades\Schema::hasTable('whatsapp_message_billings')
             ) {
                 $driverQuery = WhatsAppMessageBilling::query()
                     ->where('whatsapp_message_billings.account_id', $account->id)
@@ -1075,30 +1091,45 @@ class BillingController extends Controller
             'account_billing_currency' => $accountCurrency,
             'category_breakdown' => $breakdown->all(),
             'top_cost_drivers' => $topCostDrivers->all(),
-            'note' => 'Meta bills WhatsApp conversations separately. Values shown here are webhook-based estimates and can differ from your official Meta invoice.',
+            'note' => 'Meta bills WhatsApp on a per-message basis. Values shown here are webhook-based estimates and can differ from your official Meta invoice.',
         ];
     }
 
     protected function currentMetaUsageSnapshot(?\App\Models\Account $account): ?array
     {
-        if (!$account || !\Illuminate\Support\Facades\Schema::hasTable('whatsapp_message_billings')) {
+        if (!$account) {
             return null;
         }
 
         $periodStart = now()->startOfMonth();
         $periodEnd = now()->endOfMonth();
-
-        $rows = WhatsAppMessageBilling::query()
-            ->where('account_id', $account->id)
-            ->whereBetween('created_at', [$periodStart, $periodEnd])
-            ->select(
-                DB::raw('COALESCE(NULLIF(category, \'\'), \'uncategorized\') as category'),
-                'billable',
-                DB::raw('COUNT(*) as conversations_count'),
-                DB::raw('SUM(COALESCE(estimated_cost_minor, 0)) as estimated_cost_minor')
-            )
-            ->groupBy('category', 'billable')
-            ->get();
+        if (\Illuminate\Support\Facades\Schema::hasTable('whatsapp_usage_events')) {
+            $rows = WhatsAppUsageEvent::query()
+                ->where('account_id', $account->id)
+                ->whereBetween('occurred_at', [$periodStart, $periodEnd])
+                ->select(
+                    DB::raw("COALESCE(NULLIF(pricing_category, ''), 'uncategorized') as category"),
+                    'billable',
+                    DB::raw('SUM(COALESCE(billable_unit, 1)) as conversations_count'),
+                    DB::raw('SUM(COALESCE(estimated_cost_minor, 0)) as estimated_cost_minor')
+                )
+                ->groupBy('category', 'billable')
+                ->get();
+        } elseif (\Illuminate\Support\Facades\Schema::hasTable('whatsapp_message_billings')) {
+            $rows = WhatsAppMessageBilling::query()
+                ->where('account_id', $account->id)
+                ->whereBetween('created_at', [$periodStart, $periodEnd])
+                ->select(
+                    DB::raw('COALESCE(NULLIF(category, \'\'), \'uncategorized\') as category'),
+                    'billable',
+                    DB::raw('COUNT(*) as conversations_count'),
+                    DB::raw('SUM(COALESCE(estimated_cost_minor, 0)) as estimated_cost_minor')
+                )
+                ->groupBy('category', 'billable')
+                ->get();
+        } else {
+            return null;
+        }
 
         return [
             'meta_conversations_free_used' => (int) $rows->where('billable', false)->sum('conversations_count'),

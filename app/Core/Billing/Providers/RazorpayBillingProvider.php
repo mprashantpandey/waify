@@ -137,7 +137,9 @@ class RazorpayBillingProvider implements BillingProvider
             $paymentOrder->update([
                 'status' => 'paid',
                 'provider_payment_id' => $paymentId ?? $paymentOrder->provider_payment_id,
-                'paid_at' => now()]);
+                'paid_at' => now(),
+                'failed_at' => null,
+            ]);
 
             $this->activateSubscriptionForPaymentOrder($paymentOrder);
         }
