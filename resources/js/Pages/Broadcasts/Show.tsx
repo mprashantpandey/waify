@@ -142,6 +142,14 @@ export default function BroadcastsShow({
         });
     };
 
+    const downloadDiagnosticsBundle = () => {
+        const query = new URLSearchParams({
+            campaign_id: String(campaign.id),
+            scope: `campaign:${campaign.id}`,
+        });
+        window.location.href = `${route('app.alerts.bundle')}?${query.toString()}`;
+    };
+
     return (
         <AppShell>
             <Head title={campaign.name} />
@@ -196,6 +204,9 @@ export default function BroadcastsShow({
                             )}
                             <Button onClick={handleDuplicate} variant="secondary" className="w-full sm:w-auto">
                                 Duplicate
+                            </Button>
+                            <Button onClick={downloadDiagnosticsBundle} variant="secondary" className="w-full sm:w-auto">
+                                Diagnostics
                             </Button>
                             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                                 <input

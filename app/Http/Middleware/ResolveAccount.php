@@ -25,7 +25,7 @@ class ResolveAccount
         if ($user->isSuperAdmin() && !$request->session()->has('impersonator_id')) {
             return redirect()
                 ->route('platform.dashboard')
-                ->with('info', 'Platform admins must use the Platform Panel. Use impersonation to access a tenant workspace.');
+                ->with('info', 'Platform admins must use the Platform Panel. Use impersonation to access a tenant account.');
         }
 
         $account = null;

@@ -35,7 +35,7 @@ class AuthController extends Controller
 
         if (!$account) {
             return response()->json([
-                'message' => 'Your user does not belong to any active workspaces.'
+                'message' => 'Your user does not belong to any active tenant accounts.'
             ], 403);
         }
 

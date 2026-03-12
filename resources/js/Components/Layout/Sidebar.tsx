@@ -14,6 +14,7 @@ import {
     Settings,
     Users,
     Activity,
+    Bell,
     Megaphone,
     Code2,
     LucideIcon,
@@ -39,6 +40,7 @@ const iconMap: Record<string, LucideIcon> = {
     Settings,
     Users,
     Activity,
+    Bell,
     Megaphone,
     Code2,
 };
@@ -84,6 +86,7 @@ export function Sidebar({ navigation, currentRoute, account, isOpen = false, onC
         'app.contacts.index',
         'app.analytics.index',
         'app.team.index',
+        'app.alerts.index',
         'app.ai.index',
         'app.ai',
         'app.billing.index',

@@ -283,6 +283,22 @@ export default function IntegrationsTab({ data, setData, errors }: IntegrationsT
                                 <InputError message={errors['integrations.whatsapp_error_rate_minimum_messages']} />
                             </div>
                         </div>
+
+                        <div>
+                            <InputLabel htmlFor="integrations.whatsapp_opt_out_keywords" value="Global Opt-out Keywords" />
+                            <textarea
+                                id="integrations.whatsapp_opt_out_keywords"
+                                value={data.integrations?.whatsapp_opt_out_keywords || ''}
+                                onChange={(e) => setData('integrations.whatsapp_opt_out_keywords', e.target.value)}
+                                rows={3}
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900"
+                                placeholder="STOP,UNSUBSCRIBE,CANCEL,QUIT,END"
+                            />
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                Comma or newline separated. Applied across all tenants.
+                            </p>
+                            <InputError message={errors['integrations.whatsapp_opt_out_keywords']} />
+                        </div>
                     </div>
                 </CardContent>
             </Card>

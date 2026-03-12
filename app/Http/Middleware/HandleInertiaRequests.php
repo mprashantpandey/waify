@@ -85,6 +85,11 @@ class HandleInertiaRequests extends Middleware
                             'icon' => 'Activity',
                             'group' => 'core'],
                         [
+                            'label' => 'Alerts',
+                            'href' => 'app.alerts.index',
+                            'icon' => 'Bell',
+                            'group' => 'core'],
+                        [
                             'label' => 'Settings',
                             'href' => 'app.settings',
                             'icon' => 'Settings',
@@ -96,6 +101,16 @@ class HandleInertiaRequests extends Middleware
         }
 
         $brandingService = app(\App\Services\BrandingService::class);
+        $subscriptionGate = null;
+        if ($account) {
+            $subscriptionService = app(\App\Core\Billing\SubscriptionService::class);
+            $accessService = app(\App\Core\Billing\SubscriptionAccessService::class);
+            $subscription = $account->subscription;
+            if ($subscription) {
+                $subscription = $subscriptionService->syncAndNormalize($subscription);
+            }
+            $subscriptionGate = $accessService->evaluate($account, $subscription);
+        }
 
         $impersonatorId = $request->session()->get('impersonator_id');
         $impersonator = $impersonatorId ? User::find($impersonatorId) : null;
@@ -133,6 +148,7 @@ class HandleInertiaRequests extends Middleware
                 ] : null,
                 'profile_complete' => $isProfileComplete],
             'account' => $account,
+            'subscription_gate' => $subscriptionGate,
             'account_role' => $accountRole ?? null,
             'accounts' => $accounts,
             'navigation' => $navigation,

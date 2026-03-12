@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Zyptos - Current Features Checklist (Deep Audit)</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --line: #dfe7f3;
+      --text: #0f172a;
+      --muted: #475569;
+      --ok-bg: #dcfce7;
+      --ok-tx: #166534;
+      --part-bg: #fef3c7;
+      --part-tx: #92400e;
+      --todo-bg: #fee2e2;
+      --todo-tx: #991b1b;
+      --info-bg: #dbeafe;
+      --info-tx: #1d4ed8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.5 "Inter", "Segoe UI", Arial, sans-serif;
+    }
+    .wrap { max-width: 1240px; margin: 0 auto; padding: 22px 14px 40px; }
+    h1 { margin: 0 0 8px; font-size: 28px; }
+    h2 { margin: 26px 0 10px; font-size: 20px; }
+    h3 { margin: 16px 0 8px; font-size: 16px; }
+    p { margin: 0 0 8px; color: var(--muted); }
+    .meta {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      margin: 12px 0 20px;
+      color: var(--muted);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      vertical-align: middle;
+      margin-right: 4px;
+    }
+    .ok { background: var(--ok-bg); color: var(--ok-tx); }
+    .partial { background: var(--part-bg); color: var(--part-tx); }
+    .todo { background: var(--todo-bg); color: var(--todo-tx); }
+    .info { background: var(--info-bg); color: var(--info-tx); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px;
+      vertical-align: top;
+      text-align: left;
+    }
+    th { background: #f8fbff; font-size: 12px; letter-spacing: .02em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    code {
+      background: #eff4fb;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 1px 6px;
+      font-size: 12px;
+    }
+    ul, ol { margin: 6px 0 6px 18px; padding: 0; }
+    li { margin: 3px 0; }
+    .small { font-size: 12px; color: var(--muted); }
+    @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Zyptos - Current Features & Performance Checklist</h1>
+    <p>Deep, rolewise implementation checklist of the current system state, operational behavior, and readiness notes.</p>
+
+    <div class="meta">
+      <div><b>Document intent:</b> operational truth source for product, support, QA, onboarding, and release hardening.</div>
+      <div><b>Last updated:</b> March 12, 2026</div>
+      <div><b>Legend:</b> <span class="pill ok">Implemented</span> <span class="pill partial">Partial / Improving</span> <span class="pill todo">Missing / Planned</span> <span class="pill info">Behavior Note</span></div>
+    </div>
+
+    <h2>1) Rolewise Capability Matrix</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Role</th>
+          <th>Access Surface</th>
+          <th>Main Capabilities</th>
+          <th>Current Performance</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Public visitor</td>
+          <td>Landing + pricing + legal + help/contact pages</td>
+          <td>Plan discovery, signup entry, policy transparency</td>
+          <td><span class="pill ok">Implemented</span> static pages polished; crawler/robots and public UX improved.</td>
+        </tr>
+        <tr>
+          <td>Tenant owner</td>
+          <td>App dashboard and all tenant modules</td>
+          <td>Onboarding, WhatsApp setup, inbox, templates, campaigns, billing, support, team</td>
+          <td><span class="pill partial">Partial</span> core is strong; ongoing hardening in observability, diagnostics, Meta compliance edge cases.</td>
+        </tr>
+        <tr>
+          <td>Tenant team member</td>
+          <td>Scoped app modules by role</td>
+          <td>Inbox operations, assignment handling, campaign/template workflows (permission-based)</td>
+          <td><span class="pill partial">Partial</span> role checks exist; continuous UI/flow cleanup in team/settings mobile behavior.</td>
+        </tr>
+        <tr>
+          <td>Platform super admin</td>
+          <td>Platform panel</td>
+          <td>Tenants, plans, billing controls, support desk, system health, alerts, pricing management</td>
+          <td><span class="pill ok">Implemented</span> broad capability coverage; improving diagnostics depth and guided recovery actions.</td>
+        </tr>
+        <tr>
+          <td>Developer / API consumer</td>
+          <td>API keys + scoped developer module + webhooks</td>
+          <td>Scoped API access, docs, payload examples, outbound tenant webhook integration</td>
+          <td><span class="pill ok">Implemented</span> stable baseline with retries/logging; continuing contract/version hardening.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>2) Module-by-Module Deep Checklist</h2>
+
+    <h3>2.1 Onboarding & Account Creation</h3>
+    <table>
+      <thead><tr><th>Feature</th><th>Status</th><th>How it performs today</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Signup/login/reset/email verify</td><td><span class="pill ok">Implemented</span></td><td>Stable auth flow with resend verification support and profile controls.</td><td>Flash/toast duplication reduced globally.</td></tr>
+        <tr><td>Plan selection and onboarding gating</td><td><span class="pill partial">Partial</span></td><td>Onboarding flow is guided; payment gating was tightened but should be continuously regression-tested.</td><td>Keep hard assertions around trial/renewal behavior.</td></tr>
+        <tr><td>Workspace removal alignment</td><td><span class="pill partial">Partial</span></td><td>Most UI updated to tenant-first wording; monitor for any stale workspace labels.</td><td>Use grep sweeps on major releases.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>2.2 WhatsApp Connections & Meta Embedded Setup</h3>
+    <table>
+      <thead><tr><th>Feature</th><th>Status</th><th>How it performs today</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Embedded signup initiation</td><td><span class="pill ok">Implemented</span></td><td>Wizard-based setup with auto-create improvements.</td><td>OAuth redirect URI parity remains sensitive; must remain strictly identical across request/exchange.</td></tr>
+        <tr><td>Connection metadata sync (phone quality/limits)</td><td><span class="pill partial">Partial</span></td><td>Health metadata persists and is visible; periodic sync jobs and webhook enrichment are active.</td><td>Continue verifying fields available from Meta per API version.</td></tr>
+        <tr><td>Webhook diagnostics + reprocess</td><td><span class="pill ok">Implemented</span></td><td>Per-connection diagnostics and replay controls available.</td><td>Now linked from timeline and observability pages.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>2.3 Inbox, Conversation Ops, and Send Pipeline</h3>
+    <table>
+      <thead><tr><th>Feature</th><th>Status</th><th>How it performs today</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Realtime-ish inbox updates + unread counters</td><td><span class="pill partial">Partial</span></td><td>Counters and stream behavior improved with multiple hardening passes.</td><td>Keep edge-case tests for reconnects and assignment updates.</td></tr>
+        <tr><td>Outbound pipeline stages + idempotency</td><td><span class="pill ok">Implemented</span></td><td>Tracks queue/validation/send/provider states with diagnostics payload retention.</td><td>Strong for support debugging.</td></tr>
+        <tr><td>24-hour policy enforcement</td><td><span class="pill partial">Partial</span></td><td>Rule enforcement improved; keep strict regression around open-window calculations.</td><td>Timezone and status timing tests are critical.</td></tr>
+        <tr><td>Message diagnostics drawer</td><td><span class="pill ok">Implemented</span></td><td>Message payload/status/error visibility available in conversation UI.</td><td>Now extended with bundle pathways.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>2.4 Templates & Template Lifecycle</h3>
+    <table>
+      <thead><tr><th>Feature</th><th>Status</th><th>How it performs today</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Create/update/delete + sync status</td><td><span class="pill partial">Partial</span></td><td>Core lifecycle works; historical issues fixed around duplicate names/FK mapping/meta sync mismatches.</td><td>Continue strict mapping for header media and component formats.</td></tr>
+        <tr><td>Template eligibility guard on send</td><td><span class="pill ok">Implemented</span></td><td>Non-sendable templates are blocked with explicit reason surfaced.</td><td>Now aligned better with pipeline validation ordering.</td></tr>
+        <tr><td>Rejection reason exposure</td><td><span class="pill ok">Implemented</span></td><td>Meta errors/rejections surfaced in template/inbox diagnostics.</td><td>Supports faster support turnaround.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>2.5 Broadcasts/Campaigns</h3>
+    <table>
+      <thead><tr><th>Feature</th><th>Status</th><th>How it performs today</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Campaign dispatch pipeline</td><td><span class="pill ok">Implemented</span></td><td>Queue-based dispatch with status rollups and failure details.</td><td>Supports billing and diagnostics joins.</td></tr>
+        <tr><td>Preflight policy checks (consent/template window)</td><td><span class="pill partial">Partial</span></td><td>Guardrails implemented in main paths.</td><td>Keep adding tests for cross-module policy interactions.</td></tr>
+        <tr><td>Driver links from usage to campaign context</td><td><span class="pill ok">Implemented</span></td><td>Billing/usage navigation improved to campaign-level debugging.</td><td>Useful for spend attribution.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>2.6 Contacts, Consent, Suppression</h3>
+    <table>
+      <thead><tr><th>Feature</th><th>Status</th><th>How it performs today</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Contact base profile + lists/segments/tags</td><td><span class="pill ok">Implemented</span></td><td>Mature CRUD and targeting foundations.</td><td>Integrated across inbox/campaigns.</td></tr>
+        <tr><td>Consent fields + policy events</td><td><span class="pill partial">Partial</span></td><td>Data model and suppression mechanics are in place.</td><td>Continue keyword localization and CSV consent imports hardening.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>2.7 Billing, Subscriptions, Invoices, Usage</h3>
+    <table>
+      <thead><tr><th>Feature</th><th>Status</th><th>How it performs today</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Plan/subscription lifecycle</td><td><span class="pill partial">Partial</span></td><td>Renewal and past-due UX significantly improved with direct CTAs.</td><td>Continue validating edge transitions (expired → renewed → access restored).</td></tr>
+        <tr><td>Invoice and transaction visibility</td><td><span class="pill partial">Partial</span></td><td>UI clarity improved; download/view flow requires continuous end-to-end checks.</td><td>Payment provider callback consistency is key.</td></tr>
+        <tr><td>Meta conversation pricing snapshots</td><td><span class="pill partial">Partial</span></td><td>CSV import + versioned pricing groundwork present.</td><td>No official JSON feed from Meta; keep import process auditable and versioned.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>2.8 Support Desk</h3>
+    <table>
+      <thead><tr><th>Feature</th><th>Status</th><th>How it performs today</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Tenant ticket creation/replies/attachments</td><td><span class="pill ok">Implemented</span></td><td>Two-sided support workflow is live.</td><td>Email template variables were fixed and expanded.</td></tr>
+        <tr><td>Platform assignment + inbox operations</td><td><span class="pill ok">Implemented</span></td><td>Platform support desk integrated in sidebar and admin workflows.</td><td>No live chat by design.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>2.9 Developer/API/Webhooks</h3>
+    <table>
+      <thead><tr><th>Feature</th><th>Status</th><th>How it performs today</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>API key scopes + docs + examples</td><td><span class="pill ok">Implemented</span></td><td>Scoped API model with docs pages and payload examples.</td><td>Good baseline for tenant integrations.</td></tr>
+        <tr><td>Tenant outbound webhook endpoints</td><td><span class="pill ok">Implemented</span></td><td>Endpoint config, signing, retries, logs, and replay paths exist.</td><td>Continue contract stability/versioning.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>3) Observability, Reliability, and Ops Checklist</h2>
+    <table>
+      <thead><tr><th>Area</th><th>Status</th><th>Current behavior</th><th>Risk / Next hardening</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Webhook ingestion reliability</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Raw event persistence, processing jobs, retries, diagnostics and replay available.</td>
+          <td>Keep replay idempotency and large-payload protection tests active.</td>
+        </tr>
+        <tr>
+          <td>Operational alerts center</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Tenant/platform centers with acknowledge, resolve notes, bundle export, troubleshoot links.</td>
+          <td>Add notification routing policies by severity/SLA bands.</td>
+        </tr>
+        <tr>
+          <td>Activity timeline drilldown</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Entity/correlation filters, CSV export, diagnostics preview drawer, server-side saved views.</td>
+          <td>Add SLO breach surfacing and anomaly markers.</td>
+        </tr>
+        <tr>
+          <td>Queue failure visibility</td>
+          <td><span class="pill partial">Partial</span></td>
+          <td>Failure context is visible in ops paths; alerting hooks added for critical failures.</td>
+          <td>Refine paging rules and noise suppression.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>4) Meta Tech Provider Readiness (Practical Scorecard)</h2>
+    <table>
+      <thead><tr><th>Expectation</th><th>Status</th><th>Current position</th></tr></thead>
+      <tbody>
+        <tr><td>Embedded signup reliability</td><td><span class="pill partial">Partial</span></td><td>Flow works with recent improvements; redirect URI consistency remains critical.</td></tr>
+        <tr><td>Template lifecycle + status sync</td><td><span class="pill partial">Partial</span></td><td>Strong baseline; keep tightening edge component/media validations.</td></tr>
+        <tr><td>Webhook health and account quality visibility</td><td><span class="pill ok">Implemented</span></td><td>Connection health snapshots + diagnostics views available.</td></tr>
+        <tr><td>Conversation-based usage and pricing correctness</td><td><span class="pill partial">Partial</span></td><td>Versioned model present; continue validating country/category rate fidelity.</td></tr>
+        <tr><td>Ops tooling and auditability</td><td><span class="pill ok">Implemented</span></td><td>Alert center + diagnostics bundles + timeline filters are in place.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>5) High-Value Ongoing Checks (Release Gate)</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Before every release</h3>
+        <ul>
+          <li>Run migration dry-check + rollback check in staging.</li>
+          <li>Run focused webhook, template send, billing, and inbox regression tests.</li>
+          <li>Confirm no duplicate toast/flash regressions on key pages.</li>
+          <li>Validate mobile layout on onboarding, settings, team, billing, inbox.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Weekly ops review</h3>
+        <ul>
+          <li>Review alert center unresolved critical/warning trends.</li>
+          <li>Audit failed webhook/job replay success ratio.</li>
+          <li>Inspect top Meta API errors by template/campaign.</li>
+          <li>Verify pricing snapshot/import recency and invoice correctness samples.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>6) Quick Ownership Map</h2>
+    <table>
+      <thead><tr><th>Domain</th><th>Primary owner</th><th>Secondary owner</th><th>Escalation signal</th></tr></thead>
+      <tbody>
+        <tr><td>Meta onboarding + connections</td><td>Platform engineering</td><td>Support ops</td><td>OAuth exchange or connection activation errors</td></tr>
+        <tr><td>Inbox and delivery reliability</td><td>Messaging engineering</td><td>Tenant support</td><td>Sent vs delivered/read mismatch spikes</td></tr>
+        <tr><td>Templates and campaign execution</td><td>Messaging engineering</td><td>Success team</td><td>Template rejection/failure rate increase</td></tr>
+        <tr><td>Billing and subscription recovery</td><td>Billing engineering</td><td>Finance ops</td><td>Renewed accounts still blocked or invoice gaps</td></tr>
+        <tr><td>Observability and diagnostics</td><td>Platform engineering</td><td>Support desk</td><td>Critical alerts unresolved > SLA</td></tr>
+      </tbody>
+    </table>
+
+    <p class="small" style="margin-top:14px;">This checklist is intentionally operational. Keep it updated each time a hardening slice ships.</p>
+  </div>
+</body>
+</html>

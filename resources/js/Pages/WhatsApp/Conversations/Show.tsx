@@ -1430,6 +1430,18 @@ export default function ConversationsShow({
         return parsed.toLocaleString();
     };
 
+    const downloadMessageDiagnosticsBundle = (message: Message) => {
+        const query = new URLSearchParams({
+            conversation_id: String(conversation.id),
+            message_id: String(message.id),
+            scope: `message:${message.id}`,
+        });
+        if (message.meta_message_id) {
+            query.set('meta_message_id', message.meta_message_id);
+        }
+        window.location.href = `${route('app.alerts.bundle')}?${query.toString()}`;
+    };
+
     const getDeliveryLatencyLabel = (message: Message): string | null => {
         if (message.direction !== 'outbound' || !message.sent_at) return null;
 
@@ -2634,14 +2646,26 @@ export default function ConversationsShow({
                                 Message #{diagnosticMessage?.id ?? '-'} delivery and provider status details.
                             </p>
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => setDiagnosticMessage(null)}
-                            className="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-                            aria-label="Close diagnostics"
-                        >
-                            <X className="h-4 w-4" />
-                        </button>
+                        <div className="flex items-center gap-2">
+                            {diagnosticMessage && (
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => downloadMessageDiagnosticsBundle(diagnosticMessage)}
+                                >
+                                    Download Bundle
+                                </Button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setDiagnosticMessage(null)}
+                                className="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                                aria-label="Close diagnostics"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
                     </div>
 
                     {diagnosticMessage && (
