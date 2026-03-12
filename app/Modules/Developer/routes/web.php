@@ -8,4 +8,9 @@ Route::middleware(['module.entitled:developer'])->prefix('developer')->name('dev
     Route::post('/api-keys', [DeveloperController::class, 'store'])->name('api-keys.store');
     Route::patch('/api-keys/{id}', [DeveloperController::class, 'update'])->name('api-keys.update');
     Route::delete('/api-keys/{id}', [DeveloperController::class, 'destroy'])->name('api-keys.destroy');
+    Route::post('/webhooks', [DeveloperController::class, 'storeWebhookEndpoint'])->name('webhooks.store');
+    Route::patch('/webhooks/{id}', [DeveloperController::class, 'updateWebhookEndpoint'])->name('webhooks.update');
+    Route::delete('/webhooks/{id}', [DeveloperController::class, 'destroyWebhookEndpoint'])->name('webhooks.destroy');
+    Route::post('/webhooks/{id}/test', [DeveloperController::class, 'testWebhookEndpoint'])->name('webhooks.test');
+    Route::post('/webhook-deliveries/{id}/replay', [DeveloperController::class, 'replayWebhookDelivery'])->name('webhook-deliveries.replay');
 });

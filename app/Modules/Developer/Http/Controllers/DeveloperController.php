@@ -4,7 +4,13 @@ namespace App\Modules\Developer\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\AccountApiKey;
+use App\Models\TenantWebhookDelivery;
+use App\Models\TenantWebhookEndpoint;
+use App\Models\TenantWebhookSubscription;
+use App\Modules\Developer\Jobs\DeliverTenantWebhookJob;
+use App\Modules\Developer\Services\TenantWebhookService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -63,11 +69,47 @@ class DeveloperController extends Controller
                 ];
             });
 
+        $endpoints = TenantWebhookEndpoint::query()
+            ->where('account_id', $account->id)
+            ->with(['subscriptions', 'deliveries' => fn ($q) => $q->latest('id')])
+            ->orderByDesc('id')
+            ->get()
+            ->map(function (TenantWebhookEndpoint $endpoint) {
+                $enabled = $endpoint->subscriptions
+                    ->where('is_enabled', true)
+                    ->pluck('event_key')
+                    ->values()
+                    ->toArray();
+
+                return [
+                    'id' => $endpoint->id,
+                    'name' => $endpoint->name,
+                    'url' => $endpoint->url,
+                    'is_active' => (bool) $endpoint->is_active,
+                    'timeout_seconds' => (int) $endpoint->timeout_seconds,
+                    'max_retries' => (int) $endpoint->max_retries,
+                    'enabled_events' => $enabled,
+                    'created_at' => $endpoint->created_at?->toIso8601String(),
+                    'updated_at' => $endpoint->updated_at?->toIso8601String(),
+                    'last_delivery_at' => $endpoint->last_delivery_at?->toIso8601String(),
+                    'last_delivery_status_code' => $endpoint->last_delivery_status_code,
+                    'last_delivery_error' => $endpoint->last_delivery_error,
+                    'deliveries' => $endpoint->deliveries
+                        ->sortByDesc('id')
+                        ->take(10)
+                        ->map(fn (TenantWebhookDelivery $delivery) => $this->formatDelivery($delivery))
+                        ->values()
+                        ->toArray(),
+                ];
+            });
+
         return Inertia::render('Developer/Index', [
             'account' => $account,
             'api_keys' => $keys,
             'base_url' => config('app.url') . '/api/v1',
             'available_scopes' => self::AVAILABLE_SCOPES,
+            'webhook_event_keys' => TenantWebhookService::EVENT_KEYS,
+            'webhook_endpoints' => $endpoints,
         ]);
     }
 
@@ -87,6 +129,15 @@ class DeveloperController extends Controller
             'base_url' => $baseUrl,
             'endpoints' => $endpoints,
             'available_scopes' => self::AVAILABLE_SCOPES,
+            'webhook_event_keys' => TenantWebhookService::EVENT_KEYS,
+            'webhook_sample_payloads' => $this->webhookSamplePayloads(),
+            'webhook_signature_example' => [
+                'timestamp_header' => 'X-Waify-Timestamp',
+                'signature_header' => 'X-Waify-Signature',
+                'signature_format' => 'v1=' . str_repeat('a', 64),
+                'algorithm' => 'HMAC SHA256',
+                'canonical_input' => 'timestamp + "." + raw_request_body',
+            ],
         ]);
     }
 
@@ -181,6 +232,156 @@ class DeveloperController extends Controller
         return back()->with('success', 'API key revoked.');
     }
 
+    public function storeWebhookEndpoint(Request $request)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+        $this->ensureDeveloperManager($request);
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:120',
+            'url' => 'required|url|max:1000',
+            'is_active' => 'nullable|boolean',
+            'timeout_seconds' => 'nullable|integer|min:3|max:30',
+            'max_retries' => 'nullable|integer|min:1|max:10',
+            'signing_secret' => 'nullable|string|min:16|max:255',
+            'event_keys' => 'required|array|min:1',
+            'event_keys.*' => 'string|in:' . implode(',', TenantWebhookService::EVENT_KEYS),
+        ]);
+
+        /** @var TenantWebhookEndpoint $endpoint */
+        $endpoint = TenantWebhookEndpoint::create([
+            'account_id' => $account->id,
+            'name' => trim((string) $validated['name']),
+            'url' => trim((string) $validated['url']),
+            'is_active' => (bool) ($validated['is_active'] ?? true),
+            'timeout_seconds' => (int) ($validated['timeout_seconds'] ?? 10),
+            'max_retries' => (int) ($validated['max_retries'] ?? 5),
+            'signing_secret' => (string) ($validated['signing_secret'] ?? Str::random(48)),
+        ]);
+
+        $this->syncEndpointSubscriptions($endpoint, (array) $validated['event_keys']);
+
+        return back()->with('success', 'Webhook endpoint created.');
+    }
+
+    public function updateWebhookEndpoint(Request $request, int $id)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+        $this->ensureDeveloperManager($request);
+
+        /** @var TenantWebhookEndpoint $endpoint */
+        $endpoint = TenantWebhookEndpoint::query()
+            ->where('account_id', $account->id)
+            ->findOrFail($id);
+
+        $validated = $request->validate([
+            'name' => 'sometimes|required|string|max:120',
+            'url' => 'sometimes|required|url|max:1000',
+            'is_active' => 'sometimes|boolean',
+            'timeout_seconds' => 'sometimes|integer|min:3|max:30',
+            'max_retries' => 'sometimes|integer|min:1|max:10',
+            'rotate_secret' => 'nullable|boolean',
+            'signing_secret' => 'nullable|string|min:16|max:255',
+            'event_keys' => 'sometimes|array|min:1',
+            'event_keys.*' => 'string|in:' . implode(',', TenantWebhookService::EVENT_KEYS),
+        ]);
+
+        if (array_key_exists('name', $validated)) {
+            $endpoint->name = trim((string) $validated['name']);
+        }
+        if (array_key_exists('url', $validated)) {
+            $endpoint->url = trim((string) $validated['url']);
+        }
+        if (array_key_exists('is_active', $validated)) {
+            $endpoint->is_active = (bool) $validated['is_active'];
+        }
+        if (array_key_exists('timeout_seconds', $validated)) {
+            $endpoint->timeout_seconds = (int) $validated['timeout_seconds'];
+        }
+        if (array_key_exists('max_retries', $validated)) {
+            $endpoint->max_retries = (int) $validated['max_retries'];
+        }
+        if (!empty($validated['rotate_secret'])) {
+            $endpoint->signing_secret = Str::random(48);
+        } elseif (!empty($validated['signing_secret'])) {
+            $endpoint->signing_secret = (string) $validated['signing_secret'];
+        }
+        $endpoint->save();
+
+        if (array_key_exists('event_keys', $validated)) {
+            $this->syncEndpointSubscriptions($endpoint, (array) $validated['event_keys']);
+        }
+
+        return back()->with('success', 'Webhook endpoint updated.');
+    }
+
+    public function destroyWebhookEndpoint(Request $request, int $id)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+        $this->ensureDeveloperManager($request);
+
+        $endpoint = TenantWebhookEndpoint::query()
+            ->where('account_id', $account->id)
+            ->findOrFail($id);
+        $endpoint->delete();
+
+        return back()->with('success', 'Webhook endpoint removed.');
+    }
+
+    public function testWebhookEndpoint(Request $request, int $id)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+        $this->ensureDeveloperManager($request);
+
+        /** @var TenantWebhookEndpoint $endpoint */
+        $endpoint = TenantWebhookEndpoint::query()
+            ->where('account_id', $account->id)
+            ->findOrFail($id);
+
+        $eventKey = (string) $request->input('event_key', 'message.sent');
+        if (!in_array($eventKey, TenantWebhookService::EVENT_KEYS, true)) {
+            return back()->with('error', 'Invalid webhook test event key.');
+        }
+
+        $delivery = TenantWebhookDelivery::create([
+            'account_id' => $account->id,
+            'tenant_webhook_endpoint_id' => $endpoint->id,
+            'event_key' => $eventKey,
+            'event_id' => (string) Str::uuid(),
+            'idempotency_key' => 'test_' . Str::random(12),
+            'payload' => [
+                'test' => true,
+                'sent_from' => 'developer.webhooks.test',
+                'account' => [
+                    'id' => $account->id,
+                    'name' => $account->name,
+                ],
+                'occurred_at' => now()->toIso8601String(),
+            ],
+            'status' => 'pending',
+            'attempts' => 0,
+        ]);
+
+        DeliverTenantWebhookJob::dispatch($delivery->id);
+
+        return back()->with('success', 'Webhook test sent.');
+    }
+
+    public function replayWebhookDelivery(Request $request, int $id, TenantWebhookService $tenantWebhookService)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+        $this->ensureDeveloperManager($request);
+
+        /** @var TenantWebhookDelivery $delivery */
+        $delivery = TenantWebhookDelivery::query()
+            ->where('account_id', $account->id)
+            ->findOrFail($id);
+
+        $tenantWebhookService->replayDelivery($delivery);
+
+        return back()->with('success', 'Webhook delivery queued for replay.');
+    }
+
     /**
      * Documented API endpoints for the external docs page.
      */
@@ -222,6 +423,94 @@ class DeveloperController extends Controller
                 'auth' => true,
                 'scope' => 'conversations.read',
                 'example' => "curl -X GET \"{$baseUrl}/conversations?status=open&limit=25\" \\\n  -H \"Authorization: Bearer YOUR_API_KEY\"",
+            ],
+        ];
+    }
+
+    /**
+     * @param  array<int,string>  $eventKeys
+     */
+    protected function syncEndpointSubscriptions(TenantWebhookEndpoint $endpoint, array $eventKeys): void
+    {
+        $target = array_values(array_unique(array_filter($eventKeys, function ($eventKey) {
+            return in_array((string) $eventKey, TenantWebhookService::EVENT_KEYS, true);
+        })));
+
+        foreach (TenantWebhookService::EVENT_KEYS as $eventKey) {
+            TenantWebhookSubscription::updateOrCreate(
+                [
+                    'tenant_webhook_endpoint_id' => $endpoint->id,
+                    'event_key' => $eventKey,
+                ],
+                [
+                    'is_enabled' => in_array($eventKey, $target, true),
+                ]
+            );
+        }
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    protected function formatDelivery(TenantWebhookDelivery $delivery): array
+    {
+        return [
+            'id' => $delivery->id,
+            'event_key' => $delivery->event_key,
+            'event_id' => $delivery->event_id,
+            'status' => $delivery->status,
+            'attempts' => (int) $delivery->attempts,
+            'http_status' => $delivery->http_status,
+            'error_message' => $delivery->error_message,
+            'created_at' => $delivery->created_at?->toIso8601String(),
+            'delivered_at' => $delivery->delivered_at?->toIso8601String(),
+            'next_retry_at' => $delivery->next_retry_at?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    protected function webhookSamplePayloads(): array
+    {
+        return [
+            'message.received' => [
+                'event_id' => 'uuid',
+                'event' => 'message.received',
+                'account_id' => 123,
+                'occurred_at' => now()->toIso8601String(),
+                'data' => [
+                    'message_id' => 999,
+                    'conversation_id' => 77,
+                    'direction' => 'inbound',
+                    'status' => 'delivered',
+                    'type' => 'text',
+                    'text_body' => 'hello',
+                ],
+            ],
+            'template.status_changed' => [
+                'event_id' => 'uuid',
+                'event' => 'template.status_changed',
+                'account_id' => 123,
+                'occurred_at' => now()->toIso8601String(),
+                'data' => [
+                    'template_id' => 55,
+                    'name' => 'order_update',
+                    'status' => 'approved',
+                    'rejection_reason' => null,
+                ],
+            ],
+            'connection.health_changed' => [
+                'event_id' => 'uuid',
+                'event' => 'connection.health_changed',
+                'account_id' => 123,
+                'occurred_at' => now()->toIso8601String(),
+                'data' => [
+                    'connection_id' => 42,
+                    'health_state' => 'warning',
+                    'quality_rating' => 'yellow',
+                    'restriction_state' => null,
+                ],
             ],
         ];
     }

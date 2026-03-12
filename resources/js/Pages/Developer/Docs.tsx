@@ -18,11 +18,23 @@ export default function DeveloperDocs({
     base_url,
     endpoints,
     available_scopes = [],
+    webhook_event_keys = [],
+    webhook_sample_payloads = {},
+    webhook_signature_example = null,
 }: {
     account: any;
     base_url: string;
     endpoints: Endpoint[];
     available_scopes?: string[];
+    webhook_event_keys?: string[];
+    webhook_sample_payloads?: Record<string, any>;
+    webhook_signature_example?: {
+        timestamp_header: string;
+        signature_header: string;
+        signature_format: string;
+        algorithm: string;
+        canonical_input: string;
+    } | null;
 }) {
     const methodColors: Record<string, string> = {
         GET: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
@@ -149,6 +161,49 @@ export default function DeveloperDocs({
                                 </pre>
                             </div>
                         ))}
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Tenant Webhooks</CardTitle>
+                        <CardDescription>
+                            Configure outbound webhooks from Developer settings to receive near real-time event updates.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Headers</p>
+                            <div className="rounded-lg bg-gray-50 dark:bg-gray-900/40 p-3 text-xs space-y-1">
+                                <p><code>X-Waify-Event</code>: event key</p>
+                                <p><code>X-Waify-Event-Id</code>: unique event UUID</p>
+                                <p><code>{webhook_signature_example?.timestamp_header ?? 'X-Waify-Timestamp'}</code>: unix timestamp</p>
+                                <p><code>{webhook_signature_example?.signature_header ?? 'X-Waify-Signature'}</code>: {webhook_signature_example?.signature_format ?? 'v1=<hex>'}</p>
+                                <p><code>X-Waify-Idempotency-Key</code>: deduplication key</p>
+                            </div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                Signature is computed using {webhook_signature_example?.algorithm ?? 'HMAC SHA256'} over{' '}
+                                <code>{webhook_signature_example?.canonical_input ?? 'timestamp.raw_body'}</code>.
+                            </p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Supported events</p>
+                            <div className="flex flex-wrap gap-2">
+                                {webhook_event_keys.map((eventKey) => (
+                                    <code key={eventKey} className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-1 text-xs">
+                                        {eventKey}
+                                    </code>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Sample payload</p>
+                            <pre className="rounded-lg bg-gray-900 text-gray-100 dark:bg-gray-800 p-4 text-xs overflow-x-auto whitespace-pre-wrap">
+{JSON.stringify(webhook_sample_payloads['message.received'] ?? {}, null, 2)}
+                            </pre>
+                        </div>
                     </CardContent>
                 </Card>
 

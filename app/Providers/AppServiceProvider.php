@@ -7,9 +7,15 @@ use App\Console\Commands\OpsCleanupRetentionCommand;
 use App\Console\Commands\OpsQueueScanFailuresCommand;
 use App\Console\Commands\OpsRunMaintenanceCommand;
 use App\Console\Commands\OpsTestAlertCommand;
+use App\Modules\Developer\Services\TenantWebhookService;
 use App\Modules\Floaters\Models\FloaterWidget;
 use App\Modules\Floaters\Policies\FloaterWidgetPolicy;
+use App\Modules\WhatsApp\Events\Inbox\ConversationUpdated;
+use App\Modules\WhatsApp\Events\Inbox\MessageCreated;
+use App\Modules\WhatsApp\Events\Inbox\MessageUpdated;
+use App\Modules\WhatsApp\Events\Templates\TemplateStatusUpdated;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
+use App\Modules\WhatsApp\Models\WhatsAppContact;
 use App\Modules\WhatsApp\Policies\WhatsAppConnectionPolicy;
 use App\Services\PlatformSettingsService;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -150,6 +156,172 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(NotificationSent::class, [\App\Listeners\TrackNotificationDelivery::class, 'handleSent']);
         Event::listen(NotificationFailed::class, [\App\Listeners\TrackNotificationDelivery::class, 'handleFailed']);
         Event::listen(MessageSent::class, [\App\Listeners\TrackMailDelivery::class, 'handle']);
+        Event::listen(MessageCreated::class, function (MessageCreated $event) {
+            $message = $event->message;
+            $account = $message->account;
+            if (!$account) {
+                return;
+            }
+            $eventKey = (string) ($message->direction ?? '') === 'inbound'
+                ? 'message.received'
+                : 'message.sent';
+
+            app(TenantWebhookService::class)->dispatchEvent($account, $eventKey, [
+                'message_id' => $message->id,
+                'conversation_id' => $message->whatsapp_conversation_id,
+                'connection_id' => $message->whatsapp_connection_id,
+                'direction' => $message->direction,
+                'status' => $message->status,
+                'type' => $message->type,
+                'meta_message_id' => $message->meta_message_id,
+                'text_body' => $message->text_body,
+                'created_at' => $message->created_at?->toIso8601String(),
+            ], (string) ($message->meta_message_id ?: "message_created_{$message->id}_{$message->updated_at?->timestamp}"));
+        });
+        Event::listen(MessageUpdated::class, function (MessageUpdated $event) {
+            $message = $event->message;
+            $account = $message->account;
+            if (!$account) {
+                return;
+            }
+
+            $status = strtolower((string) $message->status);
+            $eventKey = match ($status) {
+                'delivered' => 'message.delivered',
+                'read' => 'message.read',
+                'failed' => 'message.failed',
+                default => null,
+            };
+            if (!$eventKey) {
+                return;
+            }
+
+            app(TenantWebhookService::class)->dispatchEvent($account, $eventKey, [
+                'message_id' => $message->id,
+                'conversation_id' => $message->whatsapp_conversation_id,
+                'connection_id' => $message->whatsapp_connection_id,
+                'status' => $message->status,
+                'error_message' => $message->error_message,
+                'meta_message_id' => $message->meta_message_id,
+                'updated_at' => $message->updated_at?->toIso8601String(),
+                'sent_at' => $message->sent_at?->toIso8601String(),
+                'delivered_at' => $message->delivered_at?->toIso8601String(),
+                'read_at' => $message->read_at?->toIso8601String(),
+            ], (string) ($message->meta_message_id ?: "message_updated_{$message->id}_{$status}_{$message->updated_at?->timestamp}"));
+        });
+        Event::listen(ConversationUpdated::class, function (ConversationUpdated $event) {
+            $conversation = $event->conversation;
+            $account = $conversation->account;
+            if (!$account) {
+                return;
+            }
+
+            $eventKey = ($conversation->created_at && $conversation->updated_at && $conversation->created_at->equalTo($conversation->updated_at))
+                ? 'conversation.created'
+                : 'conversation.updated';
+
+            app(TenantWebhookService::class)->dispatchEvent($account, $eventKey, [
+                'conversation_id' => $conversation->id,
+                'connection_id' => $conversation->whatsapp_connection_id,
+                'contact_id' => $conversation->whatsapp_contact_id,
+                'status' => $conversation->status,
+                'last_message_at' => $conversation->last_message_at?->toIso8601String(),
+                'last_message_preview' => $conversation->last_message_preview,
+                'updated_at' => $conversation->updated_at?->toIso8601String(),
+            ], "conversation_{$eventKey}_{$conversation->id}_{$conversation->updated_at?->timestamp}");
+        });
+        Event::listen(TemplateStatusUpdated::class, function (TemplateStatusUpdated $event) {
+            $template = $event->template;
+            $account = $template->account;
+            if (!$account) {
+                return;
+            }
+
+            app(TenantWebhookService::class)->dispatchEvent($account, 'template.status_changed', [
+                'template_id' => $template->id,
+                'name' => $template->name,
+                'slug' => $template->slug,
+                'language' => $template->language,
+                'category' => $template->category,
+                'status' => $template->status,
+                'rejection_reason' => $template->rejection_reason,
+                'last_meta_error' => $template->last_meta_error,
+                'updated_at' => $template->updated_at?->toIso8601String(),
+            ], "template_status_{$template->id}_{$template->updated_at?->timestamp}");
+        });
+
+        WhatsAppContact::created(function (WhatsAppContact $contact) {
+            $account = $contact->account;
+            if (!$account) {
+                return;
+            }
+            app(TenantWebhookService::class)->dispatchEvent($account, 'contact.created', [
+                'contact_id' => $contact->id,
+                'wa_id' => $contact->wa_id,
+                'name' => $contact->name,
+                'phone' => $contact->phone,
+                'created_at' => $contact->created_at?->toIso8601String(),
+            ], "contact_created_{$contact->id}_{$contact->created_at?->timestamp}");
+        });
+        WhatsAppContact::updated(function (WhatsAppContact $contact) {
+            $account = $contact->account;
+            if (!$account) {
+                return;
+            }
+            app(TenantWebhookService::class)->dispatchEvent($account, 'contact.updated', [
+                'contact_id' => $contact->id,
+                'wa_id' => $contact->wa_id,
+                'name' => $contact->name,
+                'phone' => $contact->phone,
+                'updated_at' => $contact->updated_at?->toIso8601String(),
+                'changes' => $contact->getChanges(),
+            ], "contact_updated_{$contact->id}_{$contact->updated_at?->timestamp}");
+        });
+
+        WhatsAppConnection::updated(function (WhatsAppConnection $connection) {
+            $account = $connection->account;
+            if (!$account) {
+                return;
+            }
+            $healthFields = [
+                'quality_rating',
+                'messaging_limit_tier',
+                'account_review_status',
+                'business_verification_status',
+                'code_verification_status',
+                'display_name_status',
+                'restriction_state',
+                'warning_state',
+                'health_state',
+                'health_last_synced_at',
+            ];
+            $hasHealthChange = false;
+            foreach ($healthFields as $field) {
+                if ($connection->wasChanged($field)) {
+                    $hasHealthChange = true;
+                    break;
+                }
+            }
+            if (!$hasHealthChange) {
+                return;
+            }
+
+            app(TenantWebhookService::class)->dispatchEvent($account, 'connection.health_changed', [
+                'connection_id' => $connection->id,
+                'name' => $connection->name,
+                'quality_rating' => $connection->quality_rating,
+                'messaging_limit_tier' => $connection->messaging_limit_tier,
+                'account_review_status' => $connection->account_review_status,
+                'business_verification_status' => $connection->business_verification_status,
+                'display_name_status' => $connection->display_name_status,
+                'restriction_state' => $connection->restriction_state,
+                'warning_state' => $connection->warning_state,
+                'health_state' => $connection->health_state,
+                'health_last_synced_at' => $connection->health_last_synced_at?->toIso8601String(),
+                'updated_at' => $connection->updated_at?->toIso8601String(),
+                'changes' => $connection->getChanges(),
+            ], "connection_health_{$connection->id}_{$connection->updated_at?->timestamp}");
+        });
 
         // Route model binding for 'plan' parameter - resolve by key (slug) instead of ID
         Route::bind('plan', function ($value) {

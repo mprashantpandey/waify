@@ -6,7 +6,7 @@ import Button from '@/Components/UI/Button';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
-import { Code2, Key, Plus, Trash2, Copy, Check, BookOpen, AlertCircle } from 'lucide-react';
+import { Code2, Key, Plus, Trash2, Copy, Check, BookOpen, AlertCircle, Link2, RotateCcw, Send } from 'lucide-react';
 import { useToast } from '@/hooks/useToast';
 import { useConfirm } from '@/hooks/useConfirm';
 
@@ -23,16 +23,47 @@ interface ApiKeyRow {
     created_at: string;
 }
 
+interface WebhookDeliveryRow {
+    id: number;
+    event_key: string;
+    event_id: string;
+    status: string;
+    attempts: number;
+    http_status: number | null;
+    error_message: string | null;
+    created_at: string | null;
+    delivered_at: string | null;
+    next_retry_at: string | null;
+}
+
+interface WebhookEndpointRow {
+    id: number;
+    name: string;
+    url: string;
+    is_active: boolean;
+    timeout_seconds: number;
+    max_retries: number;
+    enabled_events: string[];
+    last_delivery_at: string | null;
+    last_delivery_status_code: number | null;
+    last_delivery_error: string | null;
+    deliveries: WebhookDeliveryRow[];
+}
+
 export default function DeveloperIndex({
     account,
     api_keys,
     base_url,
     available_scopes = [],
+    webhook_event_keys = [],
+    webhook_endpoints = [],
 }: {
     account: any;
     api_keys: ApiKeyRow[];
     base_url: string;
     available_scopes?: string[];
+    webhook_event_keys?: string[];
+    webhook_endpoints?: WebhookEndpointRow[];
 }) {
     const { addToast } = useToast();
     const confirm = useConfirm();
@@ -46,6 +77,13 @@ export default function DeveloperIndex({
         expires_in_days: '',
     });
     const [copied, setCopied] = useState(false);
+    const webhookForm = useForm({
+        name: '',
+        url: '',
+        event_keys: webhook_event_keys as string[],
+        timeout_seconds: 10,
+        max_retries: 5,
+    });
 
     const handleCreateKey = (e: React.FormEvent) => {
         e.preventDefault();
@@ -82,6 +120,40 @@ export default function DeveloperIndex({
         router.patch(route('app.developer.api-keys.update', { id: key.id }), {
             is_active: !key.is_active,
         }, { preserveScroll: true });
+    };
+
+    const createWebhookEndpoint = (e: React.FormEvent) => {
+        e.preventDefault();
+        webhookForm.post(route('app.developer.webhooks.store'), {
+            preserveScroll: true,
+            onSuccess: () => webhookForm.reset('name', 'url'),
+        });
+    };
+
+    const toggleWebhookEndpoint = (endpoint: WebhookEndpointRow) => {
+        router.patch(route('app.developer.webhooks.update', { id: endpoint.id }), {
+            is_active: !endpoint.is_active,
+        }, { preserveScroll: true });
+    };
+
+    const deleteWebhookEndpoint = async (endpoint: WebhookEndpointRow) => {
+        const ok = await confirm({
+            title: 'Delete webhook endpoint',
+            message: `Delete "${endpoint.name}"? Delivery logs for this endpoint will be removed.`,
+            variant: 'warning',
+        });
+        if (!ok) return;
+        router.delete(route('app.developer.webhooks.destroy', { id: endpoint.id }), { preserveScroll: true });
+    };
+
+    const testWebhookEndpoint = (endpoint: WebhookEndpointRow) => {
+        router.post(route('app.developer.webhooks.test', { id: endpoint.id }), {
+            event_key: endpoint.enabled_events[0] || 'message.sent',
+        }, { preserveScroll: true });
+    };
+
+    const replayDelivery = (deliveryId: number) => {
+        router.post(route('app.developer.webhook-deliveries.replay', { id: deliveryId }), {}, { preserveScroll: true });
     };
 
     return (
@@ -281,6 +353,186 @@ export default function DeveloperIndex({
                             Authenticate with <code className="rounded bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5">Authorization: Bearer YOUR_API_KEY</code> or{' '}
                             <code className="rounded bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5">X-API-Key: YOUR_API_KEY</code>. See the API documentation for endpoints.
                         </p>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Link2 className="h-5 w-5" />
+                            Outbound webhooks
+                        </CardTitle>
+                        <CardDescription>
+                            Send message, conversation, template, and connection health events to your own endpoint.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <form onSubmit={createWebhookEndpoint} className="space-y-3 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                            <div className="grid gap-3 md:grid-cols-2">
+                                <div>
+                                    <InputLabel htmlFor="webhook_name" value="Endpoint name" />
+                                    <TextInput
+                                        id="webhook_name"
+                                        value={webhookForm.data.name}
+                                        onChange={(e) => webhookForm.setData('name', e.target.value)}
+                                        placeholder="CRM webhook"
+                                        className="mt-1"
+                                    />
+                                    <InputError message={webhookForm.errors.name} />
+                                </div>
+                                <div>
+                                    <InputLabel htmlFor="webhook_url" value="Endpoint URL" />
+                                    <TextInput
+                                        id="webhook_url"
+                                        value={webhookForm.data.url}
+                                        onChange={(e) => webhookForm.setData('url', e.target.value)}
+                                        placeholder="https://example.com/webhooks/waify"
+                                        className="mt-1"
+                                    />
+                                    <InputError message={webhookForm.errors.url} />
+                                </div>
+                            </div>
+                            <div className="grid gap-3 md:grid-cols-2">
+                                <div>
+                                    <InputLabel htmlFor="webhook_timeout" value="Timeout (seconds)" />
+                                    <TextInput
+                                        id="webhook_timeout"
+                                        type="number"
+                                        min="3"
+                                        max="30"
+                                        value={String(webhookForm.data.timeout_seconds)}
+                                        onChange={(e) => webhookForm.setData('timeout_seconds', Number(e.target.value || 10))}
+                                        className="mt-1"
+                                    />
+                                    <InputError message={webhookForm.errors.timeout_seconds} />
+                                </div>
+                                <div>
+                                    <InputLabel htmlFor="webhook_retries" value="Max retries" />
+                                    <TextInput
+                                        id="webhook_retries"
+                                        type="number"
+                                        min="1"
+                                        max="10"
+                                        value={String(webhookForm.data.max_retries)}
+                                        onChange={(e) => webhookForm.setData('max_retries', Number(e.target.value || 5))}
+                                        className="mt-1"
+                                    />
+                                    <InputError message={webhookForm.errors.max_retries} />
+                                </div>
+                            </div>
+                            <div>
+                                <InputLabel value="Subscribed events" />
+                                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                                    {webhook_event_keys.map((eventKey) => (
+                                        <label key={eventKey} className="inline-flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-xs">
+                                            <input
+                                                type="checkbox"
+                                                checked={webhookForm.data.event_keys.includes(eventKey)}
+                                                onChange={(e) => {
+                                                    const current = [...webhookForm.data.event_keys];
+                                                    webhookForm.setData(
+                                                        'event_keys',
+                                                        e.target.checked
+                                                            ? Array.from(new Set([...current, eventKey]))
+                                                            : current.filter((k) => k !== eventKey),
+                                                    );
+                                                }}
+                                            />
+                                            <code>{eventKey}</code>
+                                        </label>
+                                    ))}
+                                </div>
+                                <InputError message={webhookForm.errors.event_keys as any} />
+                            </div>
+                            <Button type="submit" disabled={webhookForm.processing || webhookForm.data.event_keys.length === 0} className="gap-2">
+                                <Plus className="h-4 w-4" />
+                                Add endpoint
+                            </Button>
+                        </form>
+
+                        {webhook_endpoints.length === 0 ? (
+                            <p className="text-sm text-gray-500 dark:text-gray-400">No webhook endpoints configured.</p>
+                        ) : (
+                            <div className="space-y-4">
+                                {webhook_endpoints.map((endpoint) => (
+                                    <div key={endpoint.id} className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 space-y-3">
+                                        <div className="flex flex-wrap items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <p className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                                                    {endpoint.name}
+                                                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] ${endpoint.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'}`}>
+                                                        {endpoint.is_active ? 'Active' : 'Disabled'}
+                                                    </span>
+                                                </p>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 break-all">{endpoint.url}</p>
+                                                <div className="mt-2 flex flex-wrap gap-1">
+                                                    {endpoint.enabled_events.map((eventKey) => (
+                                                        <code key={eventKey} className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-[11px]">
+                                                            {eventKey}
+                                                        </code>
+                                                    ))}
+                                                </div>
+                                                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                                    Last delivery: {endpoint.last_delivery_at ? new Date(endpoint.last_delivery_at).toLocaleString() : '—'}
+                                                    {endpoint.last_delivery_status_code ? ` · HTTP ${endpoint.last_delivery_status_code}` : ''}
+                                                    {endpoint.last_delivery_error ? ` · ${endpoint.last_delivery_error}` : ''}
+                                                </p>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                <Button type="button" variant="secondary" size="sm" onClick={() => testWebhookEndpoint(endpoint)} className="gap-1">
+                                                    <Send className="h-4 w-4" />
+                                                    Test
+                                                </Button>
+                                                <Button type="button" variant="secondary" size="sm" onClick={() => toggleWebhookEndpoint(endpoint)}>
+                                                    {endpoint.is_active ? 'Disable' : 'Enable'}
+                                                </Button>
+                                                <Button type="button" variant="ghost" size="sm" className="text-red-600 hover:text-red-700 dark:text-red-400" onClick={() => deleteWebhookEndpoint(endpoint)}>
+                                                    <Trash2 className="h-4 w-4 mr-1" />
+                                                    Delete
+                                                </Button>
+                                            </div>
+                                        </div>
+                                        {endpoint.deliveries.length > 0 && (
+                                            <div className="overflow-x-auto">
+                                                <table className="min-w-full text-xs">
+                                                    <thead>
+                                                        <tr className="text-left text-gray-500 dark:text-gray-400">
+                                                            <th className="py-1 pr-3">Event</th>
+                                                            <th className="py-1 pr-3">Status</th>
+                                                            <th className="py-1 pr-3">Attempts</th>
+                                                            <th className="py-1 pr-3">HTTP</th>
+                                                            <th className="py-1 pr-3">When</th>
+                                                            <th className="py-1 pr-3">Action</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {endpoint.deliveries.map((delivery) => (
+                                                            <tr key={delivery.id} className="border-t border-gray-200 dark:border-gray-700">
+                                                                <td className="py-2 pr-3"><code>{delivery.event_key}</code></td>
+                                                                <td className="py-2 pr-3">{delivery.status}</td>
+                                                                <td className="py-2 pr-3">{delivery.attempts}</td>
+                                                                <td className="py-2 pr-3">{delivery.http_status ?? '—'}</td>
+                                                                <td className="py-2 pr-3">{delivery.created_at ? new Date(delivery.created_at).toLocaleString() : '—'}</td>
+                                                                <td className="py-2 pr-3">
+                                                                    {(delivery.status === 'failed' || delivery.status === 'giving_up') ? (
+                                                                        <Button type="button" size="sm" variant="secondary" onClick={() => replayDelivery(delivery.id)} className="gap-1">
+                                                                            <RotateCcw className="h-3.5 w-3.5" />
+                                                                            Replay
+                                                                        </Button>
+                                                                    ) : (
+                                                                        <span className="text-gray-400">—</span>
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
             </div>
