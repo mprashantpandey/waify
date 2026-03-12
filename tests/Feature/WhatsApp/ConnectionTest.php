@@ -214,4 +214,58 @@ class ConnectionTest extends TestCase
             'embedded' => 'Embedded signup could not complete because the OAuth redirect URI did not match exactly. Use the same redirect URI in Meta App settings and in the signup flow (including trailing slash/query).',
         ]);
     }
+
+    public function test_owner_can_trigger_manual_connection_health_sync(): void
+    {
+        $connection = WhatsAppConnection::factory()->create([
+            'account_id' => $this->account->id,
+            'access_token_encrypted' => encrypt('token'),
+            'phone_number_id' => '1234567890',
+        ]);
+
+        $sync = Mockery::mock(ConnectionHealthSyncService::class);
+        $sync->shouldReceive('syncConnection')->once()->andReturnUsing(function (WhatsAppConnection $target) {
+            return WhatsAppConnectionHealthSnapshot::create([
+                'account_id' => $target->account_id,
+                'whatsapp_connection_id' => $target->id,
+                'source' => 'manual_sync',
+                'health_state' => 'healthy',
+                'captured_at' => now(),
+            ]);
+        });
+        $this->instance(ConnectionHealthSyncService::class, $sync);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_account_id' => $this->account->id])
+            ->post(route('app.whatsapp.connections.sync-health', [
+                'connection' => $connection->id,
+            ]));
+
+        $response->assertRedirect();
+        $response->assertSessionHas('success', 'Connection health synced successfully.');
+    }
+
+    public function test_manual_connection_health_sync_surfaces_actionable_error_when_no_snapshot_returned(): void
+    {
+        $connection = WhatsAppConnection::factory()->create([
+            'account_id' => $this->account->id,
+            'access_token_encrypted' => encrypt('token'),
+            'phone_number_id' => '1234567890',
+        ]);
+
+        $sync = Mockery::mock(ConnectionHealthSyncService::class);
+        $sync->shouldReceive('syncConnection')->once()->andReturn(null);
+        $this->instance(ConnectionHealthSyncService::class, $sync);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_account_id' => $this->account->id])
+            ->post(route('app.whatsapp.connections.sync-health', [
+                'connection' => $connection->id,
+            ]));
+
+        $response->assertRedirect();
+        $response->assertSessionHasErrors([
+            'error' => 'Unable to sync health right now. Confirm access token and phone number are configured.',
+        ]);
+    }
 }

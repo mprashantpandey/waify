@@ -1,4 +1,4 @@
-import { Link } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
@@ -43,6 +43,7 @@ export default function ConnectionsIndex({
     canCreate: boolean;
 }) {
     const [copiedUrl, setCopiedUrl] = useState<number | null>(null);
+    const [syncingConnectionId, setSyncingConnectionId] = useState<number | null>(null);
     const [query, setQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
@@ -69,6 +70,22 @@ export default function ConnectionsIndex({
         navigator.clipboard.writeText(text);
         setCopiedUrl(connectionId);
         setTimeout(() => setCopiedUrl(null), 2000);
+    };
+
+    const syncHealth = (connection: Connection) => {
+        if (syncingConnectionId !== null) return;
+
+        setSyncingConnectionId(connection.id);
+        router.post(
+            route('app.whatsapp.connections.sync-health', {
+                connection: connection.slug ?? connection.id,
+            }),
+            {},
+            {
+                preserveScroll: true,
+                onFinish: () => setSyncingConnectionId(null),
+            },
+        );
     };
 
     return (
@@ -352,10 +369,21 @@ export default function ConnectionsIndex({
                                                 connection: connection.slug ?? connection.id})}
                                             className="block"
                                         >
-                                            <Button variant="ghost" className="w-full border border-transparent hover:border-blue-200 dark:hover:border-blue-800">
-                                                Health Check
+                                            <Button
+                                                variant={connection.metadata_stale || connection.metadata_sync_status === 'error' ? 'secondary' : 'ghost'}
+                                                className="w-full border border-transparent hover:border-blue-200 dark:hover:border-blue-800"
+                                            >
+                                                {connection.metadata_stale || connection.metadata_sync_status === 'error' ? 'Review Health' : 'Health Check'}
                                             </Button>
                                         </Link>
+                                        <Button
+                                            variant="secondary"
+                                            className="w-full sm:col-span-2"
+                                            onClick={() => syncHealth(connection)}
+                                            disabled={syncingConnectionId === connection.id}
+                                        >
+                                            {syncingConnectionId === connection.id ? 'Syncing Health...' : 'Sync Health Now'}
+                                        </Button>
                                     </div>
                                 </CardContent>
                             </Card>
