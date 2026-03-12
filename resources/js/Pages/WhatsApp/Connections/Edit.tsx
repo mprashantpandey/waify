@@ -283,6 +283,8 @@ export default function ConnectionsEdit({
                     </CardHeader>
                     <CardContent className="p-6">
                         <form onSubmit={submit} className="space-y-6">
+                            <InputError message={errors.connection} className="mt-2" />
+
                             <div>
                                 <InputLabel htmlFor="name" value="Connection Name" className="text-sm font-semibold mb-2" />
                                 <TextInput

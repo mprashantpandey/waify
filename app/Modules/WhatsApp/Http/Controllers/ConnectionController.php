@@ -148,7 +148,13 @@ class ConnectionController extends Controller
             $validated['name'] = trim('WhatsApp '.($tail ?: 'Connection'));
         }
 
-        $connection = $this->connectionService->create($account, $validated);
+        try {
+            $connection = $this->connectionService->create($account, $validated);
+        } catch (\RuntimeException $e) {
+            return redirect()->back()->withInput()->withErrors([
+                'connection' => $e->getMessage(),
+            ]);
+        }
 
         return redirect()->route('app.whatsapp.connections.index')->with('success', 'Connection created successfully.');
     }
@@ -836,7 +842,13 @@ class ConnectionController extends Controller
             'quiet_hours_end' => ['nullable', 'regex:/^\d{2}:\d{2}$/'],
             'quiet_hours_timezone' => 'nullable|timezone']);
 
-        $this->connectionService->update($connection, $validated);
+        try {
+            $this->connectionService->update($connection, $validated);
+        } catch (\RuntimeException $e) {
+            return redirect()->back()->withInput()->withErrors([
+                'connection' => $e->getMessage(),
+            ]);
+        }
 
         return redirect()->route('app.whatsapp.connections.index')->with('success', 'Connection updated successfully.');
     }

@@ -13,6 +13,8 @@ class ConnectionService
      */
     public function create(Account $account, array $data): WhatsAppConnection
     {
+        $this->assertAssetNotOwnedByAnotherAccount($account, $data['phone_number_id'] ?? null, $data['waba_id'] ?? null);
+
         $data['account_id'] = $account->id;
         $data['webhook_verify_token'] = WhatsAppConnection::generateVerifyToken();
         $data['api_version'] = $data['api_version'] ?? config('whatsapp.meta.api_version', 'v21.0');
@@ -37,6 +39,13 @@ class ConnectionService
      */
     public function update(WhatsAppConnection $connection, array $data): WhatsAppConnection
     {
+        $this->assertAssetNotOwnedByAnotherAccount(
+            $connection->account,
+            $data['phone_number_id'] ?? $connection->phone_number_id,
+            $data['waba_id'] ?? $connection->waba_id,
+            $connection->id
+        );
+
         // Handle access token update
         if (isset($data['access_token'])) {
             $connection->access_token = $data['access_token'];
@@ -125,5 +134,42 @@ class ConnectionService
         ]);
         
         return $url;
+    }
+
+    protected function assertAssetNotOwnedByAnotherAccount(
+        Account $account,
+        ?string $phoneNumberId,
+        ?string $wabaId,
+        ?int $ignoreConnectionId = null
+    ): void {
+        $phoneNumberId = trim((string) $phoneNumberId);
+        $wabaId = trim((string) $wabaId);
+
+        $query = WhatsAppConnection::query()
+            ->where('account_id', '!=', $account->id)
+            ->where(function ($builder) use ($phoneNumberId, $wabaId) {
+                if ($phoneNumberId !== '') {
+                    $builder->orWhere('phone_number_id', $phoneNumberId);
+                }
+                if ($wabaId !== '') {
+                    $builder->orWhere('waba_id', $wabaId);
+                }
+            });
+
+        if ($ignoreConnectionId) {
+            $query->where('id', '!=', $ignoreConnectionId);
+        }
+
+        /** @var WhatsAppConnection|null $conflict */
+        $conflict = $query->orderByDesc('updated_at')->first();
+        if (!$conflict) {
+            return;
+        }
+
+        $asset = $phoneNumberId !== '' ? "phone_number_id={$phoneNumberId}" : "waba_id={$wabaId}";
+        throw new \RuntimeException(
+            "This WhatsApp asset ({$asset}) is already linked to another tenant account (ID {$conflict->account_id}). ".
+            'Disconnect it there first or contact platform support.'
+        );
     }
 }

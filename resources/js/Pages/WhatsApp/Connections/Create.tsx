@@ -542,6 +542,8 @@ export default function ConnectionsCreate({
                     </CardHeader>
                     <CardContent className="p-6">
                         <form onSubmit={submit} className="space-y-6">
+                            <InputError message={errors.connection} className="mt-2" />
+
                             <div>
                                 <InputLabel htmlFor="phone_number_id" value="Phone Number ID *" className="text-sm font-semibold mb-2" />
                                 <TextInput

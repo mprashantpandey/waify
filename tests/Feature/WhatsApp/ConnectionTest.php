@@ -77,6 +77,35 @@ class ConnectionTest extends TestCase
         ]);
     }
 
+    public function test_owner_cannot_create_connection_using_asset_linked_to_another_account(): void
+    {
+        $otherOwner = User::factory()->create();
+        $otherAccount = Account::factory()->create([
+            'owner_id' => $otherOwner->id,
+        ]);
+        $otherAccount->users()->attach($otherOwner->id, ['role' => 'owner']);
+
+        WhatsAppConnection::factory()->create([
+            'account_id' => $otherAccount->id,
+            'phone_number_id' => '999000111',
+            'waba_id' => 'waba-conflict',
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->from(route('app.whatsapp.connections.create', ['account' => $this->account->slug]))
+            ->post(route('app.whatsapp.connections.store', ['account' => $this->account->slug]), [
+                'name' => 'Conflicting Connection',
+                'phone_number_id' => '999000111',
+                'waba_id' => 'waba-conflict',
+                'access_token' => 'test-token',
+                'api_version' => 'v21.0',
+            ]);
+
+        $response->assertRedirect(route('app.whatsapp.connections.create', ['account' => $this->account->slug]));
+        $response->assertSessionHasErrors('connection');
+        $this->assertSame(1, WhatsAppConnection::where('phone_number_id', '999000111')->count());
+    }
+
     public function test_member_cannot_create_connection(): void
     {
         $member = User::factory()->create();
