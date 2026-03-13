@@ -302,6 +302,8 @@ class ConnectionController extends Controller
                 throw new \RuntimeException('Unable to resolve WABA ID and Phone Number ID from Embedded Signup.');
             }
 
+            $this->connectionService->assertEmbeddedAssetOwnership($account, $phoneNumberId, $wabaId);
+
             // Prevent duplicate assets in the same tenant when reconnecting/re-authorizing.
             $existingByAssets = WhatsAppConnection::query()
                 ->where('account_id', $account->id)

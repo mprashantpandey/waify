@@ -244,6 +244,61 @@ class ConnectionTest extends TestCase
         ]);
     }
 
+    public function test_embedded_signup_blocks_assets_already_owned_by_another_account(): void
+    {
+        config([
+            'whatsapp.meta.app_id' => 'app-id',
+            'whatsapp.meta.embedded_signup_config_id' => 'config-id',
+        ]);
+
+        $otherOwner = User::factory()->create();
+        $otherAccount = Account::factory()->create([
+            'owner_id' => $otherOwner->id,
+        ]);
+        $otherAccount->users()->attach($otherOwner->id, ['role' => 'owner']);
+
+        WhatsAppConnection::factory()->create([
+            'account_id' => $otherAccount->id,
+            'waba_id' => 'waba-embedded-conflict',
+            'phone_number_id' => 'pn-embedded-conflict',
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->from(route('app.whatsapp.connections.create', ['account' => $this->account->slug]))
+            ->post(route('app.whatsapp.connections.store-embedded', ['account' => $this->account->slug]), [
+                'name' => 'Embedded Conflict',
+                'waba_id' => 'waba-embedded-conflict',
+                'phone_number_id' => 'pn-embedded-conflict',
+                'access_token' => 'embedded-token',
+            ]);
+
+        $response->assertRedirect(route('app.whatsapp.connections.create', ['account' => $this->account->slug]));
+        $response->assertSessionHasErrors('embedded');
+        $this->assertSame(1, WhatsAppConnection::where('phone_number_id', 'pn-embedded-conflict')->count());
+    }
+
+    public function test_connection_health_route_is_scoped_to_current_account(): void
+    {
+        $otherOwner = User::factory()->create();
+        $otherAccount = Account::factory()->create([
+            'owner_id' => $otherOwner->id,
+        ]);
+        $otherAccount->users()->attach($otherOwner->id, ['role' => 'owner']);
+
+        $foreignConnection = WhatsAppConnection::factory()->create([
+            'account_id' => $otherAccount->id,
+            'slug' => 'shared-slug',
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_account_id' => $this->account->id])
+            ->get(route('app.whatsapp.connections.health.api', [
+                'connection' => $foreignConnection->slug,
+            ]));
+
+        $response->assertNotFound();
+    }
+
     public function test_owner_can_trigger_manual_connection_health_sync(): void
     {
         $connection = WhatsAppConnection::factory()->create([

@@ -63,6 +63,11 @@ class ConnectionService
         return $connection->fresh();
     }
 
+    public function assertEmbeddedAssetOwnership(Account $account, ?string $phoneNumberId, ?string $wabaId, ?int $ignoreConnectionId = null): void
+    {
+        $this->assertAssetNotOwnedByAnotherAccount($account, $phoneNumberId, $wabaId, $ignoreConnectionId);
+    }
+
     protected function normalizeCampaignSafetySettings(array $data): array
     {
         $start = isset($data['quiet_hours_start']) ? trim((string) $data['quiet_hours_start']) : null;

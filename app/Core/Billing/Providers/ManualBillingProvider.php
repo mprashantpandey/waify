@@ -91,22 +91,8 @@ class ManualBillingProvider implements BillingProvider
 
     public function syncSubscription(Subscription $subscription): Subscription
     {
-        // Manual provider doesn't sync from external source
-        // Just ensure status is correct based on dates
-        
-        if ($subscription->status === 'trialing' && $subscription->trial_ends_at && $subscription->trial_ends_at->isPast()) {
-            $subscription->update([
-                'status' => 'active',
-                'current_period_start' => $subscription->trial_ends_at,
-                'current_period_end' => $subscription->trial_ends_at->copy()->addMonth()]);
-        }
-
-        if ($subscription->status === 'active' && $subscription->current_period_end && $subscription->current_period_end->isPast()) {
-            // Extend period by one month (manual renewal)
-            $subscription->update([
-                'current_period_start' => $subscription->current_period_end,
-                'current_period_end' => $subscription->current_period_end->copy()->addMonth()]);
-        }
+        // Manual provider does not infer renewals or paid conversions on its own.
+        // Expiry normalization is handled centrally in SubscriptionService.
 
         if ($subscription->cancel_at_period_end && $subscription->current_period_end && $subscription->current_period_end->isPast()) {
             $subscription->update([

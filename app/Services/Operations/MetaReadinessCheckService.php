@@ -184,7 +184,7 @@ class MetaReadinessCheckService
         $cutoff = now()->subHours($staleAfterHours);
 
         $sendableTemplates = WhatsAppTemplate::query()
-            ->whereIn('status', ['approved'])
+            ->whereIn('status', ['approved', 'active'])
             ->where(function ($query) {
                 $query->whereNull('is_archived')->orWhere('is_archived', false);
             })

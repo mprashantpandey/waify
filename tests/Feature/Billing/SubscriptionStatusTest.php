@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Billing;
 
+use App\Core\Billing\SubscriptionService;
 use App\Models\Plan;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -141,6 +142,49 @@ class SubscriptionStatusTest extends TestCase
 
         $restored = $this->get(route('app.dashboard', ['account' => $account->slug]));
         $restored->assertOk();
+    }
+
+    public function test_manual_sync_does_not_auto_extend_expired_paid_subscription(): void
+    {
+        $account = $this->createAccountWithPlan('free');
+        $subscription = $account->subscription;
+
+        $expiredEnd = now()->subMonths(2);
+        $subscription->update([
+            'status' => 'active',
+            'current_period_start' => $expiredEnd->copy()->subMonth(),
+            'current_period_end' => $expiredEnd,
+            'last_error' => null,
+            'last_payment_failed_at' => null,
+        ]);
+
+        $synced = app(SubscriptionService::class)->syncAndNormalize($subscription->fresh());
+
+        $this->assertSame('past_due', $synced->status);
+        $this->assertSame($expiredEnd->toDateTimeString(), $synced->current_period_end->toDateTimeString());
+        $this->assertNotNull($synced->last_payment_failed_at);
+    }
+
+    public function test_manual_payment_restarts_period_from_now_when_subscription_is_long_expired(): void
+    {
+        $account = $this->createAccountWithPlan('free');
+        $subscription = $account->subscription;
+
+        $subscription->update([
+            'status' => 'past_due',
+            'current_period_start' => now()->subMonths(4),
+            'current_period_end' => now()->subMonths(3),
+            'last_error' => 'Payment failed',
+            'last_payment_failed_at' => now()->subDays(3),
+        ]);
+
+        $renewed = app(SubscriptionService::class)->recordManualPayment($account->fresh(), 499900);
+
+        $this->assertSame('active', $renewed->status);
+        $this->assertTrue($renewed->current_period_start->greaterThan(now()->subMinute()));
+        $this->assertTrue($renewed->current_period_end->greaterThan(now()->addDays(27)));
+        $this->assertNull($renewed->last_error);
+        $this->assertNull($renewed->last_payment_failed_at);
     }
 
     public function test_blocked_accounts_can_still_access_billing_support_and_profile_routes(): void

@@ -4,6 +4,7 @@ namespace Tests\Feature\Console;
 
 use App\Models\MetaPricingVersion;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
+use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -39,5 +40,38 @@ class PlatformMetaReadinessCheckCommandTest extends TestCase
 
         $this->artisan('platform:meta-readiness-check --json')
             ->assertExitCode(0);
+    }
+
+    public function test_command_treats_active_templates_as_sendable_for_staleness_checks(): void
+    {
+        $connection = WhatsAppConnection::factory()->create([
+            'is_active' => true,
+            'webhook_last_received_at' => now()->subMinutes(10),
+            'health_last_synced_at' => now()->subMinutes(5),
+            'metadata_sync_status' => 'fresh',
+        ]);
+
+        MetaPricingVersion::query()->create([
+            'provider' => 'meta',
+            'country_code' => 'IN',
+            'currency' => 'INR',
+            'effective_from' => now()->subDay(),
+            'effective_to' => null,
+            'is_active' => true,
+            'notes' => 'test',
+            'created_by' => null,
+        ]);
+
+        WhatsAppTemplate::factory()->create([
+            'account_id' => $connection->account_id,
+            'whatsapp_connection_id' => $connection->id,
+            'status' => 'active',
+            'is_archived' => false,
+            'is_remote_deleted' => false,
+            'last_meta_sync_at' => now()->subDays(2),
+        ]);
+
+        $this->artisan('platform:meta-readiness-check --json')
+            ->assertExitCode(1);
     }
 }

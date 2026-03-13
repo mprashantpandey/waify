@@ -174,14 +174,17 @@ class SubscriptionService
             throw new \InvalidArgumentException('Account has no subscription.');
         }
 
-        // Extend period by 1 month
-        $periodEnd = $subscription->current_period_end 
-            ? Carbon::parse($subscription->current_period_end)->addMonth()
-            : now()->addMonth();
+        $periodStart = now();
+        $basePeriodEnd = $subscription->current_period_end
+            ? Carbon::parse($subscription->current_period_end)
+            : null;
+        $periodEnd = ($basePeriodEnd && $basePeriodEnd->isFuture() ? $basePeriodEnd : $periodStart)
+            ->copy()
+            ->addMonth();
 
         $subscription->update([
             'status' => 'active',
-            'current_period_start' => now(),
+            'current_period_start' => $periodStart,
             'current_period_end' => $periodEnd,
             'last_payment_at' => now(),
             'last_payment_failed_at' => null,

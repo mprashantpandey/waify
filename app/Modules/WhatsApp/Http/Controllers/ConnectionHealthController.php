@@ -25,19 +25,25 @@ class ConnectionHealthController extends Controller
     protected function resolveConnection($connection, $account): WhatsAppConnection
     {
         if ($connection instanceof WhatsAppConnection) {
-            return $connection;
+            $connection = $connection->slug ?? $connection->id;
         }
 
-        // Try to resolve by slug first, then by ID (for backward compatibility)
-        $query = WhatsAppConnection::where('account_id', $account->id);
-        
-        if (is_numeric($connection)) {
-            $query->where('id', $connection);
-        } else {
-            $query->where('slug', $connection)->orWhere('id', $connection);
+        $resolved = WhatsAppConnection::query()
+            ->where('account_id', $account->id)
+            ->where(function ($query) use ($connection) {
+                $query->where('slug', $connection);
+
+                if (is_numeric($connection)) {
+                    $query->orWhere('id', $connection);
+                }
+            })
+            ->first();
+
+        if (!$resolved) {
+            abort(404, 'Connection not found in this account.');
         }
 
-        return $query->firstOrFail();
+        return $resolved;
     }
 
     /**
