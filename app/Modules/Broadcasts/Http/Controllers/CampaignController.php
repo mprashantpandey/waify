@@ -108,7 +108,7 @@ class CampaignController extends Controller
 
         // Get available templates
         $templates = WhatsAppTemplate::where('account_id', $account->id)
-            ->whereRaw('LOWER(TRIM(status)) = ?', ['approved'])
+            ->whereIn(DB::raw('LOWER(TRIM(status))'), ['approved', 'active'])
             ->where(function ($query) {
                 // Keep compatibility with legacy rows where is_archived may be NULL.
                 $query->where('is_archived', false)
@@ -167,7 +167,7 @@ class CampaignController extends Controller
                 'nullable',
                 Rule::exists('whatsapp_templates', 'id')->where(function (Builder $query) use ($account) {
                     $query->where('account_id', $account->id)
-                        ->whereRaw('LOWER(TRIM(status)) = ?', ['approved'])
+                        ->whereIn(DB::raw('LOWER(TRIM(status))'), ['approved', 'active'])
                         ->where(function ($inner) {
                             $inner->where('is_archived', false)
                                 ->orWhereNull('is_archived');
@@ -209,7 +209,7 @@ class CampaignController extends Controller
         if (($validated['type'] ?? null) === 'template' && !empty($validated['whatsapp_template_id'])) {
             $templateBelongsToConnection = WhatsAppTemplate::where('id', $validated['whatsapp_template_id'])
                 ->where('account_id', $account->id)
-                ->whereRaw('LOWER(TRIM(status)) = ?', ['approved'])
+                ->whereIn(DB::raw('LOWER(TRIM(status))'), ['approved', 'active'])
                 ->where(function ($query) {
                     $query->where('is_archived', false)
                         ->orWhereNull('is_archived');

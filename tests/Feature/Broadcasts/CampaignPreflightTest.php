@@ -10,6 +10,7 @@ use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
+use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -163,5 +164,32 @@ class CampaignPreflightTest extends TestCase
             1,
             $preflight['recipient_risk']['skipped_by_reason']['Contact is suppressed (opted out/blocked/do-not-contact).'] ?? 0
         );
+    }
+
+    public function test_campaign_create_page_lists_active_templates_as_sendable(): void
+    {
+        $account = $this->createAccountWithPlan('pro');
+        $this->actingAsAccountOwner($account);
+
+        $connection = WhatsAppConnection::factory()->create([
+            'account_id' => $account->id,
+            'is_active' => true,
+        ]);
+
+        $template = WhatsAppTemplate::factory()->create([
+            'account_id' => $account->id,
+            'whatsapp_connection_id' => $connection->id,
+            'status' => 'active',
+            'is_archived' => false,
+        ]);
+
+        $response = $this->get(route('app.broadcasts.create', ['account' => $account->slug]));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->component('Broadcasts/Create')
+            ->has('templates', 1)
+            ->where('templates.0.id', $template->id)
+            ->where('templates.0.connection_id', $connection->id));
     }
 }
