@@ -111,6 +111,7 @@ export default function ConnectionsEdit({
         quiet_hours_start: connection.quiet_hours_start || '',
         quiet_hours_end: connection.quiet_hours_end || '',
         quiet_hours_timezone: connection.quiet_hours_timezone || 'UTC'});
+    const connectionError = (errors as Record<string, string | undefined>).connection;
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -283,7 +284,7 @@ export default function ConnectionsEdit({
                     </CardHeader>
                     <CardContent className="p-6">
                         <form onSubmit={submit} className="space-y-6">
-                            <InputError message={errors.connection} className="mt-2" />
+                            <InputError message={connectionError} className="mt-2" />
 
                             <div>
                                 <InputLabel htmlFor="name" value="Connection Name" className="text-sm font-semibold mb-2" />
