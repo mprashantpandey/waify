@@ -14,8 +14,8 @@ return new class extends Migration
 
         Schema::create('whatsapp_connection_health_snapshots', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('account_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('whatsapp_connection_id')->constrained('whatsapp_connections')->cascadeOnDelete();
+            $table->foreignId('account_id')->constrained(indexName: 'wa_conn_health_snapshots_account_fk')->cascadeOnDelete();
+            $table->foreignId('whatsapp_connection_id')->constrained('whatsapp_connections', 'wa_conn_health_snapshots_conn_fk')->cascadeOnDelete();
             $table->string('source')->default('api_sync');
             $table->string('quality_rating')->nullable();
             $table->string('messaging_limit_tier')->nullable();
@@ -41,4 +41,3 @@ return new class extends Migration
         Schema::dropIfExists('whatsapp_connection_health_snapshots');
     }
 };
-
