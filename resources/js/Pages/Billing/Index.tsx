@@ -1,7 +1,7 @@
 import { Link, router } from '@inertiajs/react';
 import { usePage } from '@inertiajs/react';
 import axios from 'axios';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
@@ -82,6 +82,8 @@ export default function BillingIndex({
     meta_billing,
     wallet,
     recent_payments = [],
+    latest_paid_payment = null,
+    latest_failed_payment = null,
     current_connections_count,
     current_agents_count,
     razorpay_enabled = false,
@@ -93,6 +95,8 @@ export default function BillingIndex({
     meta_billing?: MetaBillingSummary;
     wallet: Wallet;
     recent_payments?: RecentPayment[];
+    latest_paid_payment?: RecentPayment | null;
+    latest_failed_payment?: RecentPayment | null;
     current_connections_count?: number;
     current_agents_count?: number;
     razorpay_enabled?: boolean;
@@ -148,11 +152,8 @@ export default function BillingIndex({
     const trialDays = subscription ? getTrialDaysRemaining(subscription.trial_ends_at) : null;
     const estimatedMetaCost = (meta_billing?.estimated_cost_minor ?? usage.meta_estimated_cost_minor ?? 0) / 100;
     const walletBalance = (wallet?.balance_minor ?? 0) / 100;
-    const latestPayment = useMemo(() => recent_payments[0] ?? null, [recent_payments]);
-    const latestFailedPayment = useMemo(
-        () => recent_payments.find((payment) => ['failed', 'past_due'].includes(String(payment.status).toLowerCase())) ?? null,
-        [recent_payments]
-    );
+    const latestPaidPayment = latest_paid_payment;
+    const latestFailedPayment = latest_failed_payment;
     const canRenewNow = Boolean(
         isOwner
             && subscription?.status === 'past_due'
@@ -329,8 +330,8 @@ export default function BillingIndex({
                                         </Button>
                                     </Link>
                                 )}
-                                {latestPayment && (
-                                    <Link href={route('app.billing.history.show', { paymentOrder: latestPayment.id })}>
+                                {latestPaidPayment && (
+                                    <Link href={route('app.billing.history.show', { paymentOrder: latestPaidPayment.id })}>
                                         <Button variant="secondary" size="sm" className="rounded-xl w-full sm:w-auto">
                                             View Latest Invoice
                                         </Button>
@@ -495,8 +496,8 @@ export default function BillingIndex({
                                             </Button>
                                         </Link>
                                     )}
-                                    {latestPayment && (
-                                        <Link href={route('app.billing.history.download', { paymentOrder: latestPayment.id })}>
+                                    {latestPaidPayment && (
+                                        <Link href={route('app.billing.history.download', { paymentOrder: latestPaidPayment.id })}>
                                             <Button variant="secondary" className="rounded-xl">
                                                 Download Latest Invoice
                                             </Button>

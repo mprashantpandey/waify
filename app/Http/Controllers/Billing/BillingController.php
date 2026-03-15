@@ -64,6 +64,12 @@ class BillingController extends Controller
             })
             ->values();
 
+        $latestPaidPayment = $recentPayments
+            ->first(fn (array $payment): bool => strtolower((string) ($payment['status'] ?? '')) === 'paid');
+
+        $latestFailedPayment = $recentPayments
+            ->first(fn (array $payment): bool => in_array(strtolower((string) ($payment['status'] ?? '')), ['failed', 'past_due'], true));
+
         // Get current counts
         $currentConnectionsCount = \App\Modules\WhatsApp\Models\WhatsAppConnection::where('account_id', $account->id)
             ->where('is_active', true)
@@ -119,6 +125,8 @@ class BillingController extends Controller
                 'currency' => $wallet->currency,
             ],
             'recent_payments' => $recentPayments,
+            'latest_paid_payment' => $latestPaidPayment,
+            'latest_failed_payment' => $latestFailedPayment,
             'current_connections_count' => $currentConnectionsCount,
             'current_agents_count' => $currentAgentsCount,
             'razorpay_enabled' => $razorpayEnabled,
