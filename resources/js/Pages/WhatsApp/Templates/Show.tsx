@@ -78,6 +78,21 @@ export default function TemplatesShow({
     const [liveTemplate, setLiveTemplate] = useState<Template>(template);
     const [actionState, setActionState] = useState<string | null>(null);
 
+    const getRecentSendStatusMeta = (send: RecentSend) => {
+        const effectiveStatus = String(send.message?.status || send.status || 'unknown').toLowerCase();
+        const map: Record<string, { variant: 'success' | 'warning' | 'danger' | 'default' | 'info'; label: string }> = {
+            read: { variant: 'success', label: 'Read' },
+            delivered: { variant: 'success', label: 'Delivered' },
+            sent: { variant: 'info', label: 'Sent' },
+            accepted: { variant: 'info', label: 'Accepted' },
+            queued: { variant: 'default', label: 'Queued' },
+            processing: { variant: 'default', label: 'Processing' },
+            failed: { variant: 'danger', label: 'Failed' },
+        };
+
+        return map[effectiveStatus] || { variant: 'default' as const, label: effectiveStatus };
+    };
+
     useEffect(() => {
         setLiveTemplate(template);
     }, [template]);
@@ -173,6 +188,7 @@ export default function TemplatesShow({
     const getStatusBadge = (status: string) => {
         const statusMap: Record<string, { variant: 'success' | 'warning' | 'danger' | 'default' | 'info'; label: string }> = {
             approved: { variant: 'success', label: 'Approved' },
+            active: { variant: 'success', label: 'Active' },
             pending: { variant: 'warning', label: 'Pending' },
             rejected: { variant: 'danger', label: 'Rejected' },
             paused: { variant: 'default', label: 'Paused' },
@@ -373,14 +389,14 @@ export default function TemplatesShow({
                                     </thead>
                                     <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                                         {recent_sends.map((send) => {
-                                            const isFailed = String(send.status).toLowerCase() === 'failed' || String(send.message?.status || '').toLowerCase() === 'failed';
+                                            const statusMeta = getRecentSendStatusMeta(send);
                                             const effectiveError = send.error_message || send.message?.error_message || null;
                                             return (
                                                 <tr key={send.id} className="align-top">
                                                     <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{send.to_wa_id}</td>
                                                     <td className="px-4 py-3">
-                                                        <Badge variant={isFailed ? 'danger' : 'success'} className="px-2 py-1 text-[10px]">
-                                                            {isFailed ? 'Failed' : send.status}
+                                                        <Badge variant={statusMeta.variant} className="px-2 py-1 text-[10px]">
+                                                            {statusMeta.label}
                                                         </Badge>
                                                     </td>
                                                     <td className="px-4 py-3 text-xs font-mono text-gray-600 dark:text-gray-300 break-all">

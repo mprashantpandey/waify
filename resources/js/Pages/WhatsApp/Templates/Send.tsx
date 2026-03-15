@@ -80,6 +80,21 @@ export default function TemplatesSend({
     conversations: Conversation[];
     recent_sends?: RecentSend[];
 }) {
+    const getRecentSendStatusMeta = (send: RecentSend) => {
+        const effectiveStatus = String(send.message?.status || send.status || 'unknown').toLowerCase();
+        const map: Record<string, { variant: 'success' | 'warning' | 'danger' | 'default' | 'info'; label: string }> = {
+            read: { variant: 'success', label: 'Read' },
+            delivered: { variant: 'success', label: 'Delivered' },
+            sent: { variant: 'info', label: 'Sent' },
+            accepted: { variant: 'info', label: 'Accepted' },
+            queued: { variant: 'default', label: 'Queued' },
+            processing: { variant: 'default', label: 'Processing' },
+            failed: { variant: 'danger', label: 'Failed' },
+        };
+
+        return map[effectiveStatus] || { variant: 'default' as const, label: effectiveStatus };
+    };
+
     const [recipientType, setRecipientType] = useState<'contact' | 'conversation' | 'manual'>('conversation');
     const [selectedContact, setSelectedContact] = useState<string>('');
     const [selectedConversation, setSelectedConversation] = useState<string>('');
@@ -453,15 +468,14 @@ export default function TemplatesSend({
                             ) : (
                                 <div className="space-y-3">
                                     {recent_sends.map((send) => {
-                                        const isFailed = String(send.status).toLowerCase() === 'failed'
-                                            || String(send.message?.status || '').toLowerCase() === 'failed';
+                                        const statusMeta = getRecentSendStatusMeta(send);
                                         const errorText = send.error_message || send.message?.error_message || null;
                                         return (
                                             <div key={send.id} className="rounded-xl border border-gray-200 dark:border-gray-700 p-3 bg-white dark:bg-gray-900">
                                                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                                     <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{send.to_wa_id}</div>
-                                                    <Badge variant={isFailed ? 'danger' : 'success'} className="px-2 py-1 text-[10px] w-fit">
-                                                        {isFailed ? 'Failed' : send.status}
+                                                    <Badge variant={statusMeta.variant} className="px-2 py-1 text-[10px] w-fit">
+                                                        {statusMeta.label}
                                                     </Badge>
                                                 </div>
                                                 <div className="mt-2 text-xs font-mono text-gray-500 break-all">

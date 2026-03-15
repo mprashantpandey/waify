@@ -169,6 +169,7 @@ export default function TemplatesIndex({
     const getStatusBadge = (status: string) => {
         const statusMap: Record<string, { variant: 'success' | 'warning' | 'danger' | 'default' | 'info'; label: string }> = {
             approved: { variant: 'success', label: 'Approved' },
+            active: { variant: 'success', label: 'Active' },
             pending: { variant: 'warning', label: 'Pending' },
             rejected: { variant: 'danger', label: 'Rejected' },
             paused: { variant: 'default', label: 'Paused' },
