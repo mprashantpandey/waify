@@ -27,6 +27,11 @@ export default function PaymentDetails({ payment }: { payment: Payment }) {
   const formatAmount = (amount: number, currency: string) =>
     new Intl.NumberFormat('en-IN', { style: 'currency', currency, minimumFractionDigits: 2 }).format(amount / 100);
 
+  const failureReason = String(
+    (payment.metadata?.failure_reason as string | undefined)
+    || (payment.metadata?.error_description as string | undefined)
+    || ''
+  ).trim() || null;
   const normalizedStatus = String(payment.status || '').toLowerCase();
   const statusVariant = normalizedStatus === 'paid'
     ? 'success'
@@ -141,6 +146,10 @@ export default function PaymentDetails({ payment }: { payment: Payment }) {
               <div>
                 <p className="text-xs text-gray-500">Failed At</p>
                 <p className="text-sm text-gray-800 dark:text-gray-200">{payment.failed_at ? new Date(payment.failed_at).toLocaleString() : 'N/A'}</p>
+              </div>
+              <div className="md:col-span-2">
+                <p className="text-xs text-gray-500">Failure reason</p>
+                <p className="text-sm text-gray-800 dark:text-gray-200 break-words">{failureReason || 'N/A'}</p>
               </div>
             </div>
           </CardContent>

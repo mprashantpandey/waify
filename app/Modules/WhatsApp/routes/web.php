@@ -68,6 +68,7 @@ Route::middleware(['module.entitled:whatsapp.cloud'])->group(function () {
 
     // Inbox stream endpoints (fallback polling)
     Route::get('/inbox/stream', [\App\Modules\WhatsApp\Http\Controllers\InboxStreamController::class, 'stream'])->name('whatsapp.inbox.stream');
+    Route::post('/inbox/repair-unread', [\App\Modules\WhatsApp\Http\Controllers\InboxStreamController::class, 'repairUnread'])->name('whatsapp.inbox.repair-unread');
     Route::get('/inbox/{conversation}/stream', [\App\Modules\WhatsApp\Http\Controllers\InboxStreamController::class, 'conversationStream'])->name('whatsapp.inbox.conversation.stream');
 });
 

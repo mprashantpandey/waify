@@ -74,45 +74,7 @@ class InboxStreamController extends Controller
         $unreadMap = $this->inboxMetricsService->unreadCountMap($updatedConversations->pluck('id')->all());
 
         $updatedConversations = $updatedConversations
-            ->map(function ($conversation) use ($unreadMap) {
-                if (! $conversation->contact || ! $conversation->connection) {
-                    return null;
-                }
-                $unreadCount = (int) ($unreadMap[(int) $conversation->id] ?? 0);
-                $latestAudit = $conversation->latestAuditEvent;
-
-                return [
-                    'id' => $conversation->id,
-                    'account_id' => $conversation->account_id,
-                    'contact' => [
-                        'id' => $conversation->contact->id,
-                        'wa_id' => $conversation->contact->wa_id,
-                        'name' => $conversation->contact->name ?? $conversation->contact->wa_id],
-                    'status' => $conversation->status,
-                    'unread_count' => $unreadCount,
-                    'has_unread' => $unreadCount > 0,
-                    'activity' => $latestAudit ? [
-                        'event_type' => $latestAudit->event_type,
-                        'description' => $latestAudit->description,
-                        'created_at' => $latestAudit->created_at?->toIso8601String(),
-                    ] : null,
-                    'customer_care_window' => $this->formatCustomerCareWindowState(
-                        $this->customerCareWindowService->forConversation($conversation)
-                    ),
-                    'last_message_preview' => $conversation->last_message_preview,
-                    'last_message_at' => $conversation->last_message_at?->toIso8601String(),
-                    'connection' => [
-                        'id' => $conversation->connection->id,
-                        'name' => $conversation->connection->name,
-                    ],
-                    'assigned_to' => Schema::hasColumn('whatsapp_conversations', 'assigned_to')
-                        ? $conversation->assigned_to
-                        : null,
-                    'priority' => Schema::hasColumn('whatsapp_conversations', 'priority')
-                        ? $conversation->priority
-                        : null,
-                ];
-            })
+            ->map(fn ($conversation) => $this->serializeInboxConversation($conversation, $unreadMap))
             ->filter()
             ->values();
 
@@ -136,6 +98,48 @@ class InboxStreamController extends Controller
             'server_time' => now()->toIso8601String(),
             'updated_conversations' => $updatedConversations,
             'new_message_notifications' => $newMessageNotifications]);
+    }
+
+    public function repairUnread(Request $request)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+        if (! $account) {
+            abort(404, 'Account not found.');
+        }
+
+        $conversations = WhatsAppConversation::where('account_id', $account->id)
+            ->with([
+                'contact',
+                'connection',
+                'latestAuditEvent' => function ($query) {
+                    $query->select([
+                        'whatsapp_conversation_audit_events.id',
+                        'whatsapp_conversation_audit_events.whatsapp_conversation_id',
+                        'whatsapp_conversation_audit_events.event_type',
+                        'whatsapp_conversation_audit_events.description',
+                        'whatsapp_conversation_audit_events.created_at',
+                    ]);
+                },
+            ])
+            ->orderByDesc('last_message_at')
+            ->limit(200)
+            ->get();
+
+        $unreadMap = $this->inboxMetricsService->unreadCountMap($conversations->pluck('id')->all());
+        $serialized = $conversations
+            ->map(fn ($conversation) => $this->serializeInboxConversation($conversation, $unreadMap))
+            ->filter()
+            ->values();
+
+        return response()->json([
+            'server_time' => now()->toIso8601String(),
+            'repaired_conversations' => $serialized,
+            'summary' => [
+                'conversations' => $serialized->count(),
+                'with_unread' => $serialized->filter(fn ($conversation) => (bool) ($conversation['has_unread'] ?? false))->count(),
+                'total_unread' => $serialized->sum(fn ($conversation) => (int) ($conversation['unread_count'] ?? 0)),
+            ],
+        ]);
     }
 
     /**
@@ -324,6 +328,49 @@ class InboxStreamController extends Controller
             'last_inbound_at' => ($windowState['last_inbound_at'] ?? null)?->toIso8601String(),
             'expires_at' => ($windowState['expires_at'] ?? null)?->toIso8601String(),
             'seconds_remaining' => (int) ($windowState['seconds_remaining'] ?? 0),
+        ];
+    }
+
+    private function serializeInboxConversation(WhatsAppConversation $conversation, array $unreadMap): ?array
+    {
+        if (! $conversation->contact || ! $conversation->connection) {
+            return null;
+        }
+
+        $unreadCount = (int) ($unreadMap[(int) $conversation->id] ?? 0);
+        $latestAudit = $conversation->latestAuditEvent;
+
+        return [
+            'id' => $conversation->id,
+            'account_id' => $conversation->account_id,
+            'contact' => [
+                'id' => $conversation->contact->id,
+                'wa_id' => $conversation->contact->wa_id,
+                'name' => $conversation->contact->name ?? $conversation->contact->wa_id,
+            ],
+            'status' => $conversation->status,
+            'unread_count' => $unreadCount,
+            'has_unread' => $unreadCount > 0,
+            'activity' => $latestAudit ? [
+                'event_type' => $latestAudit->event_type,
+                'description' => $latestAudit->description,
+                'created_at' => $latestAudit->created_at?->toIso8601String(),
+            ] : null,
+            'customer_care_window' => $this->formatCustomerCareWindowState(
+                $this->customerCareWindowService->forConversation($conversation)
+            ),
+            'last_message_preview' => $conversation->last_message_preview,
+            'last_message_at' => $conversation->last_message_at?->toIso8601String(),
+            'connection' => [
+                'id' => $conversation->connection->id,
+                'name' => $conversation->connection->name,
+            ],
+            'assigned_to' => Schema::hasColumn('whatsapp_conversations', 'assigned_to')
+                ? $conversation->assigned_to
+                : null,
+            'priority' => Schema::hasColumn('whatsapp_conversations', 'priority')
+                ? $conversation->priority
+                : null,
         ];
     }
 }

@@ -239,6 +239,44 @@ class RealtimeTest extends TestCase
         $this->assertIsArray($data['updated_conversations']);
     }
 
+    public function test_repair_unread_endpoint_recalculates_counters(): void
+    {
+        $contact = WhatsAppContact::factory()->create([
+            'account_id' => $this->account->id,
+        ]);
+
+        $conversation = WhatsAppConversation::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_connection_id' => $this->connection->id,
+            'whatsapp_contact_id' => $contact->id,
+            'last_message_at' => now(),
+        ]);
+
+        WhatsAppMessage::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'direction' => 'inbound',
+            'created_at' => now()->subMinutes(2),
+        ]);
+
+        WhatsAppMessage::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'direction' => 'inbound',
+            'created_at' => now()->subMinute(),
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_account_id' => $this->account->id])
+            ->post(route('app.whatsapp.inbox.repair-unread', ['account' => $this->account->slug]));
+
+        $response->assertOk();
+        $response->assertJsonPath('summary.total_unread', 2);
+        $response->assertJsonPath('repaired_conversations.0.id', $conversation->id);
+        $response->assertJsonPath('repaired_conversations.0.unread_count', 2);
+        $response->assertJsonPath('repaired_conversations.0.has_unread', true);
+    }
+
     public function test_conversation_stream_returns_incremental_messages(): void
     {
         $contact = WhatsAppContact::factory()->create([

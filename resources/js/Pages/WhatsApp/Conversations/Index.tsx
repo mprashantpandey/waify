@@ -8,6 +8,7 @@ import { ConversationSkeleton } from '@/Components/UI/Skeleton';
 import { EmptyState } from '@/Components/UI/EmptyState';
 import { useToast } from '@/hooks/useToast';
 import { isSameAccountId } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import axios from 'axios';
 import TextInput from '@/Components/TextInput';
 import Button from '@/Components/UI/Button';
@@ -137,6 +138,7 @@ export default function ConversationsIndex({
     );
     const [syncDegraded, setSyncDegraded] = useState(false);
     const [syncErrorMessage, setSyncErrorMessage] = useState<string | null>(null);
+    const [repairingUnread, setRepairingUnread] = useState(false);
     const agents: Agent[] = Array.isArray(initialAgents) ? initialAgents : [];
     const lastPollRef = useRef<Date>(new Date());
     const processedMessageIds = useRef<Set<string>>(new Set());
@@ -242,6 +244,45 @@ export default function ConversationsIndex({
                 }
             });
     }, [account?.id, addToast]);
+
+    const repairUnreadCounters = useCallback(() => {
+        if (!account?.id) return;
+
+        setRepairingUnread(true);
+        api.post(route('app.whatsapp.inbox.repair-unread', {}))
+            .then((response: any) => {
+                const repaired = normalizeConversationList(response.data?.repaired_conversations);
+                if (repaired.length > 0) {
+                    setConversations((prev) => {
+                        const byId = new Map(prev.map((conversation) => [conversation.id, conversation]));
+                        repaired.forEach((conversation) => byId.set(conversation.id, conversation));
+                        return Array.from(byId.values()).sort((a, b) => {
+                            const timeA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+                            const timeB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+                            return timeB - timeA;
+                        });
+                    });
+                }
+                const totalUnread = Number(response.data?.summary?.total_unread ?? 0);
+                addToast({
+                    title: 'Unread counters repaired',
+                    description: `Recalculated unread state across ${Number(response.data?.summary?.conversations ?? repaired.length)} conversation(s). Total unread: ${Math.max(0, totalUnread)}.`,
+                    variant: 'success',
+                    duration: 3000,
+                });
+                setSyncDegraded(false);
+                setSyncErrorMessage(null);
+            })
+            .catch((err: any) => {
+                addToast({
+                    title: 'Unread repair failed',
+                    description: err?.response?.data?.message || err?.message || 'Please try again.',
+                    variant: 'error',
+                    duration: 3000,
+                });
+            })
+            .finally(() => setRepairingUnread(false));
+    }, [account?.id, addToast, api]);
 
     // Keep state in sync with server payload (in case of hydration/props mismatch)
     useEffect(() => {
@@ -626,6 +667,17 @@ export default function ConversationsIndex({
                                         >
                                             <RefreshCw className="h-3.5 w-3.5 mr-1" />
                                             Retry now
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="secondary"
+                                            className="w-full sm:w-auto"
+                                            onClick={repairUnreadCounters}
+                                            disabled={repairingUnread}
+                                        >
+                                            <RefreshCw className={cn('h-3.5 w-3.5 mr-1', repairingUnread && 'animate-spin')} />
+                                            {repairingUnread ? 'Repairing...' : 'Recalculate unread'}
                                         </Button>
                                     </div>
                                 </div>

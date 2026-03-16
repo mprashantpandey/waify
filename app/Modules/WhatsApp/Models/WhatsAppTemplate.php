@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class WhatsAppTemplate extends Model
 {
@@ -128,6 +129,13 @@ class WhatsAppTemplate extends Model
     public function sends(): HasMany
     {
         return $this->hasMany(WhatsAppTemplateSend::class, 'whatsapp_template_id');
+    }
+
+    public function latestFailedSend(): HasOne
+    {
+        return $this->hasOne(WhatsAppTemplateSend::class, 'whatsapp_template_id')
+            ->where('status', 'failed')
+            ->latestOfMany('id');
     }
 
     /**

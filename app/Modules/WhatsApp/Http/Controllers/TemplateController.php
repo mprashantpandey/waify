@@ -32,7 +32,7 @@ class TemplateController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         $query = WhatsAppTemplate::where('account_id', $account->id)
-            ->with('connection')
+            ->with(['connection', 'latestFailedSend.message'])
             ->withCount([
                 'sends as sends_failed_count' => function ($q) {
                     $q->where('status', 'failed');
@@ -100,6 +100,15 @@ class TemplateController extends Controller
                     ),
                     'sendability' => $this->templateLifecycleService->evaluateSendability($template),
                     'sends_failed_count' => (int) ($template->sends_failed_count ?? 0),
+                    'latest_failed_send' => $template->latestFailedSend ? [
+                        'id' => $template->latestFailedSend->id,
+                        'error_message' => $template->latestFailedSend->error_message
+                            ?: $template->latestFailedSend->message?->error_message
+                            ?: data_get($template->latestFailedSend->message?->payload, 'error.message')
+                            ?: data_get($template->latestFailedSend->message?->payload, 'errors.0.message')
+                            ?: data_get($template->latestFailedSend->message?->payload, 'errors.0.title'),
+                        'created_at' => $template->latestFailedSend->created_at?->toIso8601String(),
+                    ] : null,
                 ];
             });
 

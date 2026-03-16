@@ -161,4 +161,68 @@ class RazorpayBillingSafetyTest extends TestCase
             'provider_payment_id' => 'pay_webhook_1',
         ]);
     }
+
+    public function test_payment_failed_webhook_records_failure_reason_and_marks_expired_subscription_past_due(): void
+    {
+        $account = $this->createAccountWithPlan('starter');
+        $owner = $account->owner;
+        $plan = $account->subscription->plan;
+
+        $account->subscription->update([
+            'status' => 'active',
+            'current_period_end' => now()->subMinute(),
+            'last_error' => null,
+            'last_payment_failed_at' => null,
+        ]);
+
+        PlatformSetting::set('payment.razorpay_enabled', true, 'boolean', 'payment');
+        PlatformSetting::set('payment.razorpay_key_id', 'rzp_test_123', 'string', 'payment');
+        PlatformSetting::set('payment.razorpay_key_secret', 'secret_123', 'string', 'payment');
+        PlatformSetting::set('payment.razorpay_webhook_secret', 'whsec_123', 'string', 'payment');
+
+        $orderId = 'order_failed_123';
+        PaymentOrder::create([
+            'account_id' => $account->id,
+            'plan_id' => $plan->id,
+            'provider' => 'razorpay',
+            'provider_order_id' => $orderId,
+            'amount' => (int) $plan->price_monthly,
+            'currency' => 'INR',
+            'status' => 'created',
+            'created_by' => $owner->id,
+        ]);
+
+        $payload = [
+            'event' => 'payment.failed',
+            'payload' => [
+                'payment' => [
+                    'entity' => [
+                        'id' => 'pay_failed_1',
+                        'order_id' => $orderId,
+                        'error_description' => 'Card declined by issuer',
+                    ],
+                ],
+            ],
+        ];
+
+        $signature = hash_hmac('sha256', json_encode($payload, JSON_UNESCAPED_UNICODE), 'whsec_123');
+
+        $this->postJson(route('webhooks.razorpay'), $payload, [
+            'X-Razorpay-Signature' => $signature,
+            'X-Razorpay-Event-Id' => 'evt_failed_1',
+        ])->assertOk();
+
+        $this->assertDatabaseHas('payment_orders', [
+            'provider_order_id' => $orderId,
+            'status' => 'failed',
+            'provider_payment_id' => 'pay_failed_1',
+        ]);
+
+        $this->assertSame('Card declined by issuer', PaymentOrder::where('provider_order_id', $orderId)->firstOrFail()->metadata['failure_reason'] ?? null);
+
+        $account->refresh();
+        $this->assertSame('past_due', $account->subscription->status);
+        $this->assertSame('Card declined by issuer', $account->subscription->last_error);
+        $this->assertNotNull($account->subscription->last_payment_failed_at);
+    }
 }

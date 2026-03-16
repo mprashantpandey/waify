@@ -3,6 +3,7 @@
 namespace App\Core\Billing\Providers;
 
 use App\Core\Billing\Contracts\BillingProvider;
+use App\Core\Billing\SubscriptionService;
 use App\Models\PaymentOrder;
 use App\Models\Plan;
 use App\Models\PlatformSetting;
@@ -147,6 +148,10 @@ class RazorpayBillingProvider implements BillingProvider
         if ($event === 'payment.failed') {
             $orderId = $payload['payload']['payment']['entity']['order_id'] ?? null;
             $paymentId = $payload['payload']['payment']['entity']['id'] ?? null;
+            $errorReason = $payload['payload']['payment']['entity']['error_description']
+                ?? $payload['payload']['payment']['entity']['error_reason']
+                ?? $payload['payload']['payment']['entity']['error_source']
+                ?? 'Payment failed';
 
             if (!$orderId) {
                 return;
@@ -160,10 +165,25 @@ class RazorpayBillingProvider implements BillingProvider
                 return;
             }
 
+            $metadata = is_array($paymentOrder->metadata) ? $paymentOrder->metadata : [];
+            $metadata['failure_reason'] = $errorReason;
+            $metadata['failed_event'] = $event;
+            $metadata['failed_at'] = now()->toIso8601String();
+
             $paymentOrder->update([
                 'status' => 'failed',
                 'provider_payment_id' => $paymentId ?? $paymentOrder->provider_payment_id,
+                'metadata' => $metadata,
                 'failed_at' => now()]);
+
+            $account = Account::find($paymentOrder->account_id);
+            $subscription = $account?->subscription;
+            if ($account && $subscription && (
+                $subscription->status === 'past_due'
+                || ($subscription->current_period_end && Carbon::parse($subscription->current_period_end)->isPast())
+            )) {
+                app(SubscriptionService::class)->markPastDue($account, $errorReason);
+            }
         }
     }
 

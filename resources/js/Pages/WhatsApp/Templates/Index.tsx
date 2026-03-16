@@ -38,6 +38,11 @@ interface Template {
         code?: string | null;
     };
     sends_failed_count?: number;
+    latest_failed_send?: {
+        id: number;
+        error_message?: string | null;
+        created_at?: string | null;
+    } | null;
 }
 
 interface Filters {
@@ -510,9 +515,24 @@ export default function TemplatesIndex({
                                                             </p>
                                                         )}
                                                         {(template.sends_failed_count ?? 0) > 0 ? (
-                                                            <Badge variant="danger" className="px-2 py-1 text-[10px]">
-                                                                {(template.sends_failed_count ?? 0)} failed send{(template.sends_failed_count ?? 0) === 1 ? '' : 's'}
-                                                            </Badge>
+                                                            <div className="space-y-1">
+                                                                <Badge variant="danger" className="px-2 py-1 text-[10px]">
+                                                                    {(template.sends_failed_count ?? 0)} failed send{(template.sends_failed_count ?? 0) === 1 ? '' : 's'}
+                                                                </Badge>
+                                                                {template.latest_failed_send?.error_message && (
+                                                                    <p
+                                                                        className="text-[11px] text-red-600 dark:text-red-400 truncate"
+                                                                        title={template.latest_failed_send.error_message}
+                                                                    >
+                                                                        Last failure: {template.latest_failed_send.error_message}
+                                                                    </p>
+                                                                )}
+                                                                {template.latest_failed_send?.created_at && (
+                                                                    <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                                                                        Failed: {new Date(template.latest_failed_send.created_at).toLocaleString()}
+                                                                    </p>
+                                                                )}
+                                                            </div>
                                                         ) : (
                                                             <Badge variant="success" className="px-2 py-1 text-[10px]">
                                                                 No recent send failures
