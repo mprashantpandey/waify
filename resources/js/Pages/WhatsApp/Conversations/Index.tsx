@@ -237,7 +237,7 @@ export default function ConversationsIndex({
                 if (now - pollErrorToastAtRef.current > 60_000) {
                     addToast({
                         title: 'Inbox sync delayed',
-                        description: 'Realtime sync is retrying in the background.',
+                        description: 'Realtime updates are delayed. Background recovery is retrying.',
                         variant: 'warning',
                         duration: 3000,
                     });
@@ -676,7 +676,7 @@ export default function ConversationsIndex({
                                 <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
                                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                         <span>
-                                            Realtime sync is unstable. Updates may be delayed.
+                                            Realtime updates are delayed. New chats, assignments, or status changes may appear late.
                                             {syncErrorMessage ? ` ${syncErrorMessage}` : ''}
                                         </span>
                                         <Button

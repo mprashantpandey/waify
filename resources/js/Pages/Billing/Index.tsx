@@ -534,7 +534,7 @@ export default function BillingIndex({
                                     )}
                                     <Link href={route('app.billing.plans', {})}>
                                         <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50 rounded-xl">
-                                            Change Plan
+                                            {isOwner ? 'Review Plans' : 'View Plans'}
                                         </Button>
                                     </Link>
                                     {isOwner && subscription && subscription.status === 'active' && !subscription.cancel_at_period_end && (

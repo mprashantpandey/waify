@@ -1004,7 +1004,7 @@ export default function ConversationsShow({
                         assignedToRef.current !== currentUserId
                     ) {
                         addToast({
-                            title: 'Conversation assigned',
+                            title: 'Assigned to you',
                             description: 'This chat was assigned to you.',
                             variant: 'info',
                             duration: 3000});
@@ -1226,8 +1226,8 @@ export default function ConversationsShow({
                 const now = Date.now();
                 if (now - pollErrorToastAtRef.current > 60_000) {
                     addToast({
-                        title: 'Realtime temporarily degraded',
-                        description: 'Retrying conversation sync in the background.',
+                        title: 'Conversation sync delayed',
+                        description: 'Realtime updates are delayed. Background recovery is retrying.',
                         variant: 'warning',
                         duration: 4000,
                     });
@@ -1237,7 +1237,7 @@ export default function ConversationsShow({
                 const backoffMultiplier = Math.pow(2, Math.max(0, pollFailureCountRef.current - 1));
                 const nextDelay = Math.min(60000, baseIntervalMs * backoffMultiplier);
                 if (pollFailureCountRef.current >= 3) {
-                    setStreamSyncError('Realtime sync is unstable. Messages may appear with delay.');
+                    setStreamSyncError('Realtime updates are delayed. New messages, assignments, or audit events may appear late.');
                 }
                 scheduleNextPoll(nextDelay);
                 setLoading(false);
