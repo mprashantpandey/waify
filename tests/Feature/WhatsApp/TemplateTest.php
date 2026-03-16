@@ -195,6 +195,57 @@ class TemplateTest extends TestCase
             );
     }
 
+    public function test_template_list_includes_latest_failed_send_diagnostics(): void
+    {
+        $template = WhatsAppTemplate::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_connection_id' => $this->connection->id,
+            'name' => 'failure_template_diagnostics',
+            'status' => 'approved',
+            'last_meta_error' => 'Sync warning',
+            'sync_state' => 'sync_error',
+        ]);
+
+        $conversation = WhatsAppConversation::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_connection_id' => $this->connection->id,
+        ]);
+
+        $message = WhatsAppMessage::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'type' => 'template',
+            'status' => 'failed',
+            'meta_message_id' => 'wamid.test.failed.1',
+            'error_message' => null,
+            'payload' => ['error' => ['message' => 'Provider payload mismatch']],
+            'sent_at' => now()->subMinute(),
+        ]);
+
+        WhatsAppTemplateSend::create([
+            'account_id' => $this->account->id,
+            'whatsapp_template_id' => $template->id,
+            'whatsapp_message_id' => $message->id,
+            'to_wa_id' => '919999999999',
+            'variables' => ['A'],
+            'status' => 'failed',
+            'error_message' => null,
+            'sent_at' => now()->subMinute(),
+        ]);
+
+        $this->actingAs($this->user)
+            ->get(route('app.whatsapp.templates.index', ['account' => $this->account->slug]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('WhatsApp/Templates/Index')
+                ->where('templates.data.0.latest_failed_send.meta_message_id', 'wamid.test.failed.1')
+                ->where('templates.data.0.latest_failed_send.timeline.0', 'accepted')
+                ->where('templates.data.0.latest_failed_send.payload.error.message', 'Provider payload mismatch')
+                ->where('templates.data.0.last_meta_error', 'Sync warning')
+                ->where('templates.data.0.sync_state', 'sync_error')
+            );
+    }
+
     public function test_sending_template_creates_outbound_message(): void
     {
         $template = WhatsAppTemplate::factory()->create([

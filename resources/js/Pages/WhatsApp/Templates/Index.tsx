@@ -40,7 +40,11 @@ interface Template {
     sends_failed_count?: number;
     latest_failed_send?: {
         id: number;
+        status?: string | null;
         error_message?: string | null;
+        meta_message_id?: string | null;
+        timeline?: string[];
+        payload?: Record<string, any> | null;
         created_at?: string | null;
     } | null;
 }
@@ -85,6 +89,59 @@ export default function TemplatesIndex({
     const [deleting, setDeleting] = useState<string | null>(null);
     const [syncing, setSyncing] = useState(false);
     const hasConnections = connections.length > 0;
+
+    const buildFailedSendDiagnosticsBundle = (template: Template) => {
+        if (!template.latest_failed_send) return null;
+
+        return {
+            template: {
+                id: template.id,
+                slug: template.slug,
+                name: template.name,
+                language: template.language,
+                category: template.category,
+                status: template.status,
+                sendability: template.sendability ?? null,
+                last_meta_sync_at: template.last_meta_sync_at ?? null,
+                last_meta_error: template.last_meta_error ?? null,
+                meta_rejection_reason: template.meta_rejection_reason ?? null,
+            },
+            latest_failed_send: {
+                id: template.latest_failed_send.id,
+                status: template.latest_failed_send.status ?? null,
+                error_message: template.latest_failed_send.error_message ?? null,
+                meta_message_id: template.latest_failed_send.meta_message_id ?? null,
+                timeline: template.latest_failed_send.timeline ?? [],
+                payload: template.latest_failed_send.payload ?? null,
+                created_at: template.latest_failed_send.created_at ?? null,
+            },
+        };
+    };
+
+    const downloadFailedSendDiagnosticsBundle = (template: Template) => {
+        const bundle = buildFailedSendDiagnosticsBundle(template);
+        if (!bundle) return;
+
+        const blob = new Blob([JSON.stringify(bundle, null, 2)], {
+            type: 'application/json;charset=utf-8',
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `template-failure-diagnostics-${template.slug}-${template.latest_failed_send?.id}.json`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    };
+
+    const copyFailedSendDiagnosticsBundle = async (template: Template) => {
+        const bundle = buildFailedSendDiagnosticsBundle(template);
+        if (!bundle) return;
+
+        await navigator.clipboard.writeText(JSON.stringify(bundle, null, 2));
+        toast.success('Diagnostics copied');
+    };
 
     const applyFilters = () => {
         router.get(route('app.whatsapp.templates.index', {}), localFilters as any, {
@@ -519,6 +576,14 @@ export default function TemplatesIndex({
                                                                 <Badge variant="danger" className="px-2 py-1 text-[10px]">
                                                                     {(template.sends_failed_count ?? 0)} failed send{(template.sends_failed_count ?? 0) === 1 ? '' : 's'}
                                                                 </Badge>
+                                                                {template.latest_failed_send?.status && (
+                                                                    <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                                                                        Final status: {template.latest_failed_send.status}
+                                                                        {template.latest_failed_send.timeline && template.latest_failed_send.timeline.length > 0
+                                                                            ? ` (${template.latest_failed_send.timeline.join(' -> ')})`
+                                                                            : ''}
+                                                                    </p>
+                                                                )}
                                                                 {template.latest_failed_send?.error_message && (
                                                                     <p
                                                                         className="text-[11px] text-red-600 dark:text-red-400 truncate"
@@ -527,10 +592,60 @@ export default function TemplatesIndex({
                                                                         Last failure: {template.latest_failed_send.error_message}
                                                                     </p>
                                                                 )}
+                                                                {template.latest_failed_send?.meta_message_id && (
+                                                                    <p
+                                                                        className="text-[11px] font-mono text-gray-500 dark:text-gray-400 truncate"
+                                                                        title={template.latest_failed_send.meta_message_id}
+                                                                    >
+                                                                        Meta ID: {template.latest_failed_send.meta_message_id}
+                                                                    </p>
+                                                                )}
+                                                                {template.latest_failed_send?.payload?.error?.message && (
+                                                                    <p
+                                                                        className="text-[11px] text-red-600 dark:text-red-400 truncate"
+                                                                        title={template.latest_failed_send.payload.error.message}
+                                                                    >
+                                                                        Provider: {template.latest_failed_send.payload.error.message}
+                                                                    </p>
+                                                                )}
                                                                 {template.latest_failed_send?.created_at && (
                                                                     <p className="text-[11px] text-gray-500 dark:text-gray-400">
                                                                         Failed: {new Date(template.latest_failed_send.created_at).toLocaleString()}
                                                                     </p>
+                                                                )}
+                                                                {template.latest_failed_send?.id && (
+                                                                    <div className="flex flex-wrap gap-2 pt-1">
+                                                                        <Link
+                                                                            href={`${route('app.whatsapp.templates.show', {
+                                                                                template: template.slug,
+                                                                            })}#recent-send-${template.latest_failed_send.id}`}
+                                                                            className="text-[11px] font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                                                                        >
+                                                                            Open diagnostics
+                                                                        </Link>
+                                                                        <Link
+                                                                            href={`${route('app.whatsapp.templates.send', {
+                                                                                template: template.slug,
+                                                                            })}#recent-send-${template.latest_failed_send.id}`}
+                                                                            className="text-[11px] font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                                                                        >
+                                                                            Retry with context
+                                                                        </Link>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => copyFailedSendDiagnosticsBundle(template)}
+                                                                            className="text-[11px] font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                                                                        >
+                                                                            Copy bundle
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => downloadFailedSendDiagnosticsBundle(template)}
+                                                                            className="text-[11px] font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                                                                        >
+                                                                            Download bundle
+                                                                        </button>
+                                                                    </div>
                                                                 )}
                                                             </div>
                                                         ) : (

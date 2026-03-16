@@ -9,6 +9,7 @@ use App\Modules\WhatsApp\Events\Inbox\ConversationUpdated;
 use App\Modules\WhatsApp\Events\Inbox\MessageCreated;
 use App\Modules\WhatsApp\Events\Inbox\MessageUpdated;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
+use App\Modules\WhatsApp\Models\WhatsAppConversationAuditEvent;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
@@ -365,6 +366,49 @@ class RealtimeTest extends TestCase
         $response->assertJsonPath('updated_messages.0.payload.error.message', 'Meta says no');
         $response->assertJsonPath('conversation.unread_count', 0);
         $response->assertJsonPath('conversation.has_unread', false);
+    }
+
+    public function test_conversation_stream_returns_audit_events_in_stable_order(): void
+    {
+        $contact = WhatsAppContact::factory()->create([
+            'account_id' => $this->account->id,
+        ]);
+
+        $conversation = WhatsAppConversation::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_connection_id' => $this->connection->id,
+            'whatsapp_contact_id' => $contact->id,
+        ]);
+
+        $first = WhatsAppConversationAuditEvent::create([
+            'whatsapp_conversation_id' => $conversation->id,
+            'account_id' => $this->account->id,
+            'user_id' => $this->user->id,
+            'event_type' => 'assigned',
+            'description' => 'Assigned to Agent A',
+            'meta' => ['assigned_to' => $this->user->id],
+        ]);
+
+        $second = WhatsAppConversationAuditEvent::create([
+            'whatsapp_conversation_id' => $conversation->id,
+            'account_id' => $this->account->id,
+            'user_id' => $this->user->id,
+            'event_type' => 'transferred',
+            'description' => 'Transferred to Agent B',
+            'meta' => ['assigned_to' => 999],
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_account_id' => $this->account->id])
+            ->get(route('app.whatsapp.inbox.conversation.stream', [
+                'account' => $this->account->slug,
+                'conversation' => $conversation->id,
+                'after_audit_id' => 0,
+            ]));
+
+        $response->assertOk();
+        $response->assertJsonPath('new_audit_events.0.id', $first->id);
+        $response->assertJsonPath('new_audit_events.1.id', $second->id);
     }
 
     public function test_message_updated_broadcast_includes_payload_for_diagnostics(): void

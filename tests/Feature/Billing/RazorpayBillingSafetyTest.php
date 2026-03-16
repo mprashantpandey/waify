@@ -10,6 +10,7 @@ use App\Models\Plan;
 use App\Models\PlatformSetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class RazorpayBillingSafetyTest extends TestCase
@@ -224,5 +225,120 @@ class RazorpayBillingSafetyTest extends TestCase
         $this->assertSame('past_due', $account->subscription->status);
         $this->assertSame('Card declined by issuer', $account->subscription->last_error);
         $this->assertNotNull($account->subscription->last_payment_failed_at);
+    }
+
+    public function test_payment_failed_webhook_is_idempotent_by_event_id(): void
+    {
+        $account = $this->createAccountWithPlan('starter');
+        $owner = $account->owner;
+        $plan = $account->subscription->plan;
+
+        PlatformSetting::set('payment.razorpay_enabled', true, 'boolean', 'payment');
+        PlatformSetting::set('payment.razorpay_key_id', 'rzp_test_123', 'string', 'payment');
+        PlatformSetting::set('payment.razorpay_key_secret', 'secret_123', 'string', 'payment');
+        PlatformSetting::set('payment.razorpay_webhook_secret', 'whsec_123', 'string', 'payment');
+
+        $orderId = 'order_failed_duplicate_123';
+        PaymentOrder::create([
+            'account_id' => $account->id,
+            'plan_id' => $plan->id,
+            'provider' => 'razorpay',
+            'provider_order_id' => $orderId,
+            'amount' => (int) $plan->price_monthly,
+            'currency' => 'INR',
+            'status' => 'created',
+            'created_by' => $owner->id,
+        ]);
+
+        $firstPayload = [
+            'event' => 'payment.failed',
+            'payload' => [
+                'payment' => [
+                    'entity' => [
+                        'id' => 'pay_failed_dup_1',
+                        'order_id' => $orderId,
+                        'error_description' => 'Card declined by issuer',
+                    ],
+                ],
+            ],
+        ];
+
+        $firstSignature = hash_hmac('sha256', json_encode($firstPayload, JSON_UNESCAPED_UNICODE), 'whsec_123');
+
+        $this->postJson(route('webhooks.razorpay'), $firstPayload, [
+            'X-Razorpay-Signature' => $firstSignature,
+            'X-Razorpay-Event-Id' => 'evt_failed_duplicate_1',
+        ])->assertOk();
+
+        $duplicatePayload = [
+            'event' => 'payment.failed',
+            'payload' => [
+                'payment' => [
+                    'entity' => [
+                        'id' => 'pay_failed_dup_2',
+                        'order_id' => $orderId,
+                        'error_description' => 'Some later duplicate payload',
+                    ],
+                ],
+            ],
+        ];
+
+        $duplicateSignature = hash_hmac('sha256', json_encode($duplicatePayload, JSON_UNESCAPED_UNICODE), 'whsec_123');
+
+        $this->postJson(route('webhooks.razorpay'), $duplicatePayload, [
+            'X-Razorpay-Signature' => $duplicateSignature,
+            'X-Razorpay-Event-Id' => 'evt_failed_duplicate_1',
+        ])->assertOk();
+
+        $paymentOrder = PaymentOrder::where('provider_order_id', $orderId)->firstOrFail();
+
+        $this->assertSame('failed', $paymentOrder->status);
+        $this->assertSame('pay_failed_dup_1', $paymentOrder->provider_payment_id);
+        $this->assertSame('Card declined by issuer', $paymentOrder->metadata['failure_reason'] ?? null);
+    }
+
+    public function test_confirm_payment_is_idempotent_for_same_paid_order_and_payment_id(): void
+    {
+        $account = $this->createAccountWithPlan('starter');
+        $owner = $account->owner;
+        $plan = $account->subscription->plan;
+
+        PlatformSetting::set('payment.razorpay_enabled', true, 'boolean', 'payment');
+        PlatformSetting::set('payment.razorpay_key_id', 'rzp_test_123', 'string', 'payment');
+        PlatformSetting::set('payment.razorpay_key_secret', 'secret_123', 'string', 'payment');
+
+        $paidAt = now()->subMinutes(30);
+        $orderId = 'order_confirm_duplicate_1';
+        $paymentId = 'pay_confirm_duplicate_1';
+        $signature = hash_hmac('sha256', $orderId.'|'.$paymentId, 'secret_123');
+
+        PaymentOrder::create([
+            'account_id' => $account->id,
+            'plan_id' => $plan->id,
+            'provider' => 'razorpay',
+            'provider_order_id' => $orderId,
+            'provider_payment_id' => $paymentId,
+            'amount' => (int) $plan->price_monthly,
+            'currency' => 'INR',
+            'status' => 'paid',
+            'created_by' => $owner->id,
+            'paid_at' => $paidAt,
+        ]);
+
+        $originalPeriodEnd = Carbon::parse($account->subscription->current_period_end);
+
+        $this->actingAs($owner)
+            ->withSession(['current_account_id' => $account->id])
+            ->post(route('app.billing.razorpay.confirm'), [
+                'order_id' => $orderId,
+                'payment_id' => $paymentId,
+                'signature' => $signature,
+            ])
+            ->assertOk();
+
+        $account->refresh();
+
+        $this->assertTrue($originalPeriodEnd->equalTo(Carbon::parse($account->subscription->current_period_end)));
+        $this->assertSame($paymentId, PaymentOrder::where('provider_order_id', $orderId)->firstOrFail()->provider_payment_id);
     }
 }

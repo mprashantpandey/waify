@@ -1,4 +1,4 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { Card, CardContent } from '@/Components/UI/Card';
 import { AlertCircle } from 'lucide-react';
 import Button from '@/Components/UI/Button';
@@ -11,6 +11,7 @@ export default function BillingPastDue({
     account: {
         name: string;
         slug: string;
+        owner_id?: number | string;
     };
     subscription: {
         status: string;
@@ -22,8 +23,10 @@ export default function BillingPastDue({
         recovery_actions?: string[];
     };
 }) {
+    const { auth } = usePage().props as any;
     const recoveryActions = new Set(gate?.recovery_actions ?? []);
     const canResume = gate?.state === 'canceled_grace' || recoveryActions.has('resume_plan');
+    const isOwner = Number(account?.owner_id) === Number(auth?.user?.id);
 
     return (
         <>
@@ -51,21 +54,28 @@ export default function BillingPastDue({
                         <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
                             Complete renewal to restore full access immediately.
                         </p>
+                        {!isOwner && (
+                            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-4 mb-6 text-left">
+                                <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                                    Only the account owner can renew, resume, or update billing details.
+                                </p>
+                            </div>
+                        )}
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <Link href={route('app.billing.index', { })}>
                                 <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50 rounded-xl w-full">
-                                    Renew Subscription
+                                    {isOwner ? 'Open Billing Recovery' : 'View Billing Recovery'}
                                 </Button>
                             </Link>
                             <Link href={route('app.billing.plans', { })}>
                                 <Button variant="secondary" className="rounded-xl w-full">
-                                    Change Plan
+                                    {isOwner ? 'Review Plans' : 'View Plans'}
                                 </Button>
                             </Link>
-                            <Link href={route('app.billing.index', { })}>
+                            <Link href={route('app.billing.transactions', { })}>
                                 <Button variant="secondary" className="rounded-xl w-full">
-                                    Update Payment Method
+                                    Open Transactions
                                 </Button>
                             </Link>
                             {canResume && (

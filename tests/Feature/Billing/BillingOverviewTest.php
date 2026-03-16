@@ -86,4 +86,33 @@ class BillingOverviewTest extends TestCase
             'paymentOrder' => $payment->id,
         ]))->assertOk();
     }
+
+    public function test_payment_history_exposes_failure_reason_for_recovery_context(): void
+    {
+        $account = $this->createAccountWithPlan('starter');
+        $this->actingAsAccountOwner($account);
+
+        PaymentOrder::create([
+            'account_id' => $account->id,
+            'plan_id' => $account->subscription?->plan_id,
+            'provider' => 'razorpay',
+            'provider_order_id' => 'ord_failed_history',
+            'amount' => 499900,
+            'currency' => 'INR',
+            'status' => 'failed',
+            'created_by' => $account->owner_id,
+            'failed_at' => now()->subMinutes(20),
+            'metadata' => [
+                'failure_reason' => 'Card was declined by issuer',
+            ],
+        ]);
+
+        $response = $this->get(route('app.billing.history', ['account' => $account->slug]));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Billing/History')
+            ->where('payments.0.failure_reason', 'Card was declined by issuer')
+        );
+    }
 }

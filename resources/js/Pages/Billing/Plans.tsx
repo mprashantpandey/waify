@@ -1,4 +1,4 @@
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import axios from 'axios';
 import { useState } from 'react';
 import AppShell from '@/Layouts/AppShell';
@@ -9,6 +9,7 @@ import { Check, X, AlertTriangle, Lock, Sparkles, Zap, LayoutGrid, Table2, Crown
 import { useToast } from '@/hooks/useToast';
 import { useNotifications } from '@/hooks/useNotifications';
 import { Head } from '@inertiajs/react';
+import { Alert } from '@/Components/UI/Alert';
 
 declare global {
     interface Window {
@@ -47,11 +48,13 @@ export default function BillingPlans({
     razorpay_enabled?: boolean;
     razorpay_key_id?: string | null;
 }) {
+    const { auth } = usePage().props as any;
     const [switchingPlan, setSwitchingPlan] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
     const { addToast } = useToast();
     const { confirm } = useNotifications();
     const razorpayEnabled = razorpay_enabled && Boolean(razorpay_key_id);
+    const isOwner = Number(account?.owner_id) === Number(auth?.user?.id);
 
     const formatPrice = (price: number | null, currency: string) => {
         if (price === null) return 'Custom Pricing';
@@ -64,6 +67,15 @@ export default function BillingPlans({
     };
 
     const handleSwitchPlan = async (planKey: string) => {
+        if (!isOwner) {
+            addToast({
+                title: 'Owner action required',
+                description: 'Only the account owner can change, renew, or resume plans.',
+                variant: 'error',
+            });
+            return;
+        }
+
         const isNewPlan = !current_plan_key;
         const plan = plans.find(p => p.key === planKey);
         
@@ -132,6 +144,15 @@ export default function BillingPlans({
         });
 
     const handleRazorpayCheckout = async (plan: Plan) => {
+        if (!isOwner) {
+            addToast({
+                title: 'Owner action required',
+                description: 'Only the account owner can complete checkout for renewals or plan changes.',
+                variant: 'error',
+            });
+            return;
+        }
+
         const confirmed = await confirm({
             title: 'Purchase Plan',
             message: `Proceed to pay for ${plan.name}?`,
@@ -335,6 +356,18 @@ export default function BillingPlans({
         <AppShell>
             <Head title="Available Plans" />
             <div className="space-y-8">
+                {!isOwner && (
+                    <Alert variant="warning" className="border-yellow-200 dark:border-yellow-800">
+                        <Lock className="h-5 w-5" />
+                        <div className="flex-1">
+                            <h3 className="font-semibold text-yellow-800 dark:text-yellow-200">Owner approval required</h3>
+                            <p className="mt-1 text-sm text-yellow-700 dark:text-yellow-300">
+                                You can review plans here. Only the account owner can renew, resume, upgrade, downgrade, or complete checkout.
+                            </p>
+                        </div>
+                    </Alert>
+                )}
+
                 {hasNoPlan && (
                     <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-6">
                         <div className="flex items-start gap-4">
@@ -533,41 +566,50 @@ export default function BillingPlans({
                                     {(() => {
                                         const isCurrentAndPastDue = plan.is_current && isPastDue;
                                         const canPayCurrent = isCurrentAndPastDue && (plan.price_monthly ?? 0) > 0 && razorpayEnabled;
-                                        const disabled = (!canPayCurrent && plan.is_current) || switchingPlan === plan.key || plan.price_monthly === null;
+                                        const disabled = !isOwner || (!canPayCurrent && plan.is_current) || switchingPlan === plan.key || plan.price_monthly === null;
 
                                         return (
-                                            <Button
-                                        variant={plan.is_current ? 'secondary' : 'primary'}
-                                        className={`w-full rounded-xl ${
-                                            !plan.is_current 
-                                                ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50' 
-                                                : ''
-                                        }`}
-                                        disabled={disabled}
-                                        onClick={() => {
-                                            if (canPayCurrent) {
-                                                handleRazorpayCheckout(plan);
-                                                return;
-                                            }
-                                            if (plan.price_monthly && plan.price_monthly > 0 && razorpayEnabled) {
-                                                handleRazorpayCheckout(plan);
-                                                return;
-                                            }
-                                            handleSwitchPlan(plan.key);
-                                        }}
-                                    >
-                                        {canPayCurrent
-                                            ? 'Pay to Renew'
-                                            : plan.is_current
-                                            ? 'Current Plan'
-                                            : switchingPlan === plan.key
-                                            ? 'Switching...'
-                                            : plan.price_monthly === null
-                                            ? 'Contact Sales'
-                                            : plan.price_monthly > 0 && razorpayEnabled
-                                            ? 'Pay & Switch'
-                                            : 'Switch to this Plan'}
-                                    </Button>
+                                            <>
+                                                <Button
+                                                    variant={plan.is_current ? 'secondary' : 'primary'}
+                                                    className={`w-full rounded-xl ${
+                                                        !plan.is_current
+                                                            ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50'
+                                                            : ''
+                                                    }`}
+                                                    disabled={disabled}
+                                                    onClick={() => {
+                                                        if (canPayCurrent) {
+                                                            handleRazorpayCheckout(plan);
+                                                            return;
+                                                        }
+                                                        if (plan.price_monthly && plan.price_monthly > 0 && razorpayEnabled) {
+                                                            handleRazorpayCheckout(plan);
+                                                            return;
+                                                        }
+                                                        handleSwitchPlan(plan.key);
+                                                    }}
+                                                >
+                                                    {!isOwner
+                                                        ? 'Owner Only'
+                                                        : canPayCurrent
+                                                        ? 'Pay to Renew'
+                                                        : plan.is_current
+                                                        ? 'Current Plan'
+                                                        : switchingPlan === plan.key
+                                                        ? 'Switching...'
+                                                        : plan.price_monthly === null
+                                                        ? 'Contact Sales'
+                                                        : plan.price_monthly > 0 && razorpayEnabled
+                                                        ? 'Pay & Switch'
+                                                        : 'Switch to this Plan'}
+                                                </Button>
+                                                {!isOwner && (
+                                                    <p className="mt-2 text-center text-[11px] text-gray-500 dark:text-gray-400">
+                                                        Billing recovery and plan changes are restricted to the account owner.
+                                                    </p>
+                                                )}
+                                            </>
                                         );
                                     })()}
                                 </CardContent>

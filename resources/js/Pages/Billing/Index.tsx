@@ -170,6 +170,11 @@ export default function BillingIndex({
         : !razorpayEnabled
         ? 'Online checkout is currently unavailable. Contact support to renew.'
         : null;
+    const canResumeSubscription = Boolean(
+        isOwner
+        && subscription
+        && (subscription.cancel_at_period_end || subscription.status === 'canceled')
+    );
 
     const loadRazorpay = () =>
         new Promise<void>((resolve, reject) => {
@@ -324,9 +329,9 @@ export default function BillingIndex({
                                         {renewing ? 'Opening Checkout...' : 'Renew Now'}
                                     </Button>
                                 ) : (
-                                    <Link href={route('app.billing.plans', {})}>
+                                    <Link href={route('app.billing.index', {})}>
                                         <Button variant="secondary" size="sm" className="rounded-xl w-full sm:w-auto">
-                                            Open Renewal Options
+                                            {isOwner ? 'Open Billing Recovery' : 'View Billing Recovery'}
                                         </Button>
                                     </Link>
                                 )}
@@ -394,11 +399,28 @@ export default function BillingIndex({
                                 Your subscription was canceled on {subscription.canceled_at ? new Date(subscription.canceled_at).toLocaleDateString() : 'a previous date'}. 
                                 You can reactivate it or choose a new plan.
                             </p>
-                            <Link href={route('app.billing.plans', {})}>
-                                <Button variant="secondary" size="sm" className="rounded-xl">
-                                    View Plans
-                                </Button>
-                            </Link>
+                            <div className="flex flex-col gap-2 sm:flex-row">
+                                {canResumeSubscription && (
+                                    <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        className="rounded-xl"
+                                        onClick={() => router.post(route('app.billing.resume', {}))}
+                                    >
+                                        Resume Subscription
+                                    </Button>
+                                )}
+                                <Link href={route('app.billing.plans', {})}>
+                                    <Button variant="secondary" size="sm" className="rounded-xl">
+                                        {isOwner ? 'Choose Another Plan' : 'View Plans'}
+                                    </Button>
+                                </Link>
+                            </div>
+                            {!isOwner && (
+                                <p className="mt-2 text-xs text-red-700 dark:text-red-300">
+                                    Only the account owner can reactivate or replace the canceled plan.
+                                </p>
+                            )}
                         </div>
                     </Alert>
                 )}
@@ -484,7 +506,7 @@ export default function BillingIndex({
                                         ) : (
                                             <Link href={route('app.billing.plans', {})}>
                                                 <Button className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-lg shadow-amber-500/40 rounded-xl">
-                                                    Renew Now
+                                                    {isOwner ? 'Renew Now' : 'View Billing Recovery'}
                                                 </Button>
                                             </Link>
                                         )
@@ -493,6 +515,13 @@ export default function BillingIndex({
                                         <Link href={route('app.billing.history.show', { paymentOrder: latestFailedPayment.id })}>
                                             <Button variant="secondary" className="rounded-xl">
                                                 Review Failed Payment
+                                            </Button>
+                                        </Link>
+                                    )}
+                                    {!isOwner && (subscription?.status === 'past_due' || subscription?.status === 'canceled') && (
+                                        <Link href={route('app.billing.history', {})}>
+                                            <Button variant="secondary" className="rounded-xl">
+                                                View Billing Details
                                             </Button>
                                         </Link>
                                     )}
@@ -525,7 +554,7 @@ export default function BillingIndex({
                                             Cancel Subscription
                                         </Button>
                                     )}
-                                    {isOwner && subscription && subscription.cancel_at_period_end && (
+                                    {canResumeSubscription && (
                                         <Button
                                             variant="success"
                                             onClick={() => {

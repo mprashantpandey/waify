@@ -1,11 +1,13 @@
 import { FormEvent, useMemo, useState } from 'react';
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import AppShell from '@/Layouts/AppShell';
 import { Head } from '@inertiajs/react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
 import Button from '@/Components/UI/Button';
+import { Alert } from '@/Components/UI/Alert';
 import { useNotifications } from '@/hooks/useNotifications';
+import { AlertCircle } from 'lucide-react';
 
 interface WalletSummary {
     balance_minor: number;
@@ -26,6 +28,7 @@ interface TransactionRow {
 }
 
 export default function BillingTransactions({
+    account,
     wallet,
     transactions,
 }: {
@@ -33,7 +36,9 @@ export default function BillingTransactions({
     wallet: WalletSummary;
     transactions: TransactionRow[];
 }) {
+    const { auth } = usePage().props as any;
     const { toast } = useNotifications();
+    const isOwner = Number(account?.owner_id) === Number(auth?.user?.id);
     const [topupAmountMajor, setTopupAmountMajor] = useState<string>('');
     const [topupNotes, setTopupNotes] = useState<string>('');
     const [selectedTx, setSelectedTx] = useState<TransactionRow | null>(null);
@@ -80,6 +85,10 @@ export default function BillingTransactions({
 
     const submitTopup = async (e: FormEvent) => {
         e.preventDefault();
+        if (!isOwner) {
+            toast.error('Owner action required', 'Only the account owner can add wallet credits.');
+            return;
+        }
         const major = Number(topupAmountMajor);
         if (!Number.isFinite(major) || major <= 0) {
             toast.error('Invalid amount', 'Enter a valid top-up amount.');
@@ -177,10 +186,34 @@ export default function BillingTransactions({
                     </Card>
                 </div>
 
+                {!isOwner && (
+                    <Alert variant="warning" className="border-yellow-200 dark:border-yellow-800">
+                        <AlertCircle className="h-5 w-5" />
+                        <div className="flex-1">
+                            <h3 className="font-semibold text-yellow-800 dark:text-yellow-200">Owner approval required</h3>
+                            <p className="mt-1 text-sm text-yellow-700 dark:text-yellow-300">
+                                You can inspect payment and wallet history here. Only the account owner can create wallet top-ups or complete checkout actions.
+                            </p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                <Link href={route('app.billing.index', {})}>
+                                    <Button variant="secondary" size="sm">View Billing Recovery</Button>
+                                </Link>
+                                <Link href={route('app.billing.plans', {})}>
+                                    <Button variant="secondary" size="sm">View Plans</Button>
+                                </Link>
+                            </div>
+                        </div>
+                    </Alert>
+                )}
+
                 <Card>
                     <CardHeader>
                         <CardTitle>Wallet Top-up</CardTitle>
-                        <CardDescription>Add wallet credits (if enabled by platform admin)</CardDescription>
+                        <CardDescription>
+                            {isOwner
+                                ? 'Add wallet credits (if enabled by platform admin)'
+                                : 'Wallet top-up is restricted to the account owner'}
+                        </CardDescription>
                     </CardHeader>
                     <CardContent>
                         <form className="flex flex-wrap items-end gap-3" onSubmit={submitTopup}>
@@ -192,6 +225,7 @@ export default function BillingTransactions({
                                     step="0.01"
                                     value={topupAmountMajor}
                                     onChange={(e) => setTopupAmountMajor(e.target.value)}
+                                    disabled={!isOwner}
                                     className="mt-1 w-44 rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900"
                                 />
                             </div>
@@ -201,10 +235,11 @@ export default function BillingTransactions({
                                     type="text"
                                     value={topupNotes}
                                     onChange={(e) => setTopupNotes(e.target.value)}
+                                    disabled={!isOwner}
                                     className="mt-1 w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900"
                                 />
                             </div>
-                            <Button type="submit">Add Credits</Button>
+                            <Button type="submit" disabled={!isOwner}>{isOwner ? 'Add Credits' : 'Owner Only'}</Button>
                         </form>
                     </CardContent>
                 </Card>

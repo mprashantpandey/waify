@@ -9,6 +9,7 @@ import { Alert } from '@/Components/UI/Alert';
 import { useConfirm } from '@/hooks/useConfirm';
 import { useEffect, useState } from 'react';
 import { useRealtime } from '@/Providers/RealtimeProvider';
+import { cn } from '@/lib/utils';
 
 interface Template {
     id: number;
@@ -81,6 +82,7 @@ export default function TemplatesShow({
     const { subscribe } = useRealtime();
     const [liveTemplate, setLiveTemplate] = useState<Template>(template);
     const [actionState, setActionState] = useState<string | null>(null);
+    const [highlightedSendId, setHighlightedSendId] = useState<number | null>(null);
 
     const getRecentSendStatusMeta = (send: RecentSend) => {
         const effectiveStatus = String(send.message?.status || send.status || 'unknown').toLowerCase();
@@ -122,9 +124,58 @@ export default function TemplatesShow({
         return parts.join(' -> ');
     };
 
+    const getRecentSendDiagnostics = (send: RecentSend) => {
+        return [
+            ['Final status', String(send.message?.status || send.status || 'unknown')],
+            ['Meta message ID', send.message?.meta_message_id || '-'],
+            ['Accepted at', send.message?.sent_at || send.sent_at || null],
+            ['Delivered at', send.message?.delivered_at || null],
+            ['Read at', send.message?.read_at || null],
+        ].filter(([, value]) => value) as Array<[string, string]>;
+    };
+
+    const downloadRecentSendDiagnostics = (send: RecentSend) => {
+        const blob = new Blob([
+            JSON.stringify({
+                template: {
+                    id: liveTemplate.id,
+                    slug: liveTemplate.slug,
+                    name: liveTemplate.name,
+                    language: liveTemplate.language,
+                    status: liveTemplate.status,
+                },
+                send: {
+                    id: send.id,
+                    to_wa_id: send.to_wa_id,
+                    status: send.status,
+                    error_message: getRecentSendError(send),
+                    timeline: getRecentSendTimeline(send),
+                    sent_at: send.sent_at,
+                    created_at: send.created_at,
+                    message: send.message ?? null,
+                },
+            }, null, 2),
+        ], { type: 'application/json;charset=utf-8' });
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `template-send-diagnostics-${send.id}.json`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    };
+
     useEffect(() => {
         setLiveTemplate(template);
     }, [template]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const match = window.location.hash.match(/recent-send-(\d+)/);
+        setHighlightedSendId(match ? Number(match[1]) : null);
+    }, []);
 
     const handleCheckStatus = () => {
         router.post(
@@ -422,7 +473,14 @@ export default function TemplatesShow({
                                             const effectiveError = getRecentSendError(send);
                                             const timeline = getRecentSendTimeline(send);
                                             return (
-                                                <tr key={send.id} className="align-top">
+                                            <tr
+                                                id={`recent-send-${send.id}`}
+                                                key={send.id}
+                                                className={cn(
+                                                    'align-top scroll-mt-24',
+                                                    highlightedSendId === send.id && 'bg-amber-50/70 dark:bg-amber-900/10'
+                                                )}
+                                            >
                                                     <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{send.to_wa_id}</td>
                                                     <td className="px-4 py-3">
                                                         <div className="space-y-1">
@@ -441,7 +499,49 @@ export default function TemplatesShow({
                                                     </td>
                                                     <td className="px-4 py-3 text-xs text-red-600 dark:text-red-400 max-w-[420px]">
                                                         {effectiveError ? (
-                                                            <span title={effectiveError}>{effectiveError}</span>
+                                                            <div className="space-y-2">
+                                                                <span title={effectiveError}>{effectiveError}</span>
+                                                                <details className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950/40 p-2 text-gray-700 dark:text-gray-200">
+                                                                    <summary className="cursor-pointer text-[11px] font-semibold">
+                                                                        Diagnostics
+                                                                    </summary>
+                                                                    <div className="mt-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => downloadRecentSendDiagnostics(send)}
+                                                            className="text-[11px] font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                                                        >
+                                                            Download bundle
+                                                        </button>
+                                                        <div className="mt-2 flex flex-wrap gap-3">
+                                                            <Link
+                                                                href={`${route('app.whatsapp.templates.send', { template: liveTemplate.slug })}#recent-send-${send.id}`}
+                                                                className="text-[11px] font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                                                            >
+                                                                Retry with context
+                                                            </Link>
+                                                        </div>
+                                                    </div>
+                                                                    <dl className="mt-2 space-y-1.5">
+                                                                        {getRecentSendDiagnostics(send).map(([label, value]) => (
+                                                                            <div key={label} className="grid grid-cols-[110px_1fr] gap-2">
+                                                                                <dt className="text-gray-500 dark:text-gray-400">{label}</dt>
+                                                                                <dd className="break-all">
+                                                                                    {value.includes('T') ? new Date(value).toLocaleString() : value}
+                                                                                </dd>
+                                                                            </div>
+                                                                        ))}
+                                                                        {send.message?.payload && (
+                                                                            <div className="pt-2">
+                                                                                <dt className="mb-1 text-gray-500 dark:text-gray-400">Provider payload</dt>
+                                                                                <dd className="overflow-x-auto rounded bg-white p-2 font-mono text-[11px] dark:bg-gray-900">
+                                                                                    <pre>{JSON.stringify(send.message.payload, null, 2)}</pre>
+                                                                                </dd>
+                                                                            </div>
+                                                                        )}
+                                                                    </dl>
+                                                                </details>
+                                                            </div>
                                                         ) : (
                                                             <span className="text-gray-400">-</span>
                                                         )}

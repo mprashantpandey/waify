@@ -196,8 +196,67 @@ const mergeMessages = (existing: Message[], incoming: Message[]) => {
     );
 };
 
+const mergeAuditEvents = (existing: AuditEventItem[], incoming: AuditEventItem[]) => {
+    const byId = new Map<number, AuditEventItem>();
+    [...existing, ...incoming].forEach((event) => byId.set(event.id, event));
+
+    return Array.from(byId.values()).sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+};
+
 const maxId = (items: Array<{ id: number }>) =>
     items.length > 0 ? Math.max(...items.map((item) => item.id)) : 0;
+
+const getAuditEventMeta = (event: AuditEventItem) => {
+    const type = String(event.event_type || '').toLowerCase();
+    const actor = event.actor?.name || 'System';
+    const assignedTo = event.meta?.assigned_to_name || event.meta?.assigned_to;
+
+    const labels: Record<string, { label: string; tone: string; description?: string | null }> = {
+        assigned: {
+            label: 'Assigned',
+            tone: 'text-emerald-600 dark:text-emerald-400',
+            description: assignedTo ? `Assigned to ${assignedTo}` : event.description,
+        },
+        transferred: {
+            label: 'Transferred',
+            tone: 'text-blue-600 dark:text-blue-400',
+            description: assignedTo ? `Transferred to ${assignedTo}` : event.description,
+        },
+        unassigned: {
+            label: 'Unassigned',
+            tone: 'text-amber-600 dark:text-amber-400',
+            description: event.description || `Unassigned by ${actor}`,
+        },
+        auto_assigned: {
+            label: 'Auto-assigned',
+            tone: 'text-emerald-600 dark:text-emerald-400',
+            description: assignedTo ? `Automatically assigned to ${assignedTo}` : event.description,
+        },
+        note_added: {
+            label: 'Note added',
+            tone: 'text-gray-600 dark:text-gray-300',
+            description: event.description,
+        },
+        status_changed: {
+            label: 'Status changed',
+            tone: 'text-gray-600 dark:text-gray-300',
+            description: event.description,
+        },
+        priority_changed: {
+            label: 'Priority changed',
+            tone: 'text-gray-600 dark:text-gray-300',
+            description: event.description,
+        },
+    };
+
+    return labels[type] || {
+        label: type.replaceAll('_', ' '),
+        tone: 'text-gray-500 dark:text-gray-400',
+        description: event.description,
+    };
+};
 
 export default function ConversationsShow({
     account,
@@ -330,6 +389,7 @@ export default function ConversationsShow({
     const [auditEvents, setAuditEvents] = useState<AuditEventItem[]>(normalizedAuditEvents);
     const [noteDraft, setNoteDraft] = useState('');
     const [metaUpdating, setMetaUpdating] = useState(false);
+    const [pendingAssignedTo, setPendingAssignedTo] = useState<number | null | undefined>(undefined);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -412,13 +472,7 @@ export default function ConversationsShow({
             );
         }
         if (normalizedAuditEvents.length > 0) {
-            setAuditEvents((prev) => {
-                const byId = new Map(prev.map((event) => [event.id, event]));
-                normalizedAuditEvents.forEach((event) => byId.set(event.id, event));
-                return Array.from(byId.values()).sort(
-                    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-                );
-            });
+            setAuditEvents((prev) => mergeAuditEvents(prev, normalizedAuditEvents));
             lastAuditIdRef.current = Math.max(
                 ...normalizedAuditEvents.map((e) => e.id),
                 lastAuditIdRef.current
@@ -986,14 +1040,20 @@ export default function ConversationsShow({
             '.whatsapp.audit.added',
             (data: any) => {
                 if (data.audit_event) {
-                    setAuditEvents((prev) => [data.audit_event, ...prev]);
+                    setAuditEvents((prev) => mergeAuditEvents(prev, [data.audit_event]));
                     lastAuditIdRef.current = Math.max(lastAuditIdRef.current, data.audit_event.id);
                     const ev = data.audit_event;
-                    const isAssignment = ev.event_type === 'assigned' || ev.event_type === 'auto_assigned';
+                    const isAssignment = ['assigned', 'transferred', 'unassigned', 'auto_assigned'].includes(ev.event_type);
                     const assignedToSomeoneElse = ev.meta?.assigned_to != null && ev.meta.assigned_to !== currentUserId;
                     if (isAssignment && ev.description && assignedToSomeoneElse) {
                         addToast({
-                            title: ev.event_type === 'auto_assigned' ? 'Chat auto-assigned' : 'Assignment updated',
+                            title: ev.event_type === 'auto_assigned'
+                                ? 'Auto-assigned'
+                                : ev.event_type === 'transferred'
+                                ? 'Transferred'
+                                : ev.event_type === 'unassigned'
+                                ? 'Unassigned'
+                                : 'Assigned',
                             description: ev.description,
                             variant: 'info',
                             duration: 4000,
@@ -1122,7 +1182,7 @@ export default function ConversationsShow({
                 }
 
                 if (newAuditEventsFromServer.length > 0) {
-                    setAuditEvents((prev) => [...newAuditEventsFromServer.slice().reverse(), ...prev]);
+                    setAuditEvents((prev) => mergeAuditEvents(prev, newAuditEventsFromServer));
                     lastAuditIdRef.current = Math.max(maxId(newAuditEventsFromServer), lastAuditIdRef.current);
                 }
 
@@ -1271,7 +1331,15 @@ export default function ConversationsShow({
     const updateConversationMeta = useCallback(
         (updates: Partial<{ status: string; assigned_to: number | null; priority: string | null }>) => {
             if (metaUpdating) return;
+            const previousConversation = conversation;
             setMetaUpdating(true);
+            if (Object.prototype.hasOwnProperty.call(updates, 'assigned_to')) {
+                setPendingAssignedTo(updates.assigned_to ?? null);
+            }
+            setConversation((prev) => ({
+                ...prev,
+                ...updates,
+            }));
 
             router.post(
                 route('app.whatsapp.conversations.update', {
@@ -1280,13 +1348,9 @@ export default function ConversationsShow({
                 {
                     preserveScroll: true,
                     preserveState: true,
-                    onSuccess: () => {
-                        setConversation((prev) => ({
-                            ...prev,
-                            ...updates,
-                        }));
-                    },
+                    onSuccess: () => {},
                     onError: (errs) => {
+                        setConversation(previousConversation);
                         addToast({
                             title: 'Update failed',
                             description: errs?.assigned_to || errs?.status || errs?.priority || 'Please try again.',
@@ -1294,9 +1358,10 @@ export default function ConversationsShow({
                     },
                     onFinish: () => {
                         setMetaUpdating(false);
+                        setPendingAssignedTo(undefined);
                     }});
         },
-        [addToast, conversation.id, metaUpdating]
+        [addToast, conversation, metaUpdating]
     );
 
     const handleAiSuggest = useCallback(() => {
@@ -1844,7 +1909,7 @@ export default function ConversationsShow({
                             <div className="space-y-2">
                                 <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Assignee</span>
                                 <select
-                                    value={conversation.assigned_to ?? ''}
+                                    value={(pendingAssignedTo !== undefined ? pendingAssignedTo : conversation.assigned_to) ?? ''}
                                     onChange={(e) => {
                                         const value = e.target.value ? Number(e.target.value) : null;
                                         updateConversationMeta({ assigned_to: value });
@@ -1859,12 +1924,12 @@ export default function ConversationsShow({
                                         </option>
                                     ))}
                                 </select>
-                                {conversation.assigned_to && (
+                                {(pendingAssignedTo !== undefined ? pendingAssignedTo : conversation.assigned_to) && (
                                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                                        Assigned to {agentMap.get(conversation.assigned_to)?.name || 'Unknown'}
+                                        Assigned to {agentMap.get((pendingAssignedTo !== undefined ? pendingAssignedTo : conversation.assigned_to) as number)?.name || 'Unknown'}
                                     </div>
                                 )}
-                                {currentUserId && conversation.assigned_to !== currentUserId && normalizedAgents.some((a) => a.id === currentUserId) && (
+                                {currentUserId && (pendingAssignedTo !== undefined ? pendingAssignedTo : conversation.assigned_to) !== currentUserId && normalizedAgents.some((a) => a.id === currentUserId) && (
                                     <button
                                         type="button"
                                         onClick={() => updateConversationMeta({ assigned_to: currentUserId })}
@@ -1965,21 +2030,25 @@ export default function ConversationsShow({
                             {auditEvents.length === 0 && (
                                 <div className="text-xs text-gray-500 dark:text-gray-400">No audit events yet.</div>
                             )}
-                            {auditEvents.map((event) => (
-                                <div key={event.id} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
-                                    <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">
-                                        {event.event_type.replaceAll('_', ' ')}
+                            {auditEvents.map((event) => {
+                                const eventMeta = getAuditEventMeta(event);
+
+                                return (
+                                    <div key={event.id} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
+                                        <div className={cn('text-xs font-semibold uppercase tracking-wider', eventMeta.tone)}>
+                                            {eventMeta.label}
+                                        </div>
+                                        {eventMeta.description && (
+                                            <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">
+                                                {eventMeta.description}
+                                            </p>
+                                        )}
+                                        <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
+                                            {event.actor?.name || 'System'} • {new Date(event.created_at).toLocaleString()}
+                                        </div>
                                     </div>
-                                    {event.description && (
-                                        <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">
-                                            {event.description}
-                                        </p>
-                                    )}
-                                    <div className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
-                                        {event.actor?.name || 'System'} • {new Date(event.created_at).toLocaleString()}
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 </aside>

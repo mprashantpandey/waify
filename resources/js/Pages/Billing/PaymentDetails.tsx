@@ -1,4 +1,4 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import AppShell from '@/Layouts/AppShell';
 import { Head } from '@inertiajs/react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
@@ -23,7 +23,9 @@ type Payment = {
   failed_at: string | null;
 };
 
-export default function PaymentDetails({ payment }: { payment: Payment }) {
+export default function PaymentDetails({ payment, account }: { payment: Payment; account?: { owner_id?: number | string } }) {
+  const { auth } = usePage().props as any;
+  const isOwner = Number(account?.owner_id) === Number(auth?.user?.id);
   const formatAmount = (amount: number, currency: string) =>
     new Intl.NumberFormat('en-IN', { style: 'currency', currency, minimumFractionDigits: 2 }).format(amount / 100);
 
@@ -68,15 +70,20 @@ export default function PaymentDetails({ payment }: { payment: Payment }) {
               </p>
               <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                 <Link href={route('app.billing.index', {})}>
-                  <Button variant="secondary" size="sm">Open Billing Recovery</Button>
+                  <Button variant="secondary" size="sm">{isOwner ? 'Open Billing Recovery' : 'View Billing Recovery'}</Button>
                 </Link>
                 <Link href={route('app.billing.transactions', {})}>
-                  <Button variant="secondary" size="sm">View Transactions</Button>
+                  <Button variant="secondary" size="sm">Open Transactions</Button>
                 </Link>
                 <Link href={route('app.billing.plans', {})}>
-                  <Button variant="secondary" size="sm">Review Plans</Button>
+                  <Button variant="secondary" size="sm">{isOwner ? 'Review Plans' : 'View Plans'}</Button>
                 </Link>
               </div>
+              {!isOwner && (
+                <p className="mt-2 text-xs text-red-700 dark:text-red-300">
+                  Only the account owner can retry renewal, resume the subscription, or change payment method.
+                </p>
+              )}
             </div>
           </Alert>
         )}

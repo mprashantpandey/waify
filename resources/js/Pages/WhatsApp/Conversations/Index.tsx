@@ -147,6 +147,7 @@ export default function ConversationsIndex({
     const assignmentStateRef = useRef<Map<number, number | null>>(
         new Map(normalizeConversationList(initialConversations?.data).map((c) => [c.id, c.assigned_to ?? null]))
     );
+    const [assignmentSaving, setAssignmentSaving] = useState<Record<number, number | null>>({});
 
     const playNotificationSound = useCallback(() => {
         if (!soundEnabled) return;
@@ -448,7 +449,7 @@ export default function ConversationsIndex({
                         const previous = assignmentStateRef.current.get(incoming.id);
                         if (previous !== incoming.assigned_to) {
                             addToast({
-                                title: 'Conversation assigned',
+                                title: 'Assigned to you',
                                 description: 'A chat was assigned to you.',
                                 variant: 'info',
                                 duration: 3000});
@@ -540,8 +541,14 @@ export default function ConversationsIndex({
 
     const activityMeta = (eventType?: string | null) => {
         const event = String(eventType ?? '').toLowerCase();
+        if (event.includes('auto_assign')) {
+            return { Icon: UserPlus, className: 'text-emerald-600 dark:text-emerald-400', label: 'Auto-assigned' };
+        }
+        if (event.includes('transfer')) {
+            return { Icon: UserPlus, className: 'text-indigo-600 dark:text-indigo-400', label: 'Transferred' };
+        }
         if (event.includes('assign')) {
-            return { Icon: UserPlus, className: 'text-blue-600 dark:text-blue-400', label: 'Assignment' };
+            return { Icon: UserPlus, className: 'text-blue-600 dark:text-blue-400', label: 'Assigned' };
         }
         if (event.includes('unassign') || event.includes('remove')) {
             return { Icon: UserMinus, className: 'text-amber-600 dark:text-amber-400', label: 'Unassigned' };
@@ -550,6 +557,20 @@ export default function ConversationsIndex({
             return { Icon: Flag, className: 'text-purple-600 dark:text-purple-400', label: 'Priority' };
         }
         return { Icon: Activity, className: 'text-gray-500 dark:text-gray-400', label: 'Activity' };
+    };
+
+    const getAssigneeMeta = (conversation: Conversation) => {
+        if (!conversation.assigned_to) {
+            return {
+                label: 'Unassigned',
+                className: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300',
+            };
+        }
+
+        return {
+            label: `Assigned to ${agents.find((a) => a.id === conversation.assigned_to)?.name ?? 'Unknown'}`,
+            className: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300',
+        };
     };
 
     return (
@@ -730,9 +751,13 @@ export default function ConversationsIndex({
                             ) : (
                                 <div className="divide-y divide-gray-200 dark:divide-gray-800">
                                     {filteredConversations.map((conversation) => {
-                                        const assigneeName = conversation.assigned_to
-                                            ? (agents.find((a) => a.id === conversation.assigned_to)?.name ?? '—')
-                                            : '—';
+                                        const pendingAssignment = Object.prototype.hasOwnProperty.call(assignmentSaving, conversation.id)
+                                            ? assignmentSaving[conversation.id]
+                                            : undefined;
+                                        const displayConversation = pendingAssignment !== undefined
+                                            ? { ...conversation, assigned_to: pendingAssignment }
+                                            : conversation;
+                                        const assigneeMeta = getAssigneeMeta(displayConversation);
                                         return (
                                             <div
                                                 key={conversation.id}
@@ -767,13 +792,13 @@ export default function ConversationsIndex({
                                                             </span>
                                                         </div>
                                                         {conversation.activity?.description && (
-                                                            <div className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                                                            <div className="mt-2 flex max-w-full flex-wrap items-center gap-1.5 rounded-xl bg-gray-50 px-2.5 py-1.5 text-[11px] text-gray-600 dark:bg-gray-900/70 dark:text-gray-300">
                                                                 {(() => {
                                                                     const meta = activityMeta(conversation.activity?.event_type);
                                                                     const Icon = meta.Icon;
                                                                     return <Icon className={`h-3 w-3 shrink-0 ${meta.className}`} />;
                                                                 })()}
-                                                                <span className="truncate">{conversation.activity.description}</span>
+                                                                <span className="font-medium">{conversation.activity.description}</span>
                                                                 {conversation.activity.created_at && (
                                                                     <span className="shrink-0 text-gray-400">
                                                                         · {formatRelativeTime(conversation.activity.created_at)}
@@ -781,19 +806,22 @@ export default function ConversationsIndex({
                                                                 )}
                                                             </div>
                                                         )}
-                                                        <div className="mt-1 flex items-center gap-2 flex-wrap">
+                                                        <div className="mt-2 flex items-center gap-2 flex-wrap">
                                                             <Badge variant={conversation.status === 'open' ? 'success' : 'default'} className="px-2 py-0.5 text-[10px]">
                                                                 {conversation.status}
                                                             </Badge>
-                                                            <span className="text-[11px] text-gray-400">•</span>
                                                             <div className="flex items-center gap-1 text-[11px] text-gray-500">
                                                                 <Phone className="h-3 w-3" />
                                                                 {conversation.connection.name}
                                                             </div>
-                                                            <span className="text-[11px] text-gray-400">•</span>
-                                                            <span className="text-[11px] text-gray-500" title="Assignee">
-                                                                {assigneeName}
+                                                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${assigneeMeta.className}`}>
+                                                                {assigneeMeta.label}
                                                             </span>
+                                                            {assigningId === conversation.id && (
+                                                                <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
+                                                                    Saving assignment...
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </Link>
@@ -811,6 +839,7 @@ export default function ConversationsIndex({
                                                                 const assignedTo = val === '' ? null : Number(val);
                                                                 const previousAssignedTo = conversation.assigned_to ?? null;
                                                                 setAssigningId(conversation.id);
+                                                                setAssignmentSaving((prev) => ({ ...prev, [conversation.id]: assignedTo }));
                                                                 setConversations((prev) =>
                                                                     prev.map((c) =>
                                                                         c.id === conversation.id ? { ...c, assigned_to: assignedTo } : c
@@ -832,12 +861,19 @@ export default function ConversationsIndex({
                                                                             );
                                                                             addToast({
                                                                                 title: 'Assignment failed',
-                                                                                description: 'Could not update assignee. Please retry.',
+                                                                                description: 'Could not update assignment. Please retry.',
                                                                                 variant: 'error',
                                                                                 duration: 3000,
                                                                             });
                                                                         },
-                                                                        onFinish: () => setAssigningId(null),
+                                                                        onFinish: () => {
+                                                                            setAssigningId(null);
+                                                                            setAssignmentSaving((prev) => {
+                                                                                const next = { ...prev };
+                                                                                delete next[conversation.id];
+                                                                                return next;
+                                                                            });
+                                                                        },
                                                                     }
                                                                 );
                                                             }}
