@@ -913,9 +913,11 @@ export default function ConversationsShow({
                     prev.map((msg) =>
                         msg.id === messageId
                             ? {
-                                  ...msg,
+                              ...msg,
+                                  meta_message_id: data.message.meta_message_id ?? msg.meta_message_id,
                                   status: data.message.status ?? msg.status,
                                   error_message: data.message.error_message ?? msg.error_message,
+                                  payload: data.message.payload ?? msg.payload,
                                   updated_at: updatedAt,
                                   sent_at: data.message.sent_at ?? msg.sent_at,
                                   delivered_at: data.message.delivered_at ?? msg.delivered_at,
@@ -1092,8 +1094,10 @@ export default function ConversationsShow({
                             return updated
                                 ? {
                                       ...msg,
+                                      meta_message_id: updated.meta_message_id ?? msg.meta_message_id,
                                       status: updated.status ?? msg.status,
                                       error_message: updated.error_message ?? msg.error_message,
+                                      payload: updated.payload ?? msg.payload,
                                       updated_at: updated.updated_at ?? msg.updated_at,
                                       sent_at: updated.sent_at ?? msg.sent_at,
                                       delivered_at: updated.delivered_at ?? msg.delivered_at,
@@ -1383,6 +1387,7 @@ export default function ConversationsShow({
         if (message.direction === 'inbound') return null;
 
         switch (message.status) {
+            case 'accepted':
             case 'sent':
                 return <Check className="h-3.5 w-3.5 text-gray-400" />;
             case 'delivered':
@@ -1402,8 +1407,12 @@ export default function ConversationsShow({
         switch (message.status) {
             case 'queued':
                 return 'Queued';
-            case 'sent':
+            case 'processing':
+                return 'Processing';
+            case 'accepted':
                 return 'Accepted';
+            case 'sent':
+                return 'Sent';
             case 'delivered':
                 return 'Delivered';
             case 'read':
@@ -1418,9 +1427,21 @@ export default function ConversationsShow({
     const getStatusBadgeClassName = (message: Message): string => {
         if (message.status === 'read') return 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300';
         if (message.status === 'delivered') return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300';
+        if (message.status === 'accepted') return 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300';
         if (message.status === 'sent') return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
         if (message.status === 'failed') return 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300';
         return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300';
+    };
+
+    const getMessageDiagnosticError = (message: Message): string | null => {
+        const payload = message.payload ?? {};
+        const payloadError = payload?.error?.message
+            || payload?.errors?.[0]?.message
+            || payload?.errors?.[0]?.title
+            || payload?.errors?.[0]?.details
+            || null;
+
+        return message.error_message || payloadError || null;
     };
 
     const formatDiagnosticTime = (value?: string | null): string => {
@@ -1752,7 +1773,7 @@ export default function ConversationsShow({
                                                             {getDeliveryLatencyLabel(message)}
                                                         </span>
                                                     )}
-                                                    {message.direction === 'outbound' && message.status === 'failed' && message.error_message && (
+                                                    {message.direction === 'outbound' && message.status === 'failed' && getMessageDiagnosticError(message) && (
                                                         <button
                                                             type="button"
                                                             onClick={() => setDiagnosticMessage(message)}
@@ -2703,7 +2724,7 @@ export default function ConversationsShow({
                             <div className="rounded-xl border border-gray-200 p-3">
                                 <div className="text-xs font-medium uppercase tracking-wide text-gray-500">Error</div>
                                 <div className="mt-1 text-sm text-gray-800">
-                                    {diagnosticMessage.error_message || 'No provider error captured.'}
+                                    {getMessageDiagnosticError(diagnosticMessage) || 'No provider error captured.'}
                                 </div>
                             </div>
 

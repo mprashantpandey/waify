@@ -62,6 +62,10 @@ interface RecentSend {
         status: string;
         error_message?: string | null;
         meta_message_id?: string | null;
+        payload?: Record<string, any> | null;
+        sent_at?: string | null;
+        delivered_at?: string | null;
+        read_at?: string | null;
     } | null;
 }
 
@@ -91,6 +95,31 @@ export default function TemplatesShow({
         };
 
         return map[effectiveStatus] || { variant: 'default' as const, label: effectiveStatus };
+    };
+
+    const getRecentSendError = (send: RecentSend): string | null => {
+        const payload = send.message?.payload ?? {};
+        const payloadError = payload?.error?.message
+            || payload?.errors?.[0]?.message
+            || payload?.errors?.[0]?.title
+            || payload?.errors?.[0]?.details
+            || null;
+
+        return send.error_message || send.message?.error_message || payloadError || null;
+    };
+
+    const getRecentSendTimeline = (send: RecentSend): string | null => {
+        const parts: string[] = [];
+        if (send.message?.sent_at) parts.push('accepted');
+        if (send.message?.delivered_at) parts.push('delivered');
+        if (send.message?.read_at) parts.push('read');
+
+        if (parts.length === 0) {
+            const fallback = String(send.message?.status || send.status || '').trim();
+            return fallback !== '' ? fallback : null;
+        }
+
+        return parts.join(' -> ');
     };
 
     useEffect(() => {
@@ -390,14 +419,22 @@ export default function TemplatesShow({
                                     <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                                         {recent_sends.map((send) => {
                                             const statusMeta = getRecentSendStatusMeta(send);
-                                            const effectiveError = send.error_message || send.message?.error_message || null;
+                                            const effectiveError = getRecentSendError(send);
+                                            const timeline = getRecentSendTimeline(send);
                                             return (
                                                 <tr key={send.id} className="align-top">
                                                     <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{send.to_wa_id}</td>
                                                     <td className="px-4 py-3">
-                                                        <Badge variant={statusMeta.variant} className="px-2 py-1 text-[10px]">
-                                                            {statusMeta.label}
-                                                        </Badge>
+                                                        <div className="space-y-1">
+                                                            <Badge variant={statusMeta.variant} className="px-2 py-1 text-[10px]">
+                                                                {statusMeta.label}
+                                                            </Badge>
+                                                            {timeline && (
+                                                                <div className="text-[11px] text-gray-500 dark:text-gray-400">
+                                                                    {timeline}
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                     <td className="px-4 py-3 text-xs font-mono text-gray-600 dark:text-gray-300 break-all">
                                                         {send.message?.meta_message_id || '-'}

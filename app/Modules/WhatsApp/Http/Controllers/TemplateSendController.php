@@ -100,6 +100,10 @@ class TemplateSendController extends Controller
                         'status' => $send->message->status,
                         'error_message' => $send->message->error_message,
                         'meta_message_id' => $send->message->meta_message_id,
+                        'payload' => $send->message->payload,
+                        'sent_at' => $send->message->sent_at?->toIso8601String(),
+                        'delivered_at' => $send->message->delivered_at?->toIso8601String(),
+                        'read_at' => $send->message->read_at?->toIso8601String(),
                     ] : null,
                 ];
             })

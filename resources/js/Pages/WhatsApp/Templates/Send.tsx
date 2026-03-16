@@ -65,6 +65,10 @@ interface RecentSend {
         status: string;
         error_message?: string | null;
         meta_message_id?: string | null;
+        payload?: Record<string, any> | null;
+        sent_at?: string | null;
+        delivered_at?: string | null;
+        read_at?: string | null;
     } | null;
 }
 
@@ -93,6 +97,31 @@ export default function TemplatesSend({
         };
 
         return map[effectiveStatus] || { variant: 'default' as const, label: effectiveStatus };
+    };
+
+    const getRecentSendError = (send: RecentSend): string | null => {
+        const payload = send.message?.payload ?? {};
+        const payloadError = payload?.error?.message
+            || payload?.errors?.[0]?.message
+            || payload?.errors?.[0]?.title
+            || payload?.errors?.[0]?.details
+            || null;
+
+        return send.error_message || send.message?.error_message || payloadError || null;
+    };
+
+    const getRecentSendTimeline = (send: RecentSend): string | null => {
+        const parts: string[] = [];
+        if (send.message?.sent_at) parts.push('accepted');
+        if (send.message?.delivered_at) parts.push('delivered');
+        if (send.message?.read_at) parts.push('read');
+
+        if (parts.length === 0) {
+            const fallback = String(send.message?.status || send.status || '').trim();
+            return fallback !== '' ? fallback : null;
+        }
+
+        return parts.join(' -> ');
     };
 
     const [recipientType, setRecipientType] = useState<'contact' | 'conversation' | 'manual'>('conversation');
@@ -469,7 +498,8 @@ export default function TemplatesSend({
                                 <div className="space-y-3">
                                     {recent_sends.map((send) => {
                                         const statusMeta = getRecentSendStatusMeta(send);
-                                        const errorText = send.error_message || send.message?.error_message || null;
+                                        const errorText = getRecentSendError(send);
+                                        const timeline = getRecentSendTimeline(send);
                                         return (
                                             <div key={send.id} className="rounded-xl border border-gray-200 dark:border-gray-700 p-3 bg-white dark:bg-gray-900">
                                                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -478,6 +508,11 @@ export default function TemplatesSend({
                                                         {statusMeta.label}
                                                     </Badge>
                                                 </div>
+                                                {timeline && (
+                                                    <div className="mt-2 text-[11px] text-gray-500">
+                                                        {timeline}
+                                                    </div>
+                                                )}
                                                 <div className="mt-2 text-xs font-mono text-gray-500 break-all">
                                                     {send.message?.meta_message_id || '-'}
                                                 </div>

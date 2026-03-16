@@ -320,7 +320,7 @@ class ConversationController extends Controller
 
         $templates = WhatsAppTemplate::where('account_id', $account->id)
             ->where('whatsapp_connection_id', $conversation->whatsapp_connection_id)
-            ->whereRaw('LOWER(TRIM(status)) = ?', ['approved'])
+            ->whereIn(DB::raw('LOWER(TRIM(status))'), ['approved', 'active'])
             ->where(function ($query) {
                 // Keep compatibility with legacy rows where is_archived may be NULL.
                 $query->where('is_archived', false)

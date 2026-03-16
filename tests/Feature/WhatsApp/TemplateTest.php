@@ -6,9 +6,12 @@ use App\Models\User;
 use App\Models\Account;
 use App\Models\Plan;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
+use App\Modules\WhatsApp\Models\WhatsAppContact;
+use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class TemplateTest extends TestCase
@@ -309,5 +312,37 @@ class TemplateTest extends TestCase
 
         $response->assertSessionHasErrors('to_wa_id');
         Http::assertNothingSent();
+    }
+
+    public function test_active_templates_are_available_in_conversation_template_picker(): void
+    {
+        $contact = WhatsAppContact::factory()->create([
+            'account_id' => $this->account->id,
+        ]);
+
+        $conversation = WhatsAppConversation::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_connection_id' => $this->connection->id,
+            'whatsapp_contact_id' => $contact->id,
+        ]);
+
+        $activeTemplate = WhatsAppTemplate::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_connection_id' => $this->connection->id,
+            'name' => 'active_template',
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($this->user)
+            ->get(route('app.whatsapp.conversations.show', [
+                'account' => $this->account->slug,
+                'conversation' => $conversation->id,
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('WhatsApp/Conversations/Show')
+                ->where('templates.0.id', $activeTemplate->id)
+                ->where('templates.0.name', 'active_template')
+            );
     }
 }

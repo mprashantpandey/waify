@@ -63,4 +63,27 @@ class BillingOverviewTest extends TestCase
             ->where('latest_paid_payment.status', 'paid')
         );
     }
+
+    public function test_failed_payment_details_page_remains_accessible_for_recovery(): void
+    {
+        $account = $this->createAccountWithPlan('starter');
+        $this->actingAsAccountOwner($account);
+
+        $payment = PaymentOrder::create([
+            'account_id' => $account->id,
+            'plan_id' => $account->subscription?->plan_id,
+            'provider' => 'razorpay',
+            'provider_order_id' => 'ord_failed_recovery',
+            'amount' => 499900,
+            'currency' => 'INR',
+            'status' => 'failed',
+            'created_by' => $account->owner_id,
+            'failed_at' => now()->subMinutes(15),
+        ]);
+
+        $this->get(route('app.billing.history.show', [
+            'account' => $account->slug,
+            'paymentOrder' => $payment->id,
+        ]))->assertOk();
+    }
 }

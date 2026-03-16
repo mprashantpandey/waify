@@ -48,8 +48,10 @@ class MessageUpdated implements ShouldBroadcast
             'conversation_id' => $this->message->whatsapp_conversation_id,
             'message' => [
                 'id' => $this->message->id,
+                'meta_message_id' => $this->message->meta_message_id,
                 'status' => $this->message->status,
                 'error_message' => $this->message->error_message,
+                'payload' => $this->message->payload,
                 'updated_at' => $this->message->updated_at?->toIso8601String(),
                 'sent_at' => $this->message->sent_at?->toIso8601String(),
                 'delivered_at' => $this->message->delivered_at?->toIso8601String(),

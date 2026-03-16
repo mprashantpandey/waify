@@ -232,8 +232,10 @@ class InboxStreamController extends Controller
             ->map(function ($message) {
                 return [
                     'id' => $message->id,
+                    'meta_message_id' => $message->meta_message_id,
                     'status' => $message->status,
                     'error_message' => $message->error_message,
+                    'payload' => $message->payload,
                     'updated_at' => $message->updated_at?->toIso8601String(),
                     'sent_at' => $message->sent_at?->toIso8601String(),
                     'delivered_at' => $message->delivered_at?->toIso8601String(),
@@ -288,10 +290,13 @@ class InboxStreamController extends Controller
         $conversationMeta = [
             'id' => $conversation->id,
             'status' => $conversation->status,
+            'unread_count' => $this->inboxMetricsService->unreadCountForConversation((int) $conversation->id),
             'customer_care_window' => $this->formatCustomerCareWindowState(
                 $this->customerCareWindowService->forConversation($conversation)
             ),
         ];
+
+        $conversationMeta['has_unread'] = ((int) $conversationMeta['unread_count']) > 0;
 
         if (Schema::hasColumn('whatsapp_conversations', 'assigned_to')) {
             $conversationMeta['assigned_to'] = $conversation->assigned_to;

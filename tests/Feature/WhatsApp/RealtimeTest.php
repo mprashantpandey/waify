@@ -7,6 +7,7 @@ use App\Models\Account;
 use App\Models\Plan;
 use App\Modules\WhatsApp\Events\Inbox\ConversationUpdated;
 use App\Modules\WhatsApp\Events\Inbox\MessageCreated;
+use App\Modules\WhatsApp\Events\Inbox\MessageUpdated;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
@@ -164,6 +165,40 @@ class RealtimeTest extends TestCase
         Event::assertDispatched(ConversationUpdated::class);
     }
 
+    public function test_message_created_broadcast_includes_unread_counts(): void
+    {
+        $contact = WhatsAppContact::factory()->create([
+            'account_id' => $this->account->id,
+        ]);
+
+        $conversation = WhatsAppConversation::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_connection_id' => $this->connection->id,
+            'whatsapp_contact_id' => $contact->id,
+        ]);
+
+        WhatsAppMessage::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'direction' => 'inbound',
+            'created_at' => now()->subMinute(),
+        ]);
+
+        $outbound = WhatsAppMessage::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'direction' => 'outbound',
+            'created_at' => now(),
+        ]);
+
+        $payload = (new MessageCreated($outbound))->broadcastWith();
+
+        $this->assertSame(0, $payload['unread_count']);
+        $this->assertFalse($payload['has_unread']);
+        $this->assertSame(0, $payload['conversation']['unread_count']);
+        $this->assertFalse($payload['conversation']['has_unread']);
+    }
+
     public function test_inbox_stream_requires_account_membership(): void
     {
         $response = $this->actingAs($this->nonMember)
@@ -248,6 +283,75 @@ class RealtimeTest extends TestCase
         $data = $response->json();
         $this->assertCount(1, $data['new_messages']);
         $this->assertEquals($message2->id, $data['new_messages'][0]['id']);
+    }
+
+    public function test_conversation_stream_returns_updated_message_payload_and_unread_meta(): void
+    {
+        $contact = WhatsAppContact::factory()->create([
+            'account_id' => $this->account->id,
+        ]);
+
+        $conversation = WhatsAppConversation::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_connection_id' => $this->connection->id,
+            'whatsapp_contact_id' => $contact->id,
+        ]);
+
+        $message = WhatsAppMessage::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'direction' => 'outbound',
+            'meta_message_id' => 'wamid.test-updated',
+            'status' => 'failed',
+            'error_message' => null,
+            'payload' => [
+                'error' => [
+                    'message' => 'Meta says no',
+                ],
+            ],
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_account_id' => $this->account->id])
+            ->get(route('app.whatsapp.inbox.conversation.stream', [
+                'account' => $this->account->slug,
+                'conversation' => $conversation->id,
+                'after_message_id' => $message->id,
+                'after_updated_at' => now()->subMinute()->toIso8601String(),
+            ]));
+
+        $response->assertOk();
+        $response->assertJsonPath('updated_messages.0.id', $message->id);
+        $response->assertJsonPath('updated_messages.0.meta_message_id', 'wamid.test-updated');
+        $response->assertJsonPath('updated_messages.0.payload.error.message', 'Meta says no');
+        $response->assertJsonPath('conversation.unread_count', 0);
+        $response->assertJsonPath('conversation.has_unread', false);
+    }
+
+    public function test_message_updated_broadcast_includes_payload_for_diagnostics(): void
+    {
+        $contact = WhatsAppContact::factory()->create([
+            'account_id' => $this->account->id,
+        ]);
+
+        $conversation = WhatsAppConversation::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_connection_id' => $this->connection->id,
+            'whatsapp_contact_id' => $contact->id,
+        ]);
+
+        $message = WhatsAppMessage::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'meta_message_id' => 'wamid.payload-test',
+            'payload' => ['errors' => [['message' => 'Rate limit']]],
+        ]);
+
+        $payload = (new MessageUpdated($message))->broadcastWith();
+
+        $this->assertSame('wamid.payload-test', $payload['message']['meta_message_id']);
+        $this->assertSame('Rate limit', $payload['message']['payload']['errors'][0]['message']);
     }
 
     public function test_conversation_stream_forbids_non_members(): void

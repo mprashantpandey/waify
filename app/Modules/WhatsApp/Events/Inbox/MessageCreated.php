@@ -3,6 +3,7 @@
 namespace App\Modules\WhatsApp\Events\Inbox;
 
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
+use App\Modules\WhatsApp\Services\InboxMetricsService;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
@@ -46,6 +47,8 @@ class MessageCreated implements ShouldBroadcast
      */
     public function broadcastWith(): array
     {
+        $unreadCount = app(InboxMetricsService::class)->unreadCountForConversation((int) $this->message->whatsapp_conversation_id);
+
         return [
             'account_id' => $this->message->account_id,
             'conversation_id' => $this->message->whatsapp_conversation_id,
@@ -59,6 +62,12 @@ class MessageCreated implements ShouldBroadcast
                 'created_at' => $this->message->created_at->toIso8601String(),
                 'updated_at' => $this->message->updated_at?->toIso8601String(),
                 'meta_message_id' => $this->message->meta_message_id],
+            'conversation' => [
+                'unread_count' => $unreadCount,
+                'has_unread' => $unreadCount > 0,
+            ],
+            'unread_count' => $unreadCount,
+            'has_unread' => $unreadCount > 0,
             'contact' => $this->message->conversation?->contact ? [
                 'wa_id' => $this->message->conversation->contact->wa_id,
                 'name' => $this->message->conversation->contact->name] : null];

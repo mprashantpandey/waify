@@ -4,6 +4,8 @@ import { Head } from '@inertiajs/react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
 import Button from '@/Components/UI/Button';
+import { Alert } from '@/Components/UI/Alert';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
 type Payment = {
   id: number;
@@ -25,7 +27,14 @@ export default function PaymentDetails({ payment }: { payment: Payment }) {
   const formatAmount = (amount: number, currency: string) =>
     new Intl.NumberFormat('en-IN', { style: 'currency', currency, minimumFractionDigits: 2 }).format(amount / 100);
 
-  const statusVariant = payment.status === 'paid' ? 'success' : payment.status === 'failed' ? 'danger' : 'default';
+  const normalizedStatus = String(payment.status || '').toLowerCase();
+  const statusVariant = normalizedStatus === 'paid'
+    ? 'success'
+    : normalizedStatus === 'failed'
+    ? 'danger'
+    : normalizedStatus === 'past_due'
+    ? 'warning'
+    : 'default';
 
   return (
     <AppShell>
@@ -43,6 +52,49 @@ export default function PaymentDetails({ payment }: { payment: Payment }) {
             <Button>Download Invoice</Button>
           </a>
         </div>
+
+        {(normalizedStatus === 'failed' || normalizedStatus === 'past_due') && (
+          <Alert variant="error" className="border-red-200 dark:border-red-800">
+            <AlertCircle className="h-5 w-5" />
+            <div className="flex-1">
+              <h3 className="font-semibold text-red-800 dark:text-red-200">Payment recovery required</h3>
+              <p className="mt-1 text-sm text-red-700 dark:text-red-300">
+                This invoice is not settled yet. Open billing recovery to renew the subscription or review payment activity.
+              </p>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <Link href={route('app.billing.index', {})}>
+                  <Button variant="secondary" size="sm">Open Billing Recovery</Button>
+                </Link>
+                <Link href={route('app.billing.transactions', {})}>
+                  <Button variant="secondary" size="sm">View Transactions</Button>
+                </Link>
+                <Link href={route('app.billing.plans', {})}>
+                  <Button variant="secondary" size="sm">Review Plans</Button>
+                </Link>
+              </div>
+            </div>
+          </Alert>
+        )}
+
+        {normalizedStatus === 'paid' && (
+          <Alert variant="success" className="border-emerald-200 dark:border-emerald-800">
+            <CheckCircle2 className="h-5 w-5" />
+            <div className="flex-1">
+              <h3 className="font-semibold text-emerald-800 dark:text-emerald-200">Invoice settled</h3>
+              <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-300">
+                Payment has been captured successfully. You can download this invoice or return to billing overview.
+              </p>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <a href={route('app.billing.history.download', { paymentOrder: payment.id })}>
+                  <Button variant="secondary" size="sm">Download Invoice</Button>
+                </a>
+                <Link href={route('app.billing.index', {})}>
+                  <Button variant="secondary" size="sm">Open Billing Overview</Button>
+                </Link>
+              </div>
+            </div>
+          </Alert>
+        )}
 
         <Card className="border-0 shadow-lg">
           <CardHeader>

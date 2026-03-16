@@ -355,6 +355,9 @@ export default function ConversationsIndex({
                 const safeUnread = Math.max(0, Number(reportedUnread));
                 updated.unread_count = safeUnread;
                 updated.has_unread = typeof reportedHasUnread === 'boolean' ? reportedHasUnread : safeUnread > 0;
+            } else if (data.message?.direction === 'outbound') {
+                updated.unread_count = 0;
+                updated.has_unread = false;
             } else if (data.message?.direction === 'inbound') {
                 const nextUnread = Math.max(0, Number(updated.unread_count ?? 0) + 1);
                 updated.unread_count = nextUnread;
