@@ -41,6 +41,13 @@ class MetaGraphService
             throw new \RuntimeException('Meta App ID/Secret not configured.');
         }
 
+        Log::channel('whatsapp')->info('Meta OAuth code exchange request', [
+            'redirect_uri' => $redirectUri,
+            'code_length' => strlen($code),
+            'code_prefix' => substr($code, 0, 12),
+            'code_sha1' => sha1($code),
+        ]);
+
         $response = $this->graphRequest()->get("{$this->baseUrl}/{$this->apiVersion}/oauth/access_token", [
             'client_id' => $appId,
             'client_secret' => $appSecret,
@@ -52,9 +59,19 @@ class MetaGraphService
             Log::channel('whatsapp')->error('Meta OAuth code exchange failed', [
                 'status' => $response->status(),
                 'redirect_uri' => $redirectUri,
+                'code_length' => strlen($code),
+                'code_prefix' => substr($code, 0, 12),
+                'code_sha1' => sha1($code),
                 'error' => $data['error'] ?? $data]);
             throw new \RuntimeException($data['error']['message'] ?? 'Meta OAuth code exchange failed');
         }
+
+        Log::channel('whatsapp')->info('Meta OAuth code exchange succeeded', [
+            'redirect_uri' => $redirectUri,
+            'code_length' => strlen($code),
+            'code_prefix' => substr($code, 0, 12),
+            'code_sha1' => sha1($code),
+        ]);
 
         return $data;
     }

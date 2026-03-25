@@ -230,11 +230,28 @@ class ConnectionController extends Controller
                 'embedded' => 'Missing Meta OAuth code or access token.']);
         }
 
+        Log::channel('whatsapp')->info('Embedded signup submission received', [
+            'account_id' => $account?->id,
+            'request_path' => $request->path(),
+            'has_code' => !empty($validated['code']),
+            'code_summary' => $this->summarizeOAuthCode($validated['code'] ?? null),
+            'has_access_token' => !empty($validated['access_token']),
+            'requested_redirect_uri' => $validated['redirect_uri'] ?? null,
+        ]);
+
         $targetConnection = null;
         try {
             $accessToken = $validated['access_token'] ?? null;
             if (!$accessToken && !empty($validated['code'])) {
                 $redirectCandidates = $this->buildEmbeddedRedirectUriCandidates($validated['redirect_uri'] ?? null);
+                Log::channel('whatsapp')->info('Embedded signup redirect URI candidates resolved', [
+                    'account_id' => $account?->id,
+                    'request_path' => $request->path(),
+                    'requested_redirect_uri' => $validated['redirect_uri'] ?? null,
+                    'resolved_redirect_uri' => $this->resolveEmbeddedRedirectUri($validated['redirect_uri'] ?? null),
+                    'redirect_candidates' => $redirectCandidates,
+                    'code_summary' => $this->summarizeOAuthCode($validated['code'] ?? null),
+                ]);
                 $lastExchangeError = null;
 
                 foreach ($redirectCandidates as $redirectUri) {
@@ -244,14 +261,29 @@ class ConnectionController extends Controller
                             'request_path' => $request->path(),
                             'requested_redirect_uri' => $validated['redirect_uri'] ?? null,
                             'attempt_redirect_uri' => $redirectUri,
+                            'code_summary' => $this->summarizeOAuthCode($validated['code'] ?? null),
                         ]);
 
                         $tokenData = $this->metaGraphService->exchangeCodeForToken($validated['code'], $redirectUri);
                         $accessToken = $tokenData['access_token'] ?? null;
                         $lastExchangeError = null;
+                        Log::channel('whatsapp')->info('Embedded signup OAuth exchange succeeded', [
+                            'account_id' => $account?->id,
+                            'request_path' => $request->path(),
+                            'attempt_redirect_uri' => $redirectUri,
+                            'code_summary' => $this->summarizeOAuthCode($validated['code'] ?? null),
+                        ]);
                         break;
                     } catch (\Throwable $exchangeError) {
                         $lastExchangeError = $exchangeError;
+                        Log::channel('whatsapp')->warning('Embedded signup OAuth exchange attempt failed', [
+                            'account_id' => $account?->id,
+                            'request_path' => $request->path(),
+                            'attempt_redirect_uri' => $redirectUri,
+                            'code_summary' => $this->summarizeOAuthCode($validated['code'] ?? null),
+                            'is_redirect_uri_mismatch' => $this->isRedirectUriMismatchError($exchangeError),
+                            'error' => $exchangeError->getMessage(),
+                        ]);
                         if (!$this->isRedirectUriMismatchError($exchangeError)) {
                             throw $exchangeError;
                         }
@@ -667,6 +699,19 @@ class ConnectionController extends Controller
             .$parts['path'],
             '/'
         );
+    }
+
+    private function summarizeOAuthCode(?string $code): ?array
+    {
+        if (!$code) {
+            return null;
+        }
+
+        return [
+            'length' => strlen($code),
+            'prefix' => substr($code, 0, 12),
+            'sha1' => sha1($code),
+        ];
     }
 
     /**
