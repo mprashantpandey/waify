@@ -244,7 +244,7 @@ export default function TemplatesIndex({
             <div className="space-y-8">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
+                        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
                             Message Templates
                         </h1>
                         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
@@ -256,7 +256,7 @@ export default function TemplatesIndex({
                             href={route('app.whatsapp.templates.create', {})}
                             className="w-full sm:w-auto"
                         >
-                            <Button className="w-full sm:w-auto bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50">
+                            <Button className="w-full sm:w-auto">
                                 <FileText className="h-4 w-4 mr-2" />
                                 Create Template
                             </Button>
@@ -265,7 +265,7 @@ export default function TemplatesIndex({
                             onClick={syncTemplates}
                             variant="secondary"
                             disabled={syncing || !hasConnections}
-                            className="w-full sm:w-auto bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg shadow-green-500/50"
+                            className="w-full sm:w-auto"
                         >
                             {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                             {syncing ? 'Refreshing...' : 'Refresh templates'}
@@ -274,8 +274,8 @@ export default function TemplatesIndex({
                 </div>
 
                 {/* Filters */}
-                <Card className="border-0 shadow-lg">
-                    <CardHeader className="bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900">
+                <Card className="shadow-sm">
+                    <CardHeader className="border-b border-gray-100 dark:border-gray-800">
                         <div className="flex items-center justify-between">
                             <CardTitle className="flex items-center gap-2 text-lg font-bold">
                                 <Filter className="h-5 w-5 text-blue-600 dark:text-blue-400" />
@@ -361,7 +361,7 @@ export default function TemplatesIndex({
                                 </div>
                             </div>
                             <div className="flex items-center gap-3 mt-6">
-                                <Button onClick={applyFilters} className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50 rounded-xl">
+                                <Button onClick={applyFilters} className="rounded-xl">
                                     Apply Filters
                                 </Button>
                                 <Button onClick={clearFilters} variant="secondary" className="rounded-xl">
@@ -374,7 +374,7 @@ export default function TemplatesIndex({
                 </Card>
 
                 {(sync_report || connections.some((c) => c.last_synced_at || c.last_sync_error)) && (
-                    <Card className="border-0 shadow-lg">
+                    <Card className="shadow-sm">
                         <CardHeader>
                             <CardTitle>Template update summary</CardTitle>
                             <CardDescription>Latest refresh results for each connected number</CardDescription>
@@ -423,8 +423,8 @@ export default function TemplatesIndex({
                 )}
 
                 {archived_templates.length > 0 && (
-                    <Card className="border-0 shadow-lg">
-                        <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/10 dark:to-orange-900/10">
+                    <Card className="shadow-sm">
+                        <CardHeader className="border-b border-gray-100 dark:border-gray-800">
                             <div className="flex items-center justify-between gap-4">
                                 <div>
                                     <CardTitle>Recovery Visibility</CardTitle>
@@ -518,7 +518,7 @@ export default function TemplatesIndex({
 
                 {/* Templates List */}
                 {templates.data.length === 0 ? (
-                    <Card className="border-0 shadow-xl">
+                    <Card className="shadow-sm">
                         <CardContent className="py-16">
                             <EmptyState
                                 icon={FileText}
@@ -538,7 +538,7 @@ export default function TemplatesIndex({
                         </CardContent>
                     </Card>
                 ) : (
-                    <Card className="border-0 shadow-lg">
+                    <Card className="shadow-sm">
                         <CardContent className="p-0">
                             <div className="overflow-x-auto">
                                 <table className="w-full">
@@ -574,11 +574,11 @@ export default function TemplatesIndex({
                                         {templates.data.map((template) => (
                                             <tr
                                                 key={template.id}
-                                                className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-blue-100 dark:hover:from-blue-900/10 dark:hover:to-blue-800/10 transition-all duration-200"
+                                                className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
                                             >
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="flex items-center gap-3">
-                                                        <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg">
+                                                        <div className="p-2 rounded-lg bg-blue-600">
                                                             <FileText className="h-4 w-4 text-white" />
                                                         </div>
                                                         <div className="flex-1 min-w-0">
@@ -769,7 +769,7 @@ export default function TemplatesIndex({
                                                             href={route('app.whatsapp.templates.send', {
                                                                 template: template.slug})}
                                                         >
-                                                            <Button size="sm" className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 rounded-lg">
+                                                            <Button size="sm" className="rounded-lg">
                                                                 <Send className="h-4 w-4 mr-1" />
                                                                 Send
                                                             </Button>

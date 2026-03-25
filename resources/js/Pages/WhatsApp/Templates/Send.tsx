@@ -268,7 +268,7 @@ export default function TemplatesSend({
                         Back to Template
                     </Link>
                     <div>
-                        <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent mb-2">
+                        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
                             Send Template
                         </h1>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -279,10 +279,10 @@ export default function TemplatesSend({
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Form */}
-                    <Card className="border-0 shadow-lg">
-                        <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-100 dark:from-green-900/20 dark:to-emerald-800/20">
+                    <Card className="shadow-sm">
+                        <CardHeader className="border-b border-gray-100 dark:border-gray-800">
                             <div className="flex items-center gap-3">
-                                <div className="p-2 bg-green-500 rounded-xl">
+                                <div className="p-2 rounded-xl bg-green-600">
                                     <Send className="h-5 w-5 text-white" />
                                 </div>
                                 <div>
@@ -472,7 +472,7 @@ export default function TemplatesSend({
                                     <Button 
                                         type="submit" 
                                         disabled={!canSubmit}
-                                        className="w-full sm:w-auto bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg shadow-green-500/50 rounded-xl"
+                                        className="w-full sm:w-auto rounded-xl"
                                     >
                                         {processing ? 'Sending...' : (
                                             <>
@@ -487,10 +487,10 @@ export default function TemplatesSend({
                     </Card>
 
                     {/* Preview */}
-                    <Card className="border-0 shadow-lg">
-                        <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20">
+                    <Card className="shadow-sm">
+                        <CardHeader className="border-b border-gray-100 dark:border-gray-800">
                             <div className="flex items-center gap-3">
-                                <div className="p-2 bg-blue-500 rounded-xl">
+                                <div className="p-2 rounded-xl bg-blue-600">
                                     <Eye className="h-5 w-5 text-white" />
                                 </div>
                                 <div>
@@ -501,7 +501,7 @@ export default function TemplatesSend({
                         </CardHeader>
                         <CardContent className="p-6">
                             <div className="space-y-4">
-                                <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
+                                <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
                                     <div className="flex items-center gap-2 mb-3">
                                         <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                                         <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
@@ -520,7 +520,7 @@ export default function TemplatesSend({
                                         {template.buttons.map((button, index) => (
                                             <div
                                                 key={index}
-                                                className="p-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl border border-blue-200 dark:border-blue-800 hover:shadow-md transition-shadow"
+                                                className="p-4 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-200 dark:border-blue-800 hover:border-blue-300 dark:hover:border-blue-700 transition-colors"
                                             >
                                                 <div className="flex items-center justify-between">
                                                     <span className="font-semibold text-gray-900 dark:text-gray-100">{button.text}</span>
@@ -536,10 +536,10 @@ export default function TemplatesSend({
                         </CardContent>
                     </Card>
 
-                    <Card className="border-0 shadow-lg">
-                        <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-100 dark:from-amber-900/20 dark:to-orange-800/20">
+                    <Card className="shadow-sm">
+                        <CardHeader className="border-b border-gray-100 dark:border-gray-800">
                             <div className="flex items-center gap-3">
-                                <div className="p-2 bg-amber-500 rounded-xl">
+                                <div className="p-2 rounded-xl bg-amber-500">
                                     <Eye className="h-5 w-5 text-white" />
                                 </div>
                                 <div>

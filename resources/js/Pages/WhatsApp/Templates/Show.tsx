@@ -299,7 +299,7 @@ export default function TemplatesShow({
                     </Link>
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div>
-                            <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent flex items-center gap-3 mb-2">
+                            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-3 mb-2">
                                 {liveTemplate.name}
                                 {getStatusBadge(liveTemplate.status)}
                             </h1>
@@ -354,7 +354,7 @@ export default function TemplatesShow({
                                     template: liveTemplate.slug})}
                                 className="w-full sm:w-auto"
                             >
-                                <Button className="w-full sm:w-auto bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg shadow-green-500/50">
+                                <Button className="w-full sm:w-auto">
                                     <Send className="h-4 w-4 mr-2" />
                                     Send Template
                                 </Button>
@@ -447,10 +447,10 @@ export default function TemplatesShow({
                     </Alert>
                 )}
 
-                <Card className="border-0 shadow-lg">
-                    <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-100 dark:from-amber-900/20 dark:to-orange-900/20">
+                <Card className="shadow-sm">
+                    <CardHeader className="border-b border-gray-100 dark:border-gray-800">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 bg-amber-500 rounded-xl">
+                            <div className="p-2 rounded-xl bg-amber-500">
                                 <Clock className="h-5 w-5 text-white" />
                             </div>
                             <div>
@@ -585,10 +585,10 @@ export default function TemplatesShow({
                 </Card>
 
                 {/* Template Preview */}
-                <Card className="border-0 shadow-lg">
-                    <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20">
+                <Card className="shadow-sm">
+                    <CardHeader className="border-b border-gray-100 dark:border-gray-800">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 bg-blue-500 rounded-xl">
+                            <div className="p-2 rounded-xl bg-blue-600">
                                 <FileText className="h-5 w-5 text-white" />
                             </div>
                             <div>
@@ -599,7 +599,7 @@ export default function TemplatesShow({
                     </CardHeader>
                     <CardContent className="p-6 space-y-6">
                         {liveTemplate.header_type && liveTemplate.header_text && (
-                            <div className="p-5 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
+                            <div className="p-5 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
                                 <div className="flex items-center gap-2 mb-3">
                                     <Badge variant="info" className="px-2 py-1 text-xs">
                                         Header ({liveTemplate.header_type})
@@ -612,7 +612,7 @@ export default function TemplatesShow({
                         )}
 
                         {liveTemplate.body_text && (
-                            <div className="p-5 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
+                            <div className="p-5 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
                                 <div className="flex items-center gap-2 mb-3">
                                     <Badge variant="default" className="px-2 py-1 text-xs">
                                         Body
@@ -630,7 +630,7 @@ export default function TemplatesShow({
                         )}
 
                         {liveTemplate.footer_text && (
-                            <div className="p-5 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
+                            <div className="p-5 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
                                 <div className="flex items-center gap-2 mb-3">
                                     <Badge variant="default" className="px-2 py-1 text-xs">
                                         Footer
@@ -653,7 +653,7 @@ export default function TemplatesShow({
                                     {liveTemplate.buttons.map((button, index) => (
                                         <div
                                             key={index}
-                                            className="p-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl border border-blue-200 dark:border-blue-800 flex items-center justify-between hover:shadow-md transition-shadow"
+                                            className="p-4 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-200 dark:border-blue-800 flex items-center justify-between hover:border-blue-300 dark:hover:border-blue-700 transition-colors"
                                         >
                                             <span className="font-semibold text-gray-900 dark:text-gray-100">{button.text}</span>
                                             <Badge variant="info" className="px-3 py-1">
@@ -668,10 +668,10 @@ export default function TemplatesShow({
                 </Card>
 
                 {/* Template Details */}
-                <Card className="border-0 shadow-lg">
-                    <CardHeader className="bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900">
+                <Card className="shadow-sm">
+                    <CardHeader className="border-b border-gray-100 dark:border-gray-800">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl">
+                            <div className="p-2 rounded-xl bg-gray-900 dark:bg-gray-100">
                                 <Sparkles className="h-5 w-5 text-white" />
                             </div>
                             <div>
@@ -682,30 +682,30 @@ export default function TemplatesShow({
                     </CardHeader>
                     <CardContent className="p-6">
                         <dl className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl">
+                            <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl">
                                 <dt className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Name</dt>
                                 <dd className="text-sm font-semibold text-gray-900 dark:text-gray-100">{liveTemplate.name}</dd>
                             </div>
-                            <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl">
+                            <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl">
                                 <dt className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Language</dt>
                                 <dd className="text-sm font-semibold text-gray-900 dark:text-gray-100">{liveTemplate.language}</dd>
                             </div>
-                            <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl">
+                            <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl">
                                 <dt className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Category</dt>
                                 <dd className="text-sm font-semibold text-gray-900 dark:text-gray-100">{liveTemplate.category}</dd>
                             </div>
-                            <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl">
+                            <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl">
                                 <dt className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Status</dt>
                                 <dd>{getStatusBadge(liveTemplate.status)}</dd>
                             </div>
                             {liveTemplate.quality_score && (
-                                <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl">
+                                <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl">
                                     <dt className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Quality Score</dt>
                                     <dd className="text-sm font-semibold text-gray-900 dark:text-gray-100">{liveTemplate.quality_score}</dd>
                                 </div>
                             )}
                             {liveTemplate.last_synced_at && (
-                                <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl">
+                                <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl">
                                     <dt className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1">
                                         <Clock className="h-3.5 w-3.5" />
                                         Last Synced

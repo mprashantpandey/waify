@@ -681,7 +681,7 @@ export default function ChatbotsShow({
                     </Link>
                     <div className="flex items-center justify-between">
                         <div>
-                            <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent flex items-center gap-3 mb-2">
+                            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-3 mb-2">
                                 <Bot className="h-8 w-8 text-purple-600 dark:text-purple-400" />
                                 {bot.name}
                             </h1>
@@ -718,10 +718,10 @@ export default function ChatbotsShow({
                         </Card>
                     )}
 
-                    <Card className="border-0 shadow-lg">
-                        <CardHeader className="bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20">
+                    <Card className="shadow-sm">
+                        <CardHeader className="border-b border-gray-100 dark:border-gray-800">
                             <div className="flex items-center gap-3">
-                                <div className="p-2 bg-purple-500 rounded-xl">
+                                <div className="p-2 rounded-xl bg-blue-600">
                                     <Bot className="h-5 w-5 text-white" />
                                 </div>
                                 <div>
@@ -775,7 +775,7 @@ export default function ChatbotsShow({
                             <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                                 <InputLabel value="Applies To" className="text-sm font-semibold mb-3" />
                                 <div className="space-y-3">
-                                    <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
+                                    <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
                                         <label className="flex items-center gap-3 cursor-pointer">
                                             <Checkbox
                                                 checked={data.applies_to.all_connections}
@@ -805,7 +805,7 @@ export default function ChatbotsShow({
                                                 connections.map((connection) => (
                                                     <label
                                                         key={connection.id}
-                                                        className="flex items-center gap-3 p-3 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-700 cursor-pointer transition-colors"
+                                                        className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-700 cursor-pointer transition-colors"
                                                     >
                                                         <Checkbox
                                                             checked={data.applies_to.connection_ids?.includes(connection.id)}
@@ -841,7 +841,7 @@ export default function ChatbotsShow({
                                 <Button
                                     type="submit"
                                     disabled={processing}
-                                    className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 shadow-lg shadow-purple-500/50 rounded-xl"
+                                    className="rounded-xl"
                                 >
                                     {processing ? 'Saving...' : (
                                         <>
@@ -855,11 +855,11 @@ export default function ChatbotsShow({
                     </Card>
                 </form>
 
-                <Card className="border-0 shadow-lg">
-                    <CardHeader className="bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900">
+                <Card className="shadow-sm">
+                    <CardHeader className="border-b border-gray-100 dark:border-gray-800">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl">
+                                <div className="p-2 rounded-xl bg-blue-600">
                                     <Workflow className="h-5 w-5 text-white" />
                                 </div>
                                 <div>
@@ -1038,7 +1038,7 @@ export default function ChatbotsShow({
 
                         {bot.flows.length === 0 ? (
                             <div className="text-center py-12">
-                                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 mb-4">
+                                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-900 mb-4">
                                     <Zap className="h-8 w-8 text-gray-400" />
                                 </div>
                                 <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
@@ -1130,10 +1130,10 @@ export default function ChatbotsShow({
                 </Card>
 
                 {nodeFormOpen && nodeFormFlowId && (
-                    <Card className="border-0 shadow-lg">
-                        <CardHeader className="bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900">
+                    <Card className="shadow-sm">
+                        <CardHeader className="border-b border-gray-100 dark:border-gray-800">
                             <div className="flex items-center gap-3">
-                                <div className="p-2 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl">
+                                <div className="p-2 rounded-xl bg-blue-600">
                                     <LinkIcon className="h-5 w-5 text-white" />
                                 </div>
                                 <div>
@@ -1544,10 +1544,10 @@ export default function ChatbotsShow({
                 )}
 
                 {edgeFormOpen && edgeFlowId && (
-                    <Card className="border-0 shadow-lg">
-                        <CardHeader className="bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900">
+                    <Card className="shadow-sm">
+                        <CardHeader className="border-b border-gray-100 dark:border-gray-800">
                             <div className="flex items-center gap-3">
-                                <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl">
+                                <div className="p-2 rounded-xl bg-blue-600">
                                     <LinkIcon className="h-5 w-5 text-white" />
                                 </div>
                                 <div>
