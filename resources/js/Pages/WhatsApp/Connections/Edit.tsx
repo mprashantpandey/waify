@@ -1,18 +1,14 @@
-import { useForm } from '@inertiajs/react';
-import { FormEventHandler, useEffect, useState } from 'react';
+import { Head, Link, useForm } from '@inertiajs/react';
+import { FormEventHandler } from 'react';
+import { ArrowLeft, CheckCircle2, MessageCircleMore, Phone, XCircle } from 'lucide-react';
 import AppShell from '@/Layouts/AppShell';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
-import Button from '@/Components/UI/Button';
-import TextInput from '@/Components/TextInput';
-import InputLabel from '@/Components/InputLabel';
-import InputError from '@/Components/InputError';
-import { Badge } from '@/Components/UI/Badge';
 import { Alert } from '@/Components/UI/Alert';
-import { ArrowLeft, Copy, Check, Eye, EyeOff, Link as LinkIcon, Shield, Info, Sparkles, AlertTriangle, Activity } from 'lucide-react';
-import { Link, router, Head } from '@inertiajs/react';
-import { useNotifications } from '@/hooks/useNotifications';
-import axios from 'axios';
-import Modal from '@/Components/Modal';
+import { Badge } from '@/Components/UI/Badge';
+import Button from '@/Components/UI/Button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Components/UI/Card';
+import InputError from '@/Components/InputError';
+import InputLabel from '@/Components/InputLabel';
+import TextInput from '@/Components/TextInput';
 
 interface Connection {
     id: number;
@@ -22,751 +18,232 @@ interface Connection {
     phone_number_id: string;
     business_phone: string | null;
     api_version: string;
-    webhook_mode?: string;
-    webhook_url: string;
-    webhook_subscribed: boolean;
+    is_active?: boolean;
     webhook_last_received_at: string | null;
-    webhook_last_error: string | null;
-    quality_rating?: string | null;
-    messaging_limit_tier?: string | null;
-    account_review_status?: string | null;
-    business_verification_status?: string | null;
-    display_name_status?: string | null;
-    health_state?: string | null;
-    restriction_state?: string | null;
-    warning_state?: string | null;
-    health_last_synced_at?: string | null;
-    metadata_sync_status?: string | null;
-    metadata_last_sync_error?: string | null;
-    metadata_stale?: boolean;
-    metadata_stale_after_hours?: number;
     activation_state?: string | null;
     activation_last_error?: string | null;
-    activation_updated_at?: string | null;
-    token_type?: string | null;
-    token_source?: string | null;
-    token_last_validated_at?: string | null;
-    token_metadata?: Record<string, any> | null;
+    provisioning_step?: string | null;
+    provisioning_status?: string | null;
+    provisioning_last_error?: string | null;
     throughput_cap_per_minute?: number | null;
     quiet_hours_start?: string | null;
     quiet_hours_end?: string | null;
     quiet_hours_timezone?: string | null;
 }
 
-interface MetaPhoneInsight {
-    id: string | null;
-    display_phone_number: string | null;
-    verified_name: string | null;
-    quality_rating: string | null;
-    messaging_limit_tier: string | null;
-    code_verification_status: string | null;
+function setupLabel(connection: Connection): string {
+    if (connection.provisioning_status === 'failed') return 'Needs attention';
+    if (connection.provisioning_status && connection.provisioning_status !== 'completed') return 'Setup in progress';
+    if (connection.activation_state && connection.activation_state !== 'active') return 'Finishing setup';
+    return connection.is_active ? 'Ready' : 'Inactive';
 }
 
-interface MetaInsights {
-    waba: {
-        id: string | null;
-        name: string | null;
-        currency: string | null;
-        timezone_id: string | null;
-        account_review_status: string | null;
-    } | null;
-    phone_numbers: MetaPhoneInsight[];
-    selected_phone: (MetaPhoneInsight & { name_status?: string | null }) | null;
-    business_verification: {
-        status: string;
-        help_url: string;
-    };
-    manage_numbers_url: string;
-}
+function statusMessage(connection: Connection): string {
+    if (connection.provisioning_status === 'failed') {
+        return connection.provisioning_last_error || 'Setup needs one more check before this number can be used.';
+    }
 
-interface EmbeddedSignupEventRow {
-    id: number;
-    event: string;
-    status: string;
-    current_step?: string | null;
-    message?: string | null;
-    waba_id?: string | null;
-    phone_number_id?: string | null;
-    created_at?: string | null;
+    if (connection.provisioning_status && connection.provisioning_status !== 'completed') {
+        return 'Zyptos is still finishing the setup for this number.';
+    }
+
+    if (connection.activation_state && connection.activation_state !== 'active') {
+        return connection.activation_last_error || 'This number is being activated on WhatsApp.';
+    }
+
+    return 'This number is ready for inbox conversations, templates, and broadcasts.';
 }
 
 export default function ConnectionsEdit({
-    account,
     connection,
-    embeddedSignupEvents = []}: {
-    account: any;
+}: {
+    account: unknown;
     connection: Connection;
-    embeddedSignupEvents?: EmbeddedSignupEventRow[];
+    embeddedSignupEvents?: unknown[];
 }) {
-    const { toast } = useNotifications();
-    const [showToken, setShowToken] = useState(false);
-    const [copied, setCopied] = useState<string | null>(null);
-    const [testLoading, setTestLoading] = useState(false);
-    const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
-    const [webhookLoading, setWebhookLoading] = useState(false);
-    const [webhookResult, setWebhookResult] = useState<{ ok: boolean; message: string } | null>(null);
-    const [metaInsights, setMetaInsights] = useState<MetaInsights | null>(null);
-    const [metaInsightsLoading, setMetaInsightsLoading] = useState(false);
-    const [metaInsightsError, setMetaInsightsError] = useState<string | null>(null);
-    const [alertOpen, setAlertOpen] = useState(false);
-    const [alertTitle, setAlertTitle] = useState('');
-    const [alertMessage, setAlertMessage] = useState('');
-    const [alertVariant, setAlertVariant] = useState<'success' | 'error'>('success');
-
     const { data, setData, put, processing, errors } = useForm({
         name: connection.name,
         waba_id: connection.waba_id || '',
         phone_number_id: connection.phone_number_id,
         business_phone: connection.business_phone || '',
-        access_token: '', // Optional on update
+        access_token: '',
         api_version: connection.api_version,
         throughput_cap_per_minute: connection.throughput_cap_per_minute || 120,
         quiet_hours_start: connection.quiet_hours_start || '',
         quiet_hours_end: connection.quiet_hours_end || '',
-        quiet_hours_timezone: connection.quiet_hours_timezone || 'UTC'});
-    const connectionError = (errors as Record<string, string | undefined>).connection;
+        quiet_hours_timezone: connection.quiet_hours_timezone || 'UTC',
+    });
 
-    const submit: FormEventHandler = (e) => {
-        e.preventDefault();
+    const submit: FormEventHandler = (event) => {
+        event.preventDefault();
         put(route('app.whatsapp.connections.update', {
-            connection: connection.slug ?? connection.id}));
-    };
-
-    const copyToClipboard = (text: string, key: string) => {
-        navigator.clipboard.writeText(text);
-        setCopied(key);
-        toast.success('Copied to clipboard');
-        setTimeout(() => setCopied(null), 2000);
-    };
-
-    const showAlert = (title: string, message: string, variant: 'success' | 'error') => {
-        setAlertTitle(title);
-        setAlertMessage(message);
-        setAlertVariant(variant);
-        setAlertOpen(true);
-    };
-
-    const runConnectionTest = async () => {
-        setTestLoading(true);
-        setTestResult(null);
-        try {
-            const { data } = await axios.post(
-                route('app.whatsapp.connections.test-saved', {
-                    connection: connection.slug ?? connection.id}) as string
-            );
-            const summary = [
-                data.display_phone_number ? `Phone: ${data.display_phone_number}` : null,
-                data.verified_name ? `Verified: ${data.verified_name}` : null,
-                data.quality_rating ? `Quality: ${data.quality_rating}` : null,
-                data.messaging_limit_tier ? `Limit: ${data.messaging_limit_tier}` : null,
-                data.waba_match === false ? 'WhatsApp Business Account mismatch' : null,
-            ]
-                .filter(Boolean)
-                .join(' · ');
-            setTestResult({ ok: true, message: summary || 'Connection looks valid.' });
-            showAlert('Connection Test Successful', summary || 'Connection looks valid.', 'success');
-        } catch (error: any) {
-            const message = error?.response?.data?.error || 'Connection test failed';
-            setTestResult({ ok: false, message });
-            showAlert('Connection Test Failed', message, 'error');
-        } finally {
-            setTestLoading(false);
-        }
-    };
-
-    const loadMetaInsights = async () => {
-        setMetaInsightsLoading(true);
-        setMetaInsightsError(null);
-        try {
-            const { data } = await axios.get(
-                route('app.whatsapp.connections.meta-insights', {
-                    connection: connection.slug ?? connection.id,
-                }) as string
-            );
-            setMetaInsights(data?.insights ?? null);
-        } catch (error: any) {
-            setMetaInsightsError(error?.response?.data?.error || 'Failed to load Meta account details.');
-        } finally {
-            setMetaInsightsLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        loadMetaInsights();
-    }, []);
-
-    const runWebhookTest = async () => {
-        setWebhookLoading(true);
-        setWebhookResult(null);
-        try {
-            const { data } = await axios.post(
-                route('app.whatsapp.connections.webhook.test', {
-                    connection: connection.slug ?? connection.id}) as string
-            );
-            const message = data?.message || 'Webhook verified successfully.';
-            setWebhookResult({ ok: true, message });
-            showAlert('Webhook Test Successful', message, 'success');
-        } catch (error: any) {
-            const message =
-                error?.response?.data?.error ||
-                error?.response?.data?.message ||
-                'Central webhook test failed. Please check the Meta app callback URL and verify token.';
-            setWebhookResult({ ok: false, message });
-            showAlert('Webhook Test Failed', message, 'error');
-        } finally {
-            setWebhookLoading(false);
-        }
-    };
-
-    const runHealthSync = () => {
-        router.post(route('app.whatsapp.connections.sync-health', {
             connection: connection.slug ?? connection.id,
-        }), {}, {
-            preserveScroll: true,
-            onSuccess: () => toast.success('Health synced successfully.'),
-            onError: () => toast.error('Health sync failed. Please verify token and try again.'),
-        });
+        }));
     };
+
+    const label = setupLabel(connection);
+    const needsHelp = label !== 'Ready';
 
     return (
         <AppShell>
-            <Head title={`Edit ${connection.name}`} />
-            <Modal show={alertOpen} onClose={() => setAlertOpen(false)} maxWidth="sm">
-                <div className="p-6">
-                    <div className="flex items-start gap-3">
-                        <div className={`h-10 w-10 rounded-full flex items-center justify-center ${alertVariant === 'success' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-                            {alertVariant === 'success' ? <Check className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
-                        </div>
-                        <div className="flex-1">
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{alertTitle}</h3>
-                            <p className="mt-2 text-sm text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{alertMessage}</p>
-                        </div>
-                    </div>
-                    <div className="mt-6 flex justify-end">
-                        <Button onClick={() => setAlertOpen(false)} variant="secondary">
-                            Close
-                        </Button>
-                    </div>
-                </div>
-            </Modal>
-            <div className="space-y-8">
+            <Head title={connection.name} />
+
+            <div className="space-y-6">
                 <div>
                     <Link
-                        href={route('app.whatsapp.connections.index', {})}
-                        className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
+                        href={route('app.whatsapp.connections.index')}
+                        className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
                     >
                         <ArrowLeft className="h-4 w-4" />
                         Back to Connections
                     </Link>
-                    <div>
-                        <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
-                            Edit Connection
-                        </h1>
-                        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                            Update your WhatsApp connection settings
-                        </p>
+
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                            <h1 className="text-3xl font-semibold text-gray-900 dark:text-gray-100">{connection.name}</h1>
+                            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                                Review the number, update the display name, and continue setup if anything still needs attention.
+                            </p>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <Badge variant={label === 'Ready' ? 'success' : 'warning'}>{label}</Badge>
+                            <Link href={route('app.support.index')}>
+                                <Button variant="secondary">Contact Support</Button>
+                            </Link>
+                        </div>
                     </div>
                 </div>
 
-                <Card className="border-0 shadow-xl">
-                    <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-blue-500 rounded-xl">
-                                <LinkIcon className="h-5 w-5 text-white" />
-                            </div>
-                            <div>
-                                <CardTitle className="text-xl font-bold">Connection Settings</CardTitle>
-                                <CardDescription>Update your connection details</CardDescription>
-                            </div>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="p-6">
-                        <form onSubmit={submit} className="space-y-6">
-                            <InputError message={connectionError} className="mt-2" />
+                {needsHelp && (
+                    <Alert variant="warning">
+                        {statusMessage(connection)} If this does not clear on its own, open support and share this number.
+                    </Alert>
+                )}
 
-                            <div>
-                                <InputLabel htmlFor="name" value="Connection Name" className="text-sm font-semibold mb-2" />
-                                <TextInput
-                                    id="name"
-                                    type="text"
-                                    value={data.name}
-                                    className="mt-1 block w-full rounded-xl"
-                                    onChange={(e) => setData('name', e.target.value)}
-                                    required
-                                />
-                                <InputError message={errors.name} className="mt-2" />
-                            </div>
-
-                            <div>
-                                <InputLabel htmlFor="phone_number_id" value="Phone Number ID *" className="text-sm font-semibold mb-2" />
-                                <TextInput
-                                    id="phone_number_id"
-                                    type="text"
-                                    value={data.phone_number_id}
-                                    className="mt-1 block w-full rounded-xl font-mono"
-                                    onChange={(e) => setData('phone_number_id', e.target.value)}
-                                    required
-                                />
-                                <InputError message={errors.phone_number_id} className="mt-2" />
-                            </div>
-
-                            <div>
-                                <InputLabel htmlFor="waba_id" value="WhatsApp Business Account ID (Optional)" className="text-sm font-semibold mb-2" />
-                                <TextInput
-                                    id="waba_id"
-                                    type="text"
-                                    value={data.waba_id}
-                                    className="mt-1 block w-full rounded-xl font-mono"
-                                    onChange={(e) => setData('waba_id', e.target.value)}
-                                />
-                                <InputError message={errors.waba_id} className="mt-2" />
-                            </div>
-
-                            <div>
-                                <InputLabel htmlFor="business_phone" value="Business Phone (Optional)" className="text-sm font-semibold mb-2" />
-                                <TextInput
-                                    id="business_phone"
-                                    type="text"
-                                    value={data.business_phone}
-                                    className="mt-1 block w-full rounded-xl"
-                                    onChange={(e) => setData('business_phone', e.target.value)}
-                                />
-                                <InputError message={errors.business_phone} className="mt-2" />
-                            </div>
-
-                            <div>
-                                <div className="flex items-center justify-between mb-2">
-                                    <InputLabel htmlFor="access_token" value="Access Token (Leave blank to keep current)" className="text-sm font-semibold" />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowToken(!showToken)}
-                                        className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors flex items-center gap-1"
-                                    >
-                                        {showToken ? (
-                                            <>
-                                                <EyeOff className="h-4 w-4" />
-                                                Hide
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Eye className="h-4 w-4" />
-                                                Show
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
-                                <TextInput
-                                    id="access_token"
-                                    type={showToken ? 'text' : 'password'}
-                                    value={data.access_token}
-                                    className="mt-1 block w-full rounded-xl font-mono text-sm"
-                                    onChange={(e) => setData('access_token', e.target.value)}
-                                    placeholder="Leave blank to keep current token"
-                                />
-                                <InputError message={errors.access_token} className="mt-2" />
-                            </div>
-
-                            <div>
-                                <InputLabel htmlFor="api_version" value="API Version" className="text-sm font-semibold mb-2" />
-                                <TextInput
-                                    id="api_version"
-                                    type="text"
-                                    value={data.api_version}
-                                    className="mt-1 block w-full rounded-xl font-mono"
-                                    onChange={(e) => setData('api_version', e.target.value)}
-                                />
-                                <InputError message={errors.api_version} className="mt-2" />
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Basic details</CardTitle>
+                            <CardDescription>
+                                Keep the connection name clear for your team. Zyptos keeps the technical setup in the background.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <form onSubmit={submit} className="space-y-5">
                                 <div>
-                                    <InputLabel htmlFor="throughput_cap_per_minute" value="Campaign Throughput Cap / min" className="text-sm font-semibold mb-2" />
+                                    <InputLabel htmlFor="name" value="Connection name" />
                                     <TextInput
-                                        id="throughput_cap_per_minute"
-                                        type="number"
-                                        min={1}
-                                        max={1000}
-                                        value={data.throughput_cap_per_minute}
-                                        className="mt-1 block w-full rounded-xl"
-                                        onChange={(e) => setData('throughput_cap_per_minute', Number(e.target.value) || 120)}
+                                        id="name"
+                                        value={data.name}
+                                        onChange={(event) => setData('name', event.target.value)}
+                                        className="mt-1 block w-full"
+                                        required
                                     />
-                                    <InputError message={errors.throughput_cap_per_minute} className="mt-2" />
+                                    <InputError message={errors.name} className="mt-2" />
                                 </div>
-                                <div>
-                                    <InputLabel htmlFor="quiet_hours_timezone" value="Quiet Hours Timezone" className="text-sm font-semibold mb-2" />
-                                    <TextInput
-                                        id="quiet_hours_timezone"
-                                        type="text"
-                                        value={data.quiet_hours_timezone}
-                                        className="mt-1 block w-full rounded-xl"
-                                        onChange={(e) => setData('quiet_hours_timezone', e.target.value)}
-                                        placeholder="Asia/Kolkata"
-                                    />
-                                    <InputError message={errors.quiet_hours_timezone} className="mt-2" />
-                                </div>
-                                <div>
-                                    <InputLabel htmlFor="quiet_hours_start" value="Quiet Hours Start (HH:MM)" className="text-sm font-semibold mb-2" />
-                                    <TextInput
-                                        id="quiet_hours_start"
-                                        type="time"
-                                        value={data.quiet_hours_start}
-                                        className="mt-1 block w-full rounded-xl"
-                                        onChange={(e) => setData('quiet_hours_start', e.target.value)}
-                                    />
-                                    <InputError message={errors.quiet_hours_start} className="mt-2" />
-                                </div>
-                                <div>
-                                    <InputLabel htmlFor="quiet_hours_end" value="Quiet Hours End (HH:MM)" className="text-sm font-semibold mb-2" />
-                                    <TextInput
-                                        id="quiet_hours_end"
-                                        type="time"
-                                        value={data.quiet_hours_end}
-                                        className="mt-1 block w-full rounded-xl"
-                                        onChange={(e) => setData('quiet_hours_end', e.target.value)}
-                                    />
-                                    <InputError message={errors.quiet_hours_end} className="mt-2" />
-                                </div>
-                            </div>
 
-                            <div className="border-t border-gray-200 dark:border-gray-700 pt-6 space-y-6">
-                                <div>
-                                    <div className="flex items-center justify-between mb-3">
-                                        <div className="flex items-center gap-2">
-                                            <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                                            <InputLabel value="Central Webhook" className="text-base font-bold" />
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div>
+                                        <InputLabel value="Business number" />
+                                        <div className="mt-1 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 dark:border-gray-800 dark:bg-gray-900/60 dark:text-gray-100">
+                                            {connection.business_phone || 'Not available yet'}
                                         </div>
                                     </div>
-                                    
-                                    <div className="space-y-4">
-                                        <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">App Callback URL</p>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => copyToClipboard(connection.webhook_url, 'url')}
-                                                    className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors flex items-center gap-1"
-                                                >
-                                                    {copied === 'url' ? (
-                                                        <>
-                                                            <Check className="h-4 w-4" />
-                                                            Copied!
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <Copy className="h-4 w-4" />
-                                                            Copy
-                                                        </>
-                                                    )}
-                                                </button>
-                                            </div>
-                                            <code className="block text-xs font-mono bg-white dark:bg-gray-950 px-3 py-2 rounded-lg break-all border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">
-                                                {connection.webhook_url}
-                                            </code>
-                                            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                                                <Info className="h-3.5 w-3.5" />
-                                                Configure this once on the Meta app webhook. Zyptos routes incoming events to the correct tenant connection automatically.
-                                            </p>
+                                    <div>
+                                        <InputLabel value="Number ID" />
+                                        <div className="mt-1 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 dark:border-gray-800 dark:bg-gray-900/60 dark:text-gray-100">
+                                            {connection.phone_number_id}
                                         </div>
-
-                                        <div className="flex items-center gap-3">
-                                            <Badge variant={connection.webhook_subscribed ? 'success' : 'default'} className="flex items-center gap-1.5 px-3 py-1">
-                                                {connection.webhook_subscribed ? (
-                                                    <>
-                                                        <Sparkles className="h-3.5 w-3.5" />
-                                                        Webhook Subscribed
-                                                    </>
-                                                ) : (
-                                                    'Not Subscribed'
-                                                )}
-                                            </Badge>
-                                            {connection.webhook_last_received_at && (
-                                                <span className="text-xs text-gray-500 dark:text-gray-400">
-                                                    Last received: {new Date(connection.webhook_last_received_at).toLocaleString()}
-                                                </span>
-                                            )}
-                                        </div>
-
-                                        {connection.webhook_last_error && (
-                                            <Alert variant="error" className="border-red-200 dark:border-red-800">
-                                                <div className="flex items-start gap-2">
-                                                    <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                                                    <div>
-                                                        <p className="text-sm font-semibold text-red-800 dark:text-red-200">Last Error:</p>
-                                                        <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                                                            {connection.webhook_last_error}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </Alert>
-                                        )}
-
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                            <div className="text-xs text-gray-600 dark:text-gray-300">
-                                                Health: <span className="font-semibold uppercase">{connection.health_state || 'UNKNOWN'}</span>
-                                            </div>
-                                            <div className="text-xs text-gray-600 dark:text-gray-300">
-                                                Quality: <span className="font-semibold">{connection.quality_rating || 'Unknown'}</span>
-                                            </div>
-                                            <div className="text-xs text-gray-600 dark:text-gray-300">
-                                                Limit tier: <span className="font-semibold">{connection.messaging_limit_tier || 'Unknown'}</span>
-                                            </div>
-                                            <div className="text-xs text-gray-600 dark:text-gray-300">
-                                                Last synced: <span className="font-semibold">{connection.health_last_synced_at ? new Date(connection.health_last_synced_at).toLocaleString() : 'Never'}</span>
-                                            </div>
-                                            <div className="text-xs text-gray-600 dark:text-gray-300">
-                                                Metadata sync: <span className="font-semibold uppercase">{connection.metadata_sync_status || 'PENDING'}</span>
-                                            </div>
-                                            <div className="text-xs text-gray-600 dark:text-gray-300">
-                                                Activation: <span className="font-semibold uppercase">{connection.activation_state || 'ACTIVE'}</span>
-                                            </div>
-                                        </div>
-
-                                        {connection.metadata_stale && (
-                                            <Alert variant="warning" className="border-amber-200 dark:border-amber-800">
-                                                Metadata appears stale{connection.metadata_stale_after_hours ? ` (>${connection.metadata_stale_after_hours}h)` : ''}. Run Sync Health to refresh account/phone status.
-                                            </Alert>
-                                        )}
-
-                                        {connection.metadata_last_sync_error && (
-                                            <Alert variant="warning" className="border-amber-200 dark:border-amber-800">
-                                                Last metadata sync error: {connection.metadata_last_sync_error}
-                                            </Alert>
-                                        )}
-
-                                        {connection.activation_last_error && connection.activation_state !== 'active' && (
-                                            <Alert variant="warning" className="border-amber-200 dark:border-amber-800">
-                                                Activation issue: {connection.activation_last_error}
-                                            </Alert>
-                                        )}
                                     </div>
                                 </div>
-                            </div>
 
-                            <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
-                                <div className="flex items-center gap-3">
-                                    <Link href={route('app.whatsapp.connections.health', { connection: connection.slug ?? connection.id })}>
-                                        <Button type="button" variant="secondary" className="rounded-xl bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30">
-                                            <Activity className="h-4 w-4 mr-2" />
-                                            Health Check
-                                        </Button>
+                                <div className="flex items-center justify-end gap-3 border-t border-gray-200 pt-4 dark:border-gray-800">
+                                    <Link href={route('app.whatsapp.connections.index')}>
+                                        <Button type="button" variant="ghost">Cancel</Button>
                                     </Link>
-                                    <Link href={route('app.whatsapp.connections.webhook-diagnostics', { connection: connection.slug ?? connection.id })}>
-                                        <Button type="button" variant="secondary" className="rounded-xl">
-                                            Webhook Diagnostics
-                                        </Button>
-                                    </Link>
-                                    <Button type="button" variant="secondary" className="rounded-xl" onClick={runHealthSync}>
-                                        Sync Health
+                                    <Button type="submit" disabled={processing}>
+                                        {processing ? 'Saving...' : 'Save changes'}
                                     </Button>
                                 </div>
-                                <div className="flex items-center gap-4">
-                                    <Link href={route('app.whatsapp.connections.index', { })}>
-                                        <Button type="button" variant="secondary" className="rounded-xl">
-                                            Cancel
-                                        </Button>
-                                    </Link>
-                                    <Button 
-                                        type="submit" 
-                                        disabled={processing}
-                                        className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50 rounded-xl"
-                                    >
-                                        {processing ? 'Saving...' : 'Save Changes'}
-                                    </Button>
-                                </div>
-                            </div>
-                        </form>
-                    </CardContent>
-                </Card>
+                            </form>
+                        </CardContent>
+                    </Card>
 
-                <Card className="border-0 shadow-xl">
-                    <CardHeader className="bg-gradient-to-r from-violet-50 to-indigo-100 dark:from-violet-900/20 dark:to-indigo-800/20">
-                        <div className="flex items-center justify-between gap-3">
-                            <div>
-                                <CardTitle className="text-xl font-bold">Meta Account Insights</CardTitle>
+                    <div className="space-y-6">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Connection status</CardTitle>
                                 <CardDescription>
-                                    View WhatsApp Business Account status, quality rating, messaging limits, and linked numbers.
+                                    A simple view of whether this number is ready or still being prepared.
                                 </CardDescription>
-                            </div>
-                            <Button variant="secondary" onClick={loadMetaInsights} disabled={metaInsightsLoading}>
-                                {metaInsightsLoading ? 'Refreshing...' : 'Refresh'}
-                            </Button>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="p-6 space-y-5">
-                        {metaInsightsError && <Alert variant="error">{metaInsightsError}</Alert>}
-                        {!metaInsightsError && metaInsightsLoading && <Alert variant="info">Loading Meta details...</Alert>}
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-800/60">
+                                    <div className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
+                                        {label === 'Ready' ? (
+                                            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                                        ) : (
+                                            <XCircle className="h-4 w-4 text-amber-500" />
+                                        )}
+                                        {label}
+                                    </div>
+                                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{statusMessage(connection)}</p>
+                                </div>
 
-                        {metaInsights?.waba && (
-                            <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-2">
-                                <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">WhatsApp Business Account</h3>
-                                <div className="text-sm text-gray-600 dark:text-gray-300">Name: {metaInsights.waba.name || '—'}</div>
-                                <div className="text-sm text-gray-600 dark:text-gray-300">WhatsApp Business Account ID: <span className="font-mono">{metaInsights.waba.id || '—'}</span></div>
-                                <div className="text-sm text-gray-600 dark:text-gray-300">Review Status: {metaInsights.waba.account_review_status || 'Unknown'}</div>
-                                <div className="text-sm text-gray-600 dark:text-gray-300">Business Verification: {metaInsights.business_verification.status}</div>
-                            </div>
-                        )}
+                                <dl className="space-y-3 text-sm">
+                                    <div className="flex items-start justify-between gap-4">
+                                        <dt className="text-gray-500 dark:text-gray-400">WhatsApp number</dt>
+                                        <dd className="text-right font-medium text-gray-900 dark:text-gray-100">{connection.business_phone || 'Not available yet'}</dd>
+                                    </div>
+                                    <div className="flex items-start justify-between gap-4">
+                                        <dt className="text-gray-500 dark:text-gray-400">Current setup step</dt>
+                                        <dd className="text-right font-medium text-gray-900 dark:text-gray-100">
+                                            {connection.provisioning_step ? connection.provisioning_step.replaceAll('_', ' ') : 'Complete'}
+                                        </dd>
+                                    </div>
+                                    <div className="flex items-start justify-between gap-4">
+                                        <dt className="text-gray-500 dark:text-gray-400">Last message update</dt>
+                                        <dd className="text-right font-medium text-gray-900 dark:text-gray-100">
+                                            {connection.webhook_last_received_at
+                                                ? new Date(connection.webhook_last_received_at).toLocaleString()
+                                                : 'Not received yet'}
+                                        </dd>
+                                    </div>
+                                </dl>
+                            </CardContent>
+                        </Card>
 
-                        {metaInsights?.selected_phone && (
-                            <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-2">
-                                <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Selected Phone Number</h3>
-                                <div className="text-sm text-gray-600 dark:text-gray-300">Display Number: {metaInsights.selected_phone.display_phone_number || '—'}</div>
-                                <div className="text-sm text-gray-600 dark:text-gray-300">Verified Name: {metaInsights.selected_phone.verified_name || '—'}</div>
-                                <div className="text-sm text-gray-600 dark:text-gray-300">Quality Rating: {metaInsights.selected_phone.quality_rating || 'Unknown'}</div>
-                                <div className="text-sm text-gray-600 dark:text-gray-300">Messaging Limit Tier: {metaInsights.selected_phone.messaging_limit_tier || 'Unknown'}</div>
-                                <div className="text-sm text-gray-600 dark:text-gray-300">Code Verification Status: {metaInsights.selected_phone.code_verification_status || 'Unknown'}</div>
-                            </div>
-                        )}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Need help?</CardTitle>
+                                <CardDescription>
+                                    Use support if setup is stuck or the number is not becoming ready.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="rounded-xl border border-dashed border-gray-200 p-4 dark:border-gray-800">
+                                    <div className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
+                                        <MessageCircleMore className="h-4 w-4 text-blue-500" />
+                                        Contact the Zyptos team
+                                    </div>
+                                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                                        Share the connection name and business number. Zyptos already keeps the background setup details for support.
+                                    </p>
+                                </div>
 
-                        <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-                            <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-3">All Linked Phone Numbers</h3>
-                            {metaInsights?.phone_numbers?.length ? (
-                                <div className="space-y-2">
-                                    {metaInsights.phone_numbers.map((phone, index) => (
-                                        <div key={phone.id || `phone-${index}`} className="text-sm text-gray-600 dark:text-gray-300 border-b border-dashed border-gray-200 dark:border-gray-700 pb-2 last:border-0">
-                                            <div className="font-mono">{phone.id || '—'}</div>
-                                            <div>{phone.display_phone_number || '—'} · {phone.verified_name || 'Unverified'}</div>
-                                            <div>Quality: {phone.quality_rating || 'Unknown'} · Limit: {phone.messaging_limit_tier || 'Unknown'}</div>
-                                        </div>
-                                    ))}
+                                <div className="flex flex-col gap-3">
+                                    <Link href={route('app.support.index')}>
+                                        <Button className="w-full">Open support</Button>
+                                    </Link>
+                                    <Link href={route('app.whatsapp.connections.wizard')}>
+                                        <Button variant="secondary" className="w-full">Start guided setup</Button>
+                                    </Link>
                                 </div>
-                            ) : (
-                                <div className="text-sm text-gray-500">No linked numbers were returned from Meta.</div>
-                            )}
-                        </div>
-
-                        <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4 text-sm text-amber-800 dark:text-amber-200 space-y-2">
-                            <div className="font-semibold">Compliance & Setup Actions</div>
-                            <div>
-                                Complete Meta Business Verification:
-                                <a href={metaInsights?.business_verification?.help_url || 'https://business.facebook.com/settings/security-center'} target="_blank" rel="noreferrer" className="ml-1 underline">
-                                    Open Security Center
-                                </a>
-                            </div>
-                            <div>
-                                Add/manage phone numbers:
-                                <a href={metaInsights?.manage_numbers_url || 'https://business.facebook.com/latest/whatsapp_manager/phone_numbers'} target="_blank" rel="noreferrer" className="ml-1 underline">
-                                    Open WhatsApp Manager
-                                </a>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card className="border-0 shadow-xl">
-                    <CardHeader className="bg-gradient-to-r from-emerald-50 to-teal-100 dark:from-emerald-900/20 dark:to-teal-800/20">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-emerald-500 rounded-xl">
-                                <Activity className="h-5 w-5 text-white" />
-                            </div>
-                            <div>
-                                <CardTitle className="text-xl font-bold">Connection Tests</CardTitle>
-                                <CardDescription>Validate your Meta connection and webhook from here.</CardDescription>
-                            </div>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="p-6 space-y-6">
-                        <div className="grid gap-6 lg:grid-cols-2">
-                            <div className="space-y-4">
-                                <div className="text-sm text-gray-600 dark:text-gray-300">
-                                    Uses the credentials saved with this connection.
-                                </div>
-                                <Button onClick={runConnectionTest} disabled={testLoading}>
-                                    {testLoading ? 'Testing...' : 'Test Connection'}
-                                </Button>
-                                {testResult && (
-                                    <Alert variant={testResult.ok ? 'success' : 'error'}>
-                                        {testResult.message}
-                                    </Alert>
-                                )}
-                            </div>
-                            <div className="space-y-4">
-                                <div className="text-sm text-gray-600 dark:text-gray-300">
-                                    App callback URL: <span className="font-mono break-all">{connection.webhook_url}</span>
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                    This checks the central Meta app callback URL shared by all WhatsApp connections.
-                                </div>
-                                <Button variant="secondary" onClick={runWebhookTest} disabled={webhookLoading}>
-                                    {webhookLoading ? 'Testing...' : 'Test Central Webhook'}
-                                </Button>
-                                {webhookResult && (
-                                    <Alert variant={webhookResult.ok ? 'success' : 'error'}>
-                                        {webhookResult.message}
-                                    </Alert>
-                                )}
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card className="border-0 shadow-xl">
-                    <CardHeader>
-                        <CardTitle>Tech Provider Access</CardTitle>
-                        <CardDescription>
-                            Provider-managed token state and latest Embedded Signup events for this connection.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        <div className="grid gap-4 md:grid-cols-3">
-                            <div className="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
-                                <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">Token type</div>
-                                <div className="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                    {connection.token_type || 'unknown'}
-                                </div>
-                            </div>
-                            <div className="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
-                                <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">Token source</div>
-                                <div className="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                    {connection.token_source || 'unknown'}
-                                </div>
-                            </div>
-                            <div className="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
-                                <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">Last validated</div>
-                                <div className="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                    {connection.token_last_validated_at ? new Date(connection.token_last_validated_at).toLocaleString() : 'Not recorded'}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="space-y-3">
-                            <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Recent Embedded Signup events</div>
-                            {embeddedSignupEvents.length === 0 ? (
-                                <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-4 text-sm text-gray-500 dark:text-gray-400">
-                                    No Embedded Signup event logs recorded for this connection yet.
-                                </div>
-                            ) : (
-                                <div className="space-y-3">
-                                    {embeddedSignupEvents.map((event) => (
-                                        <div key={event.id} className="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                <Badge variant={event.status === 'error' || event.status === 'cancelled' ? 'danger' : event.status === 'success' ? 'success' : 'info'}>
-                                                    {event.status}
-                                                </Badge>
-                                                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                                    {event.event.replaceAll('_', ' ')}
-                                                </span>
-                                                {event.current_step && (
-                                                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                                                        {event.current_step}
-                                                    </span>
-                                                )}
-                                                <span className="ml-auto text-xs text-gray-500 dark:text-gray-400">
-                                                    {event.created_at ? new Date(event.created_at).toLocaleString() : ''}
-                                                </span>
-                                            </div>
-                                            {event.message && (
-                                                <div className="mt-2 text-sm text-gray-600 dark:text-gray-300">{event.message}</div>
-                                            )}
-                                            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                                WABA: {event.waba_id || 'n/a'} · Phone ID: {event.phone_number_id || 'n/a'}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </CardContent>
-                </Card>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </div>
             </div>
         </AppShell>
     );

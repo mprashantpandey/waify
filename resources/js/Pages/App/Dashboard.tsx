@@ -294,12 +294,12 @@ export default function Dashboard({
                                         Connection attention required
                                     </p>
                                     <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
-                                        One or more WhatsApp connections have webhook or activation issues.
+                                        One or more WhatsApp numbers still need setup or need to be reviewed.
                                     </p>
                                     <div className="mt-2 space-y-1">
                                         {connection_alerts.slice(0, 3).map((alert) => (
                                             <div key={alert.id} className="text-xs text-amber-800 dark:text-amber-200">
-                                                {alert.name}: {!alert.is_active ? 'inactive' : !alert.webhook_subscribed ? 'webhook not subscribed' : 'webhook error'}
+                                                {alert.name}: {!alert.is_active ? 'not ready yet' : !alert.webhook_subscribed ? 'setup still pending' : 'needs review'}
                                             </div>
                                         ))}
                                     </div>

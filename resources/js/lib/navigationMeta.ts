@@ -25,9 +25,9 @@ export const NAVIGATION_META: Record<string, NavigationMeta> = {
     'app.whatsapp.connections.index': {
         title: 'Connections',
         section: 'Messaging',
-        description: 'Manage WhatsApp numbers, webhook health, metadata sync, and recovery actions from one place.',
-        keywords: ['whatsapp', 'waba', 'phone number', 'webhook', 'sync'],
-        tips: ['Healthy webhooks matter more than green badges.', 'Use Sync Health when Meta data looks stale.', 'Fix warnings before sending campaigns.'],
+        description: 'Connect your WhatsApp numbers, see which ones are ready, and finish setup from one place.',
+        keywords: ['whatsapp', 'phone number', 'setup', 'connection'],
+        tips: ['Use clear names so your team can find the right number quickly.', 'Finish setup before creating templates or campaigns.', 'Open support if a number stays stuck.'],
         quickActions: [
             { label: 'Add Connection', route: 'app.whatsapp.connections.create' },
             { label: 'Open Templates', route: 'app.whatsapp.templates.index' },
@@ -36,9 +36,9 @@ export const NAVIGATION_META: Record<string, NavigationMeta> = {
     'app.whatsapp.connections.create': {
         title: 'Add Connection',
         section: 'Messaging',
-        description: 'Connect a WhatsApp Business Account, validate webhook access, and store the metadata Zyptos needs to send safely.',
-        keywords: ['connect', 'embedded signup', 'oauth', 'webhook'],
-        tips: ['Keep the same redirect URI all the way through signup.', 'Complete webhook validation before testing sends.', 'Use Embedded Signup if the business is new to Meta.'],
+        description: 'Connect a WhatsApp Business Account and follow the guided steps to start using Zyptos.',
+        keywords: ['connect', 'embedded signup', 'whatsapp setup'],
+        tips: ['Choose the right onboarding path for a new or existing number.', 'Finish the Meta steps in one session if possible.', 'If setup stops, open support from the connection page.'],
         quickActions: [
             { label: 'Back to Connections', route: 'app.whatsapp.connections.index' },
         ],

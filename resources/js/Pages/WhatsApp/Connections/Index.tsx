@@ -1,11 +1,10 @@
-import { Link, router } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
+import { useMemo, useState } from 'react';
+import { CheckCircle2, Link as LinkIcon, Phone, Plus, Search, Sparkles, XCircle } from 'lucide-react';
 import AppShell from '@/Layouts/AppShell';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
 import Button from '@/Components/UI/Button';
-import { Plus, Copy, Check, Link as LinkIcon, Phone, Clock, Sparkles, CheckCircle2, XCircle, Search, Filter, Activity } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { Head } from '@inertiajs/react';
 import TextInput from '@/Components/TextInput';
 
 interface Connection {
@@ -15,50 +14,51 @@ interface Connection {
     phone_number_id: string;
     business_phone: string | null;
     is_active: boolean;
-    webhook_subscribed: boolean;
     webhook_last_received_at: string | null;
-    quality_rating?: string | null;
-    messaging_limit_tier?: string | null;
-    health_state?: string | null;
-    restriction_state?: string | null;
-    warning_state?: string | null;
-    health_last_synced_at?: string | null;
-    metadata_sync_status?: string | null;
-    metadata_last_sync_error?: string | null;
-    metadata_stale?: boolean;
-    metadata_stale_after_hours?: number;
-    activation_state?: string | null;
-    activation_last_error?: string | null;
-    activation_updated_at?: string | null;
     provisioning_step?: string | null;
     provisioning_status?: string | null;
     provisioning_last_error?: string | null;
-    provisioning_completed_at?: string | null;
-    webhook_mode?: string;
-    webhook_url: string;
+    activation_state?: string | null;
     created_at: string;
 }
 
+function formatSetupLabel(connection: Connection): string {
+    if (connection.provisioning_status === 'failed') return 'Needs attention';
+    if (connection.provisioning_status && connection.provisioning_status !== 'completed') return 'Setup in progress';
+    if (connection.activation_state && connection.activation_state !== 'active') return 'Finishing setup';
+    return connection.is_active ? 'Ready' : 'Inactive';
+}
+
+function formatSetupTone(connection: Connection): 'success' | 'warning' | 'default' {
+    if (connection.provisioning_status === 'failed') return 'warning';
+    if (connection.provisioning_status && connection.provisioning_status !== 'completed') return 'default';
+    if (connection.is_active) return 'success';
+    return 'default';
+}
+
 export default function ConnectionsIndex({
-    account,
     connections,
-    canCreate}: {
-    account: any;
+    canCreate,
+}: {
+    account: unknown;
     connections: Connection[];
     canCreate: boolean;
 }) {
-    const [copiedUrl, setCopiedUrl] = useState<number | null>(null);
-    const [syncingConnectionId, setSyncingConnectionId] = useState<number | null>(null);
     const [query, setQuery] = useState('');
-    const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'ready' | 'attention'>('all');
 
     const filteredConnections = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase();
+
         return connections
             .filter((connection) => {
-                if (statusFilter === 'active' && !connection.is_active) return false;
-                if (statusFilter === 'inactive' && connection.is_active) return false;
+                const setupLabel = formatSetupLabel(connection);
+
+                if (statusFilter === 'ready' && setupLabel !== 'Ready') return false;
+                if (statusFilter === 'attention' && setupLabel === 'Ready') return false;
+
                 if (!normalizedQuery) return true;
+
                 return (
                     connection.name.toLowerCase().includes(normalizedQuery) ||
                     connection.phone_number_id.toLowerCase().includes(normalizedQuery) ||
@@ -68,100 +68,63 @@ export default function ConnectionsIndex({
             .sort((a, b) => a.name.localeCompare(b.name));
     }, [connections, query, statusFilter]);
 
-    const activeCount = connections.filter((connection) => connection.is_active).length;
-    const subscribedCount = connections.filter((connection) => connection.webhook_subscribed).length;
-    const formatProvisioningLabel = (step?: string | null) => {
-        if (!step) return 'Setup pending';
-        return step.replaceAll('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase());
-    };
-
-    const copyToClipboard = (text: string, connectionId: number) => {
-        navigator.clipboard.writeText(text);
-        setCopiedUrl(connectionId);
-        setTimeout(() => setCopiedUrl(null), 2000);
-    };
-
-    const syncHealth = (connection: Connection) => {
-        if (syncingConnectionId !== null) return;
-
-        setSyncingConnectionId(connection.id);
-        router.post(
-            route('app.whatsapp.connections.sync-health', {
-                connection: connection.slug ?? connection.id,
-            }),
-            {},
-            {
-                preserveScroll: true,
-                onFinish: () => setSyncingConnectionId(null),
-            },
-        );
-    };
+    const readyCount = connections.filter((connection) => formatSetupLabel(connection) === 'Ready').length;
+    const setupCount = connections.filter((connection) => formatSetupLabel(connection) === 'Setup in progress' || formatSetupLabel(connection) === 'Finishing setup').length;
+    const attentionCount = connections.filter((connection) => formatSetupLabel(connection) === 'Needs attention').length;
 
     return (
         <AppShell>
             <Head title="WhatsApp Connections" />
-            <div className="space-y-8">
-                <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gradient-to-br from-white to-blue-50/60 dark:from-gray-900 dark:to-blue-900/20 p-6 shadow-sm">
-                    <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+
+            <div className="space-y-6">
+                <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                    <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                         <div>
-                            <div className="inline-flex items-center gap-2 rounded-full bg-blue-100/80 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">
+                            <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">
                                 <LinkIcon className="h-3.5 w-3.5" />
-                                WhatsApp Cloud API
+                                WhatsApp
                             </div>
-                            <h1 className="mt-3 text-3xl font-bold text-gray-900 dark:text-gray-100">
-                                Connections
-                            </h1>
-                            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                                Keep your API credentials, webhook, and phone numbers in sync.
+                            <h1 className="mt-3 text-3xl font-semibold text-gray-900 dark:text-gray-100">Connections</h1>
+                            <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
+                                Connect your business number, see which numbers are ready, and finish setup from one place.
                             </p>
                         </div>
+
                         <div className="flex flex-col gap-3 sm:flex-row">
                             {canCreate && (
-                                <Link href={route('app.whatsapp.connections.create', {})}>
-                                    <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/40">
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        Add Connection
+                                <Link href={route('app.whatsapp.connections.create')}>
+                                    <Button>
+                                        <Plus className="mr-2 h-4 w-4" />
+                                        Add WhatsApp Number
                                     </Button>
                                 </Link>
                             )}
-                            <Link href={route('app.whatsapp.connections.wizard', {})}>
-                                <Button variant="secondary" className="border-blue-200/60 text-blue-700 hover:bg-blue-50 dark:border-blue-800/60 dark:text-blue-200 dark:hover:bg-blue-900/30">
-                                    <Sparkles className="h-4 w-4 mr-2" />
+                            <Link href={route('app.whatsapp.connections.wizard')}>
+                                <Button variant="secondary">
+                                    <Sparkles className="mr-2 h-4 w-4" />
                                     Guided Setup
                                 </Button>
                             </Link>
                         </div>
                     </div>
 
-                    <div className="mt-6 grid gap-4 sm:grid-cols-3">
-                        <div className="rounded-xl border border-gray-200/80 bg-white/70 p-4 dark:border-gray-800 dark:bg-gray-900/60">
-                            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Total Connections
-                            </p>
-                            <p className="mt-2 text-2xl font-bold text-gray-900 dark:text-gray-100">
-                                {connections.length}
-                            </p>
+                    <div className="mt-6 grid gap-4 md:grid-cols-3">
+                        <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+                            <div className="text-sm text-gray-500 dark:text-gray-400">Ready</div>
+                            <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{readyCount}</div>
                         </div>
-                        <div className="rounded-xl border border-gray-200/80 bg-white/70 p-4 dark:border-gray-800 dark:bg-gray-900/60">
-                            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Active
-                            </p>
-                            <p className="mt-2 text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                                {activeCount}
-                            </p>
+                        <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+                            <div className="text-sm text-gray-500 dark:text-gray-400">Finishing setup</div>
+                            <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{setupCount}</div>
                         </div>
-                        <div className="rounded-xl border border-gray-200/80 bg-white/70 p-4 dark:border-gray-800 dark:bg-gray-900/60">
-                            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                Webhook Subscribed
-                            </p>
-                            <p className="mt-2 text-2xl font-bold text-blue-600 dark:text-blue-400">
-                                {subscribedCount}
-                            </p>
+                        <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+                            <div className="text-sm text-gray-500 dark:text-gray-400">Needs attention</div>
+                            <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{attentionCount}</div>
                         </div>
                     </div>
                 </div>
 
-                <Card className="border-0 shadow-md">
+                <Card>
                     <CardContent className="p-5">
                         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                             <div className="relative w-full md:max-w-md">
@@ -169,249 +132,121 @@ export default function ConnectionsIndex({
                                 <TextInput
                                     value={query}
                                     onChange={(event) => setQuery(event.target.value)}
-                                    placeholder="Search by name, phone, or number ID"
+                                    placeholder="Search by name or number"
                                     className="pl-9"
                                 />
                             </div>
-                            <div className="flex items-center gap-2">
-                                <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 dark:text-gray-400">
-                                    <Filter className="h-3.5 w-3.5" />
-                                    Status
-                                </div>
-                                <div className="flex rounded-full border border-gray-200 bg-white p-1 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                                    {(['all', 'active', 'inactive'] as const).map((status) => (
-                                        <button
-                                            key={status}
-                                            type="button"
-                                            onClick={() => setStatusFilter(status)}
-                                            className={`px-3 py-1 text-xs font-semibold capitalize rounded-full transition-colors ${
-                                                statusFilter === status
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
-                                            }`}
-                                        >
-                                            {status}
-                                        </button>
-                                    ))}
-                                </div>
+
+                            <div className="flex rounded-full border border-gray-200 bg-white p-1 dark:border-gray-800 dark:bg-gray-900">
+                                {([
+                                    ['all', 'All'],
+                                    ['ready', 'Ready'],
+                                    ['attention', 'Needs attention'],
+                                ] as const).map(([value, label]) => (
+                                    <button
+                                        key={value}
+                                        type="button"
+                                        onClick={() => setStatusFilter(value)}
+                                        className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                                            statusFilter === value
+                                                ? 'bg-blue-600 text-white'
+                                                : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+                                        }`}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
                             </div>
                         </div>
                     </CardContent>
                 </Card>
 
                 {filteredConnections.length === 0 ? (
-                    <Card className="border-0 shadow-xl">
+                    <Card>
                         <CardContent className="py-16 text-center">
-                            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/20 dark:to-blue-800/20 mb-6">
-                                <LinkIcon className="h-10 w-10 text-blue-600 dark:text-blue-400" />
+                            <div className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300">
+                                <LinkIcon className="h-8 w-8" />
                             </div>
-                            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                                No matching connections
-                            </h3>
-                            <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-md mx-auto">
-                                Try a different search or add a new WhatsApp connection.
+                            <h3 className="mt-5 text-lg font-semibold text-gray-900 dark:text-gray-100">No connections found</h3>
+                            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                Try a different search or connect another number.
                             </p>
-                            {canCreate && (
-                                <Link href={route('app.whatsapp.connections.create', {})}>
-                                    <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50">
-                                        <Plus className="h-4 w-4 mr-2" />
-                                        Create Connection
-                                    </Button>
-                                </Link>
-                            )}
                         </CardContent>
                     </Card>
                 ) : (
-                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                        {filteredConnections.map((connection) => (
-                            <Card key={connection.id} className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 group overflow-hidden">
-                                <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 pb-4">
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex-1">
-                                            <CardTitle className="text-lg font-bold text-gray-900 dark:text-gray-100">
-                                                {connection.name}
-                                            </CardTitle>
-                                            <CardDescription className="mt-1 flex items-center gap-2">
-                                                <Phone className="h-3.5 w-3.5" />
-                                                {connection.business_phone || connection.phone_number_id}
-                                            </CardDescription>
+                    <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
+                        {filteredConnections.map((connection) => {
+                            const setupLabel = formatSetupLabel(connection);
+                            const lastActivity = connection.webhook_last_received_at
+                                ? new Date(connection.webhook_last_received_at).toLocaleString()
+                                : null;
+
+                            return (
+                                <Card key={connection.id} className="border-gray-200 shadow-sm dark:border-gray-800">
+                                    <CardHeader className="space-y-4">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <CardTitle className="text-lg text-gray-900 dark:text-gray-100">{connection.name}</CardTitle>
+                                                <CardDescription className="mt-1 flex items-center gap-2 text-sm">
+                                                    <Phone className="h-3.5 w-3.5" />
+                                                    {connection.business_phone || 'Number added'}
+                                                </CardDescription>
+                                            </div>
+                                            <Badge variant={formatSetupTone(connection)}>{setupLabel}</Badge>
                                         </div>
-                                        <div className="flex flex-col gap-2">
-                                            <Badge 
-                                                variant={connection.is_active ? 'success' : 'default'} 
-                                                className="flex items-center gap-1.5 px-3 py-1"
-                                            >
+                                    </CardHeader>
+
+                                    <CardContent className="space-y-4">
+                                        <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-800/60">
+                                            <div className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
                                                 {connection.is_active ? (
-                                                    <>
-                                                        <CheckCircle2 className="h-3.5 w-3.5" />
-                                                        Active
-                                                    </>
+                                                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                                                 ) : (
-                                                    <>
-                                                        <XCircle className="h-3.5 w-3.5" />
-                                                        Inactive
-                                                    </>
+                                                    <XCircle className="h-4 w-4 text-amber-500" />
                                                 )}
-                                            </Badge>
-                                            {connection.webhook_subscribed && (
-                                                <Badge variant="info" className="flex items-center gap-1.5 px-3 py-1">
-                                                    <Sparkles className="h-3.5 w-3.5" />
-                                                    Subscribed
-                                                </Badge>
-                                            )}
-                                            {!connection.webhook_subscribed && (
-                                                <Badge variant="warning" className="flex items-center gap-1.5 px-3 py-1">
-                                                    <Activity className="h-3.5 w-3.5" />
-                                                    Webhook idle
-                                                </Badge>
-                                            )}
-                                            {connection.metadata_stale && (
-                                                <Badge variant="warning" className="flex items-center gap-1.5 px-3 py-1">
-                                                    Metadata stale
-                                                </Badge>
-                                            )}
-                                        </div>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="p-6 space-y-4">
-                                    <div className="space-y-3">
-                                        <div>
-                                            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-                                                Phone Number ID
-                                            </p>
-                                            <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-                                                <code className="text-xs font-mono text-gray-900 dark:text-gray-100 flex-1 truncate">
-                                                    {connection.phone_number_id}
-                                                </code>
-                                                <button
-                                                    onClick={() => copyToClipboard(connection.phone_number_id, connection.id)}
-                                                    className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                                                >
-                                                    {copiedUrl === connection.id ? (
-                                                        <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
-                                                    ) : (
-                                                        <Copy className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                                                    )}
-                                                </button>
+                                                {connection.is_active ? 'Ready to use' : 'Still being prepared'}
                                             </div>
-                                        </div>
-
-                                        <div>
-                                            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-                                                Central Webhook
-                                            </p>
-                                            <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-                                                <code className="text-xs font-mono text-gray-900 dark:text-gray-100 flex-1 truncate">
-                                                    {connection.webhook_url}
-                                                </code>
-                                                <button
-                                                    onClick={() => copyToClipboard(connection.webhook_url, connection.id)}
-                                                    className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                                                >
-                                                    {copiedUrl === connection.id ? (
-                                                        <Check className="h-4 w-4 text-green-600 dark:text-green-400" />
-                                                    ) : (
-                                                        <Copy className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                                                    )}
-                                                </button>
-                                            </div>
-                                            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                                Managed once at the Meta app level. Zyptos maps incoming events to this connection automatically.
+                                            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                                                {connection.provisioning_status === 'failed'
+                                                    ? (connection.provisioning_last_error || 'Setup needs one more check before this number can be used.')
+                                                    : connection.provisioning_status && connection.provisioning_status !== 'completed'
+                                                        ? 'Zyptos is still finishing the setup for this number.'
+                                                        : 'You can use this number for templates, campaigns, and inbox conversations.'}
                                             </p>
                                         </div>
 
-                                        {connection.webhook_last_received_at && (
-                                            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                                                <Clock className="h-3.5 w-3.5" />
-                                                Last webhook: {new Date(connection.webhook_last_received_at).toLocaleString()}
+                                        <dl className="space-y-3 text-sm">
+                                            <div className="flex items-start justify-between gap-4">
+                                                <dt className="text-gray-500 dark:text-gray-400">Number ID</dt>
+                                                <dd className="max-w-[60%] truncate text-right font-medium text-gray-900 dark:text-gray-100">{connection.phone_number_id}</dd>
                                             </div>
-                                        )}
-                                        {!connection.webhook_last_received_at && (
-                                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                                                No webhook events received yet.
+                                            <div className="flex items-start justify-between gap-4">
+                                                <dt className="text-gray-500 dark:text-gray-400">Added on</dt>
+                                                <dd className="text-right font-medium text-gray-900 dark:text-gray-100">{new Date(connection.created_at).toLocaleDateString()}</dd>
                                             </div>
-                                        )}
-                                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                                            Health: <span className="font-semibold uppercase">{connection.health_state || 'UNKNOWN'}</span>
-                                            {connection.warning_state ? ` · Warning: ${connection.warning_state}` : ''}
-                                            {connection.restriction_state ? ` · Restriction: ${connection.restriction_state}` : ''}
-                                        </div>
-                                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                                            Quality: {connection.quality_rating || 'Unknown'} · Tier: {connection.messaging_limit_tier || 'Unknown'}
-                                        </div>
-                                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                                            Metadata sync: <span className="font-semibold uppercase">{connection.metadata_sync_status || 'PENDING'}</span>
-                                            {connection.metadata_stale && connection.metadata_stale_after_hours
-                                                ? ` · stale > ${connection.metadata_stale_after_hours}h`
-                                                : ''}
-                                        </div>
-                                        {connection.metadata_last_sync_error && (
-                                            <div className="text-xs text-amber-600 dark:text-amber-400">
-                                                Last sync error: {connection.metadata_last_sync_error}
+                                            <div className="flex items-start justify-between gap-4">
+                                                <dt className="text-gray-500 dark:text-gray-400">Last message update</dt>
+                                                <dd className="text-right font-medium text-gray-900 dark:text-gray-100">{lastActivity || 'Not received yet'}</dd>
                                             </div>
-                                        )}
-                                        {connection.activation_state && connection.activation_state !== 'active' && (
-                                            <div className="text-xs text-amber-600 dark:text-amber-400">
-                                                Activation: {connection.activation_state.toUpperCase()}
-                                                {connection.activation_last_error ? ` · ${connection.activation_last_error}` : ''}
-                                            </div>
-                                        )}
-                                        {connection.provisioning_status && connection.provisioning_status !== 'completed' && (
-                                            <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs dark:border-gray-700 dark:bg-gray-800">
-                                                <div className="font-semibold text-gray-700 dark:text-gray-200">
-                                                    {formatProvisioningLabel(connection.provisioning_step)}
-                                                </div>
-                                                <div className="mt-1 text-gray-500 dark:text-gray-400">
-                                                    {connection.provisioning_status === 'failed'
-                                                        ? (connection.provisioning_last_error || 'Setup failed. Review the connection and retry.')
-                                                        : 'Meta setup is still finishing for this connection.'}
-                                                </div>
-                                            </div>
-                                        )}
-                                        {connection.health_last_synced_at && (
-                                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                                                Health synced: {new Date(connection.health_last_synced_at).toLocaleString()}
-                                            </div>
-                                        )}
-                                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                                            Created: {new Date(connection.created_at).toLocaleDateString()}
-                                        </div>
-                                    </div>
+                                        </dl>
 
-                                    <div className="grid gap-2 sm:grid-cols-2">
-                                        <Link
-                                            href={route('app.whatsapp.connections.edit', {
-                                                connection: connection.slug ?? connection.id})}
-                                            className="block"
-                                        >
-                                            <Button variant="secondary" className="w-full group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 group-hover:border-blue-200 dark:group-hover:border-blue-800 transition-colors">
-                                                Manage
-                                            </Button>
-                                        </Link>
-                                        <Link
-                                            href={route('app.whatsapp.connections.health', {
-                                                connection: connection.slug ?? connection.id})}
-                                            className="block"
-                                        >
-                                            <Button
-                                                variant={connection.metadata_stale || connection.metadata_sync_status === 'error' ? 'secondary' : 'ghost'}
-                                                className="w-full border border-transparent hover:border-blue-200 dark:hover:border-blue-800"
+                                        <div className="grid gap-2 sm:grid-cols-2">
+                                            <Link
+                                                href={route('app.whatsapp.connections.edit', {
+                                                    connection: connection.slug ?? connection.id,
+                                                })}
+                                                className="block"
                                             >
-                                                {connection.metadata_stale || connection.metadata_sync_status === 'error' ? 'Review Health' : 'Health Check'}
-                                            </Button>
-                                        </Link>
-                                        <Button
-                                            variant="secondary"
-                                            className="w-full sm:col-span-2"
-                                            onClick={() => syncHealth(connection)}
-                                            disabled={syncingConnectionId === connection.id}
-                                        >
-                                            {syncingConnectionId === connection.id ? 'Syncing Health...' : 'Sync Health Now'}
-                                        </Button>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))}
+                                                <Button variant="secondary" className="w-full">Open</Button>
+                                            </Link>
+                                            <Link href={route('app.support.index')} className="block">
+                                                <Button variant="ghost" className="w-full">Get help</Button>
+                                            </Link>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            );
+                        })}
                     </div>
                 )}
             </div>
