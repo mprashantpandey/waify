@@ -292,6 +292,7 @@ class TemplateTest extends TestCase
                 ->where('templates.data.0.latest_failed_send.meta_message_id', 'wamid.test.failed.1')
                 ->where('templates.data.0.latest_failed_send.timeline.0', 'accepted')
                 ->where('templates.data.0.latest_failed_send.payload.error.message', 'Provider payload mismatch')
+                ->where('templates.data.0.latest_failed_send.provider_error.message', 'Provider payload mismatch')
                 ->where('templates.data.0.last_meta_error', 'Sync warning')
                 ->where('templates.data.0.sync_state', 'sync_error')
             );
@@ -378,7 +379,9 @@ class TemplateTest extends TestCase
             ->post(route('app.whatsapp.templates.sync', ['account' => $this->account->slug]), [
                 'connection_id' => $this->connection->id,
             ])
-            ->assertRedirect();
+            ->assertRedirect()
+            ->assertSessionHas('sync_report.missing_remote', 1)
+            ->assertSessionHas('sync_report.missing_remote_templates.0.name', 'legacy_template');
 
         $template->refresh();
 

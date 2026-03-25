@@ -66,6 +66,12 @@ interface RecentSend {
         error_message?: string | null;
         meta_message_id?: string | null;
         payload?: Record<string, any> | null;
+        provider_error?: {
+            message?: string | null;
+            title?: string | null;
+            details?: string | null;
+            code?: string | number | null;
+        } | null;
         sent_at?: string | null;
         delivered_at?: string | null;
         read_at?: string | null;
@@ -612,6 +618,22 @@ export default function TemplatesSend({
                                                                 <dt className="mb-1 text-gray-500 dark:text-gray-400">Provider payload</dt>
                                                                 <dd className="overflow-x-auto rounded bg-white p-2 font-mono text-[11px] text-gray-700 dark:bg-gray-900 dark:text-gray-200">
                                                                     <pre>{JSON.stringify(send.message.payload, null, 2)}</pre>
+                                                                </dd>
+                                                            </div>
+                                                        )}
+                                                        {send.message?.provider_error?.details && (
+                                                            <div className="grid grid-cols-[120px_1fr] gap-2">
+                                                                <dt className="text-gray-500 dark:text-gray-400">Details</dt>
+                                                                <dd className="break-words text-gray-800 dark:text-gray-100">
+                                                                    {send.message.provider_error.details}
+                                                                </dd>
+                                                            </div>
+                                                        )}
+                                                        {send.message?.provider_error?.code && (
+                                                            <div className="grid grid-cols-[120px_1fr] gap-2">
+                                                                <dt className="text-gray-500 dark:text-gray-400">Code</dt>
+                                                                <dd className="break-words text-gray-800 dark:text-gray-100">
+                                                                    {send.message.provider_error.code}
                                                                 </dd>
                                                             </div>
                                                         )}

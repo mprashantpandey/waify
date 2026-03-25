@@ -74,6 +74,8 @@ class TemplateController extends Controller
             ->orderBy('language')
             ->paginate(20)
             ->through(function ($template) {
+                $providerError = $this->extractProviderErrorDetails($template->latestFailedSend?->message?->payload);
+
                 return [
                     'id' => $template->id,
                     'slug' => $template->slug,
@@ -102,11 +104,18 @@ class TemplateController extends Controller
                     'sends_failed_count' => (int) ($template->sends_failed_count ?? 0),
                     'latest_failed_send' => $template->latestFailedSend ? [
                         'id' => $template->latestFailedSend->id,
+                        'status' => $template->latestFailedSend->message?->status ?? $template->latestFailedSend->status,
                         'error_message' => $template->latestFailedSend->error_message
                             ?: $template->latestFailedSend->message?->error_message
-                            ?: data_get($template->latestFailedSend->message?->payload, 'error.message')
-                            ?: data_get($template->latestFailedSend->message?->payload, 'errors.0.message')
-                            ?: data_get($template->latestFailedSend->message?->payload, 'errors.0.title'),
+                            ?: $providerError['message'],
+                        'meta_message_id' => $template->latestFailedSend->message?->meta_message_id,
+                        'timeline' => array_values(array_filter([
+                            $template->latestFailedSend->message?->sent_at ? 'accepted' : null,
+                            $template->latestFailedSend->message?->delivered_at ? 'delivered' : null,
+                            $template->latestFailedSend->message?->read_at ? 'read' : null,
+                        ])),
+                        'payload' => $template->latestFailedSend->message?->payload,
+                        'provider_error' => $providerError,
                         'created_at' => $template->latestFailedSend->created_at?->toIso8601String(),
                     ] : null,
                 ];
@@ -168,6 +177,8 @@ class TemplateController extends Controller
             ->limit(12)
             ->get()
             ->map(function ($send) {
+                $providerError = $this->extractProviderErrorDetails($send->message?->payload);
+
                 return [
                     'id' => $send->id,
                     'to_wa_id' => $send->to_wa_id,
@@ -181,6 +192,7 @@ class TemplateController extends Controller
                         'error_message' => $send->message->error_message,
                         'meta_message_id' => $send->message->meta_message_id,
                         'payload' => $send->message->payload,
+                        'provider_error' => $providerError,
                         'sent_at' => $send->message->sent_at?->toIso8601String(),
                         'delivered_at' => $send->message->delivered_at?->toIso8601String(),
                         'read_at' => $send->message->read_at?->toIso8601String(),
@@ -695,5 +707,29 @@ class TemplateController extends Controller
         }
 
         return null;
+    }
+
+    protected function extractProviderErrorDetails(?array $payload): array
+    {
+        if (!$payload) {
+            return [
+                'message' => null,
+                'title' => null,
+                'details' => null,
+                'code' => null,
+            ];
+        }
+
+        return [
+            'message' => data_get($payload, 'error.message')
+                ?: data_get($payload, 'errors.0.message')
+                ?: data_get($payload, 'errors.0.title'),
+            'title' => data_get($payload, 'error.error_user_title')
+                ?: data_get($payload, 'errors.0.title'),
+            'details' => data_get($payload, 'error.error_data.details')
+                ?: data_get($payload, 'errors.0.details'),
+            'code' => data_get($payload, 'error.code')
+                ?: data_get($payload, 'errors.0.code'),
+        ];
     }
 }

@@ -45,6 +45,12 @@ interface Template {
         meta_message_id?: string | null;
         timeline?: string[];
         payload?: Record<string, any> | null;
+        provider_error?: {
+            message?: string | null;
+            title?: string | null;
+            details?: string | null;
+            code?: string | number | null;
+        } | null;
         created_at?: string | null;
     } | null;
 }
@@ -76,6 +82,12 @@ export default function TemplatesIndex({
         created: number;
         updated: number;
         missing_remote?: number;
+        missing_remote_templates?: Array<{
+            id: number;
+            name: string;
+            language: string;
+            status: string;
+        }>;
         errors_count: number;
         errors?: Array<{ template: string; error: string }>;
     } | null;
@@ -402,6 +414,15 @@ export default function TemplatesIndex({
                                     <p>
                                         Last run: {sync_report.total} total, {sync_report.created} created, {sync_report.updated} updated, {sync_report.missing_remote ?? 0} missing on Meta, {sync_report.errors_count} errors.
                                     </p>
+                                    {Array.isArray(sync_report.missing_remote_templates) && sync_report.missing_remote_templates.length > 0 && (
+                                        <ul className="mt-2 space-y-1 text-amber-700 dark:text-amber-300">
+                                            {sync_report.missing_remote_templates.map((template) => (
+                                                <li key={template.id}>
+                                                    Missing on Meta: {template.name} ({template.language}) — local status {template.status}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
                                     {Array.isArray(sync_report.errors) && sync_report.errors.length > 0 && (
                                         <ul className="mt-2 space-y-1 text-red-600 dark:text-red-400">
                                             {sync_report.errors.map((err, idx) => (
@@ -606,6 +627,19 @@ export default function TemplatesIndex({
                                                                         title={template.latest_failed_send.payload.error.message}
                                                                     >
                                                                         Provider: {template.latest_failed_send.payload.error.message}
+                                                                    </p>
+                                                                )}
+                                                                {template.latest_failed_send?.provider_error?.details && (
+                                                                    <p
+                                                                        className="text-[11px] text-red-600 dark:text-red-400 truncate"
+                                                                        title={template.latest_failed_send.provider_error.details}
+                                                                    >
+                                                                        Details: {template.latest_failed_send.provider_error.details}
+                                                                    </p>
+                                                                )}
+                                                                {template.latest_failed_send?.provider_error?.code && (
+                                                                    <p className="text-[11px] text-red-600 dark:text-red-400">
+                                                                        Code: {template.latest_failed_send.provider_error.code}
                                                                     </p>
                                                                 )}
                                                                 {template.latest_failed_send?.created_at && (

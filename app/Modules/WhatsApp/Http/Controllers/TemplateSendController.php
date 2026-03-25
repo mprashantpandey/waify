@@ -88,6 +88,8 @@ class TemplateSendController extends Controller
             ->limit(10)
             ->get()
             ->map(function ($send) {
+                $providerError = $this->extractProviderErrorDetails($send->message?->payload);
+
                 return [
                     'id' => $send->id,
                     'to_wa_id' => $send->to_wa_id,
@@ -101,6 +103,7 @@ class TemplateSendController extends Controller
                         'error_message' => $send->message->error_message,
                         'meta_message_id' => $send->message->meta_message_id,
                         'payload' => $send->message->payload,
+                        'provider_error' => $providerError,
                         'sent_at' => $send->message->sent_at?->toIso8601String(),
                         'delivered_at' => $send->message->delivered_at?->toIso8601String(),
                         'read_at' => $send->message->read_at?->toIso8601String(),
@@ -494,5 +497,29 @@ class TemplateSendController extends Controller
         }
 
         return $value;
+    }
+
+    private function extractProviderErrorDetails(?array $payload): array
+    {
+        if (!$payload) {
+            return [
+                'message' => null,
+                'title' => null,
+                'details' => null,
+                'code' => null,
+            ];
+        }
+
+        return [
+            'message' => data_get($payload, 'error.message')
+                ?: data_get($payload, 'errors.0.message')
+                ?: data_get($payload, 'errors.0.title'),
+            'title' => data_get($payload, 'error.error_user_title')
+                ?: data_get($payload, 'errors.0.title'),
+            'details' => data_get($payload, 'error.error_data.details')
+                ?: data_get($payload, 'errors.0.details'),
+            'code' => data_get($payload, 'error.code')
+                ?: data_get($payload, 'errors.0.code'),
+        ];
     }
 }

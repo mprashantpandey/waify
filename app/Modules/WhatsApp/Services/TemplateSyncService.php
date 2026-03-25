@@ -137,8 +137,9 @@ class TemplateSyncService
         $errors = [];
         $seenMetaTemplateIds = [];
         $missingRemote = 0;
+        $missingRemoteTemplates = [];
 
-        DB::transaction(function () use ($connection, $allTemplates, &$created, &$updated, &$errors, &$seenMetaTemplateIds, &$missingRemote) {
+        DB::transaction(function () use ($connection, $allTemplates, &$created, &$updated, &$errors, &$seenMetaTemplateIds, &$missingRemote, &$missingRemoteTemplates) {
             foreach ($allTemplates as $templateData) {
                 try {
                     $metaId = (string) ($templateData['id'] ?? '');
@@ -169,7 +170,7 @@ class TemplateSyncService
                 }
             }
 
-            $missingRemote = $this->markMissingRemoteTemplates($connection, $seenMetaTemplateIds);
+            ['count' => $missingRemote, 'templates' => $missingRemoteTemplates] = $this->markMissingRemoteTemplates($connection, $seenMetaTemplateIds);
         });
 
         $this->persistConnectionSyncState($connection, $errors);
@@ -178,6 +179,7 @@ class TemplateSyncService
             'created' => $created,
             'updated' => $updated,
             'missing_remote' => $missingRemote,
+            'missing_remote_templates' => $missingRemoteTemplates,
             'errors' => $errors,
             'total' => count($allTemplates)];
     }
@@ -342,7 +344,7 @@ class TemplateSyncService
         }
     }
 
-    protected function markMissingRemoteTemplates(WhatsAppConnection $connection, array $seenMetaTemplateIds): int
+    protected function markMissingRemoteTemplates(WhatsAppConnection $connection, array $seenMetaTemplateIds): array
     {
         $query = WhatsAppTemplate::query()
             ->where('account_id', $connection->account_id)
@@ -353,7 +355,14 @@ class TemplateSyncService
             $query->whereNotIn('meta_template_id', array_values(array_unique($seenMetaTemplateIds)));
         }
 
-        $count = (int) (clone $query)->count();
+        $templatesToMark = (clone $query)->get(['id', 'name', 'language', 'status', 'last_meta_sync_at', 'last_synced_at']);
+        $count = (int) $templatesToMark->count();
+        $missingTemplates = $templatesToMark->map(fn (WhatsAppTemplate $template) => [
+            'id' => $template->id,
+            'name' => $template->name,
+            'language' => $template->language,
+            'status' => $template->status,
+        ])->values()->all();
 
         $query->chunkById(100, function ($templates) {
             foreach ($templates as $template) {
@@ -375,6 +384,9 @@ class TemplateSyncService
             }
         });
 
-        return $count;
+        return [
+            'count' => $count,
+            'templates' => $missingTemplates,
+        ];
     }
 }

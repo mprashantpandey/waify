@@ -46,6 +46,7 @@ class TemplateSyncController extends Controller
                 'created' => $result['created'],
                 'updated' => $result['updated'],
                 'missing_remote' => (int) ($result['missing_remote'] ?? 0),
+                'missing_remote_templates' => array_slice($result['missing_remote_templates'] ?? [], 0, 10),
                 'errors_count' => count($result['errors'] ?? []),
                 'errors' => array_slice($result['errors'] ?? [], 0, 5),
             ]);
