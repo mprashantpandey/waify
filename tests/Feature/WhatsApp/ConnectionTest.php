@@ -8,6 +8,7 @@ use App\Models\Plan;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppConnectionHealthSnapshot;
 use App\Modules\WhatsApp\Models\WhatsAppEmbeddedSignupEvent;
+use App\Modules\WhatsApp\Models\WhatsAppWebhookEvent;
 use App\Modules\WhatsApp\Services\ConnectionHealthSyncService;
 use App\Modules\WhatsApp\Services\MetaGraphService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -617,7 +618,101 @@ class ConnectionTest extends TestCase
                 'connection' => $foreignConnection->slug,
             ]));
 
-        $response->assertNotFound();
+        $response->assertForbidden();
+    }
+
+    public function test_tenant_user_cannot_open_connection_health_page(): void
+    {
+        $connection = WhatsAppConnection::factory()->create([
+            'account_id' => $this->account->id,
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_account_id' => $this->account->id])
+            ->get(route('app.whatsapp.connections.health', [
+                'connection' => $connection->id,
+            ]));
+
+        $response->assertForbidden();
+    }
+
+    public function test_platform_support_can_open_connection_health_page_while_impersonating(): void
+    {
+        $connection = WhatsAppConnection::factory()->create([
+            'account_id' => $this->account->id,
+        ]);
+
+        $supportUser = User::factory()->create();
+
+        $response = $this->actingAs($this->user)
+            ->withSession([
+                'current_account_id' => $this->account->id,
+                'impersonator_id' => $supportUser->id,
+                'impersonator_is_super_admin' => true,
+            ])
+            ->get(route('app.whatsapp.connections.health', [
+                'connection' => $connection->id,
+            ]));
+
+        $response->assertOk();
+    }
+
+    public function test_tenant_user_cannot_open_webhook_diagnostics_page(): void
+    {
+        $connection = WhatsAppConnection::factory()->create([
+            'account_id' => $this->account->id,
+        ]);
+
+        WhatsAppWebhookEvent::query()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_connection_id' => $connection->id,
+            'event_type' => 'messages',
+            'object_type' => 'whatsapp_business_account',
+            'status' => 'processed',
+            'signature_valid' => true,
+            'payload_size' => 128,
+            'payload' => ['entry' => []],
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->withSession(['current_account_id' => $this->account->id])
+            ->get(route('app.whatsapp.connections.webhook-diagnostics', [
+                'connection' => $connection->id,
+            ]));
+
+        $response->assertForbidden();
+    }
+
+    public function test_platform_support_can_open_webhook_diagnostics_page_while_impersonating(): void
+    {
+        $connection = WhatsAppConnection::factory()->create([
+            'account_id' => $this->account->id,
+        ]);
+
+        WhatsAppWebhookEvent::query()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_connection_id' => $connection->id,
+            'event_type' => 'messages',
+            'object_type' => 'whatsapp_business_account',
+            'status' => 'processed',
+            'signature_valid' => true,
+            'payload_size' => 128,
+            'payload' => ['entry' => []],
+        ]);
+
+        $supportUser = User::factory()->create();
+
+        $response = $this->actingAs($this->user)
+            ->withSession([
+                'current_account_id' => $this->account->id,
+                'impersonator_id' => $supportUser->id,
+                'impersonator_is_super_admin' => true,
+            ])
+            ->get(route('app.whatsapp.connections.webhook-diagnostics', [
+                'connection' => $connection->id,
+            ]));
+
+        $response->assertOk();
     }
 
     public function test_owner_can_trigger_manual_connection_health_sync(): void

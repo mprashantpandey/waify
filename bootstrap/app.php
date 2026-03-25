@@ -55,6 +55,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant.phone.verified' => \App\Http\Middleware\EnsurePhoneVerifiedForTenant::class,
             'api.key' => \App\Http\Middleware\AuthenticateApiKey::class,
             'api.scope' => \App\Http\Middleware\EnsureApiKeyScope::class,
+            'support.access' => \App\Http\Middleware\EnsureSupportAccess::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

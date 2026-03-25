@@ -21,6 +21,7 @@ class ImpersonationController extends Controller
         if (!$request->session()->has('impersonator_id')) {
             $request->session()->put('impersonator_id', $request->user()->id);
         }
+        $request->session()->put('impersonator_is_super_admin', (bool) $request->user()?->isSuperAdmin());
         $request->session()->put('impersonated_account_id', $account->id);
 
         Auth::loginUsingId($ownerId);
@@ -37,7 +38,7 @@ class ImpersonationController extends Controller
         }
 
         Auth::loginUsingId($impersonatorId);
-        $request->session()->forget(['impersonator_id', 'impersonated_account_id']);
+        $request->session()->forget(['impersonator_id', 'impersonator_is_super_admin', 'impersonated_account_id']);
 
         return redirect()->route('platform.dashboard')
             ->with('success', 'Impersonation ended.');
@@ -48,6 +49,7 @@ class ImpersonationController extends Controller
         if (!$request->session()->has('impersonator_id')) {
             $request->session()->put('impersonator_id', $request->user()->id);
         }
+        $request->session()->put('impersonator_is_super_admin', (bool) $request->user()?->isSuperAdmin());
 
         Auth::loginUsingId($user->id);
 
