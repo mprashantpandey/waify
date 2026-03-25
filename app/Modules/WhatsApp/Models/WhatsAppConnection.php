@@ -47,6 +47,11 @@ class WhatsAppConnection extends Model
         'activation_state',
         'activation_last_error',
         'activation_updated_at',
+        'provisioning_step',
+        'provisioning_status',
+        'provisioning_last_error',
+        'provisioning_context',
+        'provisioning_completed_at',
         'throughput_cap_per_minute',
         'quiet_hours_start',
         'quiet_hours_end',
@@ -110,6 +115,8 @@ class WhatsAppConnection extends Model
         'webhook_last_lag_seconds' => 'integer',
         'health_last_synced_at' => 'datetime',
         'activation_updated_at' => 'datetime',
+        'provisioning_context' => 'array',
+        'provisioning_completed_at' => 'datetime',
         'templates_last_synced_at' => 'datetime',
         'throughput_cap_per_minute' => 'integer'];
 

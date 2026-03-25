@@ -144,6 +144,37 @@ class MetaGraphService
         return $data;
     }
 
+    public function getSubscribedApps(string $wabaId, string $accessToken): array
+    {
+        $response = $this->graphRequestWithToken($accessToken)
+            ->get("{$this->baseUrl}/{$this->apiVersion}/{$wabaId}/subscribed_apps");
+
+        $data = $response->json();
+        if (!$response->successful()) {
+            Log::channel('whatsapp')->warning('Get subscribed apps failed', [
+                'waba_id' => $wabaId,
+                'status' => $response->status(),
+                'error' => $data['error'] ?? $data,
+            ]);
+            throw new \RuntimeException($data['error']['message'] ?? 'Get subscribed apps failed');
+        }
+
+        return $data['data'] ?? $data;
+    }
+
+    public function ensureAppSubscribedToWaba(string $wabaId, string $accessToken): array
+    {
+        $apps = $this->getSubscribedApps($wabaId, $accessToken);
+        if (!empty($apps)) {
+            return [
+                'already_subscribed' => true,
+                'data' => $apps,
+            ];
+        }
+
+        return $this->subscribeAppToWaba($wabaId, $accessToken);
+    }
+
     public function listPhoneNumbers(string $wabaId, string $accessToken): array
     {
         $response = $this->graphRequestWithToken($accessToken)
@@ -248,6 +279,45 @@ class MetaGraphService
         }
 
         return $data;
+    }
+
+    public function getAssignedUsers(string $wabaId, string $accessToken): array
+    {
+        $response = $this->graphRequestWithToken($accessToken)
+            ->get("{$this->baseUrl}/{$this->apiVersion}/{$wabaId}/assigned_users");
+
+        $data = $response->json();
+        if (!$response->successful()) {
+            Log::channel('whatsapp')->warning('Get assigned users failed', [
+                'waba_id' => $wabaId,
+                'status' => $response->status(),
+                'error' => $data['error'] ?? $data,
+            ]);
+            throw new \RuntimeException($data['error']['message'] ?? 'Get assigned users failed');
+        }
+
+        return $data['data'] ?? $data;
+    }
+
+    public function ensureSystemUserAssignedToWaba(
+        string $wabaId,
+        string $systemUserId,
+        string $accessToken,
+        array $tasks = ['MANAGE', 'DEVELOP']
+    ): array {
+        $assignedUsers = $this->getAssignedUsers($wabaId, $accessToken);
+        $alreadyAssigned = collect($assignedUsers)->contains(function ($user) use ($systemUserId) {
+            return (string) ($user['id'] ?? $user['user'] ?? '') === $systemUserId;
+        });
+
+        if ($alreadyAssigned) {
+            return [
+                'already_assigned' => true,
+                'data' => $assignedUsers,
+            ];
+        }
+
+        return $this->assignSystemUserToWaba($wabaId, $systemUserId, $accessToken, $tasks);
     }
 
     /**

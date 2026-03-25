@@ -30,6 +30,10 @@ interface Connection {
     activation_state?: string | null;
     activation_last_error?: string | null;
     activation_updated_at?: string | null;
+    provisioning_step?: string | null;
+    provisioning_status?: string | null;
+    provisioning_last_error?: string | null;
+    provisioning_completed_at?: string | null;
     webhook_url: string;
     created_at: string;
 }
@@ -65,6 +69,10 @@ export default function ConnectionsIndex({
 
     const activeCount = connections.filter((connection) => connection.is_active).length;
     const subscribedCount = connections.filter((connection) => connection.webhook_subscribed).length;
+    const formatProvisioningLabel = (step?: string | null) => {
+        if (!step) return 'Setup pending';
+        return step.replaceAll('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+    };
 
     const copyToClipboard = (text: string, connectionId: number) => {
         navigator.clipboard.writeText(text);
@@ -342,6 +350,18 @@ export default function ConnectionsIndex({
                                             <div className="text-xs text-amber-600 dark:text-amber-400">
                                                 Activation: {connection.activation_state.toUpperCase()}
                                                 {connection.activation_last_error ? ` · ${connection.activation_last_error}` : ''}
+                                            </div>
+                                        )}
+                                        {connection.provisioning_status && connection.provisioning_status !== 'completed' && (
+                                            <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs dark:border-gray-700 dark:bg-gray-800">
+                                                <div className="font-semibold text-gray-700 dark:text-gray-200">
+                                                    {formatProvisioningLabel(connection.provisioning_step)}
+                                                </div>
+                                                <div className="mt-1 text-gray-500 dark:text-gray-400">
+                                                    {connection.provisioning_status === 'failed'
+                                                        ? (connection.provisioning_last_error || 'Setup failed. Review the connection and retry.')
+                                                        : 'Meta setup is still finishing for this connection.'}
+                                                </div>
                                             </div>
                                         )}
                                         {connection.health_last_synced_at && (

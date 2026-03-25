@@ -9,6 +9,7 @@ use App\Models\PlatformSetting;
 use App\Modules\WhatsApp\Services\ConnectionService;
 use App\Modules\WhatsApp\Services\ConnectionHealthSyncService;
 use App\Modules\WhatsApp\Services\ConnectionLifecycleService;
+use App\Modules\WhatsApp\Services\EmbeddedSignupProvisioningService;
 use App\Modules\WhatsApp\Services\MetaGraphService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,7 +27,8 @@ class ConnectionController extends Controller
         protected EntitlementService $entitlementService,
         protected MetaGraphService $metaGraphService,
         protected ConnectionHealthSyncService $connectionHealthSyncService,
-        protected ConnectionLifecycleService $connectionLifecycleService
+        protected ConnectionLifecycleService $connectionLifecycleService,
+        protected EmbeddedSignupProvisioningService $embeddedSignupProvisioningService
     ) {
     }
 
@@ -72,6 +74,11 @@ class ConnectionController extends Controller
                     'activation_state' => $connection->activation_state ?: 'active',
                     'activation_last_error' => $connection->activation_last_error,
                     'activation_updated_at' => $connection->activation_updated_at?->toIso8601String(),
+                    'provisioning_step' => $connection->provisioning_step,
+                    'provisioning_status' => $connection->provisioning_status ?: 'pending',
+                    'provisioning_last_error' => $connection->provisioning_last_error,
+                    'provisioning_completed_at' => $connection->provisioning_completed_at?->toIso8601String(),
+                    'provisioning_context' => $connection->provisioning_context,
                     'webhook_url' => $this->connectionService->getWebhookUrl($connection),
                     'created_at' => $connection->created_at->toIso8601String()];
             });
@@ -348,20 +355,6 @@ class ConnectionController extends Controller
                 ->orderByDesc('updated_at')
                 ->first();
 
-            // Tech-provider provisioning: assign partner system user and attach partner credit line.
-            $this->provisionTechProviderOwnership(
-                wabaId: $wabaId,
-                accessToken: $accessToken,
-                systemUserId: $systemUserId,
-                systemUserToken: $systemUserToken,
-                creditLineId: $creditLineId,
-                strict: $strictProvisioning
-            );
-
-            if ($systemUserToken !== '') {
-                $effectiveToken = $systemUserToken;
-            }
-
             $businessPhone = $validated['business_phone'] ?? null;
             if (!$businessPhone) {
                 try {
@@ -399,7 +392,13 @@ class ConnectionController extends Controller
                     'waba_id' => $wabaId,
                     'business_phone' => $businessPhone,
                     'access_token' => $effectiveToken,
-                    'api_version' => $this->metaGraphService->getApiVersion()]);
+                    'api_version' => $this->metaGraphService->getApiVersion(),
+                    'provisioning_context' => null,
+                    'provisioning_completed_at' => null,
+                    'provisioning_last_error' => null,
+                    'provisioning_step' => null,
+                    'provisioning_status' => EmbeddedSignupProvisioningService::STATUS_PENDING,
+                ]);
                 $targetConnection->refresh();
             } else {
                 $targetConnection = $this->connectionService->create($account, [
@@ -412,23 +411,113 @@ class ConnectionController extends Controller
                     'activation_state' => 'provisioning',
                     'activation_updated_at' => now(),
                     'metadata_sync_status' => 'pending',
+                    'provisioning_status' => EmbeddedSignupProvisioningService::STATUS_PENDING,
                 ]);
             }
 
+            $this->embeddedSignupProvisioningService->complete($targetConnection, 'oauth_complete', [
+                'used_code' => !empty($validated['code']),
+                'used_access_token' => !empty($validated['access_token']),
+            ]);
+            $this->embeddedSignupProvisioningService->complete($targetConnection, 'assets_resolved', [
+                'waba_id' => $wabaId,
+                'phone_number_id' => $phoneNumberId,
+                'business_phone' => $businessPhone,
+            ]);
+
+            $provisioningToken = $systemUserToken !== '' ? $systemUserToken : $accessToken;
+
+            if ($systemUserId !== '') {
+                $this->embeddedSignupProvisioningService->start($targetConnection, 'system_user_assignment');
+                try {
+                    $assignmentResult = $this->metaGraphService->ensureSystemUserAssignedToWaba(
+                        $wabaId,
+                        $systemUserId,
+                        $provisioningToken
+                    );
+                    $this->embeddedSignupProvisioningService->complete($targetConnection, 'system_user_assignment', [
+                        'already_assigned' => (bool) ($assignmentResult['already_assigned'] ?? false),
+                    ]);
+                } catch (\Throwable $e) {
+                    $this->embeddedSignupProvisioningService->fail($targetConnection, 'system_user_assignment', $e->getMessage());
+                    if ($strictProvisioning) {
+                        throw new \RuntimeException('System user access failed: '.$e->getMessage(), 0, $e);
+                    }
+                }
+            } else {
+                $this->embeddedSignupProvisioningService->skip($targetConnection, 'system_user_assignment', 'System user is not configured');
+            }
+
+            if ($creditLineId !== '') {
+                $this->embeddedSignupProvisioningService->start($targetConnection, 'credit_line_attachment');
+                try {
+                    $this->metaGraphService->attachCreditLineToWaba($creditLineId, $wabaId, $provisioningToken);
+                    $this->embeddedSignupProvisioningService->complete($targetConnection, 'credit_line_attachment');
+                } catch (\Throwable $e) {
+                    $this->embeddedSignupProvisioningService->fail($targetConnection, 'credit_line_attachment', $e->getMessage());
+                    if ($strictProvisioning) {
+                        throw new \RuntimeException('Credit line attach failed: '.$e->getMessage(), 0, $e);
+                    }
+                }
+            } else {
+                $this->embeddedSignupProvisioningService->skip($targetConnection, 'credit_line_attachment', 'Credit line is not configured');
+            }
+
+            if ($systemUserToken !== '') {
+                $effectiveToken = $systemUserToken;
+                $this->connectionService->update($targetConnection, [
+                    'access_token' => $effectiveToken,
+                ]);
+                $targetConnection->refresh();
+            }
+
+            $this->embeddedSignupProvisioningService->start($targetConnection, 'app_subscription');
             try {
+                $subscriptionResult = $this->metaGraphService->ensureAppSubscribedToWaba($wabaId, $effectiveToken);
+                $this->embeddedSignupProvisioningService->complete($targetConnection, 'app_subscription', [
+                    'already_subscribed' => (bool) ($subscriptionResult['already_subscribed'] ?? false),
+                ]);
+            } catch (\Throwable $e) {
+                $this->embeddedSignupProvisioningService->fail($targetConnection, 'app_subscription', $e->getMessage());
+                if ($strictProvisioning) {
+                    throw new \RuntimeException('Webhook subscription failed: '.$e->getMessage(), 0, $e);
+                }
+            }
+
+            if (!empty($validated['pin'])) {
+                $this->embeddedSignupProvisioningService->start($targetConnection, 'phone_registration');
+                try {
+                    $this->metaGraphService->registerPhoneNumber($phoneNumberId, $validated['pin'], $effectiveToken);
+                    $this->embeddedSignupProvisioningService->complete($targetConnection, 'phone_registration');
+                } catch (\Throwable $e) {
+                    $this->embeddedSignupProvisioningService->fail($targetConnection, 'phone_registration', $e->getMessage());
+                    throw new \RuntimeException('Phone registration failed: '.$e->getMessage(), 0, $e);
+                }
+            } else {
+                $this->embeddedSignupProvisioningService->skip($targetConnection, 'phone_registration', 'PIN was not provided');
+            }
+
+            try {
+                $this->embeddedSignupProvisioningService->start($targetConnection, 'metadata_sync');
                 $snapshot = $this->connectionHealthSyncService->syncConnection($targetConnection, 'embedded_signup');
                 if ($snapshot) {
+                    $this->embeddedSignupProvisioningService->complete($targetConnection, 'metadata_sync', [
+                        'snapshot_id' => $snapshot->id,
+                    ]);
                     $this->connectionLifecycleService->transition($targetConnection, 'active', null, [
                         'source' => 'embedded_signup',
                         'snapshot_id' => $snapshot->id,
                     ]);
+                    $this->embeddedSignupProvisioningService->complete($targetConnection, 'connection_ready');
                 } else {
+                    $this->embeddedSignupProvisioningService->fail($targetConnection, 'metadata_sync', 'Connection health snapshot was not created');
                     $this->connectionLifecycleService->transition($targetConnection, 'degraded', null, [
                         'source' => 'embedded_signup',
                         'reason' => 'no_snapshot',
                     ]);
                 }
             } catch (\Throwable $syncError) {
+                $this->embeddedSignupProvisioningService->fail($targetConnection, 'metadata_sync', $syncError->getMessage());
                 $this->connectionLifecycleService->markMetadataSync($targetConnection, 'error', $syncError->getMessage(), [
                     'source' => 'embedded_signup',
                 ]);
@@ -443,6 +532,13 @@ class ConnectionController extends Controller
                 : 'Connection created successfully.');
         } catch (\Throwable $e) {
             if ($targetConnection instanceof WhatsAppConnection) {
+                if ($targetConnection->provisioning_step) {
+                    $this->embeddedSignupProvisioningService->fail(
+                        $targetConnection,
+                        (string) $targetConnection->provisioning_step,
+                        $e->getMessage()
+                    );
+                }
                 $this->connectionLifecycleService->markMetadataSync($targetConnection, 'error', $e->getMessage(), [
                     'source' => 'embedded_signup',
                     'phase' => 'store_embedded',

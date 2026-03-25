@@ -181,7 +181,7 @@ class ConnectionTest extends TestCase
         ]);
 
         $meta = Mockery::mock(MetaGraphService::class);
-        $meta->shouldReceive('subscribeAppToWaba')->once()->andReturn(['success' => true]);
+        $meta->shouldReceive('ensureAppSubscribedToWaba')->once()->andReturn(['already_subscribed' => false]);
         $meta->shouldReceive('getApiVersion')->andReturn('v21.0');
         $meta->shouldReceive('getPhoneNumberDetails')->once()->andReturn([
             'display_phone_number' => '+91 99999 00000',
@@ -190,7 +190,8 @@ class ConnectionTest extends TestCase
 
         $sync = Mockery::mock(ConnectionHealthSyncService::class);
         $sync->shouldReceive('syncConnection')->once()->andReturnUsing(function (WhatsAppConnection $connection) {
-            return WhatsAppConnectionHealthSnapshot::create([
+            return new WhatsAppConnectionHealthSnapshot([
+                'id' => 501,
                 'account_id' => $connection->account_id,
                 'whatsapp_connection_id' => $connection->id,
                 'source' => 'embedded_signup',
@@ -215,6 +216,47 @@ class ConnectionTest extends TestCase
         $this->assertSame('Reauthorized Connection', $existing->name);
         $this->assertSame('active', $existing->activation_state);
         $this->assertSame('pending', $existing->metadata_sync_status);
+        $this->assertSame('connection_ready', $existing->provisioning_step);
+        $this->assertSame('completed', $existing->provisioning_status);
+    }
+
+    public function test_embedded_signup_strict_provisioning_fails_when_app_subscription_fails(): void
+    {
+        config([
+            'whatsapp.meta.app_id' => 'app-id',
+            'whatsapp.meta.embedded_signup_config_id' => 'config-id',
+            'whatsapp.meta.strict_embedded_provisioning' => true,
+        ]);
+
+        $meta = Mockery::mock(MetaGraphService::class);
+        $meta->shouldReceive('getApiVersion')->andReturn('v21.0');
+        $meta->shouldReceive('getPhoneNumberDetails')->once()->andReturn([
+            'display_phone_number' => '+91 99999 00000',
+        ]);
+        $meta->shouldReceive('ensureAppSubscribedToWaba')->once()->andThrow(new \RuntimeException('Meta subscription failed'));
+        $this->instance(MetaGraphService::class, $meta);
+
+        $response = $this->actingAs($this->user)
+            ->from(route('app.whatsapp.connections.create', ['account' => $this->account->slug]))
+            ->post(route('app.whatsapp.connections.store-embedded', ['account' => $this->account->slug]), [
+                'name' => 'Strict Failure',
+                'waba_id' => 'waba-strict',
+                'phone_number_id' => 'pn-strict',
+                'access_token' => 'embedded-token',
+            ]);
+
+        $response->assertRedirect(route('app.whatsapp.connections.create', ['account' => $this->account->slug]));
+        $response->assertSessionHasErrors([
+            'embedded' => 'Webhook subscription failed: Meta subscription failed',
+        ]);
+
+        $this->assertDatabaseHas('whatsapp_connections', [
+            'account_id' => $this->account->id,
+            'waba_id' => 'waba-strict',
+            'phone_number_id' => 'pn-strict',
+            'provisioning_step' => 'app_subscription',
+            'provisioning_status' => 'failed',
+        ]);
     }
 
     public function test_embedded_signup_redirect_uri_mismatch_returns_clear_error(): void
@@ -309,7 +351,8 @@ class ConnectionTest extends TestCase
 
         $sync = Mockery::mock(ConnectionHealthSyncService::class);
         $sync->shouldReceive('syncConnection')->once()->andReturnUsing(function (WhatsAppConnection $target) {
-            return WhatsAppConnectionHealthSnapshot::create([
+            return new WhatsAppConnectionHealthSnapshot([
+                'id' => 777,
                 'account_id' => $target->account_id,
                 'whatsapp_connection_id' => $target->id,
                 'source' => 'manual_sync',
