@@ -407,16 +407,18 @@ export default function ConnectionsCreate({
         const oauthRedirectUri = resolveOAuthRedirectUri();
         const extras = signupVariant === 'existing_business_app'
             ? {
+                feature: 'whatsapp_embedded_signup',
                 setup: {},
                 featureType: 'whatsapp_business_app_onboarding',
                 features: [],
                 sessionInfoVersion: 3,
-                version: '4',
+                version: 'v4',
             }
             : {
+                feature: 'whatsapp_embedded_signup',
                 setup: {},
                 sessionInfoVersion: 3,
-                version: '4',
+                version: 'v4',
             };
 
         embeddedForm.setData('signup_variant', signupVariant);
