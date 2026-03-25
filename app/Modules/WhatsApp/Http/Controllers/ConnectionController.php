@@ -236,6 +236,7 @@ class ConnectionController extends Controller
             'access_token' => 'nullable|string',
             'code' => 'nullable|string',
             'code_source' => 'nullable|string|max:64',
+            'signup_variant' => 'nullable|string|max:64',
             'redirect_uri' => 'nullable|url',
             'session_waba_id' => 'nullable|string|max:255',
             'session_phone_number_id' => 'nullable|string|max:255',
@@ -252,6 +253,7 @@ class ConnectionController extends Controller
             'has_code' => !empty($validated['code']),
             'code_summary' => $this->summarizeOAuthCode($validated['code'] ?? null),
             'has_access_token' => !empty($validated['access_token']),
+            'signup_variant' => $validated['signup_variant'] ?? null,
             'requested_redirect_uri' => $validated['redirect_uri'] ?? null,
         ]);
 

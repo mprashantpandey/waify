@@ -25,10 +25,12 @@ export default function ConnectionsCreate({
         embeddedSignup: { enabled?: boolean; appId?: string; configId?: string; apiVersion?: string; oauthRedirectUri?: string | null };
         defaultApiVersion: string;
 }) {
+    type SignupVariant = 'new_number' | 'existing_business_app';
     const [embeddedReady, setEmbeddedReady] = useState(false);
     const [embeddedStatus, setEmbeddedStatus] = useState<string | null>(null);
     const [embeddedAutoSubmitRequested, setEmbeddedAutoSubmitRequested] = useState(false);
     const [embeddedAutoSubmitAttempted, setEmbeddedAutoSubmitAttempted] = useState(false);
+    const [signupVariant, setSignupVariant] = useState<SignupVariant>('new_number');
 
     const embeddedEnabled = Boolean(embeddedSignup?.enabled && embeddedSignup?.appId && embeddedSignup?.configId);
     const resolveOAuthRedirectUri = () => {
@@ -49,6 +51,7 @@ export default function ConnectionsCreate({
         access_token: '',
         code: '',
         code_source: '',
+        signup_variant: 'new_number',
         pin: '',
         redirect_uri: ''
     });
@@ -80,6 +83,7 @@ export default function ConnectionsCreate({
         });
         embeddedForm.setData('code', code);
         embeddedForm.setData('code_source', source);
+        embeddedForm.setData('signup_variant', signupVariant);
         embeddedForm.setData('redirect_uri', resolveOAuthRedirectUri());
         setEmbeddedStatus('Authorization complete. Finishing Meta setup...');
         setEmbeddedAutoSubmitRequested(true);
@@ -401,16 +405,28 @@ export default function ConnectionsCreate({
         setEmbeddedAutoSubmitRequested(false);
         setEmbeddedAutoSubmitAttempted(false);
         const oauthRedirectUri = resolveOAuthRedirectUri();
+        const extras = signupVariant === 'existing_business_app'
+            ? {
+                setup: {},
+                featureType: 'whatsapp_business_app_onboarding',
+                features: [],
+                sessionInfoVersion: 3,
+                version: '4',
+            }
+            : {
+                setup: {},
+                sessionInfoVersion: 3,
+                version: '4',
+            };
+
+        embeddedForm.setData('signup_variant', signupVariant);
         embeddedForm.setData('redirect_uri', oauthRedirectUri);
         logEmbeddedDebug('launch_login', {
             app_id: embeddedSignup.appId,
             config_id: embeddedSignup.configId,
             redirect_uri: oauthRedirectUri,
-            extras: {
-                feature: 'whatsapp_embedded_signup',
-                sessionInfoVersion: 3,
-                version: '4',
-            },
+            signup_variant: signupVariant,
+            extras,
         });
 
         window.FB.login(
@@ -448,11 +464,7 @@ export default function ConnectionsCreate({
                 config_id: embeddedSignup.configId,
                 override_default_response_type: true,
                 response_type: 'code',
-                extras: {
-                    feature: 'whatsapp_embedded_signup',
-                    sessionInfoVersion: 3,
-                    version: '4',
-                },
+                extras,
             }
         );
 
@@ -466,6 +478,7 @@ export default function ConnectionsCreate({
             has_code: Boolean(embeddedForm.data.code),
             has_access_token: Boolean(embeddedForm.data.access_token),
             code_source: embeddedForm.data.code_source || null,
+            signup_variant: embeddedForm.data.signup_variant || null,
             waba_id: embeddedForm.data.waba_id || null,
             phone_number_id: embeddedForm.data.phone_number_id || null,
             session_waba_id: embeddedForm.data.session_waba_id || null,
@@ -532,19 +545,66 @@ export default function ConnectionsCreate({
                         </CardHeader>
                         <CardContent className="space-y-5 p-6">
                             <div className="flex flex-wrap items-center gap-3">
+                                <div className="grid w-full gap-3 md:grid-cols-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSignupVariant('new_number');
+                                            embeddedForm.setData('signup_variant', 'new_number');
+                                        }}
+                                        className={`rounded-xl border px-4 py-3 text-left transition ${
+                                            signupVariant === 'new_number'
+                                                ? 'border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900'
+                                                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200'
+                                        }`}
+                                    >
+                                        <p className="text-sm font-semibold">Use a new number</p>
+                                        <p className={`mt-1 text-xs ${signupVariant === 'new_number' ? 'text-gray-100 dark:text-gray-700' : 'text-gray-500 dark:text-gray-400'}`}>
+                                            Best for new Cloud API onboarding and fresh phone setup.
+                                        </p>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSignupVariant('existing_business_app');
+                                            embeddedForm.setData('signup_variant', 'existing_business_app');
+                                        }}
+                                        className={`rounded-xl border px-4 py-3 text-left transition ${
+                                            signupVariant === 'existing_business_app'
+                                                ? 'border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900'
+                                                : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200'
+                                        }`}
+                                    >
+                                        <p className="text-sm font-semibold">Use an existing WhatsApp Business App number</p>
+                                        <p className={`mt-1 text-xs ${signupVariant === 'existing_business_app' ? 'text-gray-100 dark:text-gray-700' : 'text-gray-500 dark:text-gray-400'}`}>
+                                            Use Meta&apos;s coexistence flow for an existing WhatsApp Business App phone number.
+                                        </p>
+                                    </button>
+                                </div>
                                 <Button
                                     type="button"
                                     onClick={startEmbeddedSignup}
                                     disabled={!embeddedReady}
                                     className="rounded-xl"
                                 >
-                                    Connect with Meta
+                                    Continue with Meta
                                 </Button>
                                 {!embeddedReady && (
                                     <span className="text-xs text-gray-500 dark:text-gray-400">
                                         Loading Meta SDK...
                                     </span>
                                 )}
+                            </div>
+
+                            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/50">
+                                <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {signupVariant === 'existing_business_app'
+                                        ? 'Selected flow: existing WhatsApp Business App number'
+                                        : 'Selected flow: new WhatsApp API number'}
+                                </p>
+                                <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                                    Zyptos will launch the matching Meta onboarding flow and continue setup automatically after Meta returns the code and asset IDs.
+                                </p>
                             </div>
 
                             {embeddedStatus && (
