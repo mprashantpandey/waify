@@ -586,7 +586,7 @@ export default function TemplatesSend({
                                                 )}
                                                 <details className="mt-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950/40 p-3">
                                                     <summary className="cursor-pointer text-xs font-semibold text-gray-700 dark:text-gray-200">
-                                                        More details
+                                                        Diagnostics
                                                     </summary>
                                                     <div className="mt-2">
                                                         <div className="mt-2 flex flex-wrap gap-3">
@@ -594,7 +594,7 @@ export default function TemplatesSend({
                                                                 href={`${route('app.whatsapp.templates.show', { template: template.slug })}#recent-send-${send.id}`}
                                                                 className="text-[11px] font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                                                             >
-                                                                Open details
+                                                                Open full details
                                                             </Link>
                                                             {supportAccess && (
                                                                 <button
@@ -607,9 +607,9 @@ export default function TemplatesSend({
                                                             )}
                                                         </div>
                                                     </div>
-                                                    <dl className="mt-3 space-y-2 text-xs">
+                                                    <dl className="mt-3 space-y-1.5 text-xs">
                                                         {getRecentSendDiagnostics(send).map(([label, value]) => (
-                                                            <div key={label} className="grid grid-cols-[120px_1fr] gap-2">
+                                                            <div key={label} className="grid gap-1 sm:grid-cols-[120px_1fr] sm:gap-2">
                                                                 <dt className="text-gray-500 dark:text-gray-400">{label}</dt>
                                                                 <dd className="break-all text-gray-800 dark:text-gray-100">
                                                                     {value.includes('T') ? new Date(value).toLocaleString() : value}
@@ -625,7 +625,7 @@ export default function TemplatesSend({
                                                             </div>
                                                         )}
                                                         {send.message?.provider_error?.details && (
-                                                            <div className="grid grid-cols-[120px_1fr] gap-2">
+                                                            <div className="grid gap-1 sm:grid-cols-[120px_1fr] sm:gap-2">
                                                                 <dt className="text-gray-500 dark:text-gray-400">Details</dt>
                                                                 <dd className="break-words text-gray-800 dark:text-gray-100">
                                                                     {send.message.provider_error.details}
@@ -633,7 +633,7 @@ export default function TemplatesSend({
                                                             </div>
                                                         )}
                                                         {send.message?.provider_error?.code && (
-                                                            <div className="grid grid-cols-[120px_1fr] gap-2">
+                                                            <div className="grid gap-1 sm:grid-cols-[120px_1fr] sm:gap-2">
                                                                 <dt className="text-gray-500 dark:text-gray-400">Code</dt>
                                                                 <dd className="break-words text-gray-800 dark:text-gray-100">
                                                                     {send.message.provider_error.code}

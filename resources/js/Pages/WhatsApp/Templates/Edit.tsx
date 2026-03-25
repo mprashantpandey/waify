@@ -85,6 +85,7 @@ export default function TemplatesEdit({
     const [previewMode, setPreviewMode] = useState(false);
     const [uploadingMedia, setUploadingMedia] = useState(false);
     const [mediaPreview, setMediaPreview] = useState<string | null>(null);
+    const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Calculate initial variable count
@@ -662,159 +663,149 @@ export default function TemplatesEdit({
                                 </CardContent>
                             </Card>
 
-                            {/* Footer */}
-                            <Card className="border-0 shadow-lg">
-                                <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20">
-                                    <CardTitle>Footer (Optional)</CardTitle>
-                                    <CardDescription>Add a footer to your template</CardDescription>
-                                </CardHeader>
-                                <CardContent className="pt-6">
+                            <div className="rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAdvancedOptions((value) => !value)}
+                                    className="flex w-full items-center justify-between px-5 py-4 text-left"
+                                >
                                     <div>
-                                        <Label htmlFor="footer_text">Footer Text</Label>
-                                        <TextInput
-                                            id="footer_text"
-                                            value={data.footer_text || ''}
-                                            onChange={(e) => setData('footer_text', e.target.value)}
-                                            placeholder="Footer text (max 60 characters)"
-                                            maxLength={60}
-                                        />
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                            {((data.footer_text || '').length)}/60 characters
-                                        </p>
-                                        {errors.footer_text && (
-                                            <p className="text-sm text-red-600 dark:text-red-400 mt-1">
-                                                {errors.footer_text}
-                                            </p>
-                                        )}
+                                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Advanced template options</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">Footer text and buttons.</p>
                                     </div>
-                                </CardContent>
-                            </Card>
+                                    <span className="text-sm text-gray-500 dark:text-gray-400">{showAdvancedOptions ? 'Hide' : 'Show'}</span>
+                                </button>
 
-                            {/* Buttons */}
-                            <Card className="border-0 shadow-lg">
-                                <CardHeader className="bg-gradient-to-r from-pink-50 to-pink-100 dark:from-pink-900/20 dark:to-pink-800/20">
-                                    <div className="flex items-center justify-between">
+                                {showAdvancedOptions && (
+                                    <div className="space-y-6 border-t border-gray-200 px-5 py-5 dark:border-gray-700">
                                         <div>
-                                            <CardTitle>Buttons (Optional)</CardTitle>
-                                            <CardDescription>Add up to 3 buttons to your template</CardDescription>
+                                            <Label htmlFor="footer_text">Footer Text</Label>
+                                            <TextInput
+                                                id="footer_text"
+                                                value={data.footer_text || ''}
+                                                onChange={(e) => setData('footer_text', e.target.value)}
+                                                placeholder="Footer text (max 60 characters)"
+                                                maxLength={60}
+                                            />
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                {((data.footer_text || '').length)}/60 characters
+                                            </p>
+                                            {errors.footer_text && (
+                                                <p className="text-sm text-red-600 dark:text-red-400 mt-1">
+                                                    {errors.footer_text}
+                                                </p>
+                                            )}
                                         </div>
-                                        {(data.buttons?.length || 0) < 3 && (
-                                            <Button
-                                                type="button"
-                                                variant="secondary"
-                                                size="sm"
-                                                onClick={addButton}
-                                            >
-                                                <Plus className="h-4 w-4 mr-2" />
-                                                Add Button
-                                            </Button>
-                                        )}
+
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Buttons</p>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400">Add up to 3 buttons.</p>
+                                                </div>
+                                                {(data.buttons?.length || 0) < 3 && (
+                                                    <Button type="button" variant="secondary" size="sm" onClick={addButton}>
+                                                        <Plus className="h-4 w-4 mr-2" />
+                                                        Add Button
+                                                    </Button>
+                                                )}
+                                            </div>
+
+                                            {data.buttons && data.buttons.length > 0 ? (
+                                                data.buttons.map((button, index) => (
+                                                    <Card key={index} className="border border-gray-200 dark:border-gray-700">
+                                                        <CardContent className="p-4 space-y-4">
+                                                            <div className="flex items-center justify-between">
+                                                                <Label>Button {index + 1}</Label>
+                                                                <Button type="button" variant="ghost" size="sm" onClick={() => removeButton(index)}>
+                                                                    <Trash2 className="h-4 w-4 text-red-600" />
+                                                                </Button>
+                                                            </div>
+                                                            <div>
+                                                                <Label>Button Type *</Label>
+                                                                <Select value={button.type} onValueChange={(value: any) => updateButton(index, 'type', value)}>
+                                                                    <SelectTrigger>
+                                                                        <SelectValue>
+                                                                            {button.type === 'QUICK_REPLY' ? 'Quick Reply' :
+                                                                                button.type === 'URL' ? 'URL' :
+                                                                                button.type === 'PHONE_NUMBER' ? 'Phone Number' :
+                                                                                'Select button type'}
+                                                                        </SelectValue>
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        <SelectItem value="QUICK_REPLY">Quick Reply</SelectItem>
+                                                                        <SelectItem value="URL">URL</SelectItem>
+                                                                        <SelectItem value="PHONE_NUMBER">Phone Number</SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </div>
+                                                            <div>
+                                                                <Label>Button Text *</Label>
+                                                                <TextInput
+                                                                    value={button.text}
+                                                                    onChange={(e) => updateButton(index, 'text', e.target.value)}
+                                                                    placeholder="Button text (max 20 characters)"
+                                                                    maxLength={20}
+                                                                />
+                                                                {(errors as any)[`buttons.${index}.text`] && (
+                                                                    <p className="text-sm text-red-600 dark:text-red-400 mt-1">
+                                                                        {(errors as any)[`buttons.${index}.text`]}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                            {button.type === 'URL' && (
+                                                                <>
+                                                                    <div>
+                                                                        <Label>URL *</Label>
+                                                                        <TextInput
+                                                                            type="url"
+                                                                            value={button.url || ''}
+                                                                            onChange={(e) => updateButton(index, 'url', e.target.value)}
+                                                                            placeholder="https://example.com"
+                                                                        />
+                                                                        {(errors as any)[`buttons.${index}.url`] && (
+                                                                            <p className="text-sm text-red-600 dark:text-red-400 mt-1">
+                                                                                {(errors as any)[`buttons.${index}.url`]}
+                                                                            </p>
+                                                                        )}
+                                                                    </div>
+                                                                    <div>
+                                                                        <Label>URL Example (Optional)</Label>
+                                                                        <TextInput
+                                                                            value={button.url_example || ''}
+                                                                            onChange={(e) => updateButton(index, 'url_example', e.target.value)}
+                                                                            placeholder="https://example.com/{{1}}"
+                                                                        />
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                            {button.type === 'PHONE_NUMBER' && (
+                                                                <div>
+                                                                    <Label>Phone Number *</Label>
+                                                                    <TextInput
+                                                                        value={button.phone_number || ''}
+                                                                        onChange={(e) => updateButton(index, 'phone_number', e.target.value)}
+                                                                        placeholder="+1234567890"
+                                                                    />
+                                                                    {(errors as any)[`buttons.${index}.phone_number`] && (
+                                                                        <p className="text-sm text-red-600 dark:text-red-400 mt-1">
+                                                                            {(errors as any)[`buttons.${index}.phone_number`]}
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </CardContent>
+                                                    </Card>
+                                                ))
+                                            ) : (
+                                                <div className="rounded-lg border border-dashed border-gray-300 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                                                    No buttons added yet.
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                </CardHeader>
-                                <CardContent className="space-y-4 pt-6">
-                                    {data.buttons && data.buttons.length > 0 ? (
-                                        data.buttons.map((button, index) => (
-                                            <Card key={index} className="border border-gray-200 dark:border-gray-700">
-                                                <CardContent className="p-4 space-y-4">
-                                                    <div className="flex items-center justify-between">
-                                                        <Label>Button {index + 1}</Label>
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => removeButton(index)}
-                                                        >
-                                                            <Trash2 className="h-4 w-4 text-red-600" />
-                                                        </Button>
-                                                    </div>
-                                                    <div>
-                                                        <Label>Button Type *</Label>
-                                                        <Select
-                                                            value={button.type}
-                                                            onValueChange={(value: any) =>
-                                                                updateButton(index, 'type', value)
-                                                            }
-                                                        >
-                                                            <SelectTrigger>
-                                                                <SelectValue>
-                                                                    {button.type === 'QUICK_REPLY' ? 'Quick Reply' : 
-                                                                     button.type === 'URL' ? 'URL' : 
-                                                                     button.type === 'PHONE_NUMBER' ? 'Phone Number' : 
-                                                                     'Select button type'}
-                                                                </SelectValue>
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="QUICK_REPLY">Quick Reply</SelectItem>
-                                                                <SelectItem value="URL">URL</SelectItem>
-                                                                <SelectItem value="PHONE_NUMBER">Phone Number</SelectItem>
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                    <div>
-                                                        <Label>Button Text *</Label>
-                                                        <TextInput
-                                                            value={button.text}
-                                                            onChange={(e) => updateButton(index, 'text', e.target.value)}
-                                                            placeholder="Button text (max 20 characters)"
-                                                            maxLength={20}
-                                                        />
-                                                        {(errors as any)[`buttons.${index}.text`] && (
-                                                            <p className="text-sm text-red-600 dark:text-red-400 mt-1">
-                                                                {(errors as any)[`buttons.${index}.text`]}
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                    {button.type === 'URL' && (
-                                                        <>
-                                                            <div>
-                                                                <Label>URL *</Label>
-                                                                <TextInput
-                                                                    type="url"
-                                                                    value={button.url || ''}
-                                                                    onChange={(e) => updateButton(index, 'url', e.target.value)}
-                                                                    placeholder="https://example.com"
-                                                                />
-                                                            {(errors as any)[`buttons.${index}.url`] && (
-                                                                <p className="text-sm text-red-600 dark:text-red-400 mt-1">
-                                                                    {(errors as any)[`buttons.${index}.url`]}
-                                                                </p>
-                                                            )}
-                                                            </div>
-                                                            <div>
-                                                                <Label>URL Example (Optional)</Label>
-                                                                <TextInput
-                                                                    value={button.url_example || ''}
-                                                                    onChange={(e) => updateButton(index, 'url_example', e.target.value)}
-                                                                    placeholder="https://example.com/{{1}}"
-                                                                />
-                                                            </div>
-                                                        </>
-                                                    )}
-                                                    {button.type === 'PHONE_NUMBER' && (
-                                                        <div>
-                                                            <Label>Phone Number *</Label>
-                                                            <TextInput
-                                                                value={button.phone_number || ''}
-                                                                onChange={(e) => updateButton(index, 'phone_number', e.target.value)}
-                                                                placeholder="+1234567890"
-                                                            />
-                                                            {(errors as any)[`buttons.${index}.phone_number`] && (
-                                                                <p className="text-sm text-red-600 dark:text-red-400 mt-1">
-                                                                    {(errors as any)[`buttons.${index}.phone_number`]}
-                                                                </p>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </CardContent>
-                                            </Card>
-                                        ))
-                                    ) : (
-                                        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                                            <p>No buttons added. Click "Add Button" to add one.</p>
-                                        </div>
-                                    )}
-                                </CardContent>
-                            </Card>
+                                )}
+                            </div>
                         </>
                     )}
 

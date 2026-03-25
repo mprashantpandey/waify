@@ -59,6 +59,41 @@ export default function FlowBuilder({
     onSelectEdge: (edge: EdgeItem) => void;
     onSaveGraph: (payload: { nodes: NodeItem[]; edges: EdgeItem[] }) => void;
 }) {
+    const getNodeLabel = (node: NodeItem) => {
+        if (node.type === 'condition') return 'Check';
+        if (node.type === 'delay') return 'Wait';
+        if (node.type === 'webhook') return 'Online step';
+        return 'Reply';
+    };
+
+    const getNodeSummary = (node: NodeItem) => {
+        const config = node.config || {};
+
+        if (node.type === 'action') {
+            if (config.type === 'send_text' && config.message) return 'Sends a text reply';
+            if (config.type === 'send_template') return 'Sends a template';
+            if (config.type === 'assign_agent') return 'Assigns the chat';
+            if (config.type === 'add_tag') return 'Adds a tag';
+            return 'Runs an action';
+        }
+
+        if (node.type === 'condition') {
+            if (config.type === 'text_contains') return 'Checks for matching words';
+            if (config.type === 'conversation_status') return 'Checks chat status';
+            if (config.type === 'tags_contains') return 'Checks customer tags';
+            return 'Checks a rule';
+        }
+
+        if (node.type === 'delay') {
+            const seconds = Number(config.seconds || 0);
+            return seconds > 0 ? `Waits ${seconds} seconds` : 'Waits before the next step';
+        }
+
+        if (node.type === 'webhook') return 'Sends data to another system';
+
+        return 'Step details';
+    };
+
     const initialNodes: Node[] = useMemo(() => {
         return (flow.nodes || []).map((node) => ({
             id: String(node.id),
@@ -67,7 +102,7 @@ export default function FlowBuilder({
                 y: node.pos_y ?? 120,
             },
             data: {
-                label: `${node.type}${node.config?.is_start ? ' (start)' : ''}`,
+                label: `${getNodeLabel(node)}${node.config?.is_start ? ' (start)' : ''}`,
                 meta: node,
             },
             style: {
@@ -188,8 +223,8 @@ export default function FlowBuilder({
                         className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-700 p-3"
                     >
                         <div>
-                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{node.type}</div>
-                            <div className="text-xs text-gray-500">Order: {node.sort_order}</div>
+                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{getNodeLabel(node)}</div>
+                            <div className="text-xs text-gray-500">{getNodeSummary(node)}</div>
                             {(node.config?.is_start ?? false) && (
                                 <Badge variant="info" className="mt-2">Start</Badge>
                             )}
