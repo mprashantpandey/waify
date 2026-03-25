@@ -24,15 +24,20 @@ class WebhookReliabilityTest extends TestCase
         $account = Account::factory()->create();
         $connection = WhatsAppConnection::factory()->create([
             'account_id' => $account->id,
-            'webhook_verify_token' => 'vtok',
+            'phone_number_id' => '150215621517428',
+            'waba_id' => '131698056692862',
         ]);
 
         $payload = [
             'object' => 'whatsapp_business_account',
             'entry' => [[
+                'id' => $connection->waba_id,
                 'changes' => [[
                     'field' => 'messages',
                     'value' => [
+                        'metadata' => [
+                            'phone_number_id' => $connection->phone_number_id,
+                        ],
                         'messages' => [[
                             'id' => 'wamid.rel.1',
                             'from' => '919999999999',
@@ -52,7 +57,7 @@ class WebhookReliabilityTest extends TestCase
 
         $response = $this
             ->withHeaders(['X-Hub-Signature-256' => $signature])
-            ->postJson(route('webhooks.whatsapp.receive', ['connection' => $connection->slug]), $payload);
+            ->postJson(route('webhooks.whatsapp.receive'), $payload);
 
         $response->assertStatus(200)
             ->assertJson(['success' => true, 'queued' => true]);
@@ -77,14 +82,20 @@ class WebhookReliabilityTest extends TestCase
         $account = Account::factory()->create();
         $connection = WhatsAppConnection::factory()->create([
             'account_id' => $account->id,
+            'phone_number_id' => '150215621517428',
+            'waba_id' => '131698056692862',
         ]);
 
         $payload = [
             'object' => 'whatsapp_business_account',
             'entry' => [[
+                'id' => $connection->waba_id,
                 'changes' => [[
                     'field' => 'messages',
                     'value' => [
+                        'metadata' => [
+                            'phone_number_id' => $connection->phone_number_id,
+                        ],
                         'messages' => [[
                             'id' => 'wamid.rel.queue.1',
                             'from' => '919111111111',
@@ -96,7 +107,7 @@ class WebhookReliabilityTest extends TestCase
             ]],
         ];
 
-        $this->postJson(route('webhooks.whatsapp.receive', ['connection' => $connection->slug]), $payload)
+        $this->postJson(route('webhooks.whatsapp.receive'), $payload)
             ->assertStatus(200)
             ->assertJson(['success' => true, 'queued' => true]);
 
@@ -112,13 +123,19 @@ class WebhookReliabilityTest extends TestCase
         $account = Account::factory()->create();
         $connection = WhatsAppConnection::factory()->create([
             'account_id' => $account->id,
+            'phone_number_id' => '150215621517428',
+            'waba_id' => '131698056692862',
         ]);
 
         $payload = [
             'entry' => [[
+                'id' => $connection->waba_id,
                 'changes' => [[
                     'field' => 'messages',
                     'value' => [
+                        'metadata' => [
+                            'phone_number_id' => $connection->phone_number_id,
+                        ],
                         'messages' => [[
                             'id' => 'wamid.rel.dup.1',
                             'from' => '918888888888',
@@ -130,9 +147,9 @@ class WebhookReliabilityTest extends TestCase
             ]],
         ];
 
-        $this->postJson(route('webhooks.whatsapp.receive', ['connection' => $connection->slug]), $payload)
+        $this->postJson(route('webhooks.whatsapp.receive'), $payload)
             ->assertStatus(200);
-        $this->postJson(route('webhooks.whatsapp.receive', ['connection' => $connection->slug]), $payload)
+        $this->postJson(route('webhooks.whatsapp.receive'), $payload)
             ->assertStatus(200)
             ->assertJson(['duplicate' => true]);
 

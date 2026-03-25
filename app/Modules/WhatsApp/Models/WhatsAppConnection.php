@@ -179,12 +179,4 @@ class WhatsAppConnection extends Model
     {
         return $this->hasOne(WhatsAppConnectionHealthSnapshot::class, 'whatsapp_connection_id')->latestOfMany('captured_at');
     }
-
-    /**
-     * Generate a unique webhook verify token.
-     */
-    public static function generateVerifyToken(): string
-    {
-        return bin2hex(random_bytes(32));
-    }
 }

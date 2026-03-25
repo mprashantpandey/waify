@@ -79,6 +79,7 @@ class ConnectionController extends Controller
                     'provisioning_last_error' => $connection->provisioning_last_error,
                     'provisioning_completed_at' => $connection->provisioning_completed_at?->toIso8601String(),
                     'provisioning_context' => $connection->provisioning_context,
+                    'webhook_mode' => 'central',
                     'webhook_url' => $this->connectionService->getWebhookUrl($connection),
                     'created_at' => $connection->created_at->toIso8601String()];
             });
@@ -866,10 +867,6 @@ class ConnectionController extends Controller
 
         Gate::authorize('update', $connection);
 
-        // Mask sensitive tokens (only show last 4 chars)
-        $verifyToken = $connection->webhook_verify_token;
-        $maskedVerifyToken = $verifyToken ? substr($verifyToken, 0, 4) . str_repeat('*', max(0, strlen($verifyToken) - 4)) : null;
-
         return Inertia::render('WhatsApp/Connections/Edit', [
             'account' => $account,
             'connection' => [
@@ -880,8 +877,7 @@ class ConnectionController extends Controller
                 'phone_number_id' => $connection->phone_number_id,
                 'business_phone' => $connection->business_phone,
                 'api_version' => $connection->api_version,
-                'webhook_verify_token' => $maskedVerifyToken, // Masked
-                'webhook_verify_token_full' => $verifyToken, // Full token for copy (only if owner/admin)
+                'webhook_mode' => 'central',
                 'webhook_url' => $this->connectionService->getWebhookUrl($connection),
                 'webhook_subscribed' => $connection->webhook_subscribed,
                 'webhook_last_received_at' => $connection->webhook_last_received_at?->toIso8601String(),
@@ -905,10 +901,7 @@ class ConnectionController extends Controller
                 'throughput_cap_per_minute' => $connection->throughput_cap_per_minute,
                 'quiet_hours_start' => $connection->quiet_hours_start,
                 'quiet_hours_end' => $connection->quiet_hours_end,
-                'quiet_hours_timezone' => $connection->quiet_hours_timezone],
-            'canViewSecrets' => $account->isOwnedBy($request->user()) || 
-                               $account->users()->where('user_id', $request->user()->id)->where('role', 'admin')->exists() ||
-                               Gate::allows('update', $connection)]);
+                'quiet_hours_timezone' => $connection->quiet_hours_timezone]]);
     }
 
     public function syncHealth(Request $request, $connection)
@@ -997,21 +990,6 @@ class ConnectionController extends Controller
     }
 
     /**
-     * Rotate the webhook verify token.
-     */
-    public function rotateVerifyToken(Request $request, $connection)
-    {
-        $account = $request->attributes->get('account') ?? current_account();
-        $connection = $this->resolveConnection($connection, $account);
-
-        Gate::authorize('update', $connection);
-
-        $this->connectionService->rotateVerifyToken($connection);
-
-        return redirect()->back()->with('success', 'Verify token rotated successfully.');
-    }
-
-    /**
      * Test the webhook endpoint for this connection (internal verification).
      */
     public function testWebhook(Request $request, $connection)
@@ -1023,11 +1001,19 @@ class ConnectionController extends Controller
 
         $challenge = Str::random(16);
         $url = $this->connectionService->getWebhookUrl($connection);
+        $verifyToken = (string) config('whatsapp.webhook.verify_token', '');
+
+        if ($verifyToken === '') {
+            return response()->json([
+                'ok' => false,
+                'error' => 'Central webhook verify token is not configured.',
+            ], 422);
+        }
 
         try {
             $response = Http::timeout(10)->get($url, [
                 'hub.mode' => 'subscribe',
-                'hub.verify_token' => $connection->webhook_verify_token,
+                'hub.verify_token' => $verifyToken,
                 'hub.challenge' => $challenge]);
 
             $ok = $response->ok() && trim((string) $response->body()) === $challenge;

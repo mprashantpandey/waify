@@ -26,7 +26,7 @@ class WhatsAppConnectionFactory extends Factory
             'business_phone' => $this->faker->phoneNumber(),
             'access_token_encrypted' => encrypt('test-access-token'),
             'api_version' => 'v20.0',
-            'webhook_verify_token' => WhatsAppConnection::generateVerifyToken(),
+            'webhook_verify_token' => null,
             'webhook_subscribed' => false,
             'is_active' => true,
             'activation_state' => 'active',

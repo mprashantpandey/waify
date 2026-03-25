@@ -34,6 +34,7 @@ interface Connection {
     provisioning_status?: string | null;
     provisioning_last_error?: string | null;
     provisioning_completed_at?: string | null;
+    webhook_mode?: string;
     webhook_url: string;
     created_at: string;
 }
@@ -297,7 +298,7 @@ export default function ConnectionsIndex({
 
                                         <div>
                                             <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-                                                Webhook URL
+                                                Central Webhook
                                             </p>
                                             <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
                                                 <code className="text-xs font-mono text-gray-900 dark:text-gray-100 flex-1 truncate">
@@ -314,6 +315,9 @@ export default function ConnectionsIndex({
                                                     )}
                                                 </button>
                                             </div>
+                                            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                                Managed once at the Meta app level. Zyptos maps incoming events to this connection automatically.
+                                            </p>
                                         </div>
 
                                         {connection.webhook_last_received_at && (

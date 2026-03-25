@@ -145,26 +145,6 @@ class ConnectionTest extends TestCase
         ]);
     }
 
-    public function test_owner_can_rotate_verify_token(): void
-    {
-        $connection = WhatsAppConnection::factory()->create([
-            'account_id' => $this->account->id,
-        ]);
-
-        $originalToken = $connection->webhook_verify_token;
-
-        $response = $this->actingAs($this->user)
-            ->post(route('app.whatsapp.connections.rotate-verify-token', [
-                'account' => $this->account->slug,
-                'connection' => $connection->id,
-            ]));
-
-        $response->assertRedirect();
-        $connection->refresh();
-        $this->assertNotEquals($originalToken, $connection->webhook_verify_token);
-        $this->assertFalse($connection->webhook_subscribed);
-    }
-
     public function test_embedded_signup_reuses_existing_connection_for_same_assets(): void
     {
         config([

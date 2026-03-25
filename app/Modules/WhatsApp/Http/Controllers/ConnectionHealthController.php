@@ -88,6 +88,7 @@ class ConnectionHealthController extends Controller
                 : 'Webhook subscription not confirmed',
             'details' => [
                 'subscribed' => $connection->webhook_subscribed,
+                'mode' => 'central',
                 'webhook_url' => app(\App\Modules\WhatsApp\Services\ConnectionService::class)->getWebhookUrl($connection),
                 'last_received_at' => $connection->webhook_last_received_at?->toIso8601String(),
                 'last_error' => $connection->webhook_last_error]];

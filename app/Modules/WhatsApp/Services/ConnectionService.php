@@ -16,7 +16,6 @@ class ConnectionService
         $this->assertAssetNotOwnedByAnotherAccount($account, $data['phone_number_id'] ?? null, $data['waba_id'] ?? null);
 
         $data['account_id'] = $account->id;
-        $data['webhook_verify_token'] = WhatsAppConnection::generateVerifyToken();
         $data['api_version'] = $data['api_version'] ?? config('whatsapp.meta.api_version', 'v21.0');
         $data['activation_state'] = $data['activation_state'] ?? 'active';
         $data['activation_updated_at'] = $data['activation_updated_at'] ?? now();
@@ -100,45 +99,19 @@ class ConnectionService
     }
 
     /**
-     * Rotate the webhook verify token.
-     */
-    public function rotateVerifyToken(WhatsAppConnection $connection): WhatsAppConnection
-    {
-        $connection->update([
-            'webhook_verify_token' => WhatsAppConnection::generateVerifyToken(),
-            'webhook_subscribed' => false, // Reset subscription status
-        ]);
-
-        return $connection->fresh();
-    }
-
-    /**
      * Get webhook URL for a connection.
      */
     public function getWebhookUrl(WhatsAppConnection $connection): string
     {
-        // Ensure connection has a slug
-        if (empty($connection->slug)) {
-            $connection->slug = WhatsAppConnection::generateSlug($connection);
-            $connection->save();
-        }
-        
-        // Use slug for webhook URL (more secure and user-friendly)
-        // Fallback to ID if slug is still empty (shouldn't happen)
-        $identifier = $connection->slug ?? (string) $connection->id;
-        
-        // Generate full URL
-        $url = route('webhooks.whatsapp.receive', [
-            'connection' => $identifier]);
-        
-        // Log the generated URL for debugging
+        $url = route('webhooks.whatsapp.receive');
+
         \Log::channel('whatsapp')->debug('Webhook URL generated', [
             'connection_id' => $connection->id,
             'connection_slug' => $connection->slug,
-            'identifier_used' => $identifier,
+            'mode' => 'central',
             'url' => $url,
         ]);
-        
+
         return $url;
     }
 

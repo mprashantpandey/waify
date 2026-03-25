@@ -79,7 +79,6 @@ class WebhookSecurity
             if (!$allowed) {
                 Log::channel('whatsapp')->warning('Webhook blocked: IP not in allowlist', [
                     'ip' => $requestIp,
-                    'connection_id' => $request->route('connection')?->id,
                     'allowed_ips' => $allowedIps]);
 
                 abort(403, 'Forbidden');
@@ -92,20 +91,11 @@ class WebhookSecurity
         $request->attributes->set('webhook_signature_valid', $signatureValid);
 
         // Log request (truncated payload) - log early to catch all requests
-        $connectionParam = $request->route('connection');
-        $connection = $connectionParam instanceof \App\Modules\WhatsApp\Models\WhatsAppConnection
-            ? $connectionParam
-            : \App\Modules\WhatsApp\Models\WhatsAppConnection::where('slug', (string) $connectionParam)
-                ->orWhere('id', (string) $connectionParam)
-                ->first();
         Log::channel('whatsapp')->info('Webhook request received in WebhookSecurity', [
             'correlation_id' => $correlationId,
             'ip' => $request->ip(),
             'method' => $request->method(),
             'path' => $request->path(),
-            'connection_id' => $connection?->id,
-            'connection_slug' => $connection?->slug,
-            'connection_param' => $request->route()->parameter('connection'),
             'has_entry' => $request->has('entry'),
             'query_params' => $request->query(),
             'user_agent' => substr($request->userAgent() ?? '', 0, 100), // Truncate

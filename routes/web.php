@@ -344,7 +344,6 @@ Route::prefix('/webhooks/whatsapp')
     ])
     ->name('webhooks.whatsapp.')
     ->group(function () {
-        // Test endpoint to verify webhook route is accessible (no route binding)
         Route::get('/test', function () {
             \Log::channel('whatsapp')->info('Webhook test endpoint hit', [
                 'ip' => request()->ip(),
@@ -357,33 +356,9 @@ Route::prefix('/webhooks/whatsapp')
                 'timestamp' => now()->toIso8601String(),
             ]);
         })->name('test');
-        
-        // Diagnostic endpoint to test route binding
-        Route::get('/debug/{connection}', function ($connection) {
-            \Log::channel('whatsapp')->info('Webhook debug endpoint hit', [
-                'connection_param' => $connection,
-                'ip' => request()->ip(),
-                'query_params' => request()->query(),
-            ]);
-            
-            // Try to resolve connection
-            $resolved = \App\Modules\WhatsApp\Models\WhatsAppConnection::where('slug', $connection)
-                ->orWhere('id', $connection)
-                ->first();
-            
-            return response()->json([
-                'status' => 'ok',
-                'connection_param' => $connection,
-                'connection_found' => $resolved !== null,
-                'connection_id' => $resolved?->id,
-                'connection_slug' => $resolved?->slug,
-                'has_verify_token' => !empty($resolved?->webhook_verify_token),
-                'query_params' => request()->query(),
-            ]);
-        })->name('debug');
-        
-        Route::get('/{connection}', [\App\Modules\WhatsApp\Http\Controllers\WebhookController::class, 'verify'])->name('verify');
-        Route::post('/{connection}', [\App\Modules\WhatsApp\Http\Controllers\WebhookController::class, 'receive'])->name('receive');
+
+        Route::get('/', [\App\Modules\WhatsApp\Http\Controllers\WebhookController::class, 'verify'])->name('verify');
+        Route::post('/', [\App\Modules\WhatsApp\Http\Controllers\WebhookController::class, 'receive'])->name('receive');
     });
 
 // Razorpay webhook (public)

@@ -8,7 +8,7 @@ import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
 import { Badge } from '@/Components/UI/Badge';
 import { Alert } from '@/Components/UI/Alert';
-import { ArrowLeft, Copy, Check, Eye, EyeOff, RotateCcw, Link as LinkIcon, Shield, Info, Sparkles, AlertTriangle, Activity } from 'lucide-react';
+import { ArrowLeft, Copy, Check, Eye, EyeOff, Link as LinkIcon, Shield, Info, Sparkles, AlertTriangle, Activity } from 'lucide-react';
 import { Link, router, Head } from '@inertiajs/react';
 import { useNotifications } from '@/hooks/useNotifications';
 import axios from 'axios';
@@ -22,8 +22,7 @@ interface Connection {
     phone_number_id: string;
     business_phone: string | null;
     api_version: string;
-    webhook_verify_token: string; // Masked
-    webhook_verify_token_full?: string; // Full token (only if canViewSecrets)
+    webhook_mode?: string;
     webhook_url: string;
     webhook_subscribed: boolean;
     webhook_last_received_at: string | null;
@@ -78,15 +77,12 @@ interface MetaInsights {
 
 export default function ConnectionsEdit({
     account,
-    connection,
-    canViewSecrets = false}: {
+    connection}: {
     account: any;
     connection: Connection;
-    canViewSecrets?: boolean;
 }) {
-    const { confirm, toast } = useNotifications();
+    const { toast } = useNotifications();
     const [showToken, setShowToken] = useState(false);
-    const [showVerifyToken, setShowVerifyToken] = useState(false);
     const [copied, setCopied] = useState<string | null>(null);
     const [testLoading, setTestLoading] = useState(false);
     const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
@@ -124,21 +120,6 @@ export default function ConnectionsEdit({
         setCopied(key);
         toast.success('Copied to clipboard');
         setTimeout(() => setCopied(null), 2000);
-    };
-
-    const rotateToken = async () => {
-        const confirmed = await confirm({
-            title: 'Rotate Verify Token',
-            message: 'Are you sure you want to rotate the verify token? You will need to update your webhook settings in Meta Business Manager.',
-            variant: 'warning'});
-
-        if (confirmed) {
-            router.post(route('app.whatsapp.connections.rotate-verify-token', {
-                connection: connection.slug ?? connection.id}), {}, {
-                onError: () => {
-                    toast.error('Failed to rotate token');
-                }});
-        }
     };
 
     const showAlert = (title: string, message: string, variant: 'success' | 'error') => {
@@ -212,7 +193,7 @@ export default function ConnectionsEdit({
             const message =
                 error?.response?.data?.error ||
                 error?.response?.data?.message ||
-                'Webhook test failed. Please check your webhook settings and try again.';
+                'Central webhook test failed. Please check the Meta app callback URL and verify token.';
             setWebhookResult({ ok: false, message });
             showAlert('Webhook Test Failed', message, 'error');
         } finally {
@@ -435,14 +416,14 @@ export default function ConnectionsEdit({
                                     <div className="flex items-center justify-between mb-3">
                                         <div className="flex items-center gap-2">
                                             <Shield className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                                            <InputLabel value="Webhook Configuration" className="text-base font-bold" />
+                                            <InputLabel value="Central Webhook" className="text-base font-bold" />
                                         </div>
                                     </div>
                                     
                                     <div className="space-y-4">
                                         <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
                                             <div className="flex items-center justify-between mb-2">
-                                                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Webhook URL</p>
+                                                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">App Callback URL</p>
                                                 <button
                                                     type="button"
                                                     onClick={() => copyToClipboard(connection.webhook_url, 'url')}
@@ -466,75 +447,7 @@ export default function ConnectionsEdit({
                                             </code>
                                             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
                                                 <Info className="h-3.5 w-3.5" />
-                                                Paste this URL in Meta Business Manager → WhatsApp → Configuration → Webhook
-                                            </p>
-                                        </div>
-
-                                        <div className="p-4 bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/20 rounded-xl border border-amber-200 dark:border-amber-800">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Verify Token</p>
-                                                <div className="flex items-center gap-2">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setShowVerifyToken(!showVerifyToken)}
-                                                        className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors flex items-center gap-1"
-                                                    >
-                                                        {showVerifyToken ? (
-                                                            <>
-                                                                <EyeOff className="h-4 w-4" />
-                                                                Hide
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <Eye className="h-4 w-4" />
-                                                                Show
-                                                            </>
-                                                        )}
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => copyToClipboard(
-                                                            canViewSecrets && connection.webhook_verify_token_full 
-                                                                ? connection.webhook_verify_token_full 
-                                                                : connection.webhook_verify_token,
-                                                            'verify'
-                                                        )}
-                                                        className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors flex items-center gap-1"
-                                                        disabled={!canViewSecrets && !showVerifyToken}
-                                                        title={!canViewSecrets && !showVerifyToken ? 'You need owner/admin access to copy the full token' : 'Copy token'}
-                                                    >
-                                                        {copied === 'verify' ? (
-                                                            <Check className="h-4 w-4" />
-                                                        ) : (
-                                                            <Copy className="h-4 w-4" />
-                                                        )}
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={rotateToken}
-                                                        className="text-sm font-medium text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 transition-colors flex items-center gap-1"
-                                                    >
-                                                        <RotateCcw className="h-4 w-4" />
-                                                        Rotate
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            <code className="block text-xs font-mono bg-white dark:bg-gray-950 px-3 py-2 rounded-lg border border-amber-200 dark:border-amber-800 text-gray-900 dark:text-gray-100">
-                                                {showVerifyToken && canViewSecrets && connection.webhook_verify_token_full
-                                                    ? connection.webhook_verify_token_full
-                                                    : showVerifyToken
-                                                        ? connection.webhook_verify_token
-                                                        : '••••••••••••••••'}
-                                            </code>
-                                            {!canViewSecrets && (
-                                                <p className="mt-2 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                                                    <AlertTriangle className="h-3.5 w-3.5" />
-                                                    Only account owners/admins can view the full token
-                                                </p>
-                                            )}
-                                            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                                                <Info className="h-3.5 w-3.5" />
-                                                Use this token when verifying the webhook in Meta
+                                                Configure this once on the Meta app webhook. Zyptos routes incoming events to the correct tenant connection automatically.
                                             </p>
                                         </div>
 
@@ -751,13 +664,13 @@ export default function ConnectionsEdit({
                             </div>
                             <div className="space-y-4">
                                 <div className="text-sm text-gray-600 dark:text-gray-300">
-                                    Webhook URL: <span className="font-mono break-all">{connection.webhook_url}</span>
+                                    App callback URL: <span className="font-mono break-all">{connection.webhook_url}</span>
                                 </div>
                                 <div className="text-xs text-gray-500">
-                                    This sends an internal verification request to the webhook endpoint.
+                                    This checks the central Meta app callback URL shared by all WhatsApp connections.
                                 </div>
                                 <Button variant="secondary" onClick={runWebhookTest} disabled={webhookLoading}>
-                                    {webhookLoading ? 'Testing...' : 'Test Webhook'}
+                                    {webhookLoading ? 'Testing...' : 'Test Central Webhook'}
                                 </Button>
                                 {webhookResult && (
                                     <Alert variant={webhookResult.ok ? 'success' : 'error'}>

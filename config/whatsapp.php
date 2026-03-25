@@ -56,6 +56,8 @@ return [
     */
 
     'webhook' => [
+        'verify_token' => env('META_WEBHOOK_VERIFY_TOKEN'),
+
         /*
         |--------------------------------------------------------------------------
         | Allowed IPs (optional)

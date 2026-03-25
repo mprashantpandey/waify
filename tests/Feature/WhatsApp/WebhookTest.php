@@ -29,14 +29,16 @@ class WebhookTest extends TestCase
         $this->account = Account::factory()->create();
         $this->connection = WhatsAppConnection::factory()->create([
             'account_id' => $this->account->id,
-            'webhook_verify_token' => 'test-verify-token',
+            'phone_number_id' => '150215621517428',
+            'waba_id' => '131698056692862',
         ]);
+
+        config()->set('whatsapp.webhook.verify_token', 'test-verify-token');
     }
 
     public function test_webhook_verify_returns_challenge_for_valid_token(): void
     {
         $response = $this->get(route('webhooks.whatsapp.verify', [
-            'connection' => $this->connection->slug,
             'hub_mode' => 'subscribe',
             'hub_verify_token' => 'test-verify-token',
             'hub_challenge' => 'test-challenge-123',
@@ -44,13 +46,12 @@ class WebhookTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertSeeText('test-challenge-123');
-        $this->assertTrue($this->connection->fresh()->webhook_subscribed);
+        $this->assertFalse($this->connection->fresh()->webhook_subscribed);
     }
 
     public function test_webhook_verify_rejects_invalid_token(): void
     {
         $response = $this->get(route('webhooks.whatsapp.verify', [
-            'connection' => $this->connection->slug,
             'hub_mode' => 'subscribe',
             'hub_verify_token' => 'wrong-token',
             'hub_challenge' => 'test-challenge-123',
@@ -66,9 +67,13 @@ class WebhookTest extends TestCase
 
         $payload = [
             'entry' => [[
+                'id' => $this->connection->waba_id,
                 'changes' => [[
                     'field' => 'messages',
                     'value' => [
+                        'metadata' => [
+                            'phone_number_id' => $this->connection->phone_number_id,
+                        ],
                         'messages' => [[
                             'id' => 'wamid.sig.missing.1',
                             'from' => '1234567890',
@@ -80,7 +85,7 @@ class WebhookTest extends TestCase
             ]],
         ];
 
-        $this->postJson(route('webhooks.whatsapp.receive', ['connection' => $this->connection->slug]), $payload)
+        $this->postJson(route('webhooks.whatsapp.receive'), $payload)
             ->assertStatus(401)
             ->assertSeeText('Missing signature');
     }
@@ -90,10 +95,14 @@ class WebhookTest extends TestCase
         $payload = [
             'entry' => [
                 [
+                    'id' => $this->connection->waba_id,
                     'changes' => [
                         [
                             'field' => 'messages',
                             'value' => [
+                                'metadata' => [
+                                    'phone_number_id' => $this->connection->phone_number_id,
+                                ],
                                 'messages' => [
                                     [
                                         'id' => 'wamid.test123',
@@ -120,7 +129,7 @@ class WebhookTest extends TestCase
 
         // Send first time
         $response1 = $this->postJson(
-            route('webhooks.whatsapp.receive', ['connection' => $this->connection->slug]),
+            route('webhooks.whatsapp.receive'),
             $payload
         );
 
@@ -134,7 +143,7 @@ class WebhookTest extends TestCase
 
         // Send second time (should not create duplicate)
         $response2 = $this->postJson(
-            route('webhooks.whatsapp.receive', ['connection' => $this->connection->slug]),
+            route('webhooks.whatsapp.receive'),
             $payload
         );
 
@@ -151,10 +160,14 @@ class WebhookTest extends TestCase
         $payload = [
             'entry' => [
                 [
+                    'id' => $this->connection->waba_id,
                     'changes' => [
                         [
                             'field' => 'messages',
                             'value' => [
+                                'metadata' => [
+                                    'phone_number_id' => $this->connection->phone_number_id,
+                                ],
                                 'messages' => [
                                     [
                                         'id' => 'wamid.test456',
@@ -179,10 +192,7 @@ class WebhookTest extends TestCase
             ],
         ];
 
-        $this->postJson(
-            route('webhooks.whatsapp.receive', ['connection' => $this->connection->slug]),
-            $payload
-        );
+        $this->postJson(route('webhooks.whatsapp.receive'), $payload);
 
         $this->assertDatabaseHas('whatsapp_contacts', [
             'account_id' => $this->account->id,
@@ -204,9 +214,13 @@ class WebhookTest extends TestCase
 
         $inboundPayload = [
             'entry' => [[
+                'id' => $this->connection->waba_id,
                 'changes' => [[
                     'field' => 'messages',
                     'value' => [
+                        'metadata' => [
+                            'phone_number_id' => $this->connection->phone_number_id,
+                        ],
                         'messages' => [[
                             'id' => 'wamid.bill123',
                             'from' => '1112223333',
@@ -221,14 +235,18 @@ class WebhookTest extends TestCase
             ]],
         ];
 
-        $this->postJson(route('webhooks.whatsapp.receive', ['connection' => $this->connection->slug]), $inboundPayload)
+        $this->postJson(route('webhooks.whatsapp.receive'), $inboundPayload)
             ->assertStatus(200);
 
         $statusPayload = [
             'entry' => [[
+                'id' => $this->connection->waba_id,
                 'changes' => [[
                     'field' => 'messages',
                     'value' => [
+                        'metadata' => [
+                            'phone_number_id' => $this->connection->phone_number_id,
+                        ],
                         'statuses' => [[
                             'id' => 'wamid.bill123',
                             'status' => 'delivered',
@@ -248,10 +266,10 @@ class WebhookTest extends TestCase
             ]],
         ];
 
-        $this->postJson(route('webhooks.whatsapp.receive', ['connection' => $this->connection->slug]), $statusPayload)
+        $this->postJson(route('webhooks.whatsapp.receive'), $statusPayload)
             ->assertStatus(200);
         // Duplicate status should not double count
-        $this->postJson(route('webhooks.whatsapp.receive', ['connection' => $this->connection->slug]), $statusPayload)
+        $this->postJson(route('webhooks.whatsapp.receive'), $statusPayload)
             ->assertStatus(200);
 
         $usage = AccountUsage::where('account_id', $this->account->id)
@@ -284,9 +302,13 @@ class WebhookTest extends TestCase
 
         $payload = [
             'entry' => [[
+                'id' => $this->connection->waba_id,
                 'changes' => [[
                     'field' => 'messages',
                     'value' => [
+                        'metadata' => [
+                            'phone_number_id' => $this->connection->phone_number_id,
+                        ],
                         'messages' => [[
                             'id' => 'wamid.optout001',
                             'from' => '9000000001',
@@ -301,10 +323,7 @@ class WebhookTest extends TestCase
             ]],
         ];
 
-        $this->postJson(
-            route('webhooks.whatsapp.receive', ['connection' => $this->connection->slug]),
-            $payload
-        )->assertStatus(200);
+        $this->postJson(route('webhooks.whatsapp.receive'), $payload)->assertStatus(200);
 
         $contact = WhatsAppContact::where('account_id', $this->account->id)
             ->where('wa_id', '9000000001')
