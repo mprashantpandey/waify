@@ -402,6 +402,8 @@ export default function ConversationsShow({
     const [auditEvents, setAuditEvents] = useState<AuditEventItem[]>(normalizedAuditEvents);
     const [noteDraft, setNoteDraft] = useState('');
     const [metaUpdating, setMetaUpdating] = useState(false);
+    const [showConversationSettings, setShowConversationSettings] = useState(false);
+    const [showInternalNotes, setShowInternalNotes] = useState(false);
     const [pendingAssignedTo, setPendingAssignedTo] = useState<number | null | undefined>(undefined);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -1875,9 +1877,9 @@ export default function ConversationsShow({
 
                 {/* Right panel */}
                 <aside className="hidden lg:flex lg:w-80 xl:w-96 flex-col border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-y-auto">
-                    <div className="p-6 border-b border-gray-200 dark:border-gray-800">
+                    <div className="p-5 border-b border-gray-200 dark:border-gray-800">
                         <div className="flex items-center gap-3">
-                            <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                            <div className="h-11 w-11 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-base">
                                 {conversation.contact.name?.charAt(0).toUpperCase() || conversation.contact.wa_id.charAt(0)}
                             </div>
                             <div>
@@ -1887,7 +1889,7 @@ export default function ConversationsShow({
                         </div>
                         <div className="mt-4 space-y-2 text-sm text-gray-600 dark:text-gray-300">
                             <div className="flex items-center justify-between">
-                                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Connection</span>
+                                <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Number</span>
                                 <span className="font-medium">{conversation.connection.name}</span>
                             </div>
                             <div className="flex items-center justify-between">
@@ -1905,14 +1907,20 @@ export default function ConversationsShow({
                         </div>
                     </div>
 
-                    <div className="p-6 border-b border-gray-200 dark:border-gray-800">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Assignment & Priority</h3>
-                            {metaUpdating && (
-                                <span className="text-xs text-gray-400">Saving…</span>
-                            )}
-                        </div>
-                        <div className="space-y-4 text-sm">
+                    <div className="p-5 border-b border-gray-200 dark:border-gray-800">
+                        <button
+                            type="button"
+                            onClick={() => setShowConversationSettings((value) => !value)}
+                            className="flex w-full items-center justify-between text-left"
+                        >
+                            <div className="flex items-center gap-2">
+                                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Chat settings</h3>
+                                {metaUpdating && <span className="text-xs text-gray-400">Saving…</span>}
+                            </div>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">{showConversationSettings ? 'Hide' : 'Show'}</span>
+                        </button>
+                        {showConversationSettings && (
+                        <div className="mt-4 space-y-4 text-sm">
                             <div className="space-y-2">
                                 <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Assignee</span>
                                 <select
@@ -1995,14 +2003,24 @@ export default function ConversationsShow({
                                 </Link>
                             </div>
                         </div>
+                        )}
                     </div>
 
-                    <div className="p-6 border-b border-gray-200 dark:border-gray-800">
-                        <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Internal Notes</h3>
-                            <span className="text-xs text-gray-500">{notes.length}</span>
-                        </div>
-                        <div className="space-y-3">
+                    <div className="p-5 border-b border-gray-200 dark:border-gray-800">
+                        <button
+                            type="button"
+                            onClick={() => setShowInternalNotes((value) => !value)}
+                            className="flex w-full items-center justify-between text-left"
+                        >
+                            <div className="flex items-center gap-2">
+                                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Internal notes</h3>
+                                <span className="text-xs text-gray-500">{notes.length}</span>
+                            </div>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">{showInternalNotes ? 'Hide' : 'Show'}</span>
+                        </button>
+                        {showInternalNotes && (
+                        <>
+                        <div className="mt-4 space-y-3">
                             <Textarea
                                 value={noteDraft}
                                 onChange={(e) => setNoteDraft(e.target.value)}
@@ -2026,6 +2044,8 @@ export default function ConversationsShow({
                                 </div>
                             ))}
                         </div>
+                        </>
+                        )}
                     </div>
 
                     <div className="p-6">

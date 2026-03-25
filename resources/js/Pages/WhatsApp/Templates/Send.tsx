@@ -500,34 +500,26 @@ export default function TemplatesSend({
                             </div>
                         </CardHeader>
                         <CardContent className="p-6">
-                            <div className="space-y-4">
-                                <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                            Template: {template.name}
-                                        </span>
-                                    </div>
-                                    <div className="bg-white dark:bg-gray-950 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                                        <pre className="text-sm whitespace-pre-wrap text-gray-900 dark:text-gray-100 leading-relaxed">
-                                            {renderPreview()}
-                                        </pre>
-                                    </div>
+                            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
+                                <div className="mb-2 flex items-center gap-2">
+                                    <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{template.name}</span>
+                                </div>
+                                <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-950">
+                                    <pre className="text-sm whitespace-pre-wrap text-gray-900 dark:text-gray-100 leading-relaxed">
+                                        {renderPreview()}
+                                    </pre>
                                 </div>
                                 {template.has_buttons && template.buttons.length > 0 && (
-                                    <div className="space-y-2">
-                                        <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Buttons</p>
+                                    <div className="mt-3 space-y-2">
+                                        <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Buttons</p>
                                         {template.buttons.map((button, index) => (
                                             <div
                                                 key={index}
-                                                className="p-4 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-200 dark:border-blue-800 hover:border-blue-300 dark:hover:border-blue-700 transition-colors"
+                                                className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-950"
                                             >
-                                                <div className="flex items-center justify-between">
-                                                    <span className="font-semibold text-gray-900 dark:text-gray-100">{button.text}</span>
-                                                    <Badge variant="info" className="px-3 py-1">
-                                                        {button.type}
-                                                    </Badge>
-                                                </div>
+                                                <span className="font-medium text-gray-900 dark:text-gray-100">{button.text}</span>
+                                                <span className="text-[11px] text-gray-500">{button.type}</span>
                                             </div>
                                         ))}
                                     </div>

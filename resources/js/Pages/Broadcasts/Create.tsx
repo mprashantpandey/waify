@@ -48,6 +48,7 @@ export default function BroadcastsCreate({
     const [selectedConnection, setSelectedConnection] = useState<number | ''>('');
     const [selectedTemplate, setSelectedTemplate] = useState<number | ''>('');
     const [showAdvancedTiming, setShowAdvancedTiming] = useState(false);
+    const [showAdvancedRecipients, setShowAdvancedRecipients] = useState(false);
 
     const { data, setData, post, processing, errors } = useForm({
         name: '',
@@ -356,123 +357,144 @@ export default function BroadcastsCreate({
                             <CardDescription>Who should receive this campaign?</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="flex flex-wrap gap-4">
-                                <label className="flex items-center">
-                                    <input
-                                        type="radio"
-                                        value="contacts"
-                                        checked={recipientType === 'contacts'}
-                                        onChange={(e) => {
-                                            setRecipientType('contacts');
-                                            setData('recipient_type', 'contacts');
-                                            setSelectedSegments([]);
-                                            setData('recipient_filters', {});
-                                        }}
-                                        className="mr-2"
-                                    />
-                                    All Contacts ({contactsCount})
-                                </label>
-                                <label className="flex items-center">
-                                    <input
-                                        type="radio"
-                                        value="custom"
-                                        checked={recipientType === 'custom'}
-                                        onChange={(e) => {
-                                            setRecipientType('custom');
-                                            setData('recipient_type', 'custom');
-                                            setSelectedSegments([]);
-                                            setData('recipient_filters', {});
-                                        }}
-                                        className="mr-2"
-                                    />
-                                    Custom List
-                                </label>
-                                <label className="flex items-center">
-                                    <input
-                                        type="radio"
-                                        value="segment"
-                                        checked={recipientType === 'segment'}
-                                        onChange={() => {
-                                            setRecipientType('segment');
-                                            setData('recipient_type', 'segment');
-                                            setData('recipient_filters', { segment_ids: selectedSegments });
-                                        }}
-                                        className="mr-2"
-                                    />
-                                    Segments
-                                </label>
-                            </div>
+                            <label className="flex items-center">
+                                <input
+                                    type="radio"
+                                    value="contacts"
+                                    checked={recipientType === 'contacts'}
+                                    onChange={() => {
+                                        setRecipientType('contacts');
+                                        setData('recipient_type', 'contacts');
+                                        setSelectedSegments([]);
+                                        setData('recipient_filters', {});
+                                    }}
+                                    className="mr-2"
+                                />
+                                All Contacts ({contactsCount})
+                            </label>
 
-                            {recipientType === 'custom' && (
-                                <div className="space-y-2">
-                                    {data.custom_recipients.map((recipient, index) => (
-                                        <div key={index} className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
-                                            <TextInput
-                                                type="text"
-                                                placeholder="Phone number (with country code)"
-                                                value={recipient.phone}
-                                                onChange={(e) => updateCustomRecipient(index, 'phone', e.target.value)}
-                                                className="flex-1"
-                                            />
-                                            <TextInput
-                                                type="text"
-                                                placeholder="Name (optional)"
-                                                value={recipient.name || ''}
-                                                onChange={(e) => updateCustomRecipient(index, 'name', e.target.value)}
-                                                className="flex-1"
-                                            />
-                                            <Button
-                                                type="button"
-                                                variant="secondary"
-                                                className="w-full sm:w-auto"
-                                                onClick={() => removeCustomRecipient(index)}
-                                            >
-                                                Remove
-                                            </Button>
-                                        </div>
-                                    ))}
-                                    <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={addCustomRecipient}>
-                                        Add Recipient
-                                    </Button>
-                                </div>
-                            )}
-
-                            {recipientType === 'segment' && (
-                                <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-                                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
-                                        Select segments
+                            <div className="rounded-xl border border-gray-200 dark:border-gray-700">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAdvancedRecipients((value) => !value)}
+                                    className="flex w-full items-center justify-between px-4 py-3 text-left"
+                                >
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Advanced recipient controls</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">Custom lists and segments.</p>
                                     </div>
-                                    {segments.length === 0 ? (
-                                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                                            No segments available yet.
+                                    <span className="text-sm text-gray-500 dark:text-gray-400">{showAdvancedRecipients ? 'Hide' : 'Show'}</span>
+                                </button>
+
+                                {showAdvancedRecipients && (
+                                    <div className="space-y-4 border-t border-gray-200 px-4 py-4 dark:border-gray-700">
+                                        <div className="flex flex-wrap gap-4">
+                                            <label className="flex items-center">
+                                                <input
+                                                    type="radio"
+                                                    value="custom"
+                                                    checked={recipientType === 'custom'}
+                                                    onChange={() => {
+                                                        setRecipientType('custom');
+                                                        setData('recipient_type', 'custom');
+                                                        setSelectedSegments([]);
+                                                        setData('recipient_filters', {});
+                                                        setShowAdvancedRecipients(true);
+                                                    }}
+                                                    className="mr-2"
+                                                />
+                                                Custom List
+                                            </label>
+                                            <label className="flex items-center">
+                                                <input
+                                                    type="radio"
+                                                    value="segment"
+                                                    checked={recipientType === 'segment'}
+                                                    onChange={() => {
+                                                        setRecipientType('segment');
+                                                        setData('recipient_type', 'segment');
+                                                        setData('recipient_filters', { segment_ids: selectedSegments });
+                                                        setShowAdvancedRecipients(true);
+                                                    }}
+                                                    className="mr-2"
+                                                />
+                                                Segments
+                                            </label>
                                         </div>
-                                    ) : (
-                                        <div className="grid gap-2 sm:grid-cols-2">
-                                            {segments.map((segment) => (
-                                                <label
-                                                    key={segment.id}
-                                                    className="flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedSegments.includes(segment.id)}
-                                                        onChange={() => toggleSegment(segment.id)}
-                                                    />
-                                                    <span className="flex-1">{segment.name}</span>
-                                                    <span className="text-xs text-gray-500">
-                                                        {segment.contact_count ?? '—'}
-                                                    </span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    )}
-                                    {selectedSegments.length === 0 && (
-                                        <div className="mt-2 text-xs text-amber-600">
-                                            Select at least one segment to continue.
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+
+                                        {recipientType === 'custom' && (
+                                            <div className="space-y-2">
+                                                {data.custom_recipients.map((recipient, index) => (
+                                                    <div key={index} className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
+                                                        <TextInput
+                                                            type="text"
+                                                            placeholder="Phone number (with country code)"
+                                                            value={recipient.phone}
+                                                            onChange={(e) => updateCustomRecipient(index, 'phone', e.target.value)}
+                                                            className="flex-1"
+                                                        />
+                                                        <TextInput
+                                                            type="text"
+                                                            placeholder="Name (optional)"
+                                                            value={recipient.name || ''}
+                                                            onChange={(e) => updateCustomRecipient(index, 'name', e.target.value)}
+                                                            className="flex-1"
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            variant="secondary"
+                                                            className="w-full sm:w-auto"
+                                                            onClick={() => removeCustomRecipient(index)}
+                                                        >
+                                                            Remove
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                                <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={addCustomRecipient}>
+                                                    Add Recipient
+                                                </Button>
+                                            </div>
+                                        )}
+
+                                        {recipientType === 'segment' && (
+                                            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                                                <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
+                                                    Select segments
+                                                </div>
+                                                {segments.length === 0 ? (
+                                                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                                                        No segments available yet.
+                                                    </div>
+                                                ) : (
+                                                    <div className="grid gap-2 sm:grid-cols-2">
+                                                        {segments.map((segment) => (
+                                                            <label
+                                                                key={segment.id}
+                                                                className="flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+                                                            >
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={selectedSegments.includes(segment.id)}
+                                                                    onChange={() => toggleSegment(segment.id)}
+                                                                />
+                                                                <span className="flex-1">{segment.name}</span>
+                                                                <span className="text-xs text-gray-500">
+                                                                    {segment.contact_count ?? '—'}
+                                                                </span>
+                                                            </label>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                {selectedSegments.length === 0 && (
+                                                    <div className="mt-2 text-xs text-amber-600">
+                                                        Select at least one segment to continue.
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </CardContent>
                     </Card>
 

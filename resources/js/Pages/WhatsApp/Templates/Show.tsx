@@ -576,46 +576,36 @@ export default function TemplatesShow({
                             </div>
                         </div>
                     </CardHeader>
-                    <CardContent className="p-6 space-y-4">
+                    <CardContent className="p-6">
+                        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
+                            <div className="space-y-3 text-sm text-gray-900 dark:text-gray-100">
                         {liveTemplate.header_type && liveTemplate.header_text && (
-                            <div className="p-5 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <Badge variant="info" className="px-2 py-1 text-xs">
-                                        Header ({liveTemplate.header_type})
-                                    </Badge>
-                                </div>
-                                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            <div>
+                                <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Header</div>
+                                <p className="font-medium">
                                     {liveTemplate.header_text}
                                 </p>
                             </div>
                         )}
 
                         {liveTemplate.body_text && (
-                            <div className="p-5 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <Badge variant="default" className="px-2 py-1 text-xs">
-                                        Body
-                                    </Badge>
+                            <div>
+                                <div className="mb-1 flex items-center gap-2">
+                                    <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Body</span>
                                     {liveTemplate.variable_count > 0 && (
-                                        <Badge variant="info" className="px-2 py-1 text-xs">
-                                            {liveTemplate.variable_count} variables
-                                        </Badge>
+                                        <span className="text-[11px] text-gray-500">{liveTemplate.variable_count} variables</span>
                                     )}
                                 </div>
-                                <p className="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">
+                                <p className="whitespace-pre-wrap leading-relaxed">
                                     {liveTemplate.body_text}
                                 </p>
                             </div>
                         )}
 
                         {liveTemplate.footer_text && (
-                            <div className="p-5 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <Badge variant="default" className="px-2 py-1 text-xs">
-                                        Footer
-                                    </Badge>
-                                </div>
-                                <p className="text-sm text-gray-900 dark:text-gray-100">
+                            <div>
+                                <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Footer</div>
+                                <p>
                                     {liveTemplate.footer_text}
                                 </p>
                             </div>
@@ -623,26 +613,22 @@ export default function TemplatesShow({
 
                         {liveTemplate.has_buttons && liveTemplate.buttons.length > 0 && (
                             <div>
-                                <div className="flex items-center gap-2 mb-3">
-                                    <Badge variant="default" className="px-2 py-1 text-xs">
-                                        Buttons
-                                    </Badge>
-                                </div>
+                                <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">Buttons</div>
                                 <div className="space-y-2">
                                     {liveTemplate.buttons.map((button, index) => (
                                         <div
                                             key={index}
-                                            className="p-4 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-200 dark:border-blue-800 flex items-center justify-between hover:border-blue-300 dark:hover:border-blue-700 transition-colors"
+                                            className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-950"
                                         >
-                                            <span className="font-semibold text-gray-900 dark:text-gray-100">{button.text}</span>
-                                            <Badge variant="info" className="px-3 py-1">
-                                                {button.type}
-                                            </Badge>
+                                            <span className="font-medium text-gray-900 dark:text-gray-100">{button.text}</span>
+                                            <span className="text-[11px] text-gray-500">{button.type}</span>
                                         </div>
                                     ))}
                                 </div>
                             </div>
                         )}
+                            </div>
+                        </div>
                     </CardContent>
                 </Card>
 
