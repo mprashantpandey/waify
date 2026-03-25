@@ -226,14 +226,15 @@ export default function TemplatesIndex({
     const getSyncStateBadge = (syncState?: string) => {
         const state = String(syncState || 'unknown').toLowerCase();
         const stateMap: Record<string, { variant: 'success' | 'warning' | 'danger' | 'default' | 'info'; label: string }> = {
-            synced: { variant: 'success', label: 'Synced' },
-            stale: { variant: 'warning', label: 'Stale' },
-            pending_review: { variant: 'info', label: 'Pending Review' },
-            missing_remote: { variant: 'danger', label: 'Missing On Meta' },
-            sync_error: { variant: 'danger', label: 'Sync Error' },
+            synced: { variant: 'success', label: 'Up to date' },
+            stale: { variant: 'warning', label: 'Needs refresh' },
+            pending_review: { variant: 'info', label: 'Under review' },
+            missing_remote: { variant: 'danger', label: 'Not available on WhatsApp' },
+            sync_error: { variant: 'danger', label: 'Needs review' },
         };
 
-        const config = stateMap[state] || { variant: 'default' as const, label: state.replace('_', ' ') };
+        const fallbackLabel = state === 'unknown' ? 'Checking status' : state.replaceAll('_', ' ');
+        const config = stateMap[state] || { variant: 'default' as const, label: fallbackLabel };
         return <Badge variant={config.variant} className="px-2 py-0.5 text-[10px]">{config.label}</Badge>;
     };
 
@@ -375,20 +376,20 @@ export default function TemplatesIndex({
                 {(sync_report || connections.some((c) => c.last_synced_at || c.last_sync_error)) && (
                     <Card className="border-0 shadow-lg">
                         <CardHeader>
-                            <CardTitle>Sync Status Report</CardTitle>
-                            <CardDescription>Latest sync summary and per-connection status</CardDescription>
+                            <CardTitle>Template update summary</CardTitle>
+                            <CardDescription>Latest refresh results for each connected number</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-3 text-sm">
                             {sync_report && (
                                 <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
                                     <p>
-                                        Last run: {sync_report.total} total, {sync_report.created} created, {sync_report.updated} updated, {sync_report.missing_remote ?? 0} missing on Meta, {sync_report.errors_count} errors.
+                                        Last refresh: {sync_report.total} checked, {sync_report.created} added, {sync_report.updated} updated, {sync_report.missing_remote ?? 0} no longer available on WhatsApp, {sync_report.errors_count} issues.
                                     </p>
                                     {Array.isArray(sync_report.missing_remote_templates) && sync_report.missing_remote_templates.length > 0 && (
                                         <ul className="mt-2 space-y-1 text-amber-700 dark:text-amber-300">
                                             {sync_report.missing_remote_templates.map((template) => (
                                                 <li key={template.id}>
-                                                    Missing on Meta: {template.name} ({template.language}) — local status {template.status}
+                                                    No longer available on WhatsApp: {template.name} ({template.language}) — local status {template.status}
                                                 </li>
                                             ))}
                                         </ul>
@@ -428,7 +429,7 @@ export default function TemplatesIndex({
                                 <div>
                                     <CardTitle>Recovery Visibility</CardTitle>
                                     <CardDescription>
-                                        Templates hidden from the main list because they were archived locally, marked missing on Meta, or both.
+                                        Templates hidden from the main list because they were archived locally, are no longer available on WhatsApp, or both.
                                     </CardDescription>
                                 </div>
                                 <Button
@@ -463,7 +464,7 @@ export default function TemplatesIndex({
                                                     )}
                                                     {template.is_remote_deleted && (
                                                         <Badge variant="danger" className="px-2 py-0.5 text-[10px]">
-                                                            Missing On Meta
+                                                            Not on WhatsApp
                                                         </Badge>
                                                     )}
                                                 </div>
@@ -642,7 +643,7 @@ export default function TemplatesIndex({
                                                             ) : null}
                                                             {template.is_remote_deleted ? (
                                                                 <Badge variant="danger" className="px-2 py-0.5 text-[10px]">
-                                                                    Remote Deleted
+                                                                    Not on WhatsApp
                                                                 </Badge>
                                                             ) : null}
                                                         </div>

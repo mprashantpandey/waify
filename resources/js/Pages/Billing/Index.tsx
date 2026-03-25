@@ -168,7 +168,7 @@ export default function BillingIndex({
         : (plan.price_monthly ?? 0) <= 0
         ? 'This plan is free. No payment is required.'
         : !razorpayEnabled
-        ? 'Online checkout is currently unavailable. Contact support to renew.'
+        ? 'Online checkout is currently unavailable right now.'
         : null;
     const canResumeSubscription = Boolean(
         isOwner

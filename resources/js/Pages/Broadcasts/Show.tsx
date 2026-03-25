@@ -1,4 +1,4 @@
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
@@ -61,6 +61,7 @@ export default function BroadcastsShow({
     testTargetPhone?: string | null;
 }) {
     const { toast } = useToast();
+    const { support_access: supportAccess = false } = usePage<any>().props;
     const [testPhone, setTestPhone] = useState(testTargetPhone || '');
 
     const getStatusBadge = (status: string) => {
@@ -205,18 +206,20 @@ export default function BroadcastsShow({
                             <Button onClick={handleDuplicate} variant="secondary" className="w-full sm:w-auto">
                                 Duplicate
                             </Button>
-                            <Button onClick={downloadDiagnosticsBundle} variant="secondary" className="w-full sm:w-auto">
-                                Diagnostics
-                            </Button>
+                            {supportAccess && (
+                                <Button onClick={downloadDiagnosticsBundle} variant="secondary" className="w-full sm:w-auto">
+                                    Support bundle
+                                </Button>
+                            )}
                             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                                 <input
                                     value={testPhone}
                                     onChange={(e) => setTestPhone(e.target.value)}
-                                    placeholder="Test phone"
+                                    placeholder="Send a quick test"
                                     className="w-full sm:w-44 rounded-md border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-800"
                                 />
                                 <Button onClick={handleSendTest} variant="secondary" className="w-full sm:w-auto">
-                                    Send Test To Me
+                                    Send test
                                 </Button>
                             </div>
                             {['draft', 'cancelled', 'completed'].includes(campaign.status) && (

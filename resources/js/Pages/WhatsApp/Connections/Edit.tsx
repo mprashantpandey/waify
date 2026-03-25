@@ -31,10 +31,25 @@ interface Connection {
     quiet_hours_timezone?: string | null;
 }
 
+function formatProvisioningStep(step?: string | null): string {
+    const labels: Record<string, string> = {
+        oauth_complete: 'Login confirmed',
+        assets_resolved: 'Business details received',
+        system_user_assignment: 'Business access being linked',
+        credit_line_attachment: 'Billing setup in progress',
+        app_subscription: 'Message updates being enabled',
+        phone_registration: 'Number being prepared',
+        metadata_sync: 'Account details being loaded',
+        connection_ready: 'Ready',
+    };
+
+    return labels[String(step || '').toLowerCase()] || 'Final checks';
+}
+
 function setupLabel(connection: Connection): string {
     if (connection.provisioning_status === 'failed') return 'Needs attention';
-    if (connection.provisioning_status && connection.provisioning_status !== 'completed') return 'Setup in progress';
-    if (connection.activation_state && connection.activation_state !== 'active') return 'Finishing setup';
+    if (connection.provisioning_status && connection.provisioning_status !== 'completed') return 'Getting ready';
+    if (connection.activation_state && connection.activation_state !== 'active') return 'Almost ready';
     return connection.is_active ? 'Ready' : 'Inactive';
 }
 
@@ -44,7 +59,7 @@ function statusMessage(connection: Connection): string {
     }
 
     if (connection.provisioning_status && connection.provisioning_status !== 'completed') {
-        return 'Zyptos is still finishing the setup for this number.';
+        return `We're still finishing setup for this number. Current step: ${formatProvisioningStep(connection.provisioning_step)}.`;
     }
 
     if (connection.activation_state && connection.activation_state !== 'active') {
@@ -197,9 +212,9 @@ export default function ConnectionsEdit({
                                         <dd className="text-right font-medium text-gray-900 dark:text-gray-100">{connection.business_phone || 'Not available yet'}</dd>
                                     </div>
                                     <div className="flex items-start justify-between gap-4">
-                                        <dt className="text-gray-500 dark:text-gray-400">Current setup step</dt>
+                                        <dt className="text-gray-500 dark:text-gray-400">Current step</dt>
                                         <dd className="text-right font-medium text-gray-900 dark:text-gray-100">
-                                            {connection.provisioning_step ? connection.provisioning_step.replaceAll('_', ' ') : 'Complete'}
+                                            {connection.provisioning_step ? formatProvisioningStep(connection.provisioning_step) : 'Ready'}
                                         </dd>
                                     </div>
                                     <div className="flex items-start justify-between gap-4">

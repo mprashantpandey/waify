@@ -22,10 +22,25 @@ interface Connection {
     created_at: string;
 }
 
+function formatProvisioningStep(step?: string | null): string {
+    const labels: Record<string, string> = {
+        oauth_complete: 'Login confirmed',
+        assets_resolved: 'Business details received',
+        system_user_assignment: 'Business access being linked',
+        credit_line_attachment: 'Billing setup in progress',
+        app_subscription: 'Message updates being enabled',
+        phone_registration: 'Number being prepared',
+        metadata_sync: 'Account details being loaded',
+        connection_ready: 'Ready',
+    };
+
+    return labels[String(step || '').toLowerCase()] || 'Final checks';
+}
+
 function formatSetupLabel(connection: Connection): string {
     if (connection.provisioning_status === 'failed') return 'Needs attention';
-    if (connection.provisioning_status && connection.provisioning_status !== 'completed') return 'Setup in progress';
-    if (connection.activation_state && connection.activation_state !== 'active') return 'Finishing setup';
+    if (connection.provisioning_status && connection.provisioning_status !== 'completed') return 'Getting ready';
+    if (connection.activation_state && connection.activation_state !== 'active') return 'Almost ready';
     return connection.is_active ? 'Ready' : 'Inactive';
 }
 
@@ -69,7 +84,7 @@ export default function ConnectionsIndex({
     }, [connections, query, statusFilter]);
 
     const readyCount = connections.filter((connection) => formatSetupLabel(connection) === 'Ready').length;
-    const setupCount = connections.filter((connection) => formatSetupLabel(connection) === 'Setup in progress' || formatSetupLabel(connection) === 'Finishing setup').length;
+    const setupCount = connections.filter((connection) => formatSetupLabel(connection) === 'Getting ready' || formatSetupLabel(connection) === 'Almost ready').length;
     const attentionCount = connections.filter((connection) => formatSetupLabel(connection) === 'Needs attention').length;
 
     return (
@@ -114,7 +129,7 @@ export default function ConnectionsIndex({
                             <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{readyCount}</div>
                         </div>
                         <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-                            <div className="text-sm text-gray-500 dark:text-gray-400">Finishing setup</div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">Getting ready</div>
                             <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{setupCount}</div>
                         </div>
                         <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
@@ -204,13 +219,13 @@ export default function ConnectionsIndex({
                                                 ) : (
                                                     <XCircle className="h-4 w-4 text-amber-500" />
                                                 )}
-                                                {connection.is_active ? 'Ready to use' : 'Still being prepared'}
+                                                {connection.is_active ? 'Ready to use' : 'Getting this number ready'}
                                             </div>
                                             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                                                 {connection.provisioning_status === 'failed'
                                                     ? (connection.provisioning_last_error || 'Setup needs one more check before this number can be used.')
                                                     : connection.provisioning_status && connection.provisioning_status !== 'completed'
-                                                        ? 'Zyptos is still finishing the setup for this number.'
+                                                        ? `We're still finishing setup for this number. Current step: ${formatProvisioningStep(connection.provisioning_step)}.`
                                                         : 'You can use this number for templates, campaigns, and inbox conversations.'}
                                             </p>
                                         </div>

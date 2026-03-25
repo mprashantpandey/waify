@@ -692,7 +692,7 @@ export default function ConversationsIndex({
                                 <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
                                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                         <span>
-                                            Realtime updates are delayed. New chats, assignments, or status changes may appear late.
+                                            Live updates are catching up. New chats or team changes may appear a little late for a moment.
                                             {syncErrorMessage ? ` ${syncErrorMessage}` : ''}
                                         </span>
                                         <Button
@@ -703,7 +703,7 @@ export default function ConversationsIndex({
                                             onClick={() => fetchInboxStreamAndMerge()}
                                         >
                                             <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                                            Retry now
+                                            Refresh list
                                         </Button>
                                         <Button
                                             type="button"
@@ -714,7 +714,7 @@ export default function ConversationsIndex({
                                             disabled={repairingUnread}
                                         >
                                             <RefreshCw className={cn('h-3.5 w-3.5 mr-1', repairingUnread && 'animate-spin')} />
-                                            {repairingUnread ? 'Repairing...' : 'Recalculate unread'}
+                                            {repairingUnread ? 'Updating...' : 'Refresh unread'}
                                         </Button>
                                     </div>
                                 </div>
