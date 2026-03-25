@@ -272,6 +272,12 @@ class CronDiagnosticsService
         $now = now();
         $appPath = base_path();
         $nullRedirect = '>> /dev/null 2>&1';
+        $queues = collect([
+            'default',
+            'chatbots',
+            'campaigns',
+            config('whatsapp.webhook.queue', 'webhooks'),
+        ])->filter()->unique()->implode(',');
 
         $commands = [
             [
@@ -279,7 +285,7 @@ class CronDiagnosticsService
                 'title' => 'Central Cron Command',
                 'schedule' => '* * * * *',
                 'description' => 'Single cron command: runs maintenance tick (backup/cleanup windows) then keeps worker active for ~55s each minute.',
-                'command' => "cd {$appPath} && php artisan ops:run-maintenance {$nullRedirect} && flock -n /tmp/waify-queue.lock timeout 55 php artisan queue:work --queue=default,chatbots,campaigns --sleep=1 --tries=3 --timeout=120 {$nullRedirect}",
+                'command' => "cd {$appPath} && php artisan ops:run-maintenance {$nullRedirect} && flock -n /tmp/waify-queue.lock timeout 55 php artisan queue:work --queue={$queues} --sleep=1 --tries=3 --timeout=120 {$nullRedirect}",
             ],
         ];
 

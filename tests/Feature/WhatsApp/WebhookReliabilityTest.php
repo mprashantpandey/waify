@@ -69,6 +69,42 @@ class WebhookReliabilityTest extends TestCase
         Queue::assertPushed(ProcessWebhookEventJob::class, 1);
     }
 
+    public function test_receive_uses_configured_webhook_queue(): void
+    {
+        Queue::fake();
+        config()->set('whatsapp.webhook.queue', 'default');
+
+        $account = Account::factory()->create();
+        $connection = WhatsAppConnection::factory()->create([
+            'account_id' => $account->id,
+        ]);
+
+        $payload = [
+            'object' => 'whatsapp_business_account',
+            'entry' => [[
+                'changes' => [[
+                    'field' => 'messages',
+                    'value' => [
+                        'messages' => [[
+                            'id' => 'wamid.rel.queue.1',
+                            'from' => '919111111111',
+                            'type' => 'text',
+                            'text' => ['body' => 'queue me'],
+                        ]],
+                    ],
+                ]],
+            ]],
+        ];
+
+        $this->postJson(route('webhooks.whatsapp.receive', ['connection' => $connection->slug]), $payload)
+            ->assertStatus(200)
+            ->assertJson(['success' => true, 'queued' => true]);
+
+        Queue::assertPushed(ProcessWebhookEventJob::class, function (ProcessWebhookEventJob $job) {
+            return $job->queue === 'default';
+        });
+    }
+
     public function test_receive_is_idempotent_for_duplicate_payloads(): void
     {
         Queue::fake();
@@ -159,4 +195,3 @@ class WebhookReliabilityTest extends TestCase
         );
     }
 }
-

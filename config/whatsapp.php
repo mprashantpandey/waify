@@ -97,6 +97,17 @@ return [
 
         /*
         |--------------------------------------------------------------------------
+        | Queue Name
+        |--------------------------------------------------------------------------
+        |
+        | Queue used for asynchronous webhook event processing. Keep this aligned
+        | with your worker command in production.
+        |
+        */
+        'queue' => env('WHATSAPP_WEBHOOK_QUEUE', 'webhooks'),
+
+        /*
+        |--------------------------------------------------------------------------
         | Consecutive Failure Alert Threshold
         |--------------------------------------------------------------------------
         */

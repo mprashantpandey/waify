@@ -59,6 +59,32 @@ class WebhookTest extends TestCase
         $response->assertStatus(403);
     }
 
+    public function test_webhook_receive_returns_401_for_missing_signature_when_required(): void
+    {
+        config()->set('whatsapp.tech_provider.verified_mode', true);
+        config()->set('whatsapp.meta.app_secret', 'test-secret');
+
+        $payload = [
+            'entry' => [[
+                'changes' => [[
+                    'field' => 'messages',
+                    'value' => [
+                        'messages' => [[
+                            'id' => 'wamid.sig.missing.1',
+                            'from' => '1234567890',
+                            'type' => 'text',
+                            'text' => ['body' => 'Hello'],
+                        ]],
+                    ],
+                ]],
+            ]],
+        ];
+
+        $this->postJson(route('webhooks.whatsapp.receive', ['connection' => $this->connection->slug]), $payload)
+            ->assertStatus(401)
+            ->assertSeeText('Missing signature');
+    }
+
     public function test_webhook_receive_creates_message_idempotently(): void
     {
         $payload = [

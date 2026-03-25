@@ -27,7 +27,7 @@ class ProcessWebhookEventJob implements ShouldQueue
 
     public function __construct(public int $webhookEventId)
     {
-        $this->onQueue('webhooks');
+        $this->onQueue((string) config('whatsapp.webhook.queue', 'webhooks'));
     }
 
     public function handle(WebhookProcessor $webhookProcessor, OperationalAlertService $alertService): void
@@ -136,4 +136,3 @@ class ProcessWebhookEventJob implements ShouldQueue
         }
     }
 }
-

@@ -6,6 +6,7 @@ use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 class WebhookSecurity
 {
@@ -118,7 +119,9 @@ class WebhookSecurity
                 'status' => $response->getStatusCode()]);
 
             return $response;
-        } catch (\Exception $e) {
+        } catch (HttpExceptionInterface $e) {
+            throw $e;
+        } catch (\Throwable $e) {
             // Log error safely (no stack trace in response)
             Log::channel('whatsapp')->error('Webhook processing exception', [
                 'correlation_id' => $correlationId,
