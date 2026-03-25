@@ -1657,6 +1657,9 @@ export default function ConversationsShow({
         ) : null;
     };
 
+    const hasComposerPanels =
+        showComposerTools || showLocation || showQuickReplies || showTemplates || showLists || showButtons;
+
     return (
         <AppShell>
             <Head title={`${conversation.contact.name || conversation.contact.wa_id} - Inbox`} />
@@ -2117,7 +2120,7 @@ export default function ConversationsShow({
                 </div>
 
                 {/* Composer - sticky on mobile so it stays visible when keyboard or panels open */}
-                <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-800 bg-[#f0f2f5] dark:bg-gray-900 p-3 sticky bottom-0">
+                <div className="relative flex-shrink-0 border-t border-gray-200 dark:border-gray-800 bg-[#f0f2f5] dark:bg-gray-900 p-3 sticky bottom-0">
                     <div className="space-y-3">
                         <div className="relative">
                             <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1 -mx-1 px-1">
@@ -2210,6 +2213,10 @@ export default function ConversationsShow({
                             )}
                         </div>
 
+                        {hasComposerPanels && (
+                            <div className="absolute bottom-full left-0 right-0 z-20 mb-3 px-3">
+                                <div className="max-h-[min(32rem,calc(100vh-15rem))] overflow-y-auto rounded-2xl pr-1">
+                                    <div className="space-y-3">
                         {showComposerTools && (
                             <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                                 <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -2677,6 +2684,11 @@ export default function ConversationsShow({
                                         >
                                             {buttonsSending ? 'Sending...' : 'Send Buttons'}
                                         </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                                     </div>
                                 </div>
                             </div>
