@@ -68,7 +68,7 @@ export default function ChatbotsExecutionsIndex({
                             Execution Logs
                         </h1>
                         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                            View bot execution history and debug issues
+                            View bot execution history for support review
                         </p>
                     </div>
                 </div>

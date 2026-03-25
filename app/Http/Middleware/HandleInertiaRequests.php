@@ -158,6 +158,7 @@ class HandleInertiaRequests extends Middleware
                     'id' => $impersonator->id,
                     'name' => $impersonator->name,
                     'email' => $impersonator->email] : null],
+            'support_access' => (bool) (($user?->isSuperAdmin() ?? false) || $request->session()->get('impersonator_is_super_admin', false)),
             'ai' => [
                 'enabled' => $this->toBoolean(PlatformSetting::get('ai.enabled', false)),
                 'provider' => PlatformSetting::get('ai.provider', 'openai')],

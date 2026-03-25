@@ -1,4 +1,4 @@
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
@@ -35,6 +35,7 @@ export default function ChatbotsIndex({
     bots: Bot[];
 }) {
     const { toast } = useToast();
+    const { support_access: supportAccess = false } = usePage<any>().props;
 
     const getStatusBadge = (status: string) => {
         const statusMap: Record<string, { variant: 'success' | 'warning' | 'default'; label: string }> = {
@@ -70,12 +71,14 @@ export default function ChatbotsIndex({
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Link href={route('app.chatbots.executions.index', {})}>
-                            <Button variant="secondary" className="rounded-xl">
-                                <Activity className="h-4 w-4 mr-2" />
-                                Execution Logs
-                            </Button>
-                        </Link>
+                        {supportAccess && (
+                            <Link href={route('app.chatbots.executions.index', {})}>
+                                <Button variant="secondary" className="rounded-xl">
+                                    <Activity className="h-4 w-4 mr-2" />
+                                    Execution Logs
+                                </Button>
+                            </Link>
+                        )}
                         <Link href={route('app.chatbots.create', {})}>
                             <Button className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 shadow-lg shadow-purple-500/50">
                                 <Plus className="h-4 w-4 mr-2" />

@@ -1,4 +1,4 @@
-import { useForm } from '@inertiajs/react';
+import { useForm, usePage } from '@inertiajs/react';
 import { FormEventHandler, useEffect, useState } from 'react';
 import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
@@ -91,6 +91,7 @@ export default function TemplatesSend({
     recent_sends?: RecentSend[];
 }) {
     const [highlightedSendId, setHighlightedSendId] = useState<number | null>(null);
+    const { support_access: supportAccess = false } = usePage<any>().props;
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -585,23 +586,25 @@ export default function TemplatesSend({
                                                 )}
                                                 <details className="mt-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950/40 p-3">
                                                     <summary className="cursor-pointer text-xs font-semibold text-gray-700 dark:text-gray-200">
-                                                        Diagnostics
+                                                        More details
                                                     </summary>
                                                     <div className="mt-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => downloadRecentSendDiagnostics(send)}
-                                                            className="text-[11px] font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                                                        >
-                                                            Download bundle
-                                                        </button>
                                                         <div className="mt-2 flex flex-wrap gap-3">
                                                             <Link
                                                                 href={`${route('app.whatsapp.templates.show', { template: template.slug })}#recent-send-${send.id}`}
                                                                 className="text-[11px] font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                                                             >
-                                                                Open diagnostics
+                                                                Open details
                                                             </Link>
+                                                            {supportAccess && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => downloadRecentSendDiagnostics(send)}
+                                                                    className="text-[11px] font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                                                                >
+                                                                    Download bundle
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </div>
                                                     <dl className="mt-3 space-y-2 text-xs">
@@ -613,7 +616,7 @@ export default function TemplatesSend({
                                                                 </dd>
                                                             </div>
                                                         ))}
-                                                        {send.message?.payload && (
+                                                        {supportAccess && send.message?.payload && (
                                                             <div className="pt-2">
                                                                 <dt className="mb-1 text-gray-500 dark:text-gray-400">Provider payload</dt>
                                                                 <dd className="overflow-x-auto rounded bg-white p-2 font-mono text-[11px] text-gray-700 dark:bg-gray-900 dark:text-gray-200">

@@ -208,6 +208,19 @@ const mergeAuditEvents = (existing: AuditEventItem[], incoming: AuditEventItem[]
 const maxId = (items: Array<{ id: number }>) =>
     items.length > 0 ? Math.max(...items.map((item) => item.id)) : 0;
 
+const assignmentEventLabel = (eventType?: string | null) => {
+    switch (String(eventType ?? '').toLowerCase()) {
+        case 'auto_assigned':
+            return 'Auto-assigned';
+        case 'transferred':
+            return 'Transferred';
+        case 'unassigned':
+            return 'Unassigned';
+        default:
+            return 'Assigned';
+    }
+};
+
 const getAuditEventMeta = (event: AuditEventItem) => {
     const type = String(event.event_type || '').toLowerCase();
     const actor = event.actor?.name || 'System';
@@ -215,22 +228,22 @@ const getAuditEventMeta = (event: AuditEventItem) => {
 
     const labels: Record<string, { label: string; tone: string; description?: string | null }> = {
         assigned: {
-            label: 'Assigned',
+            label: assignmentEventLabel(event.event_type),
             tone: 'text-emerald-600 dark:text-emerald-400',
             description: assignedTo ? `Assigned to ${assignedTo}` : event.description,
         },
         transferred: {
-            label: 'Transferred',
+            label: assignmentEventLabel(event.event_type),
             tone: 'text-blue-600 dark:text-blue-400',
             description: assignedTo ? `Transferred to ${assignedTo}` : event.description,
         },
         unassigned: {
-            label: 'Unassigned',
+            label: assignmentEventLabel(event.event_type),
             tone: 'text-amber-600 dark:text-amber-400',
             description: event.description || `Unassigned by ${actor}`,
         },
         auto_assigned: {
-            label: 'Auto-assigned',
+            label: assignmentEventLabel(event.event_type),
             tone: 'text-emerald-600 dark:text-emerald-400',
             description: assignedTo ? `Automatically assigned to ${assignedTo}` : event.description,
         },
@@ -339,7 +352,7 @@ export default function ConversationsShow({
     const normalizedLists = resolvedLists;
     const { subscribe, connected } = useRealtime();
     const { addToast } = useToast();
-    const { auth } = usePage().props as any;
+    const { auth, support_access: supportAccess = false } = usePage().props as any;
     const currentUserId = auth?.user?.id;
     const notifyAssignmentEnabled = auth?.user?.notify_assignment_enabled ?? true;
     const notifyMentionEnabled = auth?.user?.notify_mention_enabled ?? true;
@@ -1047,13 +1060,7 @@ export default function ConversationsShow({
                     const assignedToSomeoneElse = ev.meta?.assigned_to != null && ev.meta.assigned_to !== currentUserId;
                     if (isAssignment && ev.description && assignedToSomeoneElse) {
                         addToast({
-                            title: ev.event_type === 'auto_assigned'
-                                ? 'Auto-assigned'
-                                : ev.event_type === 'transferred'
-                                ? 'Transferred'
-                                : ev.event_type === 'unassigned'
-                                ? 'Unassigned'
-                                : 'Assigned',
+                            title: assignmentEventLabel(ev.event_type),
                             description: ev.description,
                             variant: 'info',
                             duration: 4000,
@@ -1822,12 +1829,12 @@ export default function ConversationsShow({
                                                     {message.direction === 'outbound' && getStatusLabel(message) && (
                                                         <button
                                                             type="button"
-                                                            onClick={() => setDiagnosticMessage(message)}
+                                                            onClick={() => supportAccess && setDiagnosticMessage(message)}
                                                             className={cn(
                                                                 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold transition hover:opacity-90',
                                                                 getStatusBadgeClassName(message)
                                                             )}
-                                                            title="Open delivery diagnostics"
+                                                            title={supportAccess ? 'Open delivery details' : 'Message status'}
                                                         >
                                                             <Info className="h-3 w-3" />
                                                             {getStatusLabel(message)}
@@ -1838,10 +1845,10 @@ export default function ConversationsShow({
                                                             {getDeliveryLatencyLabel(message)}
                                                         </span>
                                                     )}
-                                                    {message.direction === 'outbound' && message.status === 'failed' && getMessageDiagnosticError(message) && (
+                                                    {supportAccess && message.direction === 'outbound' && message.status === 'failed' && getMessageDiagnosticError(message) && (
                                                         <button
                                                             type="button"
-                                                            onClick={() => setDiagnosticMessage(message)}
+                                                            onClick={() => supportAccess && setDiagnosticMessage(message)}
                                                             className="text-[11px] font-medium text-red-600 underline decoration-dotted underline-offset-2 dark:text-red-400"
                                                         >
                                                             View error
@@ -2724,7 +2731,7 @@ export default function ConversationsShow({
             </div>
 
             <Modal
-                show={Boolean(diagnosticMessage)}
+                show={supportAccess && Boolean(diagnosticMessage)}
                 onClose={() => setDiagnosticMessage(null)}
                 maxWidth="xl"
             >

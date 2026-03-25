@@ -18,8 +18,10 @@ Route::middleware(['module.entitled:automation.chatbots'])->group(function () {
     Route::get('/chatbots/create', [BotController::class, 'create'])->name('chatbots.create');
     Route::post('/chatbots', [BotController::class, 'store'])->name('chatbots.store');
     // Executions (must be before /chatbots/{bot} so "executions" is not matched as a bot)
-    Route::get('/chatbots/executions', [BotExecutionController::class, 'index'])->name('chatbots.executions.index');
-    Route::get('/chatbots/executions/{execution}', [BotExecutionController::class, 'show'])->name('chatbots.executions.show');
+    Route::middleware('support.access')->group(function () {
+        Route::get('/chatbots/executions', [BotExecutionController::class, 'index'])->name('chatbots.executions.index');
+        Route::get('/chatbots/executions/{execution}', [BotExecutionController::class, 'show'])->name('chatbots.executions.show');
+    });
     Route::get('/chatbots/{bot}', [BotController::class, 'show'])->name('chatbots.show');
     Route::patch('/chatbots/{bot}', [BotController::class, 'update'])->name('chatbots.update');
     Route::delete('/chatbots/{bot}', [BotController::class, 'destroy'])->name('chatbots.destroy');

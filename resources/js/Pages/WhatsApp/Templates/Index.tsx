@@ -1,4 +1,4 @@
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
@@ -115,6 +115,7 @@ export default function TemplatesIndex({
 }) {
     const { toast } = useToast();
     const confirm = useConfirm();
+    const { support_access: supportAccess = false } = usePage<any>().props;
     const [localFilters, setLocalFilters] = useState<Filters>(filters);
     const [showFilters, setShowFilters] = useState(false);
     const [copied, setCopied] = useState<string | null>(null);
@@ -123,59 +124,6 @@ export default function TemplatesIndex({
     const [syncing, setSyncing] = useState(false);
     const [showArchivedTemplates, setShowArchivedTemplates] = useState(false);
     const hasConnections = connections.length > 0;
-
-    const buildFailedSendDiagnosticsBundle = (template: Template) => {
-        if (!template.latest_failed_send) return null;
-
-        return {
-            template: {
-                id: template.id,
-                slug: template.slug,
-                name: template.name,
-                language: template.language,
-                category: template.category,
-                status: template.status,
-                sendability: template.sendability ?? null,
-                last_meta_sync_at: template.last_meta_sync_at ?? null,
-                last_meta_error: template.last_meta_error ?? null,
-                meta_rejection_reason: template.meta_rejection_reason ?? null,
-            },
-            latest_failed_send: {
-                id: template.latest_failed_send.id,
-                status: template.latest_failed_send.status ?? null,
-                error_message: template.latest_failed_send.error_message ?? null,
-                meta_message_id: template.latest_failed_send.meta_message_id ?? null,
-                timeline: template.latest_failed_send.timeline ?? [],
-                payload: template.latest_failed_send.payload ?? null,
-                created_at: template.latest_failed_send.created_at ?? null,
-            },
-        };
-    };
-
-    const downloadFailedSendDiagnosticsBundle = (template: Template) => {
-        const bundle = buildFailedSendDiagnosticsBundle(template);
-        if (!bundle) return;
-
-        const blob = new Blob([JSON.stringify(bundle, null, 2)], {
-            type: 'application/json;charset=utf-8',
-        });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `template-failure-diagnostics-${template.slug}-${template.latest_failed_send?.id}.json`;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        URL.revokeObjectURL(url);
-    };
-
-    const copyFailedSendDiagnosticsBundle = async (template: Template) => {
-        const bundle = buildFailedSendDiagnosticsBundle(template);
-        if (!bundle) return;
-
-        await navigator.clipboard.writeText(JSON.stringify(bundle, null, 2));
-        toast.success('Diagnostics copied');
-    };
 
     const applyFilters = () => {
         router.get(route('app.whatsapp.templates.index', {}), localFilters as any, {
@@ -526,7 +474,7 @@ export default function TemplatesIndex({
                                                 )}
                                                 {template.last_meta_sync_at && (
                                                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                        Last Meta sync: {new Date(template.last_meta_sync_at).toLocaleString()}
+                                                        Last checked: {new Date(template.last_meta_sync_at).toLocaleString()}
                                                     </p>
                                                 )}
                                                 {template.last_meta_error && (
@@ -614,7 +562,7 @@ export default function TemplatesIndex({
                                                 Connection
                                             </th>
                                             <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                                Diagnostics
+                                                Notes
                                             </th>
                                             <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                                 Actions
@@ -700,7 +648,7 @@ export default function TemplatesIndex({
                                                         </div>
                                                         {template.last_meta_sync_at && (
                                                             <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                                                                Meta sync: {new Date(template.last_meta_sync_at).toLocaleString()}
+                                                                Last checked: {new Date(template.last_meta_sync_at).toLocaleString()}
                                                             </p>
                                                         )}
                                                         {template.sendability && !template.sendability.ok && (
@@ -771,7 +719,7 @@ export default function TemplatesIndex({
                                                                             })}#recent-send-${template.latest_failed_send.id}`}
                                                                             className="text-[11px] font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                                                                         >
-                                                                            Open diagnostics
+                                                                            Open template
                                                                         </Link>
                                                                         <Link
                                                                             href={`${route('app.whatsapp.templates.send', {
@@ -779,28 +727,19 @@ export default function TemplatesIndex({
                                                                             })}#recent-send-${template.latest_failed_send.id}`}
                                                                             className="text-[11px] font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                                                                         >
-                                                                            Retry with context
+                                                                            Try send again
                                                                         </Link>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => copyFailedSendDiagnosticsBundle(template)}
-                                                                            className="text-[11px] font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                                                                        >
-                                                                            Copy bundle
-                                                                        </button>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => downloadFailedSendDiagnosticsBundle(template)}
-                                                                            className="text-[11px] font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                                                                        >
-                                                                            Download bundle
-                                                                        </button>
+                                                                        {supportAccess && (
+                                                                            <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                                                                                Support can review full delivery details.
+                                                                            </span>
+                                                                        )}
                                                                     </div>
                                                                 )}
                                                             </div>
                                                         ) : (
                                                             <Badge variant="success" className="px-2 py-1 text-[10px]">
-                                                                No recent send failures
+                                                                No recent issues
                                                             </Badge>
                                                         )}
                                                         {template.last_meta_error && (

@@ -76,7 +76,7 @@ export default function ChatbotsExecutionsShow({
                             Execution Details
                         </h1>
                         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                            View detailed execution logs and debug issues
+                            View execution details for support review
                         </p>
                     </div>
                 </div>

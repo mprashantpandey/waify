@@ -1,4 +1,4 @@
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
@@ -85,6 +85,7 @@ export default function TemplatesShow({
     recent_sends?: RecentSend[];
 }) {
     const confirm = useConfirm();
+    const { support_access: supportAccess = false } = usePage<any>().props;
     const { subscribe } = useRealtime();
     const [liveTemplate, setLiveTemplate] = useState<Template>(template);
     const [actionState, setActionState] = useState<string | null>(null);
@@ -453,8 +454,8 @@ export default function TemplatesShow({
                                 <Clock className="h-5 w-5 text-white" />
                             </div>
                             <div>
-                                <CardTitle className="text-xl font-bold">Recent Send Diagnostics</CardTitle>
-                                <CardDescription>Latest send attempts and exact provider error details</CardDescription>
+                                <CardTitle className="text-xl font-bold">Recent Sends</CardTitle>
+                                <CardDescription>Latest send attempts and their current status</CardDescription>
                             </div>
                         </div>
                     </CardHeader>
@@ -509,23 +510,25 @@ export default function TemplatesShow({
                                                                 <span title={effectiveError}>{effectiveError}</span>
                                                                 <details className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950/40 p-2 text-gray-700 dark:text-gray-200">
                                                                     <summary className="cursor-pointer text-[11px] font-semibold">
-                                                                        Diagnostics
+                                                                        More details
                                                                     </summary>
                                                                     <div className="mt-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => downloadRecentSendDiagnostics(send)}
-                                                            className="text-[11px] font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                                                        >
-                                                            Download bundle
-                                                        </button>
                                                         <div className="mt-2 flex flex-wrap gap-3">
                                                             <Link
                                                                 href={`${route('app.whatsapp.templates.send', { template: liveTemplate.slug })}#recent-send-${send.id}`}
                                                                 className="text-[11px] font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                                                             >
-                                                                Retry with context
+                                                                Try again
                                                             </Link>
+                                                            {supportAccess && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => downloadRecentSendDiagnostics(send)}
+                                                                    className="text-[11px] font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                                                                >
+                                                                    Download bundle
+                                                                </button>
+                                                            )}
                                                         </div>
                                                     </div>
                                                                     <dl className="mt-2 space-y-1.5">
@@ -537,7 +540,7 @@ export default function TemplatesShow({
                                                                                 </dd>
                                                                             </div>
                                                                         ))}
-                                                                        {send.message?.payload && (
+                                                                        {supportAccess && send.message?.payload && (
                                                                             <div className="pt-2">
                                                                                 <dt className="mb-1 text-gray-500 dark:text-gray-400">Provider payload</dt>
                                                                                 <dd className="overflow-x-auto rounded bg-white p-2 font-mono text-[11px] dark:bg-gray-900">

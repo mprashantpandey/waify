@@ -1,4 +1,4 @@
-import { useForm, Link, router } from '@inertiajs/react';
+import { useForm, Link, router, usePage } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
@@ -155,6 +155,7 @@ export default function ChatbotsShow({
     agents: Agent[];
 }) {
     const { toast } = useToast();
+    const { support_access: supportAccess = false } = usePage<any>().props;
     const { data, setData, patch, processing, errors } = useForm({
         name: bot.name,
         description: bot.description || '',
@@ -711,7 +712,7 @@ export default function ChatbotsShow({
                                     This bot is active but has no runnable flow.
                                 </div>
                                 <div className="text-xs text-amber-700 dark:text-amber-200 mt-1">
-                                    Add an enabled flow with at least one executable node (`action`, `delay`, or `webhook`).
+                                    Add an enabled flow with at least one executable step, like an action or a delay.
                                 </div>
                             </CardContent>
                         </Card>
@@ -1154,7 +1155,7 @@ export default function ChatbotsShow({
                                             <option value="action">Action</option>
                                             <option value="condition">Condition</option>
                                             <option value="delay">Delay</option>
-                                            <option value="webhook">Webhook</option>
+                                            {supportAccess && <option value="webhook">Webhook</option>}
                                         </select>
                                     </div>
                                     <div>
@@ -1496,7 +1497,7 @@ export default function ChatbotsShow({
                                     />
                                 )}
 
-                                {nodeForm.type === 'webhook' && (
+                                {nodeForm.type === 'webhook' && supportAccess && (
                                     <div className="space-y-2">
                                         <TextInput
                                             value={nodeForm.webhookUrl}
@@ -1521,6 +1522,11 @@ export default function ChatbotsShow({
                                                 placeholder="Timeout (seconds)"
                                             />
                                         </div>
+                                    </div>
+                                )}
+                                {nodeForm.type === 'webhook' && !supportAccess && (
+                                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                                        Webhook steps are managed by Zyptos support and are hidden from the tenant panel.
                                     </div>
                                 )}
 
