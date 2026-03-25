@@ -135,6 +135,57 @@ class TemplateTest extends TestCase
         $this->assertEquals($firstCount, $secondCount, 'Template count should remain the same after second sync');
     }
 
+    public function test_sync_updates_existing_template_when_meta_id_changes_for_same_name_language(): void
+    {
+        $template = WhatsAppTemplate::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_connection_id' => $this->connection->id,
+            'meta_template_id' => 'meta_old_template_123',
+            'name' => 'welcome_message',
+            'language' => 'en_US',
+            'status' => 'pending',
+            'is_archived' => true,
+        ]);
+
+        Http::fake([
+            'graph.facebook.com/*' => Http::response([
+                'data' => [
+                    [
+                        'id' => 'meta_template_456',
+                        'name' => 'welcome_message',
+                        'language' => 'en_US',
+                        'status' => 'APPROVED',
+                        'category' => 'UTILITY',
+                        'components' => [
+                            [
+                                'type' => 'BODY',
+                                'text' => 'Hello {{1}}, welcome back!',
+                            ],
+                        ],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $this->actingAs($this->user)
+            ->post(route('app.whatsapp.templates.sync', ['account' => $this->account->slug]), [
+                'connection_id' => $this->connection->id,
+            ])
+            ->assertRedirect();
+
+        $template->refresh();
+
+        $this->assertSame('meta_template_456', $template->meta_template_id);
+        $this->assertSame('approved', $template->status);
+        $this->assertFalse((bool) $template->is_archived);
+        $this->assertSame(1, WhatsAppTemplate::query()
+            ->where('account_id', $this->account->id)
+            ->where('whatsapp_connection_id', $this->connection->id)
+            ->where('name', 'welcome_message')
+            ->where('language', 'en_US')
+            ->count());
+    }
+
     public function test_template_list_shows_filters(): void
     {
         WhatsAppTemplate::factory()->create([

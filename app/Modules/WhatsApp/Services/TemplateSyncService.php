@@ -247,15 +247,12 @@ class TemplateSyncService
                 'phone_number' => $button['phone_number'] ?? null];
         }
 
-        $match = [
+        $values = [
             'account_id' => $connection->account_id,
             'whatsapp_connection_id' => $connection->id,
-            'meta_template_id' => $templateData['id'] ?? null,
-        ];
-
-        $values = [
             'name' => $name,
             'language' => $language,
+            'meta_template_id' => $templateData['id'] ?? null,
             'category' => $category,
             'status' => $normalizedStatus,
             'remote_status' => $normalizedStatus,
@@ -274,6 +271,7 @@ class TemplateSyncService
             'meta_rejection_reason' => $templateData['rejected_reason'] ?? $templateData['rejection_reason'] ?? null,
             'is_remote_deleted' => false,
             'remote_deleted_at' => null,
+            'is_archived' => false,
         ];
 
         $values['sync_state'] = $this->templateLifecycle->computeSyncState(
@@ -283,7 +281,38 @@ class TemplateSyncService
             null
         );
 
-        $template = WhatsAppTemplate::updateOrCreate($match, $values);
+        $template = null;
+        $metaTemplateId = (string) ($templateData['id'] ?? '');
+
+        if ($metaTemplateId !== '') {
+            $template = WhatsAppTemplate::query()
+                ->where('account_id', $connection->account_id)
+                ->where('whatsapp_connection_id', $connection->id)
+                ->where('meta_template_id', $metaTemplateId)
+                ->first();
+        }
+
+        if (!$template) {
+            $template = WhatsAppTemplate::query()
+                ->where('account_id', $connection->account_id)
+                ->where(function ($query) use ($connection) {
+                    $query->where('whatsapp_connection_id', $connection->id)
+                        ->orWhereNull('whatsapp_connection_id');
+                })
+                ->where('name', $name)
+                ->where('language', $language)
+                ->latest('id')
+                ->first();
+        }
+
+        if ($template) {
+            $template->fill($values);
+            $template->save();
+
+            return $template->fresh();
+        }
+
+        $template = WhatsAppTemplate::create($values);
 
         return $template;
     }
