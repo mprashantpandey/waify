@@ -223,6 +223,7 @@ export default function ConnectionsCreate({
 
             const action = payload?.event || payload?.type || payload?.action || payload?.status;
             const data = payload?.data || payload?.payload || payload?.result || payload;
+            const isEmbeddedSignupEvent = payload?.type === 'WA_EMBEDDED_SIGNUP';
 
             const extracted = {
                 waba_id: findNestedValue(data, ['waba_id', 'wabaId', 'business_account_id', 'businessAccountId'])
@@ -256,10 +257,12 @@ export default function ConnectionsCreate({
 
             if (
                 action === 'FINISH' ||
+                action === 'FINISH_ONLY_WABA' ||
                 action === 'COMPLETE' ||
                 action === 'SUCCESS' ||
                 hasSignupData ||
-                hasAuthData
+                hasAuthData ||
+                isEmbeddedSignupEvent
             ) {
                 setEmbeddedStatus(
                     hasSignupData
@@ -269,9 +272,13 @@ export default function ConnectionsCreate({
                             : 'Embedded signup finished. Ready to create connection.'
                 );
 
-                if ((action === 'FINISH' || action === 'COMPLETE' || action === 'SUCCESS') && hasAuthData) {
+                if ((action === 'FINISH' || action === 'FINISH_ONLY_WABA' || action === 'COMPLETE' || action === 'SUCCESS') && hasAuthData) {
                     setEmbeddedAutoSubmitRequested(true);
                 }
+            }
+
+            if (action === 'CANCEL') {
+                setEmbeddedStatus('Meta signup was cancelled before completion.');
             }
         };
 
@@ -297,8 +304,8 @@ export default function ConnectionsCreate({
                     return;
                 }
 
-                const code = response?.code || response?.authResponse?.code;
-                const accessToken = response?.accessToken || response?.authResponse?.accessToken;
+                const code = response?.authResponse?.code;
+                const accessToken = response?.authResponse?.accessToken;
 
                 if (code) {
                     applyEmbeddedCode(String(code));
@@ -322,6 +329,7 @@ export default function ConnectionsCreate({
                 extras: {
                     feature: 'whatsapp_embedded_signup',
                     sessionInfoVersion: 3,
+                    version: '4',
                 },
             }
         );

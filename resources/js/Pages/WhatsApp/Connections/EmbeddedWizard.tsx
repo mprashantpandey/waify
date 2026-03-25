@@ -260,9 +260,11 @@ export default function EmbeddedWizard({
             // Handle different payload structures
             const action = payload?.event || payload?.type || payload?.action || payload?.status;
             const data = payload?.data || payload?.payload || payload?.result || payload;
+            const isEmbeddedSignupEvent = payload?.type === 'WA_EMBEDDED_SIGNUP';
 
             // Handle Embedded Signup completion events
-            if (action === 'FINISH' || action === 'COMPLETE' || action === 'SUCCESS' ||
+            if (action === 'FINISH' || action === 'FINISH_ONLY_WABA' || action === 'COMPLETE' || action === 'SUCCESS' ||
+                isEmbeddedSignupEvent ||
                 data?.waba_id || data?.phone_number_id || payload?.waba_id || payload?.phone_number_id) {
 
                 const extractedData = {
@@ -305,6 +307,19 @@ export default function EmbeddedWizard({
                         },
                     });
                 }
+            }
+
+            if (action === 'CANCEL') {
+                setWizardState(prev => ({
+                    ...prev,
+                    step: 'error',
+                    error: 'Meta signup was cancelled before completion.',
+                }));
+                emitTelemetry({
+                    step: 'authorization_start',
+                    status: 'cancelled',
+                    message: 'Meta signup cancelled before completion',
+                });
             }
 
             // Handle OAuth code/access token
@@ -398,8 +413,8 @@ export default function EmbeddedWizard({
                     return;
                 }
 
-                const code = response?.code || response?.authResponse?.code;
-                const accessToken = response?.accessToken || response?.authResponse?.accessToken;
+                const code = response?.authResponse?.code;
+                const accessToken = response?.authResponse?.accessToken;
 
                 if (code) {
                     applyEmbeddedCode(String(code));
@@ -434,6 +449,7 @@ export default function EmbeddedWizard({
                 extras: {
                     feature: 'whatsapp_embedded_signup',
                     sessionInfoVersion: 3,
+                    version: '4',
                 },
             }
         );
