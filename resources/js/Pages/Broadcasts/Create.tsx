@@ -111,6 +111,25 @@ export default function BroadcastsCreate({
         <AppShell>
             <Head title="Create Campaign" />
             <div className="space-y-6">
+                <Card className="border-0 shadow-sm">
+                    <CardContent className="grid gap-4 p-5 md:grid-cols-3">
+                        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Step 1</p>
+                            <p className="mt-2 font-medium text-gray-900 dark:text-gray-100">Choose the sending number</p>
+                            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Pick the WhatsApp connection that will send this campaign.</p>
+                        </div>
+                        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Step 2</p>
+                            <p className="mt-2 font-medium text-gray-900 dark:text-gray-100">Pick an approved template</p>
+                            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Templates are the safest default for campaign sends and help avoid policy mistakes.</p>
+                        </div>
+                        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Step 3</p>
+                            <p className="mt-2 font-medium text-gray-900 dark:text-gray-100">Review recipients before launch</p>
+                            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Use dry run first if you want to check audience and preflight results before sending.</p>
+                        </div>
+                    </CardContent>
+                </Card>
                 <div>
                     <Link
                         href={route('app.broadcasts.index', {})}
@@ -122,6 +141,9 @@ export default function BroadcastsCreate({
                     <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
                         Create Campaign
                     </h1>
+                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                        Start simple: choose a connection, choose a template, then choose who should receive it.
+                    </p>
                 </div>
 
                 <form onSubmit={submit} className="space-y-6">

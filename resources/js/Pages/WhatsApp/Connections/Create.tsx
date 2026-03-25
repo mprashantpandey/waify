@@ -359,6 +359,26 @@ export default function ConnectionsCreate({
                     </div>
                 </div>
 
+                <Card className="border-0 shadow-sm">
+                    <CardContent className="grid gap-4 p-5 md:grid-cols-3">
+                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/60 dark:bg-emerald-900/10">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">Step 1</p>
+                            <h3 className="mt-2 font-semibold text-gray-900 dark:text-gray-100">Connect with Meta</h3>
+                            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Use the direct Meta flow first. It fills most details automatically.</p>
+                        </div>
+                        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900/60 dark:bg-blue-900/10">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-700 dark:text-blue-300">Step 2</p>
+                            <h3 className="mt-2 font-semibold text-gray-900 dark:text-gray-100">Review the connection</h3>
+                            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Confirm the phone number and business account before saving.</p>
+                        </div>
+                        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/60 dark:bg-amber-900/10">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700 dark:text-amber-300">Step 3</p>
+                            <h3 className="mt-2 font-semibold text-gray-900 dark:text-gray-100">Test and go live</h3>
+                            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">After saving, test webhook health and send a message to verify the setup.</p>
+                        </div>
+                    </CardContent>
+                </Card>
+
                 {embeddedEnabled ? (
                     <Card className="border-0 shadow-xl">
                         <CardHeader className="bg-gradient-to-r from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20">
@@ -536,13 +556,18 @@ export default function ConnectionsCreate({
                                 <LinkIcon className="h-5 w-5 text-white" />
                             </div>
                             <div>
-                                <CardTitle className="text-xl font-bold">Connection Details</CardTitle>
-                                <CardDescription>Enter only the required Meta details</CardDescription>
+                                <CardTitle className="text-xl font-bold">Manual Setup</CardTitle>
+                                <CardDescription>Use this only if the direct Meta connection is unavailable</CardDescription>
                             </div>
                         </div>
                     </CardHeader>
                     <CardContent className="p-6">
-                        <form onSubmit={submit} className="space-y-6">
+                        <details className="group" open={!embeddedEnabled}>
+                            <summary className="flex cursor-pointer list-none items-center justify-between rounded-2xl border border-dashed border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-800 dark:border-blue-900/60 dark:bg-blue-900/10 dark:text-blue-200">
+                                <span>Show manual connection fields</span>
+                                <span className="text-xs text-blue-600 transition group-open:rotate-180 dark:text-blue-300">⌄</span>
+                            </summary>
+                            <form onSubmit={submit} className="mt-6 space-y-6">
                             <InputError message={connectionError} className="mt-2" />
 
                             <div>
@@ -561,7 +586,7 @@ export default function ConnectionsCreate({
                                 <div className="mt-2 flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                                     <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
                                     <p className="text-xs text-blue-700 dark:text-blue-300">
-                                        Found in Meta Business Manager → WhatsApp → API Setup
+                                        Found in Meta Business Manager {'>'} WhatsApp {'>'} API Setup
                                     </p>
                                 </div>
                             </div>
@@ -613,7 +638,7 @@ export default function ConnectionsCreate({
                                 <div className="mt-2 flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
                                     <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
                                     <p className="text-xs text-amber-700 dark:text-amber-300">
-                                        Permanent token from Meta Business Manager. Keep this secure.
+                                        Permanent token from Meta Business Manager. Keep this secure and private.
                                     </p>
                                 </div>
                             </div>
@@ -752,7 +777,8 @@ export default function ConnectionsCreate({
                                     )}
                                 </Button>
                             </div>
-                        </form>
+                            </form>
+                        </details>
                     </CardContent>
                 </Card>
             </div>

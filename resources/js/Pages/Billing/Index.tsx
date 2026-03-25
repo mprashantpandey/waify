@@ -304,6 +304,23 @@ export default function BillingIndex({
                     </p>
                 </div>
 
+                <Card className="border-0 shadow-sm">
+                    <CardContent className="grid gap-4 p-5 md:grid-cols-3">
+                        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Plan status</p>
+                            <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">See if your account is active, trialing, due for renewal, or canceled.</p>
+                        </div>
+                        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Quick recovery</p>
+                            <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">If billing needs action, renew, resume, and invoice links appear here first.</p>
+                        </div>
+                        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Usage</p>
+                            <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">Track message, template, AI, and wallet usage without opening multiple pages.</p>
+                        </div>
+                    </CardContent>
+                </Card>
+
                 {/* Status Banners */}
                 {subscription?.status === 'past_due' && (
                     <Alert variant="warning" className="border-yellow-200 dark:border-yellow-800">

@@ -406,6 +406,22 @@ export default function TemplatesCreate({
         <AppShell>
             <Head title="Create Template" />
             <div className="space-y-8">
+                <Card className="border-0 shadow-sm">
+                    <CardContent className="grid gap-4 p-5 md:grid-cols-3">
+                        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">1. Pick a connection</p>
+                            <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">Choose the WhatsApp number that will own this template.</p>
+                        </div>
+                        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">2. Write a clear message</p>
+                            <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">Keep the text specific and useful. Utility templates should sound operational, not promotional.</p>
+                        </div>
+                        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900">
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">3. Submit with examples</p>
+                            <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">If you use variables or dynamic URLs, add examples so Meta can review it faster.</p>
+                        </div>
+                    </CardContent>
+                </Card>
                 <div>
                     <Link
                         href={route('app.whatsapp.templates.index', {})}
@@ -444,6 +460,9 @@ export default function TemplatesCreate({
                             <li>Buttons: Maximum 3 buttons (QUICK_REPLY, URL, or PHONE_NUMBER)</li>
                             <li>Templates require Meta approval before use</li>
                         </ul>
+                        <p className="mt-3 text-sm text-blue-700 dark:text-blue-300">
+                            Utility templates should read like order updates, invoices, reminders, or support updates. Avoid welcome or promotional language if you want to keep the template in utility.
+                        </p>
                     </div>
                 </Alert>
 
