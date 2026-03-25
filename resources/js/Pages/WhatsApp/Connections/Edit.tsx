@@ -117,7 +117,7 @@ export default function ConnectionsEdit({
                         <div>
                             <h1 className="text-3xl font-semibold text-gray-900 dark:text-gray-100">{connection.name}</h1>
                             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                                Review the number, update the display name, and continue setup if anything still needs attention.
+                                Review the number and keep the name clear for your team.
                             </p>
                         </div>
 
@@ -136,12 +136,12 @@ export default function ConnectionsEdit({
                     </Alert>
                 )}
 
-                <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+                <div className="grid gap-5 xl:grid-cols-[1.3fr_0.7fr]">
                     <Card>
                         <CardHeader>
                             <CardTitle>Basic details</CardTitle>
                             <CardDescription>
-                                Keep the connection name clear for your team. Zyptos keeps the technical setup in the background.
+                                Keep the connection name clear for your team.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -158,18 +158,10 @@ export default function ConnectionsEdit({
                                     <InputError message={errors.name} className="mt-2" />
                                 </div>
 
-                                <div className="grid gap-4 md:grid-cols-2">
-                                    <div>
-                                        <InputLabel value="Business number" />
-                                        <div className="mt-1 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 dark:border-gray-800 dark:bg-gray-900/60 dark:text-gray-100">
-                                            {connection.business_phone || 'Not available yet'}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <InputLabel value="Number ID" />
-                                        <div className="mt-1 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 dark:border-gray-800 dark:bg-gray-900/60 dark:text-gray-100">
-                                            {connection.phone_number_id}
-                                        </div>
+                                <div>
+                                    <InputLabel value="Business number" />
+                                    <div className="mt-1 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 dark:border-gray-800 dark:bg-gray-900/60 dark:text-gray-100">
+                                        {connection.business_phone || 'Not available yet'}
                                     </div>
                                 </div>
 
@@ -208,17 +200,13 @@ export default function ConnectionsEdit({
 
                                 <dl className="space-y-3 text-sm">
                                     <div className="flex items-start justify-between gap-4">
-                                        <dt className="text-gray-500 dark:text-gray-400">WhatsApp number</dt>
-                                        <dd className="text-right font-medium text-gray-900 dark:text-gray-100">{connection.business_phone || 'Not available yet'}</dd>
-                                    </div>
-                                    <div className="flex items-start justify-between gap-4">
                                         <dt className="text-gray-500 dark:text-gray-400">Current step</dt>
                                         <dd className="text-right font-medium text-gray-900 dark:text-gray-100">
                                             {connection.provisioning_step ? formatProvisioningStep(connection.provisioning_step) : 'Ready'}
                                         </dd>
                                     </div>
                                     <div className="flex items-start justify-between gap-4">
-                                        <dt className="text-gray-500 dark:text-gray-400">Last message update</dt>
+                                        <dt className="text-gray-500 dark:text-gray-400">Last activity</dt>
                                         <dd className="text-right font-medium text-gray-900 dark:text-gray-100">
                                             {connection.webhook_last_received_at
                                                 ? new Date(connection.webhook_last_received_at).toLocaleString()
@@ -237,7 +225,7 @@ export default function ConnectionsEdit({
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <div className="rounded-xl border border-dashed border-gray-200 p-4 dark:border-gray-800">
+                                <div className="rounded-xl border border-dashed border-gray-200 p-3 dark:border-gray-800">
                                     <div className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
                                         <MessageCircleMore className="h-4 w-4 text-blue-500" />
                                         Contact the Zyptos team

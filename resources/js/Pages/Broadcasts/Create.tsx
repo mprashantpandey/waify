@@ -49,6 +49,7 @@ export default function BroadcastsCreate({
     const [selectedTemplate, setSelectedTemplate] = useState<number | ''>('');
     const [showAdvancedTiming, setShowAdvancedTiming] = useState(false);
     const [showAdvancedRecipients, setShowAdvancedRecipients] = useState(false);
+    const [showAdvancedMessage, setShowAdvancedMessage] = useState(false);
 
     const { data, setData, post, processing, errors } = useForm({
         name: '',
@@ -334,17 +335,33 @@ export default function BroadcastsCreate({
                                         />
                                         <InputError message={errors.media_url} className="mt-2" />
                                     </div>
-                                    <div>
-                                        <InputLabel htmlFor="media_caption" value="Caption (optional)" />
-                                        <textarea
-                                            id="media_caption"
-                                            value={data.message_text}
-                                            onChange={(e) => setData('message_text', e.target.value)}
-                                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700"
-                                            rows={3}
-                                            placeholder="Optional caption for image/video/document"
-                                        />
-                                        <InputError message={errors.message_text} className="mt-2" />
+                                    <div className="rounded-xl border border-gray-200 dark:border-gray-700">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowAdvancedMessage((value) => !value)}
+                                            className="flex w-full items-center justify-between px-4 py-3 text-left"
+                                        >
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Optional message details</p>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400">Add a caption if this media needs extra context.</p>
+                                            </div>
+                                            <span className="text-sm text-gray-500 dark:text-gray-400">{showAdvancedMessage ? 'Hide' : 'Show'}</span>
+                                        </button>
+
+                                        {showAdvancedMessage && (
+                                            <div className="border-t border-gray-200 px-4 py-4 dark:border-gray-700">
+                                                <InputLabel htmlFor="media_caption" value="Caption" />
+                                                <textarea
+                                                    id="media_caption"
+                                                    value={data.message_text}
+                                                    onChange={(e) => setData('message_text', e.target.value)}
+                                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700"
+                                                    rows={3}
+                                                    placeholder="Optional caption for image, video, or document"
+                                                />
+                                                <InputError message={errors.message_text} className="mt-2" />
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}

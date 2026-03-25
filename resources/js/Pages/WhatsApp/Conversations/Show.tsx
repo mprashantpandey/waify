@@ -372,6 +372,7 @@ export default function ConversationsShow({
     const [showQuickReplies, setShowQuickReplies] = useState(false);
     const [showTemplates, setShowTemplates] = useState(false);
     const [showLists, setShowLists] = useState(false);
+    const [showComposerTools, setShowComposerTools] = useState(false);
     const [aiSuggestLoading, setAiSuggestLoading] = useState(false);
     const [showButtons, setShowButtons] = useState(false);
     const [showLocation, setShowLocation] = useState(false);
@@ -2101,25 +2102,7 @@ export default function ConversationsShow({
                                 className="shrink-0 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                             >
                                 <Paperclip className="h-3.5 w-3.5" />
-                                Attach
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={!isCustomerCareWindowOpen}
-                                className="shrink-0 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                            >
-                                <ImageIcon className="h-3.5 w-3.5" />
-                                Photo/Video
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setShowLocation((prev) => !prev)}
-                                disabled={!isCustomerCareWindowOpen}
-                                className="shrink-0 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                            >
-                                <MapPin className="h-3.5 w-3.5" />
-                                Location
+                                Add file
                             </button>
                             <button
                                 type="button"
@@ -2129,40 +2112,16 @@ export default function ConversationsShow({
                                 aria-label="Send template message"
                             >
                                 <FileText className="h-3.5 w-3.5" />
-                                Templates
+                                Template
                             </button>
                             <button
                                 type="button"
-                                onClick={() => {
-                                    setShowLists((prev) => !prev);
-                                    setShowButtons(false);
-                                }}
+                                onClick={() => setShowComposerTools((prev) => !prev)}
                                 disabled={!isCustomerCareWindowOpen}
                                 className="shrink-0 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                             >
-                                <List className="h-3.5 w-3.5" />
-                                Lists
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setShowButtons((prev) => !prev);
-                                    setShowLists(false);
-                                }}
-                                disabled={!isCustomerCareWindowOpen}
-                                className="shrink-0 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                            >
-                                <Square className="h-3.5 w-3.5" />
-                                Buttons
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setShowQuickReplies((prev) => !prev)}
-                                disabled={!isCustomerCareWindowOpen}
-                                className="shrink-0 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                            >
-                                <Zap className="h-3.5 w-3.5" />
-                                Quick Replies
+                                <Plus className="h-3.5 w-3.5" />
+                                More ways to reply
                             </button>
                             <input
                                 ref={fileInputRef}
@@ -2216,6 +2175,65 @@ export default function ConversationsShow({
                                 </div>
                             )}
                         </div>
+
+                        {showComposerTools && (
+                            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowLocation((prev) => !prev);
+                                            setShowLists(false);
+                                            setShowButtons(false);
+                                            setShowQuickReplies(false);
+                                        }}
+                                        className="rounded-xl border border-gray-200 px-3 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+                                    >
+                                        <div className="flex items-center gap-2 font-medium"><MapPin className="h-4 w-4" /> Location</div>
+                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Send a place pin.</p>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowLists((prev) => !prev);
+                                            setShowButtons(false);
+                                            setShowLocation(false);
+                                            setShowQuickReplies(false);
+                                        }}
+                                        className="rounded-xl border border-gray-200 px-3 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+                                    >
+                                        <div className="flex items-center gap-2 font-medium"><List className="h-4 w-4" /> Lists</div>
+                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Share a saved options list.</p>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowButtons((prev) => !prev);
+                                            setShowLists(false);
+                                            setShowLocation(false);
+                                            setShowQuickReplies(false);
+                                        }}
+                                        className="rounded-xl border border-gray-200 px-3 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+                                    >
+                                        <div className="flex items-center gap-2 font-medium"><Square className="h-4 w-4" /> Buttons</div>
+                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Offer quick tap choices.</p>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowQuickReplies((prev) => !prev);
+                                            setShowLists(false);
+                                            setShowButtons(false);
+                                            setShowLocation(false);
+                                        }}
+                                        className="rounded-xl border border-gray-200 px-3 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+                                    >
+                                        <div className="flex items-center gap-2 font-medium"><Zap className="h-4 w-4" /> Quick replies</div>
+                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Insert a saved reply.</p>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
 
                         {showLocation && (
                             <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
@@ -2279,7 +2297,7 @@ export default function ConversationsShow({
                                 <div className="grid gap-3">
                                     {availableTemplates.length === 0 && (
                                         <div className="text-sm text-gray-500 dark:text-gray-400">
-                                            No approved templates found for this connection.
+                                            No ready templates found for this number yet.
                                         </div>
                                     )}
                                     {availableTemplates.map((template) => (

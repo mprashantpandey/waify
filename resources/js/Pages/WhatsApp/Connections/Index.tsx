@@ -92,16 +92,16 @@ export default function ConnectionsIndex({
             <Head title="WhatsApp Connections" />
 
             <div className="space-y-6">
-                <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                         <div>
                             <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">
                                 <LinkIcon className="h-3.5 w-3.5" />
                                 WhatsApp
                             </div>
                             <h1 className="mt-3 text-3xl font-semibold text-gray-900 dark:text-gray-100">Connections</h1>
-                            <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
-                                Connect your business number, see which numbers are ready, and finish setup from one place.
+                            <p className="mt-2 max-w-xl text-sm text-gray-600 dark:text-gray-400">
+                                Add your WhatsApp number and keep setup moving from one place.
                             </p>
                         </div>
 
@@ -123,16 +123,16 @@ export default function ConnectionsIndex({
                         </div>
                     </div>
 
-                    <div className="mt-6 grid gap-4 md:grid-cols-3">
-                        <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+                    <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-xl border border-gray-200 p-3 dark:border-gray-800">
                             <div className="text-sm text-gray-500 dark:text-gray-400">Ready</div>
                             <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{readyCount}</div>
                         </div>
-                        <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+                        <div className="rounded-xl border border-gray-200 p-3 dark:border-gray-800">
                             <div className="text-sm text-gray-500 dark:text-gray-400">Getting ready</div>
                             <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{setupCount}</div>
                         </div>
-                        <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+                        <div className="rounded-xl border border-gray-200 p-3 dark:border-gray-800">
                             <div className="text-sm text-gray-500 dark:text-gray-400">Needs attention</div>
                             <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{attentionCount}</div>
                         </div>
@@ -232,15 +232,11 @@ export default function ConnectionsIndex({
 
                                         <dl className="space-y-3 text-sm">
                                             <div className="flex items-start justify-between gap-4">
-                                                <dt className="text-gray-500 dark:text-gray-400">Number ID</dt>
-                                                <dd className="max-w-[60%] truncate text-right font-medium text-gray-900 dark:text-gray-100">{connection.phone_number_id}</dd>
-                                            </div>
-                                            <div className="flex items-start justify-between gap-4">
                                                 <dt className="text-gray-500 dark:text-gray-400">Added on</dt>
                                                 <dd className="text-right font-medium text-gray-900 dark:text-gray-100">{new Date(connection.created_at).toLocaleDateString()}</dd>
                                             </div>
                                             <div className="flex items-start justify-between gap-4">
-                                                <dt className="text-gray-500 dark:text-gray-400">Last message update</dt>
+                                                <dt className="text-gray-500 dark:text-gray-400">Last activity</dt>
                                                 <dd className="text-right font-medium text-gray-900 dark:text-gray-100">{lastActivity || 'Not received yet'}</dd>
                                             </div>
                                         </dl>
