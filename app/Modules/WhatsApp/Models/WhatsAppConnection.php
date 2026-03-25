@@ -23,6 +23,10 @@ class WhatsAppConnection extends Model
         'phone_number_id',
         'business_phone',
         'access_token_encrypted',
+        'token_type',
+        'token_source',
+        'token_last_validated_at',
+        'token_metadata',
         'api_version',
         'webhook_verify_token',
         'webhook_subscribed',
@@ -115,6 +119,8 @@ class WhatsAppConnection extends Model
         'webhook_last_lag_seconds' => 'integer',
         'health_last_synced_at' => 'datetime',
         'activation_updated_at' => 'datetime',
+        'token_last_validated_at' => 'datetime',
+        'token_metadata' => 'array',
         'provisioning_context' => 'array',
         'provisioning_completed_at' => 'datetime',
         'templates_last_synced_at' => 'datetime',
@@ -178,5 +184,10 @@ class WhatsAppConnection extends Model
     public function latestHealthSnapshot(): HasOne
     {
         return $this->hasOne(WhatsAppConnectionHealthSnapshot::class, 'whatsapp_connection_id')->latestOfMany('captured_at');
+    }
+
+    public function embeddedSignupEvents(): HasMany
+    {
+        return $this->hasMany(WhatsAppEmbeddedSignupEvent::class, 'whatsapp_connection_id');
     }
 }

@@ -43,6 +43,10 @@ interface Connection {
     activation_state?: string | null;
     activation_last_error?: string | null;
     activation_updated_at?: string | null;
+    token_type?: string | null;
+    token_source?: string | null;
+    token_last_validated_at?: string | null;
+    token_metadata?: Record<string, any> | null;
     throughput_cap_per_minute?: number | null;
     quiet_hours_start?: string | null;
     quiet_hours_end?: string | null;
@@ -75,11 +79,24 @@ interface MetaInsights {
     manage_numbers_url: string;
 }
 
+interface EmbeddedSignupEventRow {
+    id: number;
+    event: string;
+    status: string;
+    current_step?: string | null;
+    message?: string | null;
+    waba_id?: string | null;
+    phone_number_id?: string | null;
+    created_at?: string | null;
+}
+
 export default function ConnectionsEdit({
     account,
-    connection}: {
+    connection,
+    embeddedSignupEvents = []}: {
     account: any;
     connection: Connection;
+    embeddedSignupEvents?: EmbeddedSignupEventRow[];
 }) {
     const { toast } = useNotifications();
     const [showToken, setShowToken] = useState(false);
@@ -678,6 +695,75 @@ export default function ConnectionsEdit({
                                     </Alert>
                                 )}
                             </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="border-0 shadow-xl">
+                    <CardHeader>
+                        <CardTitle>Tech Provider Access</CardTitle>
+                        <CardDescription>
+                            Provider-managed token state and latest Embedded Signup events for this connection.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        <div className="grid gap-4 md:grid-cols-3">
+                            <div className="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+                                <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">Token type</div>
+                                <div className="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                    {connection.token_type || 'unknown'}
+                                </div>
+                            </div>
+                            <div className="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+                                <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">Token source</div>
+                                <div className="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                    {connection.token_source || 'unknown'}
+                                </div>
+                            </div>
+                            <div className="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+                                <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">Last validated</div>
+                                <div className="mt-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                    {connection.token_last_validated_at ? new Date(connection.token_last_validated_at).toLocaleString() : 'Not recorded'}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Recent Embedded Signup events</div>
+                            {embeddedSignupEvents.length === 0 ? (
+                                <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-4 text-sm text-gray-500 dark:text-gray-400">
+                                    No Embedded Signup event logs recorded for this connection yet.
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {embeddedSignupEvents.map((event) => (
+                                        <div key={event.id} className="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <Badge variant={event.status === 'error' || event.status === 'cancelled' ? 'danger' : event.status === 'success' ? 'success' : 'info'}>
+                                                    {event.status}
+                                                </Badge>
+                                                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                                    {event.event.replaceAll('_', ' ')}
+                                                </span>
+                                                {event.current_step && (
+                                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                        {event.current_step}
+                                                    </span>
+                                                )}
+                                                <span className="ml-auto text-xs text-gray-500 dark:text-gray-400">
+                                                    {event.created_at ? new Date(event.created_at).toLocaleString() : ''}
+                                                </span>
+                                            </div>
+                                            {event.message && (
+                                                <div className="mt-2 text-sm text-gray-600 dark:text-gray-300">{event.message}</div>
+                                            )}
+                                            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                                WABA: {event.waba_id || 'n/a'} · Phone ID: {event.phone_number_id || 'n/a'}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </CardContent>
                 </Card>

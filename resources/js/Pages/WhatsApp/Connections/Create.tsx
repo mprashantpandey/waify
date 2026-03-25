@@ -42,6 +42,8 @@ export default function ConnectionsCreate({
         name: '',
         waba_id: '',
         phone_number_id: '',
+        session_waba_id: '',
+        session_phone_number_id: '',
         business_phone: '',
         access_token: '',
         code: '',
@@ -224,6 +226,11 @@ export default function ConnectionsCreate({
             const action = payload?.event || payload?.type || payload?.action || payload?.status;
             const data = payload?.data || payload?.payload || payload?.result || payload;
             const isEmbeddedSignupEvent = payload?.type === 'WA_EMBEDDED_SIGNUP';
+            const currentStep = String(
+                findNestedValue(data, ['current_step', 'currentStep', 'screen'])
+                    ?? findNestedValue(payload, ['current_step', 'currentStep', 'screen'])
+                    ?? ''
+            ) || null;
 
             const extracted = {
                 waba_id: findNestedValue(data, ['waba_id', 'wabaId', 'business_account_id', 'businessAccountId'])
@@ -244,9 +251,11 @@ export default function ConnectionsCreate({
             }
             if (extracted.waba_id) {
                 embeddedForm.setData('waba_id', String(extracted.waba_id));
+                embeddedForm.setData('session_waba_id', String(extracted.waba_id));
             }
             if (extracted.phone_number_id) {
                 embeddedForm.setData('phone_number_id', String(extracted.phone_number_id));
+                embeddedForm.setData('session_phone_number_id', String(extracted.phone_number_id));
             }
             if (extracted.business_phone) {
                 embeddedForm.setData('business_phone', String(extracted.business_phone));
@@ -254,6 +263,34 @@ export default function ConnectionsCreate({
 
             const hasSignupData = Boolean(extracted.waba_id || extracted.phone_number_id);
             const hasAuthData = Boolean(extracted.code || extracted.access_token);
+
+            if (isEmbeddedSignupEvent || action === 'FINISH' || action === 'FINISH_ONLY_WABA' || action === 'CANCEL') {
+                void fetch(route('app.whatsapp.connections.embedded-telemetry', {}), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement | null)?.content || '',
+                    },
+                    body: JSON.stringify({
+                        step: 'session_event',
+                        status: action === 'CANCEL' ? 'cancelled' : hasSignupData || hasAuthData ? 'success' : 'progress',
+                        message: typeof action === 'string' ? `Meta session event: ${action}` : 'Meta session event received',
+                        context: {
+                            event: action,
+                            current_step: currentStep,
+                            waba_id: extracted.waba_id || null,
+                            phone_number_id: extracted.phone_number_id || null,
+                            business_phone: extracted.business_phone || null,
+                            has_code: Boolean(extracted.code),
+                            has_access_token: Boolean(extracted.access_token),
+                        },
+                    }),
+                    credentials: 'same-origin',
+                }).catch(() => {
+                    // Silent: telemetry must never block onboarding.
+                });
+            }
 
             if (
                 action === 'FINISH' ||

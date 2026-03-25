@@ -70,6 +70,8 @@ export default function EmbeddedWizard({
         name: '',
         waba_id: '',
         phone_number_id: '',
+        session_waba_id: '',
+        session_phone_number_id: '',
         business_phone: '',
         access_token: '',
         code: '',
@@ -261,6 +263,15 @@ export default function EmbeddedWizard({
             const action = payload?.event || payload?.type || payload?.action || payload?.status;
             const data = payload?.data || payload?.payload || payload?.result || payload;
             const isEmbeddedSignupEvent = payload?.type === 'WA_EMBEDDED_SIGNUP';
+            const currentStep = String(
+                data?.current_step
+                || payload?.current_step
+                || data?.currentStep
+                || payload?.currentStep
+                || data?.screen
+                || payload?.screen
+                || ''
+            ) || null;
 
             // Handle Embedded Signup completion events
             if (action === 'FINISH' || action === 'FINISH_ONLY_WABA' || action === 'COMPLETE' || action === 'SUCCESS' ||
@@ -290,9 +301,11 @@ export default function EmbeddedWizard({
                     // Auto-fill form
                     if (extractedData.waba_id) {
                         embeddedForm.setData('waba_id', extractedData.waba_id);
+                        embeddedForm.setData('session_waba_id', extractedData.waba_id);
                     }
                     if (extractedData.phone_number_id) {
                         embeddedForm.setData('phone_number_id', extractedData.phone_number_id);
+                        embeddedForm.setData('session_phone_number_id', extractedData.phone_number_id);
                     }
                     if (extractedData.business_phone) {
                         embeddedForm.setData('business_phone', extractedData.business_phone);
@@ -304,9 +317,26 @@ export default function EmbeddedWizard({
                         context: {
                             has_waba: Boolean(extractedData.waba_id),
                             has_phone_number_id: Boolean(extractedData.phone_number_id),
+                            waba_id: extractedData.waba_id || null,
+                            phone_number_id: extractedData.phone_number_id || null,
+                            current_step: currentStep,
                         },
                     });
                 }
+            }
+
+            if (isEmbeddedSignupEvent || action === 'FINISH' || action === 'FINISH_ONLY_WABA' || action === 'CANCEL') {
+                emitTelemetry({
+                    step: 'session_event',
+                    status: action === 'CANCEL' ? 'cancelled' : 'progress',
+                    message: typeof action === 'string' ? `Meta session event: ${action}` : 'Meta session event received',
+                    context: {
+                        event: action,
+                        current_step: currentStep,
+                        waba_id: data?.waba_id || payload?.waba_id || data?.wabaId || payload?.wabaId || null,
+                        phone_number_id: data?.phone_number_id || payload?.phone_number_id || data?.phoneNumberId || payload?.phoneNumberId || null,
+                    },
+                });
             }
 
             if (action === 'CANCEL') {

@@ -7,6 +7,7 @@ use App\Models\Account;
 use App\Models\Plan;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppConnectionHealthSnapshot;
+use App\Modules\WhatsApp\Models\WhatsAppEmbeddedSignupEvent;
 use App\Modules\WhatsApp\Services\ConnectionHealthSyncService;
 use App\Modules\WhatsApp\Services\MetaGraphService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -161,6 +162,13 @@ class ConnectionTest extends TestCase
         ]);
 
         $meta = Mockery::mock(MetaGraphService::class);
+        $meta->shouldReceive('debugToken')->once()->with('embedded-token', 'embedded-token')->andReturn([
+            'app_id' => 'app-id',
+            'type' => 'USER',
+            'application' => 'Zyptos',
+            'granular_scopes' => [],
+            'scopes' => ['whatsapp_business_management'],
+        ]);
         $meta->shouldReceive('ensureAppSubscribedToWaba')->once()->andReturn(['already_subscribed' => false]);
         $meta->shouldReceive('getApiVersion')->andReturn('v21.0');
         $meta->shouldReceive('getPhoneNumberDetails')->once()->andReturn([
@@ -209,6 +217,13 @@ class ConnectionTest extends TestCase
         ]);
 
         $meta = Mockery::mock(MetaGraphService::class);
+        $meta->shouldReceive('debugToken')->once()->with('embedded-token', 'embedded-token')->andReturn([
+            'app_id' => 'app-id',
+            'type' => 'USER',
+            'application' => 'Zyptos',
+            'granular_scopes' => [],
+            'scopes' => ['whatsapp_business_management'],
+        ]);
         $meta->shouldReceive('getApiVersion')->andReturn('v21.0');
         $meta->shouldReceive('getPhoneNumberDetails')->once()->andReturn([
             'display_phone_number' => '+91 99999 00000',
@@ -297,6 +312,111 @@ class ConnectionTest extends TestCase
         $response->assertRedirect(route('app.whatsapp.connections.create', ['account' => $this->account->slug]));
         $response->assertSessionHasErrors('embedded');
         $this->assertSame(1, WhatsAppConnection::where('phone_number_id', 'pn-embedded-conflict')->count());
+    }
+
+    public function test_embedded_signup_prefers_session_asset_ids_and_stores_token_metadata(): void
+    {
+        config([
+            'whatsapp.meta.app_id' => 'app-id',
+            'whatsapp.meta.embedded_signup_config_id' => 'config-id',
+        ]);
+
+        $meta = Mockery::mock(MetaGraphService::class);
+        $meta->shouldReceive('debugToken')->once()->with('embedded-token', 'embedded-token')->andReturn([
+            'app_id' => 'app-id',
+            'type' => 'USER',
+            'application' => 'Zyptos',
+            'granular_scopes' => [
+                ['scope' => 'whatsapp_business_management', 'target_ids' => ['waba-fallback']],
+            ],
+            'scopes' => ['whatsapp_business_management'],
+        ]);
+        $meta->shouldReceive('getPhoneNumberDetails')->once()->with('pn-session', 'embedded-token')->andReturn([
+            'display_phone_number' => '+91 99999 00000',
+        ]);
+        $meta->shouldReceive('ensureAppSubscribedToWaba')->once()->with('waba-session', 'embedded-token')->andReturn([
+            'already_subscribed' => false,
+        ]);
+        $meta->shouldReceive('getApiVersion')->andReturn('v21.0');
+        $this->instance(MetaGraphService::class, $meta);
+
+        $sync = Mockery::mock(ConnectionHealthSyncService::class);
+        $sync->shouldReceive('syncConnection')->once()->andReturnUsing(function (WhatsAppConnection $connection) {
+            return new WhatsAppConnectionHealthSnapshot([
+                'id' => 601,
+                'account_id' => $connection->account_id,
+                'whatsapp_connection_id' => $connection->id,
+                'source' => 'embedded_signup',
+                'health_state' => 'healthy',
+                'captured_at' => now(),
+            ]);
+        });
+        $this->instance(ConnectionHealthSyncService::class, $sync);
+
+        $response = $this->actingAs($this->user)
+            ->post(route('app.whatsapp.connections.store-embedded', ['account' => $this->account->slug]), [
+                'name' => 'Session-first Connection',
+                'waba_id' => 'waba-fallback',
+                'phone_number_id' => 'pn-fallback',
+                'session_waba_id' => 'waba-session',
+                'session_phone_number_id' => 'pn-session',
+                'access_token' => 'embedded-token',
+            ]);
+
+        $response->assertRedirect(route('app.whatsapp.connections.index'));
+
+        $this->assertDatabaseHas('whatsapp_connections', [
+            'account_id' => $this->account->id,
+            'name' => 'Session-first Connection',
+            'waba_id' => 'waba-session',
+            'phone_number_id' => 'pn-session',
+            'token_source' => 'embedded_code_exchange',
+        ]);
+
+        $connection = WhatsAppConnection::query()
+            ->where('account_id', $this->account->id)
+            ->where('phone_number_id', 'pn-session')
+            ->firstOrFail();
+
+        $this->assertSame('business_exchange', $connection->token_type);
+        $this->assertSame('waba-session', data_get($connection->token_metadata, 'session.waba_id'));
+        $this->assertSame('pn-session', data_get($connection->token_metadata, 'session.phone_number_id'));
+        $this->assertSame('app-id', data_get($connection->token_metadata, 'debug.app_id'));
+    }
+
+    public function test_embedded_signup_telemetry_creates_event_log_and_links_connection(): void
+    {
+        $connection = WhatsAppConnection::factory()->create([
+            'account_id' => $this->account->id,
+            'waba_id' => 'waba-telemetry',
+            'phone_number_id' => 'pn-telemetry',
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->postJson(route('app.whatsapp.connections.embedded-telemetry', ['account' => $this->account->slug]), [
+                'step' => 'session_event',
+                'status' => 'progress',
+                'message' => 'Meta session event: FINISH',
+                'context' => [
+                    'event' => 'FINISH',
+                    'current_step' => 'VERIFY_NUMBER',
+                    'waba_id' => 'waba-telemetry',
+                    'phone_number_id' => 'pn-telemetry',
+                ],
+            ]);
+
+        $response->assertOk()->assertJson(['ok' => true]);
+
+        $event = WhatsAppEmbeddedSignupEvent::query()->latest('id')->first();
+        $this->assertNotNull($event);
+        $this->assertSame($this->account->id, $event->account_id);
+        $this->assertSame($this->user->id, $event->user_id);
+        $this->assertSame($connection->id, $event->whatsapp_connection_id);
+        $this->assertSame('session_event', $event->event);
+        $this->assertSame('progress', $event->status);
+        $this->assertSame('VERIFY_NUMBER', $event->current_step);
+        $this->assertSame('waba-telemetry', $event->waba_id);
+        $this->assertSame('pn-telemetry', $event->phone_number_id);
     }
 
     public function test_connection_health_route_is_scoped_to_current_account(): void
