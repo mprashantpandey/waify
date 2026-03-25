@@ -22,7 +22,6 @@ import {
 import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { getPlatformName, getLogoUrl } from '@/lib/branding';
-import { getNavigationMeta } from '@/lib/navigationMeta';
 import { Input } from '@/Components/UI/Input';
 
 const iconMap: Record<string, LucideIcon> = {
@@ -97,17 +96,6 @@ export function Sidebar({ navigation, currentRoute, account, isOpen = false, onC
         developer: 'Developer',
     };
 
-    const groupDescriptions: Record<string, string> = {
-        core: 'Daily operations and shared account controls.',
-        messaging: 'Connections, inbox, templates, and lists.',
-        automation: 'Bots and automated customer journeys.',
-        ai: 'AI copilots, suggestions, and assistants.',
-        growth: 'Campaigns, contacts, and analytics.',
-        billing: 'Plans, invoices, payments, and usage.',
-        developer: 'APIs, docs, and webhook tooling.',
-        other: 'Additional tools for this account.',
-    };
-
     const tryRouteHref = (routeName: string): string | null => {
         try {
             return route(routeName, {});
@@ -125,37 +113,15 @@ export function Sidebar({ navigation, currentRoute, account, isOpen = false, onC
         return tryRouteHref(`${routeName}.index`);
     };
 
-    const sortNavItems = (items: NavItem[]) => {
-        return [...items].sort((a, b) => {
-            const aRank = navRank.has(a.href) ? (navRank.get(a.href) as number) : Number.MAX_SAFE_INTEGER;
-            const bRank = navRank.has(b.href) ? (navRank.get(b.href) as number) : Number.MAX_SAFE_INTEGER;
-            if (aRank !== bRank) return aRank - bRank;
-            return a.label.localeCompare(b.label);
-        });
-    };
-
     const groupedNav = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase();
         return navigation.reduce((acc, item) => {
-            const meta = getNavigationMeta(item.href);
-            const haystack = [
-                item.label,
-                meta?.description,
-                ...(meta?.keywords ?? []),
-                item.group,
-            ]
-                .filter(Boolean)
-                .join(' ')
-                .toLowerCase();
-
+            const haystack = [item.label, item.group, item.href].filter(Boolean).join(' ').toLowerCase();
             if (normalizedQuery !== '' && !haystack.includes(normalizedQuery)) {
                 return acc;
             }
-
             const group = item.group || 'other';
-            if (!acc[group]) {
-                acc[group] = [];
-            }
+            if (!acc[group]) acc[group] = [];
             acc[group].push(item);
             return acc;
         }, {} as Record<string, NavItem[]>);
@@ -166,84 +132,81 @@ export function Sidebar({ navigation, currentRoute, account, isOpen = false, onC
         ...Object.keys(groupedNav).filter((g) => !groupOrder.includes(g as any)).sort((a, b) => a.localeCompare(b)),
     ];
 
+    const sortNavItems = (items: NavItem[]) => {
+        return [...items].sort((a, b) => {
+            const aRank = navRank.has(a.href) ? (navRank.get(a.href) as number) : Number.MAX_SAFE_INTEGER;
+            const bRank = navRank.has(b.href) ? (navRank.get(b.href) as number) : Number.MAX_SAFE_INTEGER;
+            if (aRank !== bRank) return aRank - bRank;
+            return a.label.localeCompare(b.label);
+        });
+    };
+
     const renderNavItem = (item: NavItem, index: number) => {
         const Icon = iconMap[item.icon] || LayoutDashboard;
         if (!account) return null;
         const href = resolveRouteHref(item.href);
         if (!href) return null;
 
-        const meta = getNavigationMeta(item.href);
         const isActive = currentRoute.includes(item.href.replace('app.', ''));
 
         return (
             <Link
                 key={`${item.href}-${item.label}-${index}`}
                 href={href}
-                title={meta?.description ?? item.label}
                 className={cn(
-                    'group flex items-start gap-3 rounded-2xl px-4 py-3 text-sm transition-all duration-200',
+                    'group flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm transition-all duration-150',
                     isActive
-                        ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30'
-                        : 'text-gray-700 hover:bg-gray-100 hover:shadow-sm dark:text-gray-300 dark:hover:bg-gray-800'
+                        ? 'border border-blue-100 bg-blue-600 text-white shadow-[0_12px_28px_-18px_rgba(37,99,235,0.9)] dark:border-blue-400/20 dark:bg-blue-500'
+                        : 'text-gray-700 hover:bg-gray-100/90 dark:text-gray-300 dark:hover:bg-gray-800'
                 )}
             >
                 <span
                     className={cn(
-                        'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all duration-200',
+                        'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors',
                         isActive
-                            ? 'bg-white/15 text-white'
-                            : 'bg-gray-100 text-gray-500 group-hover:bg-blue-50 group-hover:text-blue-600 dark:bg-gray-800 dark:text-gray-400 dark:group-hover:bg-blue-950/40 dark:group-hover:text-blue-300'
+                            ? 'bg-white/18 text-white'
+                            : 'bg-gray-100 text-gray-500 group-hover:bg-white group-hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:group-hover:bg-gray-700 dark:group-hover:text-gray-200'
                     )}
                 >
-                    <Icon className="h-4.5 w-4.5" />
+                    <Icon className="h-4 w-4" />
                 </span>
-                <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2">
-                        <span className={cn('truncate font-medium', isActive && 'font-semibold')}>{item.label}</span>
-                        {isActive && (
-                            <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/90">
-                                Current
-                            </span>
-                        )}
+                <span className="min-w-0 flex-1 truncate font-medium">{item.label}</span>
+                {isActive && (
+                    <span className="rounded-full bg-white/18 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white">
+                        Live
                     </span>
-                    {meta?.description && (
-                        <span className={cn('mt-1 line-clamp-2 block text-xs', isActive ? 'text-white/80' : 'text-gray-500 dark:text-gray-400')}>
-                            {meta.description}
-                        </span>
-                    )}
-                </span>
+                )}
             </Link>
         );
     };
 
     const sidebarContent = (
         <>
-            <div className="border-b border-gray-200/80 p-4 dark:border-gray-800/80">
-                <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-3 dark:border-gray-800 dark:bg-gray-900/80">
-                    <label htmlFor="sidebar-search" className="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                        Find a page
-                    </label>
+            <div className="border-b border-gray-200/80 px-4 py-4 dark:border-gray-800/80">
+                <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-3 dark:border-gray-800 dark:bg-gray-900/70">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
+                            Navigation
+                        </p>
+                        {account?.name && (
+                            <span className="truncate text-xs text-gray-500 dark:text-gray-400">{account.name}</span>
+                        )}
+                    </div>
                     <div className="relative">
                         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                         <Input
-                            id="sidebar-search"
                             value={query}
                             onChange={(event) => setQuery(event.target.value)}
-                            placeholder="Inbox, billing, templates..."
-                            className="h-10 rounded-xl border-gray-200 bg-white pl-9 text-sm dark:border-gray-700 dark:bg-gray-950"
+                            placeholder="Search pages"
+                            className="h-10 rounded-xl border-gray-200 bg-white pl-9 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-950"
                         />
                     </div>
-                    {account?.name && (
-                        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                            Working in <span className="font-medium text-gray-700 dark:text-gray-200">{account.name}</span>
-                        </p>
-                    )}
                 </div>
             </div>
-            <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-5 space-y-8">
+            <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-3 py-4 space-y-6">
                 {orderedGroups.length === 0 && (
-                    <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
-                        No pages matched your search. Try a broader term.
+                    <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-3 py-4 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+                        No pages matched your search.
                     </div>
                 )}
                 {orderedGroups.map((group) => {
@@ -254,33 +217,26 @@ export function Sidebar({ navigation, currentRoute, account, isOpen = false, onC
                     return (
                         <div key={group}>
                             {groupLabels[group] && (
-                                <div className="mb-3 px-2">
-                                    <h3 className="text-xs font-bold uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">
-                                        {groupLabels[group]}
-                                    </h3>
-                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                        {groupDescriptions[group]}
-                                    </p>
-                                </div>
+                                <h3 className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400 dark:text-gray-500">
+                                    {groupLabels[group]}
+                                </h3>
                             )}
-                            <div className="space-y-1.5">{validItems}</div>
+                            <div className="space-y-1">{validItems}</div>
                         </div>
                     );
                 })}
             </nav>
-            <div className="border-t border-gray-200/80 p-4 dark:border-gray-800/80">
+            <div className="border-t border-gray-200/80 p-3 dark:border-gray-800/80">
                 <Link
                     href={resolveRouteHref('app.support.index') ?? '#'}
-                    className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 transition hover:border-blue-200 hover:text-blue-700 hover:shadow-sm dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200 dark:hover:border-blue-800 dark:hover:text-blue-300"
+                    className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 px-3 py-3 text-sm font-medium text-gray-700 shadow-sm transition hover:border-blue-200 hover:text-blue-700 dark:border-gray-800 dark:from-gray-950 dark:to-gray-900 dark:text-gray-200 dark:hover:border-gray-700 dark:hover:text-blue-300"
                 >
                     <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300">
-                        <LifeBuoy className="h-4.5 w-4.5" />
+                        <LifeBuoy className="h-4 w-4" />
                     </span>
-                    <span className="min-w-0 flex-1">
-                        <span className="block">Need help?</span>
-                        <span className="mt-0.5 block text-xs font-normal text-gray-500 dark:text-gray-400">
-                            Open support and share the exact problem.
-                        </span>
+                    <span className="flex-1">
+                        <span className="block">Support</span>
+                        <span className="block text-xs font-normal text-gray-500 dark:text-gray-400">Get help fast</span>
                     </span>
                 </Link>
             </div>
@@ -293,20 +249,17 @@ export function Sidebar({ navigation, currentRoute, account, isOpen = false, onC
 
             <aside
                 className={cn(
-                    'fixed inset-y-0 left-0 z-50 flex h-dvh max-h-screen w-80 flex-col border-r border-gray-200 bg-white shadow-2xl transition-transform duration-300 ease-in-out dark:border-gray-800 dark:bg-gray-900 lg:z-30 lg:w-80 lg:translate-x-0 lg:shadow-lg',
+                    'fixed inset-y-0 left-0 z-50 flex h-dvh max-h-screen w-72 flex-col border-r border-gray-200/80 bg-white transition-transform duration-300 ease-in-out dark:border-gray-800 dark:bg-gray-900 lg:z-30 lg:w-72 lg:translate-x-0',
                     isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
                 )}
             >
-                <div className="flex items-center justify-between border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white px-6 py-4 dark:border-gray-800 dark:from-gray-900 dark:to-gray-800">
-                    <div>
+                <div className="flex items-center justify-between border-b border-gray-200/80 px-4 py-4 dark:border-gray-800/80">
+                    <div className="flex items-center gap-3">
                         {logoUrl ? (
                             <img src={logoUrl} alt={platformName} className="h-8 w-auto" />
                         ) : (
-                            <h2 className="text-lg font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent dark:from-gray-100 dark:to-gray-300">
-                                {platformName}
-                            </h2>
+                            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{platformName}</h2>
                         )}
-                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Clearer navigation, faster actions, fewer dead ends.</p>
                     </div>
                     <button
                         onClick={onClose}

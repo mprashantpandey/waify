@@ -1,9 +1,8 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { Moon, Sun, User, LogOut, Shield, Menu, HelpCircle, ChevronRight } from 'lucide-react';
+import { Moon, Sun, User, LogOut, Shield, Menu, HelpCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Badge } from '@/Components/UI/Badge';
 import { Tooltip } from '@/Components/UI/Tooltip';
-import { getPageMeta } from '@/lib/navigationMeta';
 
 interface TopbarProps {
     user: {
@@ -18,7 +17,6 @@ export function Topbar({ user, onMenuClick }: TopbarProps) {
     const page = usePage() as any;
     const { impersonation, accounts, account } = page.props as any;
     const componentName = page.component as string | undefined;
-    const pageMeta = getPageMeta(componentName);
     const [darkMode, setDarkMode] = useState(false);
     const [showUserMenu, setShowUserMenu] = useState(false);
     const [showAccountMenu, setShowAccountMenu] = useState(false);
@@ -45,8 +43,8 @@ export function Topbar({ user, onMenuClick }: TopbarProps) {
     };
 
     return (
-        <header className="sticky top-0 z-20 border-b border-gray-200/50 bg-white/85 shadow-sm backdrop-blur-lg dark:border-gray-800/50 dark:bg-gray-900/85">
-            <div className="mx-auto flex h-16 w-full max-w-[1600px] items-center justify-between gap-4 px-4 lg:px-8 lg:pl-[22rem]">
+        <header className="sticky top-0 z-20 border-b border-gray-200/70 bg-white/90 backdrop-blur-lg dark:border-gray-800/70 dark:bg-gray-900/90">
+            <div className="mx-auto flex h-16 w-full max-w-[1440px] items-center justify-between gap-4 px-4 lg:px-6 lg:pl-[19rem]">
                 <div className="flex min-w-0 flex-1 items-center gap-4">
                     {onMenuClick && (
                         <button
@@ -58,28 +56,11 @@ export function Topbar({ user, onMenuClick }: TopbarProps) {
                         </button>
                     )}
 
-                    <div className="min-w-0 flex-1">
-                        {pageMeta ? (
-                            <>
-                                <div className="hidden items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400 sm:flex">
-                                    <span>{pageMeta.section}</span>
-                                    <ChevronRight className="h-3.5 w-3.5" />
-                                    <span className="truncate">{pageMeta.title}</span>
-                                </div>
-                                <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
-                                    {pageMeta.description}
-                                </p>
-                            </>
-                        ) : account ? (
-                            <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">Working in {account.name}</p>
-                        ) : null}
-                    </div>
-
                     {account && accounts?.length > 1 && !hideAccountSwitch && (
                         <div className="relative hidden xl:block">
                             <button
                                 onClick={() => setShowAccountMenu(!showAccountMenu)}
-                                className="flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-900 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800"
+                                className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-800 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
                             >
                                 <div className="h-2 w-2 rounded-full bg-green-500"></div>
                                 <span className="max-w-[180px] truncate">{account?.name ?? 'Switch Account'}</span>
@@ -87,7 +68,7 @@ export function Topbar({ user, onMenuClick }: TopbarProps) {
                             {showAccountMenu && (
                                 <>
                                     <div className="fixed inset-0 z-10" onClick={() => setShowAccountMenu(false)} />
-                                    <div className="absolute left-0 z-20 mt-2 w-72 rounded-xl border border-gray-200 bg-white py-2 shadow-xl dark:border-gray-700 dark:bg-gray-800">
+                                    <div className="absolute left-0 z-20 mt-2 w-72 rounded-2xl border border-gray-200 bg-white py-2 shadow-xl dark:border-gray-700 dark:bg-gray-800">
                                         <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                                             Switch Account
                                         </div>
@@ -113,10 +94,10 @@ export function Topbar({ user, onMenuClick }: TopbarProps) {
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <Tooltip content="Need help or want to report a blocker? Open support.">
+                    <Tooltip content="Open support">
                         <Link
                             href={route('app.support.index')}
-                            className="rounded-xl p-2.5 text-gray-700 transition-all duration-200 hover:scale-105 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                            className="rounded-xl border border-transparent p-2.5 text-gray-700 transition-colors hover:border-gray-200 hover:bg-gray-100 dark:text-gray-300 dark:hover:border-gray-700 dark:hover:bg-gray-800"
                             aria-label="Open support"
                         >
                             <HelpCircle className="h-5 w-5" />
@@ -125,7 +106,7 @@ export function Topbar({ user, onMenuClick }: TopbarProps) {
                     <Tooltip content={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
                         <button
                             onClick={toggleDarkMode}
-                            className="rounded-xl p-2.5 text-gray-700 transition-all duration-200 hover:scale-105 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                            className="rounded-xl border border-transparent p-2.5 text-gray-700 transition-colors hover:border-gray-200 hover:bg-gray-100 dark:text-gray-300 dark:hover:border-gray-700 dark:hover:bg-gray-800"
                             aria-label="Toggle theme"
                         >
                             {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
@@ -135,19 +116,19 @@ export function Topbar({ user, onMenuClick }: TopbarProps) {
                         <div className="relative">
                             <button
                                 onClick={() => setShowUserMenu(!showUserMenu)}
-                                className="flex items-center gap-2 rounded-xl px-2 py-2 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                                className="flex items-center gap-2 rounded-xl border border-transparent px-1.5 py-1.5 transition-colors hover:border-gray-200 hover:bg-gray-100 dark:hover:border-gray-700 dark:hover:bg-gray-800"
                             >
-                                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-sm font-bold text-white shadow-lg">
+                                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
                                     {user.name.charAt(0).toUpperCase()}
                                 </div>
                             </button>
                             {showUserMenu && (
                                 <>
                                     <div className="fixed inset-0 z-10" onClick={() => setShowUserMenu(false)} />
-                                    <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-xl border border-gray-200 bg-white py-2 shadow-xl backdrop-blur-lg dark:border-gray-700 dark:bg-gray-800">
+                                    <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-2xl border border-gray-200 bg-white py-2 shadow-xl dark:border-gray-700 dark:bg-gray-800">
                                         <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
                                             <div className="flex items-center gap-3">
-                                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-sm font-bold text-white shadow-lg">
+                                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
                                                     {user.name.charAt(0).toUpperCase()}
                                                 </div>
                                                 <div className="min-w-0 flex-1">

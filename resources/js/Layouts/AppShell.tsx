@@ -8,7 +8,6 @@ import { GlobalFlashHandler } from '@/Components/Notifications/GlobalFlashHandle
 import ProfileIncompleteModal from '@/Components/Profile/ProfileIncompleteModal';
 import AnalyticsScripts from '@/Components/Analytics/AnalyticsScripts';
 import CookieConsentBanner from '@/Components/Compliance/CookieConsentBanner';
-import { ContextualGuide } from '@/Components/Layout/ContextualGuide';
 
 interface AppShellProps {
     children: ReactNode;
@@ -41,7 +40,7 @@ export default function AppShell({ children }: AppShellProps) {
 
     return (
         <BrandingWrapper>
-            <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
+            <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
                 <Sidebar
                     navigation={navigation || []}
                     currentRoute={currentRoute}
@@ -49,10 +48,9 @@ export default function AppShell({ children }: AppShellProps) {
                     isOpen={sidebarOpen}
                     onClose={() => setSidebarOpen(false)}
                 />
-                <div className="lg:pl-80">
+                <div className="lg:pl-72">
                     <Topbar user={auth?.user} onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
-                    <ContextualGuide />
-                    <main className="mx-auto w-full max-w-[1600px] px-4 py-5 lg:px-8 lg:py-8">
+                    <main className="mx-auto w-full max-w-[1440px] px-4 py-5 lg:px-6 lg:py-6">
                         {children}
                     </main>
                 </div>
