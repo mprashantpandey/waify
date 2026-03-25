@@ -300,6 +300,7 @@ class PlatformSettingsService
         $templateApiMode = $this->get('whatsapp.template_api_mode', config('whatsapp.meta.template_api_mode', 'direct'));
         $embeddedConfigId = $this->get('whatsapp.embedded_signup_config_id', config('whatsapp.meta.embedded_signup_config_id'));
         $apiVersion = $this->get('whatsapp.api_version', config('whatsapp.meta.api_version', 'v21.0'));
+        $webhookVerifyToken = $this->get('whatsapp.webhook_verify_token', config('whatsapp.webhook.verify_token'));
         $embeddedEnabled = $this->get('whatsapp.embedded_enabled');
 
         if ($appId) {
@@ -331,6 +332,9 @@ class PlatformSettingsService
         }
         if ($apiVersion) {
             config(['whatsapp.meta.api_version' => $apiVersion]);
+        }
+        if ($webhookVerifyToken) {
+            config(['whatsapp.webhook.verify_token' => $webhookVerifyToken]);
         }
         if ($embeddedEnabled !== null) {
             config(['whatsapp.meta.embedded_enabled' => (bool) $embeddedEnabled]);

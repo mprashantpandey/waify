@@ -33,7 +33,7 @@ class WebhookTest extends TestCase
             'waba_id' => '131698056692862',
         ]);
 
-        config()->set('whatsapp.webhook.verify_token', 'test-verify-token');
+        PlatformSetting::set('whatsapp.webhook_verify_token', 'test-verify-token', 'string', 'whatsapp');
     }
 
     public function test_webhook_verify_returns_challenge_for_valid_token(): void
@@ -47,6 +47,20 @@ class WebhookTest extends TestCase
         $response->assertStatus(200);
         $response->assertSeeText('test-challenge-123');
         $this->assertFalse($this->connection->fresh()->webhook_subscribed);
+    }
+
+    public function test_webhook_verify_uses_platform_setting_token_when_config_differs(): void
+    {
+        config()->set('whatsapp.webhook.verify_token', 'env-token');
+
+        $response = $this->get(route('webhooks.whatsapp.verify', [
+            'hub_mode' => 'subscribe',
+            'hub_verify_token' => 'test-verify-token',
+            'hub_challenge' => 'challenge-from-platform-setting',
+        ]));
+
+        $response->assertStatus(200);
+        $response->assertSeeText('challenge-from-platform-setting');
     }
 
     public function test_webhook_verify_rejects_invalid_token(): void

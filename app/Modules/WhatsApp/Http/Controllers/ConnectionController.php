@@ -971,7 +971,7 @@ class ConnectionController extends Controller
 
         $challenge = Str::random(16);
         $url = $this->connectionService->getWebhookUrl($connection);
-        $verifyToken = (string) config('whatsapp.webhook.verify_token', '');
+        $verifyToken = (string) PlatformSetting::get('whatsapp.webhook_verify_token', config('whatsapp.webhook.verify_token', ''));
 
         if ($verifyToken === '') {
             return response()->json([

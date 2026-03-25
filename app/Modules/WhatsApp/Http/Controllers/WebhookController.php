@@ -3,6 +3,7 @@
 namespace App\Modules\WhatsApp\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\PlatformSetting;
 use App\Modules\WhatsApp\Jobs\ProcessWebhookEventJob;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppWebhookEvent;
@@ -29,7 +30,7 @@ class WebhookController extends Controller
     public function verify(Request $request)
     {
         try {
-            $verifyToken = (string) config('whatsapp.webhook.verify_token', '');
+            $verifyToken = (string) PlatformSetting::get('whatsapp.webhook_verify_token', config('whatsapp.webhook.verify_token', ''));
 
             Log::channel('whatsapp')->info('Central webhook verify called', [
                 'ip' => $request->ip(),

@@ -225,7 +225,8 @@ class PlatformSettingsController extends Controller
             'strict_embedded_provisioning' => $get('whatsapp.strict_embedded_provisioning', config('whatsapp.meta.strict_embedded_provisioning', false)),
             'template_api_mode' => $get('whatsapp.template_api_mode', config('whatsapp.meta.template_api_mode', 'direct')),
             'embedded_signup_config_id' => $get('whatsapp.embedded_signup_config_id', config('whatsapp.meta.embedded_signup_config_id')),
-            'api_version' => $get('whatsapp.api_version', config('whatsapp.meta.api_version', 'v21.0'))];
+            'api_version' => $get('whatsapp.api_version', config('whatsapp.meta.api_version', 'v21.0')),
+            'webhook_verify_token' => $get('whatsapp.webhook_verify_token', config('whatsapp.webhook.verify_token'))];
 
         // SMS provider settings (2FA / OTP: Twilio Verify or MSG91)
         $smsSettings = [
@@ -434,6 +435,7 @@ class PlatformSettingsController extends Controller
             'whatsapp.template_api_mode' => 'nullable|string|in:direct,obo',
             'whatsapp.embedded_signup_config_id' => 'nullable|string|max:255',
             'whatsapp.api_version' => 'nullable|string|max:10',
+            'whatsapp.webhook_verify_token' => 'nullable|string|max:255',
             // SMS (2FA / OTP)
             'sms.provider' => 'nullable|string|in:twilio_verify,msg91,',
             'sms.twilio_account_sid' => 'nullable|string|max:255',

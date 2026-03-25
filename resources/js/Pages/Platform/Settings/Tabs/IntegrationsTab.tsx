@@ -355,6 +355,21 @@ export default function IntegrationsTab({ data, setData, errors }: IntegrationsT
                             <InputError message={errors['whatsapp.embedded_signup_config_id']} />
                         </div>
                         <div>
+                            <InputLabel htmlFor="whatsapp.webhook_verify_token" value="Central Webhook Verify Token" />
+                            <TextInput
+                                id="whatsapp.webhook_verify_token"
+                                type="text"
+                                value={data.whatsapp?.webhook_verify_token || ''}
+                                onChange={(e) => setData('whatsapp.webhook_verify_token', e.target.value)}
+                                className="mt-1"
+                                placeholder="Set the Meta webhook verify token"
+                            />
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                Meta callback URL: <span className="font-mono">/webhooks/whatsapp</span>
+                            </p>
+                            <InputError message={errors['whatsapp.webhook_verify_token']} />
+                        </div>
+                        <div>
                             <InputLabel htmlFor="whatsapp.meta_app_secret" value="Meta App Secret" />
                             <div className="relative mt-1">
                                 <TextInput
