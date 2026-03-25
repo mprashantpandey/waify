@@ -8,6 +8,7 @@ import { GlobalFlashHandler } from '@/Components/Notifications/GlobalFlashHandle
 import ProfileIncompleteModal from '@/Components/Profile/ProfileIncompleteModal';
 import AnalyticsScripts from '@/Components/Analytics/AnalyticsScripts';
 import CookieConsentBanner from '@/Components/Compliance/CookieConsentBanner';
+import { ContextualGuide } from '@/Components/Layout/ContextualGuide';
 
 interface AppShellProps {
     children: ReactNode;
@@ -18,7 +19,6 @@ export default function AppShell({ children }: AppShellProps) {
     const currentRoute = window.location.pathname;
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
-    // Close sidebar when route changes on mobile
     useEffect(() => {
         setSidebarOpen(false);
     }, [currentRoute]);
@@ -29,7 +29,6 @@ export default function AppShell({ children }: AppShellProps) {
         }
     }, [ziggy]);
 
-    // Close sidebar on window resize to desktop
     useEffect(() => {
         const handleResize = () => {
             if (window.innerWidth >= 1024) {
@@ -50,12 +49,12 @@ export default function AppShell({ children }: AppShellProps) {
                     isOpen={sidebarOpen}
                     onClose={() => setSidebarOpen(false)}
                 />
-                <div className="lg:pl-72">
-                    <Topbar
-                        user={auth?.user}
-                        onMenuClick={() => setSidebarOpen(!sidebarOpen)}
-                    />
-                    <main className="p-4 lg:p-6">{children}</main>
+                <div className="lg:pl-80">
+                    <Topbar user={auth?.user} onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
+                    <ContextualGuide />
+                    <main className="mx-auto w-full max-w-[1600px] px-4 py-5 lg:px-8 lg:py-8">
+                        {children}
+                    </main>
                 </div>
                 <Toaster />
                 <GlobalFlashHandler />

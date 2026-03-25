@@ -40,6 +40,7 @@ interface Conversation {
     priority?: string | null;
     unread_count?: number;
     has_unread?: boolean;
+    latest_activity_type?: string | null;
     activity?: {
         event_type?: string | null;
         description?: string | null;
@@ -78,6 +79,7 @@ const normalizeConversation = (value: any): Conversation | null => {
         priority: value.priority ?? null,
         unread_count: Math.max(0, Number(value.unread_count ?? 0) || 0),
         has_unread: Boolean(value.has_unread ?? (Number(value.unread_count ?? 0) > 0)),
+        latest_activity_type: value.latest_activity_type ?? value.activity?.event_type ?? null,
         activity: value.activity
             ? {
                   event_type: value.activity.event_type ?? null,
@@ -559,6 +561,20 @@ export default function ConversationsIndex({
         return { Icon: Activity, className: 'text-gray-500 dark:text-gray-400', label: 'Activity' };
     };
 
+    const assignmentStateLabel = (conversation: Conversation) => {
+        const activityType = String(conversation.latest_activity_type ?? '').toLowerCase();
+        if (!conversation.assigned_to) {
+            return 'Unassigned';
+        }
+        if (activityType.includes('auto_assign')) {
+            return 'Auto-assigned';
+        }
+        if (activityType.includes('transfer')) {
+            return 'Transferred';
+        }
+        return 'Assigned';
+    };
+
     const getAssigneeMeta = (conversation: Conversation) => {
         if (!conversation.assigned_to) {
             return {
@@ -568,7 +584,7 @@ export default function ConversationsIndex({
         }
 
         return {
-            label: `Assigned to ${agents.find((a) => a.id === conversation.assigned_to)?.name ?? 'Unknown'}`,
+            label: assignmentStateLabel(conversation),
             className: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300',
         };
     };
