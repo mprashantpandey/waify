@@ -378,6 +378,7 @@ export default function EmbeddedWizard({
             },
             {
                 config_id: embeddedSignup.configId,
+                override_default_response_type: true,
                 response_type: 'code',
                 redirect_uri: oauthRedirectUri,
                 scope: 'whatsapp_business_management,whatsapp_business_messaging,business_management'
