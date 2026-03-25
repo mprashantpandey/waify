@@ -408,6 +408,8 @@ class TemplateController extends Controller
         Gate::authorize('update', $connection);
 
         try {
+            $validated = $this->templateManagementService->prepareHeaderMediaForSave($connection, $validated);
+
             Log::channel('whatsapp')->info('Creating template', [
                 'account_id' => $account->id,
                 'connection_id' => $connection->id,
@@ -560,11 +562,15 @@ class TemplateController extends Controller
         Gate::authorize('update', $connection);
 
         try {
+            $validated = $this->templateManagementService->prepareHeaderMediaForSave($connection, $validated);
             $result = $this->templateManagementService->updateTemplate($connection, $template, $validated);
             $effectiveName = $result['_effective_template_name'] ?? null;
             $autoVersioned = (bool) ($result['_auto_versioned_name'] ?? false);
-            $message = 'Template updated successfully. A new version has been submitted to Meta for approval.';
-            if ($autoVersioned && is_string($effectiveName) && $effectiveName !== '') {
+            $localOnly = (bool) ($result['_local_only_update'] ?? false);
+            $message = $localOnly
+                ? 'Template updated successfully.'
+                : 'Template updated successfully. A new version has been submitted to Meta for approval.';
+            if (!$localOnly && $autoVersioned && is_string($effectiveName) && $effectiveName !== '') {
                 $message .= " Meta required a new unique template name, so it was created as '{$effectiveName}'.";
             }
 

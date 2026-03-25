@@ -22,6 +22,37 @@ class TemplateManagementService
         $this->baseUrl = rtrim(config('whatsapp.meta.base_url', 'https://graph.facebook.com'), '/');
     }
 
+    public function prepareHeaderMediaForSave(WhatsAppConnection $connection, array $templateData): array
+    {
+        $headerType = strtoupper((string) ($templateData['header_type'] ?? 'NONE'));
+        if (!in_array($headerType, ['IMAGE', 'VIDEO', 'DOCUMENT'], true)) {
+            return $templateData;
+        }
+
+        $mediaUrl = trim((string) ($templateData['header_media_url'] ?? ''));
+        $mediaHandle = trim((string) ($templateData['header_media_handle'] ?? ''));
+
+        if ($mediaUrl === '' && $mediaHandle === '') {
+            throw new \InvalidArgumentException('Media header templates require an uploaded sample (URL or Meta handle).');
+        }
+
+        if ($mediaUrl === '') {
+            return $templateData;
+        }
+
+        if ($this->isTemporaryMetaHostedUrl($mediaUrl)) {
+            throw new \InvalidArgumentException('This media link is temporary and cannot be reused. Re-upload the header media.');
+        }
+
+        $this->assertHeaderMediaReachable($mediaUrl, $headerType);
+
+        if (config('whatsapp.meta.app_id')) {
+            $templateData['header_media_handle'] = $this->uploadHeaderMediaToMeta($connection, $mediaUrl, $headerType, true);
+        }
+
+        return $templateData;
+    }
+
     /**
      * Create a new template via Meta API.
      * Follows Meta's latest template creation guidelines.
@@ -192,6 +223,18 @@ class TemplateManagementService
             }
         }
 
+        if ($this->isLocalOnlyTemplateUpdate($template, $templateData)) {
+            $template->update([
+                'header_media_url' => trim((string) ($templateData['header_media_url'] ?? '')) ?: $template->header_media_url,
+                'last_meta_error' => null,
+            ]);
+
+            return [
+                'id' => $template->meta_template_id,
+                '_local_only_update' => true,
+            ];
+        }
+
         try {
             $result = $this->createTemplate($connection, $templateData, (int) $template->id);
             $this->adoptCreatedTemplateAsUpdate($connection, $template, (string) ($result['id'] ?? ''));
@@ -341,6 +384,21 @@ class TemplateManagementService
 
             $created->update(['is_archived' => true]);
         });
+    }
+
+    protected function isLocalOnlyTemplateUpdate(WhatsAppTemplate $template, array $templateData): bool
+    {
+        $normalize = static fn (?string $value): string => trim((string) $value);
+        $normalizeButtons = static fn ($buttons): array => array_values($buttons ?? []);
+
+        return $normalize($templateData['name'] ?? '') === $normalize($template->name)
+            && $normalize($templateData['language'] ?? '') === $normalize($template->language)
+            && strtoupper($normalize($templateData['category'] ?? '')) === strtoupper($normalize($template->category))
+            && strtoupper($normalize($templateData['header_type'] ?? 'NONE')) === strtoupper($normalize($template->header_type ?? 'NONE'))
+            && $normalize($templateData['header_text'] ?? '') === $normalize($template->header_text)
+            && $normalize($templateData['body_text'] ?? '') === $normalize($template->body_text)
+            && $normalize($templateData['footer_text'] ?? '') === $normalize($template->footer_text)
+            && $normalizeButtons($templateData['buttons'] ?? []) === $normalizeButtons($template->buttons ?? []);
     }
 
     /**
@@ -762,7 +820,7 @@ class TemplateManagementService
      * Upload header media to Meta via Resumable Upload API and return the file handle.
      * Meta template creation often rejects app-hosted URLs; using a handle avoids "Invalid parameter".
      */
-    protected function uploadHeaderMediaToMeta(WhatsAppConnection $connection, string $mediaUrl, string $headerType): ?string
+    protected function uploadHeaderMediaToMeta(WhatsAppConnection $connection, string $mediaUrl, string $headerType, bool $strict = false): ?string
     {
         $appId = config('whatsapp.meta.app_id');
         if (!$appId) {
@@ -819,6 +877,9 @@ class TemplateManagementService
                 'response' => $sessionData,
                 'status' => $sessionResponse->status(),
             ]);
+            if ($strict) {
+                throw new \RuntimeException('Meta upload session could not be created for this media file.');
+            }
             return null;
         }
 
@@ -837,10 +898,47 @@ class TemplateManagementService
                 'response' => $uploadData,
                 'status' => $uploadResponse->status(),
             ]);
+            if ($strict) {
+                throw new \RuntimeException('Meta could not accept this media file for template delivery.');
+            }
             return null;
         }
 
         return $handle;
+    }
+
+    protected function assertHeaderMediaReachable(string $mediaUrl, string $headerType): void
+    {
+        $response = Http::timeout(20)->get($mediaUrl);
+        if (!$response->successful()) {
+            throw new \RuntimeException("Media URL is not reachable (HTTP {$response->status()}).");
+        }
+
+        $content = $response->body();
+        if ($content === '') {
+            throw new \RuntimeException('Media URL returned empty content.');
+        }
+
+        $contentType = strtolower(trim((string) explode(';', (string) $response->header('Content-Type'))[0]));
+        $allowedTypes = match ($headerType) {
+            'IMAGE' => ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'],
+            'VIDEO' => ['video/mp4', 'video/quicktime', 'video/3gpp'],
+            'DOCUMENT' => ['application/pdf'],
+            default => [],
+        };
+
+        if ($contentType !== '' && !in_array($contentType, $allowedTypes, true)) {
+            throw new \RuntimeException("Media file type '{$contentType}' is not allowed for {$headerType} headers.");
+        }
+    }
+
+    protected function isTemporaryMetaHostedUrl(string $url): bool
+    {
+        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+
+        return str_contains($host, 'lookaside.fbsbx.com')
+            || str_contains($host, 'scontent.')
+            || str_contains($host, 'fbcdn.net');
     }
 
     /**

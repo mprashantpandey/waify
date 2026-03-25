@@ -525,4 +525,86 @@ class TemplateTest extends TestCase
                 ->where('templates.0.name', 'active_template')
             );
     }
+
+    public function test_template_create_fails_fast_when_header_media_url_is_not_reachable(): void
+    {
+        config()->set('whatsapp.meta.app_id', null);
+
+        Http::fake([
+            'https://example.com/*' => Http::response('', 404),
+            'graph.facebook.com/*' => Http::response(['id' => 'meta_template_123'], 200),
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->from(route('app.whatsapp.templates.create', ['account' => $this->account->slug]))
+            ->post(route('app.whatsapp.templates.store', ['account' => $this->account->slug]), [
+                'whatsapp_connection_id' => $this->connection->id,
+                'name' => 'media_template',
+                'language' => 'en_US',
+                'category' => 'UTILITY',
+                'header_type' => 'IMAGE',
+                'header_media_url' => 'https://example.com/missing.png',
+                'body_text' => 'Hello {{1}}',
+            ]);
+
+        $response->assertRedirect(route('app.whatsapp.templates.create', ['account' => $this->account->slug]));
+        $response->assertSessionHasErrors('create');
+        $this->assertDatabaseMissing('whatsapp_templates', [
+            'account_id' => $this->account->id,
+            'name' => 'media_template',
+        ]);
+
+        Http::assertSent(fn ($request) => $request->url() === 'https://example.com/missing.png');
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), 'graph.facebook.com'));
+    }
+
+    public function test_template_update_only_refreshes_header_media_without_creating_new_template(): void
+    {
+        config()->set('whatsapp.meta.app_id', null);
+
+        $template = WhatsAppTemplate::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_connection_id' => $this->connection->id,
+            'meta_template_id' => 'meta_template_existing',
+            'name' => 'media_header_template',
+            'language' => 'en_US',
+            'category' => 'UTILITY',
+            'status' => 'approved',
+            'header_type' => 'IMAGE',
+            'header_media_url' => 'https://example.com/old.png',
+            'body_text' => 'Hello {{1}}',
+            'buttons' => [],
+        ]);
+
+        Http::fake([
+            'https://example.com/*' => Http::response('image-bytes', 200, ['Content-Type' => 'image/png']),
+            'graph.facebook.com/*' => Http::response(['id' => 'unexpected'], 200),
+        ]);
+
+        $response = $this->actingAs($this->user)
+            ->put(route('app.whatsapp.templates.update', [
+                'account' => $this->account->slug,
+                'template' => $template->id,
+            ]), [
+                'name' => 'media_header_template',
+                'language' => 'en_US',
+                'category' => 'UTILITY',
+                'header_type' => 'IMAGE',
+                'header_media_url' => 'https://example.com/new.png',
+                'body_text' => 'Hello {{1}}',
+                'buttons' => [],
+            ]);
+
+        $response->assertRedirect(route('app.whatsapp.templates.index'));
+        $response->assertSessionHas('success', 'Template updated successfully.');
+
+        $template->refresh();
+
+        $this->assertSame('https://example.com/new.png', $template->header_media_url);
+        $this->assertSame('meta_template_existing', $template->meta_template_id);
+        $this->assertSame(1, WhatsAppTemplate::where('account_id', $this->account->id)->count());
+
+        Http::assertSent(fn ($request) => $request->url() === 'https://example.com/new.png');
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), 'graph.facebook.com'));
+    }
 }
