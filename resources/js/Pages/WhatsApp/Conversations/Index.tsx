@@ -777,13 +777,13 @@ export default function ConversationsIndex({
                                         return (
                                             <div
                                                 key={conversation.id}
-                                                className="group flex flex-col gap-3 px-4 py-4 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/60 sm:flex-row sm:items-start"
+                                                className="group flex flex-col gap-2 px-4 py-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/60 sm:flex-row sm:items-start"
                                             >
                                                 <Link
                                                     href={route('app.whatsapp.conversations.show', { conversation: conversation.id })}
                                                     className="flex min-w-0 flex-1 items-start gap-3"
                                                 >
-                                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-600 text-lg font-semibold text-white">
+                                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
                                                         {conversation.contact.name?.charAt(0).toUpperCase() || conversation.contact.wa_id.charAt(0)}
                                                     </div>
                                                     <div className="min-w-0 flex-1">
@@ -808,7 +808,7 @@ export default function ConversationsIndex({
                                                             </span>
                                                         </div>
                                                         {conversation.activity?.description && (
-                                                            <div className="mt-2 flex max-w-full flex-wrap items-center gap-1.5 rounded-xl bg-gray-50 px-2.5 py-1.5 text-[11px] text-gray-600 dark:bg-gray-900/70 dark:text-gray-300">
+                                                            <div className="mt-1.5 flex max-w-full flex-wrap items-center gap-1 rounded-lg bg-gray-50 px-2 py-1 text-[10px] text-gray-600 dark:bg-gray-900/70 dark:text-gray-300">
                                                                 {(() => {
                                                                     const meta = activityMeta(conversation.activity?.event_type);
                                                                     const Icon = meta.Icon;
@@ -822,8 +822,8 @@ export default function ConversationsIndex({
                                                                 )}
                                                             </div>
                                                         )}
-                                                        <div className="mt-2 flex items-center gap-2 flex-wrap">
-                                                            <Badge variant={conversation.status === 'open' ? 'success' : 'default'} className="px-2 py-0.5 text-[10px]">
+                                                        <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                                                            <Badge variant={conversation.status === 'open' ? 'success' : 'default'} className="px-1.5 py-0.5 text-[10px]">
                                                                 {conversation.status}
                                                             </Badge>
                                                             <div className="flex items-center gap-1 text-[11px] text-gray-500">
@@ -893,7 +893,7 @@ export default function ConversationsIndex({
                                                                     }
                                                                 );
                                                             }}
-                                                            className="w-full rounded-xl border-gray-300 px-2.5 py-2 text-[11px] focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 sm:w-auto sm:max-w-[140px] truncate"
+                                                            className="w-full rounded-lg border-gray-300 px-2 py-1.5 text-[11px] focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 sm:w-auto sm:max-w-[132px] truncate"
                                                             title="Assign to"
                                                         >
                                                             <option value="">Unassigned</option>
