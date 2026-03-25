@@ -9,6 +9,7 @@ import InputError from '@/Components/InputError';
 import { Badge } from '@/Components/UI/Badge';
 import { ArrowLeft, Send, User, MessageSquare, Phone, Sparkles, Eye } from 'lucide-react';
 import { Link, Head } from '@inertiajs/react';
+import { cn } from '@/lib/utils';
 
 interface Template {
     id: number;
@@ -18,6 +19,11 @@ interface Template {
     body_text: string | null;
     header_type: string | null;
     header_media_url: string | null;
+    header_media_status?: {
+        state: 'ready' | 'missing' | 'reupload_required' | 'not_required';
+        label: string;
+        description?: string | null;
+    };
     header_text: string | null;
     footer_text: string | null;
     buttons: Array<{
@@ -90,6 +96,11 @@ export default function TemplatesSend({
     conversations: Conversation[];
     recent_sends?: RecentSend[];
 }) {
+    const mediaStatusTone = (state?: string) => {
+        if (state === 'ready') return 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200';
+        if (state === 'missing' || state === 'reupload_required') return 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200';
+        return 'border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-800 dark:bg-gray-900/20 dark:text-gray-300';
+    };
     const [highlightedSendId, setHighlightedSendId] = useState<number | null>(null);
     const { support_access: supportAccess = false } = usePage<any>().props;
 
@@ -429,6 +440,26 @@ export default function TemplatesSend({
 
                                 {['IMAGE', 'VIDEO', 'DOCUMENT'].includes((template.header_type || '').toUpperCase()) && (
                                     <div>
+                                        {template.header_media_status && (
+                                            <div className={cn('mb-3 rounded-xl border px-3 py-3', mediaStatusTone(template.header_media_status.state))}>
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div>
+                                                        <p className="text-sm font-semibold">{template.header_media_status.label}</p>
+                                                        {template.header_media_status.description && (
+                                                            <p className="mt-1 text-xs opacity-90">{template.header_media_status.description}</p>
+                                                        )}
+                                                    </div>
+                                                    {(template.header_media_status.state === 'missing' || template.header_media_status.state === 'reupload_required') && (
+                                                        <Link
+                                                            href={route('app.whatsapp.templates.edit', { template: template.slug })}
+                                                            className="shrink-0"
+                                                        >
+                                                            <Button type="button" variant="secondary" size="sm">Re-upload media</Button>
+                                                        </Link>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
                                         <InputLabel
                                             value="Header Media URL"
                                             className="text-sm font-semibold mb-2"

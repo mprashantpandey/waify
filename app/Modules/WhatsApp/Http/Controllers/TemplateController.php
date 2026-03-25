@@ -248,10 +248,12 @@ class TemplateController extends Controller
                 'quality_score' => $template->quality_score,
                 'body_text' => $template->body_text,
                 'header_type' => $template->header_type,
+                'header_media_url' => $template->header_media_url,
                 'header_text' => $template->header_text,
                 'footer_text' => $template->footer_text,
                 'buttons' => $template->buttons,
                 'components' => $template->components,
+                'header_media_status' => $this->buildHeaderMediaStatus($template),
                 'variable_count' => $template->variable_count,
                 'has_buttons' => $template->has_buttons,
                 'last_synced_at' => $template->last_synced_at?->toIso8601String(),
@@ -508,6 +510,7 @@ class TemplateController extends Controller
                 'header_text' => $template->header_text,
                 'header_media_url' => $template->header_media_url ?? null,
                 'header_media_handle' => $this->extractHeaderHandle($template->components ?? []),
+                'header_media_status' => $this->buildHeaderMediaStatus($template),
                 'body_text' => $template->body_text,
                 'footer_text' => $template->footer_text,
                 'buttons' => $template->buttons ?? [],
@@ -746,6 +749,75 @@ class TemplateController extends Controller
         }
 
         return null;
+    }
+
+    protected function buildHeaderMediaStatus(WhatsAppTemplate $template): array
+    {
+        $headerType = strtoupper((string) ($template->header_type ?? 'NONE'));
+        $requiresMedia = in_array($headerType, ['IMAGE', 'VIDEO', 'DOCUMENT'], true);
+        $headerMediaUrl = trim((string) ($template->header_media_url ?? ''));
+        $headerMediaHandle = $this->extractHeaderHandle($template->components ?? []);
+        $sendability = $this->templateLifecycleService->evaluateSendability($template);
+
+        if (! $requiresMedia) {
+            return [
+                'state' => 'not_required',
+                'label' => 'Header media not needed',
+                'description' => null,
+            ];
+        }
+
+        if ($headerMediaHandle) {
+            return [
+                'state' => 'ready',
+                'label' => 'Header media ready',
+                'description' => 'This template already has a saved media sample.',
+            ];
+        }
+
+        if ($headerMediaUrl === '') {
+            return [
+                'state' => 'missing',
+                'label' => 'Header media missing',
+                'description' => 'Upload a media file before sending this template.',
+            ];
+        }
+
+        if ($this->isTemporaryMetaHostedUrl($headerMediaUrl)) {
+            return [
+                'state' => 'reupload_required',
+                'label' => 'Re-upload required',
+                'description' => 'The current media link is temporary and cannot be reused for delivery.',
+            ];
+        }
+
+        if (! ($sendability['ok'] ?? true) && str_contains(strtolower((string) ($sendability['reason'] ?? '')), 'header media')) {
+            return [
+                'state' => 'reupload_required',
+                'label' => 'Re-upload required',
+                'description' => (string) $sendability['reason'],
+            ];
+        }
+
+        return [
+            'state' => 'ready',
+            'label' => 'Header media ready',
+            'description' => 'This media link is available for sending.',
+        ];
+    }
+
+    protected function isTemporaryMetaHostedUrl(?string $url): bool
+    {
+        if (! $url) {
+            return false;
+        }
+
+        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+
+        return str_contains($host, 'facebook.com')
+            || str_contains($host, 'fbcdn.net')
+            || str_contains($host, 'fbsbx.com')
+            || str_contains($host, 'lookaside');
     }
 
     protected function extractProviderErrorDetails(?array $payload): array

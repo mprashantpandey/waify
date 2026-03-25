@@ -29,6 +29,12 @@ interface Template {
     quality_score: string | null;
     body_text: string | null;
     header_type: string | null;
+    header_media_url?: string | null;
+    header_media_status?: {
+        state: 'ready' | 'missing' | 'reupload_required' | 'not_required';
+        label: string;
+        description?: string | null;
+    };
     header_text: string | null;
     footer_text: string | null;
     buttons: Array<{
@@ -90,6 +96,11 @@ export default function TemplatesShow({
     const [liveTemplate, setLiveTemplate] = useState<Template>(template);
     const [actionState, setActionState] = useState<string | null>(null);
     const [highlightedSendId, setHighlightedSendId] = useState<number | null>(null);
+    const mediaStatusTone = (state?: string) => {
+        if (state === 'ready') return 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200';
+        if (state === 'missing' || state === 'reupload_required') return 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200';
+        return 'border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-800 dark:bg-gray-900/20 dark:text-gray-300';
+    };
 
     const getRecentSendStatusMeta = (send: RecentSend) => {
         const effectiveStatus = String(send.message?.status || send.status || 'unknown').toLowerCase();
@@ -445,6 +456,24 @@ export default function TemplatesShow({
                             )}
                         </div>
                     </Alert>
+                )}
+
+                {liveTemplate.header_media_status && liveTemplate.header_type && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(liveTemplate.header_type) && (
+                    <div className={cn('rounded-xl border px-4 py-3', mediaStatusTone(liveTemplate.header_media_status.state))}>
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <p className="text-sm font-semibold">{liveTemplate.header_media_status.label}</p>
+                                {liveTemplate.header_media_status.description && (
+                                    <p className="mt-1 text-sm opacity-90">{liveTemplate.header_media_status.description}</p>
+                                )}
+                            </div>
+                            {(liveTemplate.header_media_status.state === 'missing' || liveTemplate.header_media_status.state === 'reupload_required') && (
+                                <Link href={route('app.whatsapp.templates.edit', { template: liveTemplate.slug })}>
+                                    <Button variant="secondary" size="sm">Re-upload media</Button>
+                                </Link>
+                            )}
+                        </div>
+                    </div>
                 )}
 
                 <Card className="shadow-sm">
