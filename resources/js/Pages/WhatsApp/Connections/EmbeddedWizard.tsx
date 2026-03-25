@@ -56,6 +56,22 @@ export default function EmbeddedWizard({
     const messageHandlerRef = useRef<((event: MessageEvent) => void) | null>(null);
     const lastTelemetryKeyRef = useRef<string>('');
     const autoCreateTriggeredRef = useRef(false);
+    const embeddedEnabled = Boolean(embeddedSignup?.enabled && embeddedSignup?.appId && embeddedSignup?.configId);
+    const buildEmbeddedSignupUrl = () => {
+        const oauthRedirectUri = resolveOAuthRedirectUri();
+        const extras = encodeURIComponent(JSON.stringify({
+            feature: 'whatsapp_embedded_signup',
+            sessionInfoVersion: '3',
+            version: 'v3',
+            redirect_uri: oauthRedirectUri,
+        }));
+
+        return `https://business.facebook.com/messaging/whatsapp/onboard/?app_id=${encodeURIComponent(
+            embeddedSignup.appId || ''
+        )}&config_id=${encodeURIComponent(embeddedSignup.configId || '')}&redirect_uri=${encodeURIComponent(
+            oauthRedirectUri
+        )}&extras=${extras}`;
+    };
     const resolveOAuthRedirectUri = () => {
         const raw = embeddedSignup?.oauthRedirectUri || route('app.whatsapp.connections.create', {});
         try {
@@ -94,6 +110,33 @@ export default function EmbeddedWizard({
             // Silent: telemetry must never break onboarding UX.
         });
     };
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        if (!code) {
+            return;
+        }
+
+        embeddedForm.setData('code', code);
+        embeddedForm.setData('redirect_uri', resolveOAuthRedirectUri());
+        setWizardState((prev) => ({
+            ...prev,
+            step: 'code-exchange',
+            progress: 30,
+            message: 'Authorization code received. Finishing setup...',
+            data: {
+                ...prev.data,
+                code,
+            },
+        }));
+        emitTelemetry({
+            step: 'oauth_response_received',
+            status: 'progress',
+            message: 'Received authorization code from redirect',
+            context: { has_code: true, source: 'query_string' },
+        });
+    }, []);
 
     // Initialize Meta SDK
     useEffect(() => {
@@ -298,8 +341,8 @@ export default function EmbeddedWizard({
     }, [embeddedSignup?.appId, toast]);
 
     const startWizard = () => {
-        if (!embeddedReady || !window.FB) {
-            toast.error('Meta SDK not ready. Please wait...');
+        if (!embeddedEnabled) {
+            toast.error('Meta signup is not configured yet.');
             return;
         }
 
@@ -316,74 +359,7 @@ export default function EmbeddedWizard({
         emitTelemetry({ step: 'authorization_start', status: 'started', message: 'Started Meta OAuth flow' });
 
         embeddedForm.setData('redirect_uri', oauthRedirectUri);
-
-        window.FB.login(
-            (response: any) => {
-                if (response?.authResponse) {
-                    const code = response.authResponse.code;
-                    const accessToken = response.authResponse.accessToken;
-
-                    if (code && !accessToken) {
-                        embeddedForm.setData('code', code);
-                        setWizardState(prev => ({
-                            ...prev,
-                            step: 'code-exchange',
-                            progress: 30,
-                            message: 'Authorization code received. Exchanging for access token...',
-                            data: {
-                                ...prev.data,
-                                code
-                            }
-                        }));
-                    }
-
-                    if (accessToken) {
-                        embeddedForm.setData('access_token', accessToken);
-                        embeddedForm.setData('code', '');
-                        setWizardState(prev => ({
-                            ...prev,
-                            step: 'code-exchange',
-                            progress: 40,
-                            message: 'Access token received',
-                            data: {
-                                ...prev.data,
-                                accessToken
-                            }
-                        }));
-                    }
-
-                    if (code || accessToken) {
-                        emitTelemetry({
-                            step: 'authorization_success',
-                            status: 'success',
-                            context: { has_code: Boolean(code), has_access_token: Boolean(accessToken) },
-                        });
-                    } else {
-                        setWizardState(prev => ({
-                            ...prev,
-                            step: 'error',
-                            error: 'Authorization response missing code or access token'
-                        }));
-                        emitTelemetry({ step: 'authorization_error', status: 'error', message: 'Missing code/access token from OAuth response' });
-                    }
-                } else {
-                    setWizardState(prev => ({
-                        ...prev,
-                        step: 'error',
-                        error: 'Login was cancelled or did not fully authorize'
-                    }));
-                    toast.error('Authorization cancelled');
-                    emitTelemetry({ step: 'authorization_cancelled', status: 'cancelled', message: 'User cancelled authorization' });
-                }
-            },
-            {
-                config_id: embeddedSignup.configId,
-                override_default_response_type: true,
-                response_type: 'code',
-                redirect_uri: oauthRedirectUri,
-                scope: 'whatsapp_business_management,whatsapp_business_messaging,business_management'
-            }
-        );
+        window.location.href = buildEmbeddedSignupUrl();
     };
 
     const createConnection = (mode: 'manual' | 'auto' = 'manual') => {
@@ -478,43 +454,32 @@ export default function EmbeddedWizard({
         }
     };
 
-    const getStepColor = (step: WizardStep) => {
-        if (step === 'error') return 'from-red-500 to-red-600';
-        if (step === 'complete') return 'from-green-500 to-green-600';
-        return 'from-blue-500 to-blue-600';
-    };
-
     return (
         <AppShell>
             <Head title="Embedded Signup Wizard" />
-            <div className="space-y-8">
+            <div className="space-y-6">
                 <div>
                     <Link
                         href={route('app.whatsapp.connections.create', {})}
-                        className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors mb-4"
+                        className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-gray-600 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
                     >
                         <ArrowLeft className="h-4 w-4" />
                         Back to Create Connection
                     </Link>
-                    <div>
-                        <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
-                            Embedded Signup Wizard
-                        </h1>
-                        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                            Guided setup for connecting your WhatsApp Business Account via Meta
-                        </p>
-                    </div>
+                    <h1 className="text-3xl font-semibold text-gray-900 dark:text-gray-100">Guided WhatsApp setup</h1>
+                    <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
+                        Follow the Meta flow, then check the details before the connection is saved.
+                    </p>
                 </div>
 
-                {/* Progress Tracker */}
-                <Card className="border-0 shadow-lg">
-                    <CardHeader className="bg-gradient-to-r from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20">
-                        <div className="flex items-center gap-3">
-                            <div className={`p-2 bg-gradient-to-br ${getStepColor(wizardState.step)} rounded-xl`}>
+                <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
+                    <CardHeader className="pb-4">
+                        <div className="flex items-start gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200">
                                 {getStepIcon(wizardState.step)}
                             </div>
                             <div className="flex-1">
-                                <CardTitle className="text-xl font-bold">Setup Progress</CardTitle>
+                                <CardTitle className="text-lg font-semibold">Setup progress</CardTitle>
                                 <CardDescription>{wizardState.message}</CardDescription>
                             </div>
                             <Badge variant={wizardState.step === 'complete' ? 'success' : wizardState.step === 'error' ? 'danger' : 'default'} className="px-3 py-1">
@@ -523,7 +488,7 @@ export default function EmbeddedWizard({
                         </div>
                     </CardHeader>
                     <CardContent className="p-6 space-y-4">
-                        <Progress value={wizardState.progress} variant={wizardState.step === 'error' ? 'danger' : 'default'} className="h-3" />
+                        <Progress value={wizardState.progress} variant={wizardState.step === 'error' ? 'danger' : 'default'} className="h-2" />
 
                         {wizardState.error && (
                             <Alert variant="error" className="border-red-200 dark:border-red-800">
@@ -550,8 +515,7 @@ export default function EmbeddedWizard({
                             </Alert>
                         )}
 
-                        {/* Step Indicators */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
+                        <div className="grid grid-cols-2 gap-3 pt-2 md:grid-cols-4">
                             {[
                                 { key: 'auth', label: 'Authorize', icon: Key },
                                 { key: 'code-exchange', label: 'Exchange', icon: Sparkles },
@@ -566,22 +530,22 @@ export default function EmbeddedWizard({
                                 return (
                                     <div
                                         key={key}
-                                        className={`p-4 rounded-xl border-2 transition-all ${isActive
-                                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                        className={`rounded-xl border px-3 py-3 transition-colors ${isActive
+                                                ? 'border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900'
                                                 : isCompleted
-                                                    ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-                                                    : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800'
+                                                    ? 'border-green-200 bg-green-50 dark:border-green-900/50 dark:bg-green-900/20'
+                                                    : 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'
                                             }`}
                                     >
-                                        <div className="flex items-center gap-2 mb-1">
+                                        <div className="mb-1 flex items-center gap-2">
                                             {isCompleted ? (
                                                 <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
                                             ) : isActive ? (
-                                                <Loader2 className="h-4 w-4 text-blue-600 dark:text-blue-400 animate-spin" />
+                                                <Loader2 className="h-4 w-4 animate-spin text-white dark:text-gray-900" />
                                             ) : (
                                                 <Icon className="h-4 w-4 text-gray-400" />
                                             )}
-                                            <span className={`text-xs font-semibold ${isActive ? 'text-blue-700 dark:text-blue-300' :
+                                            <span className={`text-xs font-semibold ${isActive ? 'text-white dark:text-gray-900' :
                                                     isCompleted ? 'text-green-700 dark:text-green-300' :
                                                         'text-gray-500 dark:text-gray-400'
                                                 }`}>
@@ -595,37 +559,31 @@ export default function EmbeddedWizard({
                     </CardContent>
                 </Card>
 
-                {/* Main Form */}
-                <Card className="border-0 shadow-lg">
-                    <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20">
+                <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
+                    <CardHeader className="pb-4">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 bg-blue-500 rounded-xl">
-                                <LinkIcon className="h-5 w-5 text-white" />
-                            </div>
+                            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                                <LinkIcon className="h-5 w-5" />
+                            </span>
                             <div>
-                                <CardTitle className="text-xl font-bold">Connection Details</CardTitle>
-                                <CardDescription>Complete the setup to create your WhatsApp connection</CardDescription>
+                                <CardTitle className="text-lg font-semibold">Connection details</CardTitle>
+                                <CardDescription>Check the auto-filled values and save the connection.</CardDescription>
                             </div>
                         </div>
                     </CardHeader>
                     <CardContent className="p-6 space-y-6">
-                        {/* Step 1: Start Authorization */}
                         {wizardState.step === 'init' && (
-                            <div className="text-center py-8">
-                                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-200 dark:from-emerald-900/20 dark:to-emerald-800/20 mb-6">
-                                    <Sparkles className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
-                                </div>
-                                <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                                    Ready to Start
+                            <div className="rounded-xl border border-gray-200 bg-gray-50 p-6 dark:border-gray-800 dark:bg-gray-900/40">
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                                    Start with Meta
                                 </h3>
-                                <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
-                                    Click the button below to begin the Meta Embedded Signup process.
-                                    You'll be guided through authorization and connection setup.
+                                <p className="mt-2 max-w-xl text-sm text-gray-600 dark:text-gray-400">
+                                    A Meta popup will ask you to sign in and choose your WhatsApp Business Account. When it closes, the details will appear here automatically.
                                 </p>
                                 <Button
                                     onClick={startWizard}
                                     disabled={!embeddedReady}
-                                    className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 shadow-lg shadow-emerald-500/50 rounded-xl px-8"
+                                    className="mt-5 rounded-xl"
                                 >
                                     {!embeddedReady ? (
                                         <>
@@ -634,19 +592,17 @@ export default function EmbeddedWizard({
                                         </>
                                     ) : (
                                         <>
-                                            <Sparkles className="h-4 w-4 mr-2" />
-                                            Start Setup
+                                            Start setup
                                         </>
                                     )}
                                 </Button>
                             </div>
                         )}
 
-                        {/* Step 2: Authorization in progress */}
                         {(wizardState.step === 'auth' || wizardState.step === 'code-exchange') && (
-                            <div className="text-center py-8">
-                                <Loader2 className="h-12 w-12 text-blue-600 dark:text-blue-400 animate-spin mx-auto mb-4" />
-                                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                            <div className="rounded-xl border border-gray-200 bg-gray-50 p-6 text-center dark:border-gray-800 dark:bg-gray-900/40">
+                                <Loader2 className="mx-auto mb-4 h-10 w-10 animate-spin text-gray-700 dark:text-gray-200" />
+                                <h3 className="mb-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
                                     {wizardState.step === 'auth' ? 'Authorizing with Meta...' : 'Exchanging authorization code...'}
                                 </h3>
                                 <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -655,7 +611,6 @@ export default function EmbeddedWizard({
                             </div>
                         )}
 
-                        {/* Step 3: Form for connection details */}
                         {['waba-lookup', 'phone-lookup', 'subscribe', 'register'].includes(wizardState.step) && (
                             <form onSubmit={submitEmbedded} className="space-y-5">
                                 <div>
@@ -752,11 +707,11 @@ export default function EmbeddedWizard({
                                     </Alert>
                                 )}
 
-                                <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                                <div className="flex items-center justify-end gap-4 border-t border-gray-200 pt-4 dark:border-gray-700">
                                     <Button
                                         type="submit"
                                         disabled={autoCreateMode || embeddedForm.processing || !embeddedForm.data.code && !embeddedForm.data.access_token}
-                                        className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 shadow-lg shadow-emerald-500/40 rounded-xl"
+                                        className="rounded-xl"
                                     >
                                         {embeddedForm.processing ? (
                                             <>
@@ -774,20 +729,19 @@ export default function EmbeddedWizard({
                             </form>
                         )}
 
-                        {/* Step 4: Complete */}
                         {wizardState.step === 'complete' && wizardState.progress === 100 && (
-                            <div className="text-center py-8">
-                                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/20 dark:to-green-800/20 mb-6">
-                                    <CheckCircle2 className="h-10 w-10 text-green-600 dark:text-green-400" />
+                            <div className="rounded-xl border border-green-200 bg-green-50 p-6 text-center dark:border-green-900/50 dark:bg-green-900/20">
+                                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
+                                    <CheckCircle2 className="h-7 w-7" />
                                 </div>
-                                <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                                    Connection Created Successfully!
+                                <h3 className="mb-2 text-xl font-semibold text-gray-900 dark:text-gray-100">
+                                    Connection created
                                 </h3>
-                                <p className="text-gray-600 dark:text-gray-400 mb-6">
-                                    Your WhatsApp connection has been set up and is ready to use.
+                                <p className="mb-6 text-gray-600 dark:text-gray-400">
+                                    Your WhatsApp connection is ready to use.
                                 </p>
                                 <Link href={route('app.whatsapp.connections.index', {})}>
-                                    <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50 rounded-xl">
+                                    <Button className="rounded-xl">
                                         View Connections
                                     </Button>
                                 </Link>
