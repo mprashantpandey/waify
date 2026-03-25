@@ -134,7 +134,7 @@ export default function ChatbotsCreate({
                                     <Wrench className="h-4 w-4" />
                                     Start Empty
                                 </div>
-                                <p className="text-sm text-gray-600 dark:text-gray-400">Create bot only. Build flow manually.</p>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">Create the bot first, then add replies and actions when you are ready.</p>
                             </button>
                         </CardContent>
                     </Card>
@@ -269,8 +269,8 @@ export default function ChatbotsCreate({
                                     <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">What happens after Create</p>
                                     <ul className="mt-1 list-disc pl-5 text-sm text-emerald-800/90 dark:text-emerald-300/90">
                                         <li>Bot is created with your selected scope.</li>
-                                        <li>{data.starter_flow_mode === 'guided' ? 'A starter flow is created automatically.' : 'No flow is created yet.'}</li>
-                                        <li>You are taken to the bot editor to fine tune behavior.</li>
+                                        <li>{data.starter_flow_mode === 'guided' ? 'A starter reply path is created automatically.' : 'No reply path is created yet.'}</li>
+                                        <li>You are taken to the editor to adjust how it replies.</li>
                                     </ul>
                                 </div>
                             </div>

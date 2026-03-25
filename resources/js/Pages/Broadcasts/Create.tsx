@@ -261,7 +261,7 @@ export default function BroadcastsCreate({
                                         </p>
                                     ) : availableTemplates.length === 0 ? (
                                         <p className="mt-1 text-sm text-amber-600 dark:text-amber-400">
-                                            No approved templates for this connection. Create and approve templates in Meta Business Suite or sync templates in WhatsApp settings.
+                                            No ready templates for this number yet. Add one first, then refresh this page.
                                         </p>
                                     ) : (
                                         <select

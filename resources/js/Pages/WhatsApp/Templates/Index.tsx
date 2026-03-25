@@ -152,7 +152,7 @@ export default function TemplatesIndex({
 
     const syncTemplates = () => {
         if (!hasConnections) {
-            toast.error('No connections found', 'Create a WhatsApp connection first, then sync templates.');
+            toast.error('No connections found', 'Create a WhatsApp number first, then refresh your templates.');
             return;
         }
         router.post(route('app.whatsapp.templates.sync', {}), {
@@ -268,7 +268,7 @@ export default function TemplatesIndex({
                             className="w-full sm:w-auto bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg shadow-green-500/50"
                         >
                             {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                            {syncing ? 'Syncing...' : 'Sync from Meta'}
+                            {syncing ? 'Refreshing...' : 'Refresh templates'}
                         </Button>
                     </div>
                 </div>
@@ -408,11 +408,11 @@ export default function TemplatesIndex({
                                     <div key={connection.id} className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
                                         <p className="font-medium">{connection.name}</p>
                                         <p className="text-xs text-gray-500 dark:text-gray-400">
-                                            Last sync: {connection.last_synced_at ? new Date(connection.last_synced_at).toLocaleString() : 'Never'}
+                                            Last updated: {connection.last_synced_at ? new Date(connection.last_synced_at).toLocaleString() : 'Never'}
                                         </p>
                                         {connection.last_sync_error && (
                                             <p className="mt-1 text-xs text-red-600 dark:text-red-400 truncate">
-                                                Last error: {connection.last_sync_error}
+                                                Last issue: {connection.last_sync_error}
                                             </p>
                                         )}
                                     </div>
@@ -523,7 +523,7 @@ export default function TemplatesIndex({
                             <EmptyState
                                 icon={FileText}
                                 title="No templates found"
-                                description="Sync templates from Meta to import your WhatsApp message templates."
+                                description="Refresh your templates to bring in the latest WhatsApp message templates."
                                 action={
                                     <Button
                                         onClick={syncTemplates}
@@ -531,7 +531,7 @@ export default function TemplatesIndex({
                                         className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-lg shadow-green-500/50"
                                     >
                                         {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                                        {syncing ? 'Syncing...' : 'Sync Templates'}
+                                        {syncing ? 'Refreshing...' : 'Refresh templates'}
                                     </Button>
                                 }
                             />
@@ -683,7 +683,7 @@ export default function TemplatesIndex({
                                                                         className="text-[11px] font-mono text-gray-500 dark:text-gray-400 truncate"
                                                                         title={template.latest_failed_send.meta_message_id}
                                                                     >
-                                                                        Meta ID: {template.latest_failed_send.meta_message_id}
+                                                                        Reference: {template.latest_failed_send.meta_message_id}
                                                                     </p>
                                                                 )}
                                                                 {template.latest_failed_send?.payload?.error?.message && (
@@ -691,7 +691,7 @@ export default function TemplatesIndex({
                                                                         className="text-[11px] text-red-600 dark:text-red-400 truncate"
                                                                         title={template.latest_failed_send.payload.error.message}
                                                                     >
-                                                                        Provider: {template.latest_failed_send.payload.error.message}
+                                                                        WhatsApp says: {template.latest_failed_send.payload.error.message}
                                                                     </p>
                                                                 )}
                                                                 {template.latest_failed_send?.provider_error?.details && (
@@ -699,12 +699,12 @@ export default function TemplatesIndex({
                                                                         className="text-[11px] text-red-600 dark:text-red-400 truncate"
                                                                         title={template.latest_failed_send.provider_error.details}
                                                                     >
-                                                                        Details: {template.latest_failed_send.provider_error.details}
+                                                                        More detail: {template.latest_failed_send.provider_error.details}
                                                                     </p>
                                                                 )}
                                                                 {template.latest_failed_send?.provider_error?.code && (
                                                                     <p className="text-[11px] text-red-600 dark:text-red-400">
-                                                                        Code: {template.latest_failed_send.provider_error.code}
+                                                                        Issue code: {template.latest_failed_send.provider_error.code}
                                                                     </p>
                                                                 )}
                                                                 {template.latest_failed_send?.created_at && (

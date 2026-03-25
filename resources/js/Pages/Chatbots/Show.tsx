@@ -232,7 +232,7 @@ export default function ChatbotsShow({
     };
 
     const deleteBot = () => {
-        if (!confirm(`Delete bot "${bot.name}"? This will also delete flows and execution logs.`)) {
+        if (!confirm(`Delete bot "${bot.name}"? This will also delete its reply paths and activity history.`)) {
             return;
         }
         router.post(route('app.chatbots.destroy.post', { bot: bot.id }), { _method: 'delete' }, {
