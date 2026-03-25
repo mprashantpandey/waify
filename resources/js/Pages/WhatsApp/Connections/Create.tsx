@@ -66,6 +66,13 @@ export default function ConnectionsCreate({
     const hasEmbeddedAuthData = Boolean(embeddedForm.data.code || embeddedForm.data.access_token);
     const hasEmbeddedResolvedIds = Boolean(embeddedForm.data.waba_id && embeddedForm.data.phone_number_id);
 
+    const applyEmbeddedCode = (code: string) => {
+        embeddedForm.setData('code', code);
+        embeddedForm.setData('redirect_uri', resolveOAuthRedirectUri());
+        setEmbeddedStatus('Authorization complete. Finishing Meta setup...');
+        setEmbeddedAutoSubmitRequested(true);
+    };
+
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const code = params.get('code');
@@ -73,10 +80,39 @@ export default function ConnectionsCreate({
             return;
         }
 
-        embeddedForm.setData('code', code);
-        embeddedForm.setData('redirect_uri', resolveOAuthRedirectUri());
-        setEmbeddedStatus('Authorization complete. Finishing Meta setup...');
-        setEmbeddedAutoSubmitRequested(true);
+        if (window.opener && window.opener !== window) {
+            window.opener.postMessage(
+                {
+                    type: 'zyptos_whatsapp_embedded_signup_code',
+                    code,
+                },
+                window.location.origin,
+            );
+            window.close();
+            return;
+        }
+
+        applyEmbeddedCode(code);
+    }, []);
+
+    useEffect(() => {
+        const handler = (event: MessageEvent) => {
+            if (event.origin !== window.location.origin) {
+                return;
+            }
+
+            if (event.data?.type !== 'zyptos_whatsapp_embedded_signup_code' || !event.data?.code) {
+                return;
+            }
+
+            applyEmbeddedCode(String(event.data.code));
+        };
+
+        window.addEventListener('message', handler);
+
+        return () => {
+            window.removeEventListener('message', handler);
+        };
     }, []);
 
     useEffect(() => {
@@ -267,7 +303,23 @@ export default function ConnectionsCreate({
         setEmbeddedAutoSubmitAttempted(false);
         const oauthRedirectUri = resolveOAuthRedirectUri();
         embeddedForm.setData('redirect_uri', oauthRedirectUri);
-        window.location.href = buildEmbeddedSignupUrl();
+        const width = 540;
+        const height = 720;
+        const left = Math.max(window.screenX + (window.outerWidth - width) / 2, 0);
+        const top = Math.max(window.screenY + (window.outerHeight - height) / 2, 0);
+        const popup = window.open(
+            buildEmbeddedSignupUrl(),
+            'zyptos-meta-embedded-signup',
+            `popup=yes,width=${width},height=${height},left=${Math.round(left)},top=${Math.round(top)},resizable=yes,scrollbars=yes`
+        );
+
+        if (!popup) {
+            setEmbeddedStatus('Popup blocked. Allow popups for Zyptos and try again.');
+            return;
+        }
+
+        popup.focus();
+        setEmbeddedStatus('Complete the Meta setup in the popup. We will continue here automatically.');
     };
 
     const submitEmbedded: FormEventHandler = (e) => {

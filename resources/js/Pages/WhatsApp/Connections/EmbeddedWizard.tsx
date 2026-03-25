@@ -92,6 +92,27 @@ export default function EmbeddedWizard({
         redirect_uri: ''
     });
 
+    const applyEmbeddedCode = (code: string) => {
+        embeddedForm.setData('code', code);
+        embeddedForm.setData('redirect_uri', resolveOAuthRedirectUri());
+        setWizardState((prev) => ({
+            ...prev,
+            step: 'code-exchange',
+            progress: 30,
+            message: 'Authorization code received. Finishing setup...',
+            data: {
+                ...prev.data,
+                code,
+            },
+        }));
+        emitTelemetry({
+            step: 'oauth_response_received',
+            status: 'progress',
+            message: 'Received authorization code from redirect',
+            context: { has_code: true, source: 'query_string' },
+        });
+    };
+
     const emitTelemetry = (payload: { step: string; status: 'started' | 'progress' | 'success' | 'error' | 'cancelled'; message?: string; context?: Record<string, unknown> }) => {
         const key = `${payload.step}:${payload.status}:${payload.message || ''}`;
         if (lastTelemetryKeyRef.current === key) return;
@@ -118,24 +139,39 @@ export default function EmbeddedWizard({
             return;
         }
 
-        embeddedForm.setData('code', code);
-        embeddedForm.setData('redirect_uri', resolveOAuthRedirectUri());
-        setWizardState((prev) => ({
-            ...prev,
-            step: 'code-exchange',
-            progress: 30,
-            message: 'Authorization code received. Finishing setup...',
-            data: {
-                ...prev.data,
-                code,
-            },
-        }));
-        emitTelemetry({
-            step: 'oauth_response_received',
-            status: 'progress',
-            message: 'Received authorization code from redirect',
-            context: { has_code: true, source: 'query_string' },
-        });
+        if (window.opener && window.opener !== window) {
+            window.opener.postMessage(
+                {
+                    type: 'zyptos_whatsapp_embedded_signup_code',
+                    code,
+                },
+                window.location.origin,
+            );
+            window.close();
+            return;
+        }
+
+        applyEmbeddedCode(code);
+    }, []);
+
+    useEffect(() => {
+        const handler = (event: MessageEvent) => {
+            if (event.origin !== window.location.origin) {
+                return;
+            }
+
+            if (event.data?.type !== 'zyptos_whatsapp_embedded_signup_code' || !event.data?.code) {
+                return;
+            }
+
+            applyEmbeddedCode(String(event.data.code));
+        };
+
+        window.addEventListener('message', handler);
+
+        return () => {
+            window.removeEventListener('message', handler);
+        };
     }, []);
 
     // Initialize Meta SDK
@@ -359,7 +395,37 @@ export default function EmbeddedWizard({
         emitTelemetry({ step: 'authorization_start', status: 'started', message: 'Started Meta OAuth flow' });
 
         embeddedForm.setData('redirect_uri', oauthRedirectUri);
-        window.location.href = buildEmbeddedSignupUrl();
+        const width = 540;
+        const height = 720;
+        const left = Math.max(window.screenX + (window.outerWidth - width) / 2, 0);
+        const top = Math.max(window.screenY + (window.outerHeight - height) / 2, 0);
+        const popup = window.open(
+            buildEmbeddedSignupUrl(),
+            'zyptos-meta-embedded-signup',
+            `popup=yes,width=${width},height=${height},left=${Math.round(left)},top=${Math.round(top)},resizable=yes,scrollbars=yes`
+        );
+
+        if (!popup) {
+            setWizardState((prev) => ({
+                ...prev,
+                step: 'error',
+                error: 'Popup blocked. Allow popups for Zyptos and try again.',
+            }));
+            emitTelemetry({
+                step: 'authorization_start',
+                status: 'error',
+                message: 'Popup blocked before Meta onboarding could open',
+            });
+            return;
+        }
+
+        popup.focus();
+        setWizardState((prev) => ({
+            ...prev,
+            step: 'auth',
+            progress: 10,
+            message: 'Complete the Meta setup in the popup. We will continue here automatically.',
+        }));
     };
 
     const createConnection = (mode: 'manual' | 'auto' = 'manual') => {
