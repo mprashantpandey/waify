@@ -193,5 +193,14 @@ class WebhookReliabilityTest extends TestCase
         $this->assertTrue(
             WhatsAppMessage::query()->where('meta_message_id', 'wamid.rel.process.1')->exists()
         );
+
+        $conversation = \App\Modules\WhatsApp\Models\WhatsAppConversation::query()
+            ->where('account_id', $account->id)
+            ->first();
+
+        $this->assertNotNull($conversation);
+        $this->assertNotNull($conversation->last_inbound_at);
+        $this->assertNotNull($conversation->service_window_expires_at);
+        $this->assertTrue($conversation->service_window_expires_at->gt($conversation->last_inbound_at));
     }
 }

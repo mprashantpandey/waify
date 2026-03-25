@@ -90,6 +90,25 @@ class SendPolicyServiceTest extends TestCase
         $this->assertSame($conversation->id, $policy['conversation_id']);
     }
 
+    public function test_conversation_free_form_uses_persisted_last_inbound_timestamp(): void
+    {
+        $anchor = Carbon::parse('2026-03-12 10:00:00', 'Asia/Kolkata');
+        $conversation = $this->makeConversationGraph('919000000002');
+        $conversation->update([
+            'last_inbound_at' => $anchor->copy(),
+            'service_window_expires_at' => $anchor->copy()->addHours(24),
+        ]);
+
+        $policy = app(SendPolicyService::class)->evaluateConversationFreeForm(
+            $conversation->fresh(),
+            $anchor->copy()->addHours(2)
+        );
+
+        $this->assertTrue($policy['allowed']);
+        $this->assertNotNull($policy['window']['last_inbound_at']);
+        $this->assertEquals(24 * 60 * 60, $policy['window']['last_inbound_at']?->diffInSeconds($policy['window']['expires_at']));
+    }
+
     private function makeConversationGraph(string $waId = '919000000000'): WhatsAppConversation
     {
         $account = Account::factory()->create();
@@ -108,4 +127,3 @@ class SendPolicyServiceTest extends TestCase
         ]);
     }
 }
-

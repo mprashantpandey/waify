@@ -70,6 +70,7 @@ class ActionExecutor
     protected function sendTextMessage(array $config, BotContext $context): array
     {
         try {
+            $context->conversation->refresh()->loadMissing('contact');
             $policy = $this->sendPolicyService->evaluateConversationFreeForm($context->conversation);
             if (!($policy['allowed'] ?? false)) {
                 return ['success' => false, 'error' => (string) ($policy['reason_message'] ?? '24-hour customer care window is closed.')];
@@ -146,6 +147,7 @@ class ActionExecutor
     protected function sendTemplateMessage(array $config, BotContext $context): array
     {
         try {
+            $context->conversation->refresh()->loadMissing('contact');
             // Check limits
             $this->entitlementService->assertWithinLimit($context->account, 'messages_monthly', 1);
             $this->entitlementService->assertWithinLimit($context->account, 'template_sends_monthly', 1);
@@ -221,6 +223,7 @@ class ActionExecutor
     protected function sendButtonsMessage(array $config, BotContext $context): array
     {
         try {
+            $context->conversation->refresh()->loadMissing('contact');
             $policy = $this->sendPolicyService->evaluateConversationFreeForm($context->conversation);
             if (!($policy['allowed'] ?? false)) {
                 return ['success' => false, 'error' => (string) ($policy['reason_message'] ?? '24-hour customer care window is closed.')];
@@ -320,6 +323,7 @@ class ActionExecutor
     protected function sendListMessage(array $config, BotContext $context): array
     {
         try {
+            $context->conversation->refresh()->loadMissing('contact');
             $policy = $this->sendPolicyService->evaluateConversationFreeForm($context->conversation);
             if (!($policy['allowed'] ?? false)) {
                 return ['success' => false, 'error' => (string) ($policy['reason_message'] ?? '24-hour customer care window is closed.')];

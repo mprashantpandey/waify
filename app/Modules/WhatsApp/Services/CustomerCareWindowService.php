@@ -45,6 +45,10 @@ class CustomerCareWindowService
 
     private function resolveLastInboundAt(WhatsAppConversation $conversation): ?Carbon
     {
+        if ($conversation->last_inbound_at) {
+            return Carbon::parse($conversation->last_inbound_at);
+        }
+
         $message = WhatsAppMessage::query()
             ->where('whatsapp_conversation_id', $conversation->id)
             ->where('direction', 'inbound')

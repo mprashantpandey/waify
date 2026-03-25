@@ -26,7 +26,7 @@ class TemplateManagementService
      * Create a new template via Meta API.
      * Follows Meta's latest template creation guidelines.
      */
-    public function createTemplate(WhatsAppConnection $connection, array $templateData): array
+    public function createTemplate(WhatsAppConnection $connection, array $templateData, ?int $ignoreTemplateId = null): array
     {
         $wabaId = $connection->waba_id;
         if (!$wabaId) {
@@ -37,7 +37,8 @@ class TemplateManagementService
         $this->ensureLocalTemplateNameAvailable(
             $connection,
             (string) ($templateData['name'] ?? ''),
-            (string) ($templateData['language'] ?? '')
+            (string) ($templateData['language'] ?? ''),
+            $ignoreTemplateId
         );
 
         // If header is media (IMAGE/VIDEO/DOCUMENT), we must provide an example. Prefer Meta upload handle over URL.
@@ -110,7 +111,7 @@ class TemplateManagementService
             // Store template locally
             $metaTemplateId = $responseData['id'] ?? null;
             if ($metaTemplateId) {
-                $this->storeTemplateLocally($connection, $metaTemplateId, $templateData, $responseData);
+                $this->storeTemplateLocally($connection, $metaTemplateId, $templateData, $responseData, $ignoreTemplateId);
             }
 
             return $responseData;
@@ -192,7 +193,7 @@ class TemplateManagementService
         }
 
         try {
-            $result = $this->createTemplate($connection, $templateData);
+            $result = $this->createTemplate($connection, $templateData, (int) $template->id);
             $this->adoptCreatedTemplateAsUpdate($connection, $template, (string) ($result['id'] ?? ''));
 
             return $result;
@@ -215,7 +216,7 @@ class TemplateManagementService
             $versionedName = strtolower(substr($baseName, 0, 480).'_v'.now()->format('YmdHis'));
             $templateData['name'] = $versionedName;
 
-            $result = $this->createTemplate($connection, $templateData);
+            $result = $this->createTemplate($connection, $templateData, (int) $template->id);
             $this->adoptCreatedTemplateAsUpdate($connection, $template, (string) ($result['id'] ?? ''));
             $result['_auto_versioned_name'] = true;
             $result['_effective_template_name'] = $versionedName;
@@ -680,7 +681,8 @@ class TemplateManagementService
         WhatsAppConnection $connection,
         string $metaTemplateId,
         array $templateData,
-        array $metaResponse
+        array $metaResponse,
+        ?int $ignoreTemplateId = null
     ): WhatsAppTemplate {
         // Meta create response often omits components; use our request payload components as fallback.
         $components = $metaResponse['components'] ?? $this->buildTemplatePayload($templateData)['components'] ?? [];
@@ -710,7 +712,7 @@ class TemplateManagementService
         }
 
         $normalizedStatus = $this->templateLifecycle->normalizeStatus((string) ($metaResponse['status'] ?? 'PENDING'));
-        return WhatsAppTemplate::create([
+        $attributes = [
             'account_id' => $connection->account_id,
             'whatsapp_connection_id' => $connection->id,
             'meta_template_id' => $metaTemplateId,
@@ -736,7 +738,24 @@ class TemplateManagementService
             'remote_deleted_at' => null,
             'last_meta_error' => null,
             'meta_rejection_reason' => $metaResponse['rejection_reason'] ?? $metaResponse['rejected_reason'] ?? null,
-        ]);
+        ];
+
+        if ($ignoreTemplateId) {
+            $existingTemplate = WhatsAppTemplate::query()
+                ->whereKey($ignoreTemplateId)
+                ->where('account_id', $connection->account_id)
+                ->where('whatsapp_connection_id', $connection->id)
+                ->first();
+
+            if ($existingTemplate) {
+                $existingTemplate->fill($attributes);
+                $existingTemplate->save();
+
+                return $existingTemplate->fresh();
+            }
+        }
+
+        return WhatsAppTemplate::create($attributes);
     }
 
     /**

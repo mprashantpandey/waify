@@ -21,12 +21,16 @@ class WhatsAppConversation extends Model
         'assigned_to',
         'status',
         'priority',
+        'last_inbound_at',
         'last_message_at',
         'last_message_preview',
+        'service_window_expires_at',
         'metadata'];
 
     protected $casts = [
+        'last_inbound_at' => 'datetime',
         'last_message_at' => 'datetime',
+        'service_window_expires_at' => 'datetime',
         'metadata' => 'array'];
 
     /**

@@ -12,7 +12,7 @@ class WhatsAppWebhookFailureNotification extends Notification
     use Queueable;
 
     public function __construct(
-        protected WhatsAppConnection $connection,
+        protected WhatsAppConnection $whatsAppConnection,
         protected string $errorMessage
     ) {
     }
@@ -24,9 +24,9 @@ class WhatsAppWebhookFailureNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        $connectionName = $this->connection->name ?: ('Connection #' . $this->connection->id);
+        $connectionName = $this->whatsAppConnection->name ?: ('Connection #' . $this->whatsAppConnection->id);
         $safeError = mb_substr($this->errorMessage, 0, 300);
-        $healthUrl = route('app.whatsapp.connections.health', ['connection' => $this->connection->slug ?? $this->connection->id]);
+        $healthUrl = route('app.whatsapp.connections.health', ['connection' => $this->whatsAppConnection->slug ?? $this->whatsAppConnection->id]);
 
         return (new MailMessage())
             ->subject("WhatsApp Webhook Alert: {$connectionName}")
@@ -39,7 +39,6 @@ class WhatsAppWebhookFailureNotification extends Notification
 
     public function fingerprint(): string
     {
-        return 'whatsapp_webhook_failure:' . $this->connection->id . ':' . sha1($this->errorMessage);
+        return 'whatsapp_webhook_failure:' . $this->whatsAppConnection->id . ':' . sha1($this->errorMessage);
     }
 }
-

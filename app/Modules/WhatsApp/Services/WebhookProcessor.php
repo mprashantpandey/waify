@@ -15,6 +15,7 @@ use App\Modules\WhatsApp\Models\WhatsAppOutboundMessageJob;
 use App\Modules\WhatsApp\Models\WhatsAppMessageBilling;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use App\Modules\WhatsApp\Models\WhatsAppTemplateSend;
+use App\Modules\WhatsApp\Services\CustomerCareWindowService;
 use App\Notifications\WhatsAppWebhookFailureNotification;
 use App\Models\Account;
 use App\Models\PlatformSetting;
@@ -389,9 +390,13 @@ class WebhookProcessor
             ]);
 
             // Update conversation
+            $receivedAt = $message->received_at ?? now();
             $conversation->update([
-                'last_message_at' => now(),
-                'last_message_preview' => $textBody ? substr($textBody, 0, 100) : "[{$messageType}]"]);
+                'last_inbound_at' => $receivedAt,
+                'last_message_at' => $receivedAt,
+                'last_message_preview' => $textBody ? substr($textBody, 0, 100) : "[{$messageType}]",
+                'service_window_expires_at' => $receivedAt->copy()->addHours(CustomerCareWindowService::WINDOW_HOURS),
+            ]);
 
             // Update contact stats for inbound message
             $contact->increment('message_count');
