@@ -459,126 +459,105 @@ export default function TemplatesShow({
                             </div>
                         </div>
                     </CardHeader>
-                    <CardContent className="p-0">
+                    <CardContent className="p-4">
                         {recent_sends.length === 0 ? (
                             <div className="p-6 text-sm text-gray-500 dark:text-gray-400">No send history yet for this template.</div>
                         ) : (
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-                                        <tr>
-                                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Recipient</th>
-                                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Status</th>
-                                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Message ID</th>
-                                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Error</th>
-                                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Time</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                                        {recent_sends.map((send) => {
-                                            const statusMeta = getRecentSendStatusMeta(send);
-                                            const effectiveError = getRecentSendError(send);
-                                            const timeline = getRecentSendTimeline(send);
-                                            return (
-                                            <tr
-                                                id={`recent-send-${send.id}`}
-                                                key={send.id}
-                                                className={cn(
-                                                    'align-top scroll-mt-24',
-                                                    highlightedSendId === send.id && 'bg-amber-50/70 dark:bg-amber-900/10'
-                                                )}
-                                            >
-                                                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">{send.to_wa_id}</td>
-                                                    <td className="px-4 py-3">
-                                                        <div className="space-y-1">
-                                                            <Badge variant={statusMeta.variant} className="px-2 py-1 text-[10px]">
-                                                                {statusMeta.label}
-                                                            </Badge>
-                                                            {timeline && (
-                                                                <div className="text-[11px] text-gray-500 dark:text-gray-400">
-                                                                    {timeline}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-3 text-xs font-mono text-gray-600 dark:text-gray-300 break-all">
-                                                        {send.message?.meta_message_id || '-'}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-xs text-red-600 dark:text-red-400 max-w-[420px]">
-                                                        {effectiveError ? (
-                                                            <div className="space-y-2">
-                                                                <span title={effectiveError}>{effectiveError}</span>
-                                                                <details className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950/40 p-2 text-gray-700 dark:text-gray-200">
-                                                                    <summary className="cursor-pointer text-[11px] font-semibold">
-                                                                        More details
-                                                                    </summary>
-                                                                    <div className="mt-2">
-                                                        <div className="mt-2 flex flex-wrap gap-3">
-                                                            <Link
-                                                                href={`${route('app.whatsapp.templates.send', { template: liveTemplate.slug })}#recent-send-${send.id}`}
-                                                                className="text-[11px] font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                                                            >
-                                                                Try again
-                                                            </Link>
-                                                            {supportAccess && (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => downloadRecentSendDiagnostics(send)}
-                                                                    className="text-[11px] font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                                                                >
-                                                                    Download bundle
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                                    <dl className="mt-2 space-y-1.5">
-                                                                        {getRecentSendDiagnostics(send).map(([label, value]) => (
-                                                                            <div key={label} className="grid grid-cols-[110px_1fr] gap-2">
-                                                                                <dt className="text-gray-500 dark:text-gray-400">{label}</dt>
-                                                                                <dd className="break-all">
-                                                                                    {value.includes('T') ? new Date(value).toLocaleString() : value}
-                                                                                </dd>
-                                                                            </div>
-                                                                        ))}
-                                                                        {supportAccess && send.message?.payload && (
-                                                                            <div className="pt-2">
-                                                                                <dt className="mb-1 text-gray-500 dark:text-gray-400">Provider payload</dt>
-                                                                                <dd className="overflow-x-auto rounded bg-white p-2 font-mono text-[11px] dark:bg-gray-900">
-                                                                                    <pre>{JSON.stringify(send.message.payload, null, 2)}</pre>
-                                                                                </dd>
-                                                                            </div>
-                                                                        )}
-                                                                        {send.message?.provider_error?.details && (
-                                                                            <div className="grid grid-cols-[110px_1fr] gap-2">
-                                                                                <dt className="text-gray-500 dark:text-gray-400">Details</dt>
-                                                                                <dd>{send.message.provider_error.details}</dd>
-                                                                            </div>
-                                                                        )}
-                                                                        {send.message?.provider_error?.code && (
-                                                                            <div className="grid grid-cols-[110px_1fr] gap-2">
-                                                                                <dt className="text-gray-500 dark:text-gray-400">Code</dt>
-                                                                                <dd>{send.message.provider_error.code}</dd>
-                                                                            </div>
-                                                                        )}
-                                                                    </dl>
-                                                                </details>
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-gray-400">-</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                            <div className="space-y-3">
+                                {recent_sends.map((send) => {
+                                    const statusMeta = getRecentSendStatusMeta(send);
+                                    const effectiveError = getRecentSendError(send);
+                                    const timeline = getRecentSendTimeline(send);
+                                    return (
+                                        <div
+                                            id={`recent-send-${send.id}`}
+                                            key={send.id}
+                                            className={cn(
+                                                'scroll-mt-24 rounded-xl border border-gray-200 p-4 dark:border-gray-700',
+                                                highlightedSendId === send.id && 'ring-2 ring-amber-400 dark:ring-amber-500'
+                                            )}
+                                        >
+                                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                                <div className="space-y-1">
+                                                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{send.to_wa_id}</p>
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400">
                                                         {send.sent_at
                                                             ? new Date(send.sent_at).toLocaleString()
                                                             : send.created_at
                                                             ? new Date(send.created_at).toLocaleString()
                                                             : '-'}
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
+                                                    </p>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <Badge variant={statusMeta.variant} className="px-2 py-1 text-[10px]">
+                                                        {statusMeta.label}
+                                                    </Badge>
+                                                    {timeline && <div className="text-[11px] text-gray-500 dark:text-gray-400">{timeline}</div>}
+                                                </div>
+                                            </div>
+                                            <div className="mt-3 text-xs font-mono text-gray-500 dark:text-gray-400 break-all">
+                                                {send.message?.meta_message_id || '-'}
+                                            </div>
+                                            {effectiveError && (
+                                                <div className="mt-3 text-xs text-red-600 dark:text-red-400 break-words">
+                                                    {effectiveError}
+                                                </div>
+                                            )}
+                                            <details className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3 text-gray-700 dark:border-gray-700 dark:bg-gray-950/40 dark:text-gray-200">
+                                                <summary className="cursor-pointer text-[11px] font-semibold">More details</summary>
+                                                <div className="mt-2">
+                                                    <div className="mt-2 flex flex-wrap gap-3">
+                                                        <Link
+                                                            href={`${route('app.whatsapp.templates.send', { template: liveTemplate.slug })}#recent-send-${send.id}`}
+                                                            className="text-[11px] font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                                                        >
+                                                            Try again
+                                                        </Link>
+                                                        {supportAccess && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => downloadRecentSendDiagnostics(send)}
+                                                                className="text-[11px] font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                                                            >
+                                                                Download bundle
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    <dl className="mt-2 space-y-1.5">
+                                                        {getRecentSendDiagnostics(send).map(([label, value]) => (
+                                                            <div key={label} className="grid gap-1 sm:grid-cols-[110px_1fr] sm:gap-2">
+                                                                <dt className="text-gray-500 dark:text-gray-400">{label}</dt>
+                                                                <dd className="break-all">
+                                                                    {value.includes('T') ? new Date(value).toLocaleString() : value}
+                                                                </dd>
+                                                            </div>
+                                                        ))}
+                                                        {supportAccess && send.message?.payload && (
+                                                            <div className="pt-2">
+                                                                <dt className="mb-1 text-gray-500 dark:text-gray-400">Provider payload</dt>
+                                                                <dd className="overflow-x-auto rounded bg-white p-2 font-mono text-[11px] dark:bg-gray-900">
+                                                                    <pre>{JSON.stringify(send.message.payload, null, 2)}</pre>
+                                                                </dd>
+                                                            </div>
+                                                        )}
+                                                        {send.message?.provider_error?.details && (
+                                                            <div className="grid gap-1 sm:grid-cols-[110px_1fr] sm:gap-2">
+                                                                <dt className="text-gray-500 dark:text-gray-400">Details</dt>
+                                                                <dd>{send.message.provider_error.details}</dd>
+                                                            </div>
+                                                        )}
+                                                        {send.message?.provider_error?.code && (
+                                                            <div className="grid gap-1 sm:grid-cols-[110px_1fr] sm:gap-2">
+                                                                <dt className="text-gray-500 dark:text-gray-400">Code</dt>
+                                                                <dd>{send.message.provider_error.code}</dd>
+                                                            </div>
+                                                        )}
+                                                    </dl>
+                                                </div>
+                                            </details>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
                     </CardContent>

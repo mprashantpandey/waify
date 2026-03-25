@@ -172,6 +172,9 @@ export default function ChatbotsShow({
     const [nodeFormFlowId, setNodeFormFlowId] = useState<number | null>(null);
     const [editingNodeId, setEditingNodeId] = useState<number | null>(null);
     const [nodeForm, setNodeForm] = useState({ ...defaultNodeForm });
+    const [showFlowAdvanced, setShowFlowAdvanced] = useState(false);
+    const [showStepAdvanced, setShowStepAdvanced] = useState(false);
+    const [showLinkAdvanced, setShowLinkAdvanced] = useState(false);
 
     const [edgeFormOpen, setEdgeFormOpen] = useState(false);
     const [edgeFlowId, setEdgeFlowId] = useState<number | null>(null);
@@ -274,6 +277,7 @@ export default function ChatbotsShow({
         setFlowForm({ ...defaultFlowForm });
         setEditingFlowId(null);
         setFlowFormOpen(false);
+        setShowFlowAdvanced(false);
     };
 
     const openEditFlow = (flow: Flow) => {
@@ -281,6 +285,13 @@ export default function ChatbotsShow({
         const triggerType = trigger.type || 'inbound_message';
         setEditingFlowId(flow.id);
         setFlowFormOpen(true);
+        setShowFlowAdvanced(
+            triggerType === 'keyword'
+            || triggerType === 'button_reply'
+            || (trigger.connection_ids || []).length > 0
+            || !!trigger.first_message_only
+            || !!trigger.skip_if_assigned
+        );
         setFlowForm({
             name: flow.name,
             enabled: flow.enabled,
@@ -374,6 +385,7 @@ export default function ChatbotsShow({
         setEditingNodeId(null);
         setNodeForm({ ...defaultNodeForm });
         setNodeFormOpen(true);
+        setShowStepAdvanced(false);
     };
 
     const openEditNode = (flowId: number, node: Node) => {
@@ -381,6 +393,7 @@ export default function ChatbotsShow({
         setNodeFormFlowId(flowId);
         setEditingNodeId(node.id);
         setNodeFormOpen(true);
+        setShowStepAdvanced(!!node.sort_order || node.type === 'webhook');
         setNodeForm({
             ...defaultNodeForm,
             type: node.type || 'action',
@@ -608,6 +621,7 @@ export default function ChatbotsShow({
         const nodes = flow?.nodes || [];
         setEdgeFlowId(flowId);
         setEdgeFormOpen(true);
+        setShowLinkAdvanced(!!edge?.sort_order);
         setEdgeForm({
             id: edge?.id ?? null,
             fromNodeId: edge?.from_node_id ?? nodes[0]?.id ?? '',
@@ -620,6 +634,7 @@ export default function ChatbotsShow({
     const closeEdgeForm = () => {
         setEdgeFormOpen(false);
         setEdgeFlowId(null);
+        setShowLinkAdvanced(false);
         setEdgeForm({ id: null, fromNodeId: '', toNodeId: '', label: 'next', sortOrder: '' });
     };
 
@@ -930,91 +945,20 @@ export default function ChatbotsShow({
                                         <option value="button_reply">Button tap</option>
                                     </select>
                                 </div>
-
-                                {flowForm.triggerType === 'inbound_message' && (
-                                    <div className="space-y-3 rounded-xl border border-gray-200 dark:border-gray-700 p-3">
-                                        <div className="flex items-center gap-3">
-                                            <Checkbox
-                                                checked={flowForm.firstMessageOnly}
-                                                onChange={(e) => setFlowForm({ ...flowForm, firstMessageOnly: e.target.checked })}
-                                            />
-                                            <span className="text-sm text-gray-700 dark:text-gray-300">Only the first message in a chat</span>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <Checkbox
-                                                checked={flowForm.skipIfAssigned}
-                                                onChange={(e) => setFlowForm({ ...flowForm, skipIfAssigned: e.target.checked })}
-                                            />
-                                            <span className="text-sm text-gray-700 dark:text-gray-300">Skip when a teammate already owns the chat</span>
-                                        </div>
-                                        <div>
-                                            <InputLabel value="Run only on these numbers (optional)" className="text-sm font-semibold mb-2" />
-                                            <div className="space-y-2">
-                                                {connections.length === 0 && (
-                                                    <p className="text-xs text-gray-500">No connections available</p>
-                                                )}
-                                                {connections.map((connection) => (
-                                                    <label key={connection.id} className="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-300">
-                                                        <Checkbox
-                                                            checked={flowForm.triggerConnections.includes(connection.id)}
-                                                            onChange={(e) => {
-                                                                const ids = flowForm.triggerConnections.includes(connection.id)
-                                                                    ? flowForm.triggerConnections.filter((id) => id !== connection.id)
-                                                                    : [...flowForm.triggerConnections, connection.id];
-                                                                setFlowForm({ ...flowForm, triggerConnections: ids });
-                                                            }}
-                                                        />
-                                                        {connection.name}
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
                                 {flowForm.triggerType === 'keyword' && (
-                                    <div className="space-y-3 rounded-xl border border-gray-200 dark:border-gray-700 p-3">
-                                        <div>
-                                            <InputLabel value="Words or phrases" className="text-sm font-semibold mb-2" />
-                                            <TextInput
-                                                value={flowForm.keywords}
-                                                onChange={(e) => setFlowForm({ ...flowForm, keywords: e.target.value })}
-                                                className="mt-1 rounded-xl"
-                                                placeholder="pricing, demo, help"
-                                            />
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div>
-                                                <InputLabel value="Match Type" className="text-sm font-semibold mb-2" />
-                                                <select
-                                                    value={flowForm.matchType}
-                                                    onChange={(e) => setFlowForm({ ...flowForm, matchType: e.target.value })}
-                                                    className="mt-1 w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 px-4 py-2.5"
-                                                >
-                                                    <option value="any">Any keyword</option>
-                                                    <option value="all">All keywords</option>
-                                                </select>
-                                            </div>
-                                            <div className="flex items-center gap-3 pt-7">
-                                                <Checkbox
-                                                    checked={flowForm.caseSensitive}
-                                                    onChange={(e) => setFlowForm({ ...flowForm, caseSensitive: e.target.checked })}
-                                                />
-                                                <span className="text-sm text-gray-700 dark:text-gray-300">Case sensitive</span>
-                                            </div>
-                                            <div className="flex items-center gap-3">
-                                                <Checkbox
-                                                    checked={flowForm.wholeWord}
-                                                    onChange={(e) => setFlowForm({ ...flowForm, wholeWord: e.target.checked })}
-                                                />
-                                                <span className="text-sm text-gray-700 dark:text-gray-300">Whole word match</span>
-                                            </div>
-                                        </div>
+                                    <div>
+                                        <InputLabel value="Words or phrases" className="text-sm font-semibold mb-2" />
+                                        <TextInput
+                                            value={flowForm.keywords}
+                                            onChange={(e) => setFlowForm({ ...flowForm, keywords: e.target.value })}
+                                            className="mt-1 rounded-xl"
+                                            placeholder="pricing, demo, help"
+                                        />
                                     </div>
                                 )}
 
                                 {flowForm.triggerType === 'button_reply' && (
-                                    <div className="space-y-3 rounded-xl border border-gray-200 dark:border-gray-700 p-3">
+                                    <div>
                                         <InputLabel value="Button ID" className="text-sm font-semibold mb-2" />
                                         <TextInput
                                             value={flowForm.buttonId}
@@ -1025,9 +969,116 @@ export default function ChatbotsShow({
                                     </div>
                                 )}
 
+                                <div className="rounded-xl border border-gray-200 dark:border-gray-700">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowFlowAdvanced((value) => !value)}
+                                        className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-200"
+                                    >
+                                        <span>Advanced reply path options</span>
+                                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                                            {showFlowAdvanced ? 'Hide' : 'Show'}
+                                        </span>
+                                    </button>
+
+                                    {showFlowAdvanced && (
+                                        <div className="space-y-4 border-t border-gray-200 px-4 py-4 dark:border-gray-700">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <InputLabel value="Order" className="text-sm font-semibold mb-2" />
+                                                    <TextInput
+                                                        type="number"
+                                                        value={flowForm.priority}
+                                                        onChange={(e) => setFlowForm({ ...flowForm, priority: Number(e.target.value) })}
+                                                        className="mt-1 rounded-xl"
+                                                    />
+                                                </div>
+                                                <div className="flex items-center gap-3 pt-7">
+                                                    <Checkbox
+                                                        checked={flowForm.enabled}
+                                                        onChange={(e) => setFlowForm({ ...flowForm, enabled: e.target.checked })}
+                                                    />
+                                                    <span className="text-sm text-gray-700 dark:text-gray-300">Enabled</span>
+                                                </div>
+                                            </div>
+
+                                            {flowForm.triggerType === 'inbound_message' && (
+                                                <div className="space-y-3 rounded-xl border border-gray-200 dark:border-gray-700 p-3">
+                                                    <div className="flex items-center gap-3">
+                                                        <Checkbox
+                                                            checked={flowForm.firstMessageOnly}
+                                                            onChange={(e) => setFlowForm({ ...flowForm, firstMessageOnly: e.target.checked })}
+                                                        />
+                                                        <span className="text-sm text-gray-700 dark:text-gray-300">Only the first message in a chat</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <Checkbox
+                                                            checked={flowForm.skipIfAssigned}
+                                                            onChange={(e) => setFlowForm({ ...flowForm, skipIfAssigned: e.target.checked })}
+                                                        />
+                                                        <span className="text-sm text-gray-700 dark:text-gray-300">Skip when a teammate already owns the chat</span>
+                                                    </div>
+                                                    <div>
+                                                        <InputLabel value="Run only on these numbers (optional)" className="text-sm font-semibold mb-2" />
+                                                        <div className="space-y-2">
+                                                            {connections.length === 0 && (
+                                                                <p className="text-xs text-gray-500">No numbers available</p>
+                                                            )}
+                                                            {connections.map((connection) => (
+                                                                <label key={connection.id} className="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-300">
+                                                                    <Checkbox
+                                                                        checked={flowForm.triggerConnections.includes(connection.id)}
+                                                                        onChange={() => {
+                                                                            const ids = flowForm.triggerConnections.includes(connection.id)
+                                                                                ? flowForm.triggerConnections.filter((id) => id !== connection.id)
+                                                                                : [...flowForm.triggerConnections, connection.id];
+                                                                            setFlowForm({ ...flowForm, triggerConnections: ids });
+                                                                        }}
+                                                                    />
+                                                                    {connection.name}
+                                                                </label>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {flowForm.triggerType === 'keyword' && (
+                                                <div className="space-y-3 rounded-xl border border-gray-200 dark:border-gray-700 p-3">
+                                                    <div>
+                                                        <InputLabel value="How should words be matched?" className="text-sm font-semibold mb-2" />
+                                                        <select
+                                                            value={flowForm.matchType}
+                                                            onChange={(e) => setFlowForm({ ...flowForm, matchType: e.target.value })}
+                                                            className="mt-1 w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 px-4 py-2.5"
+                                                        >
+                                                            <option value="any">Any keyword</option>
+                                                            <option value="all">All keywords</option>
+                                                        </select>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <Checkbox
+                                                            checked={flowForm.caseSensitive}
+                                                            onChange={(e) => setFlowForm({ ...flowForm, caseSensitive: e.target.checked })}
+                                                        />
+                                                        <span className="text-sm text-gray-700 dark:text-gray-300">Match exact letter case</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <Checkbox
+                                                            checked={flowForm.wholeWord}
+                                                            onChange={(e) => setFlowForm({ ...flowForm, wholeWord: e.target.checked })}
+                                                        />
+                                                        <span className="text-sm text-gray-700 dark:text-gray-300">Match whole words only</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
                                 <div className="flex items-center gap-3">
                                     <Button type="submit" className="rounded-xl">
-                                        {editingFlowId ? 'Update Flow' : 'Create Flow'}
+                                        {editingFlowId ? 'Update reply path' : 'Create reply path'}
                                     </Button>
                                     <Button type="button" variant="secondary" className="rounded-xl" onClick={resetFlowForm}>
                                         Cancel
@@ -1137,54 +1188,30 @@ export default function ChatbotsShow({
                                     <LinkIcon className="h-5 w-5 text-white" />
                                 </div>
                                 <div>
-                                    <CardTitle className="text-xl font-bold">{editingNodeId ? 'Edit Node' : 'Add Step'}</CardTitle>
+                                    <CardTitle className="text-xl font-bold">{editingNodeId ? 'Edit step' : 'Add step'}</CardTitle>
                                     <CardDescription>Add one step to this reply path.</CardDescription>
                                 </div>
                             </div>
                         </CardHeader>
                         <CardContent className="p-6">
                             <form onSubmit={submitNode} className="space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <InputLabel value="Step type" className="text-sm font-semibold mb-2" />
-                                        <select
-                                            value={nodeForm.type}
-                                            onChange={(e) => setNodeForm({ ...nodeForm, type: e.target.value })}
-                                            className="mt-1 w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 px-4 py-2.5"
-                                        >
-                                            <option value="action">Action</option>
-                                            <option value="condition">Condition</option>
-                                            <option value="delay">Delay</option>
-                                            {supportAccess && <option value="webhook">Webhook</option>}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <InputLabel value="Sort Order" className="text-sm font-semibold mb-2" />
-                                        <TextInput
-                                            type="number"
-                                            value={nodeForm.sortOrder}
-                                            onChange={(e) =>
-                                                setNodeForm({
-                                                    ...nodeForm,
-                                                    sortOrder: e.target.value === '' ? '' : Number(e.target.value),
-                                                })
-                                            }
-                                            className="mt-1 rounded-xl"
-                                        />
-                                    </div>
+                                <div>
+                                    <InputLabel value="Step type" className="text-sm font-semibold mb-2" />
+                                    <select
+                                        value={nodeForm.type}
+                                        onChange={(e) => setNodeForm({ ...nodeForm, type: e.target.value })}
+                                        className="mt-1 w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 px-4 py-2.5"
+                                    >
+                                        <option value="action">Action</option>
+                                        <option value="condition">Condition</option>
+                                        <option value="delay">Delay</option>
+                                        {supportAccess && <option value="webhook">Webhook</option>}
+                                    </select>
                                 </div>
-
-                                <label className="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-300">
-                                    <Checkbox
-                                        checked={nodeForm.isStart}
-                                        onChange={(e) => setNodeForm({ ...nodeForm, isStart: e.target.checked })}
-                                    />
-                                    Mark as start node
-                                </label>
 
                                 {nodeForm.type === 'condition' && (
                                     <div className="space-y-4 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-                                        <InputLabel value="Condition Type" className="text-sm font-semibold mb-2" />
+                                        <InputLabel value="Rule type" className="text-sm font-semibold mb-2" />
                                         <select
                                             value={nodeForm.conditionType}
                                             onChange={(e) => setNodeForm({ ...nodeForm, conditionType: e.target.value })}
@@ -1333,7 +1360,7 @@ export default function ChatbotsShow({
 
                                 {nodeForm.type === 'action' && (
                                     <div className="space-y-4 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
-                                        <InputLabel value="Action Type" className="text-sm font-semibold mb-2" />
+                                        <InputLabel value="What should happen?" className="text-sm font-semibold mb-2" />
                                         <select
                                             value={nodeForm.actionType}
                                             onChange={(e) => setNodeForm({ ...nodeForm, actionType: e.target.value })}
@@ -1493,46 +1520,95 @@ export default function ChatbotsShow({
                                         value={nodeForm.delaySeconds}
                                         onChange={(e) => setNodeForm({ ...nodeForm, delaySeconds: Number(e.target.value) })}
                                         className="mt-1 rounded-xl"
-                                        placeholder="Delay seconds"
+                                        placeholder="Wait time (seconds)"
                                     />
                                 )}
 
-                                {nodeForm.type === 'webhook' && supportAccess && (
-                                    <div className="space-y-2">
-                                        <TextInput
-                                            value={nodeForm.webhookUrl}
-                                            onChange={(e) => setNodeForm({ ...nodeForm, webhookUrl: e.target.value })}
-                                            className="mt-1 rounded-xl"
-                                            placeholder="https://example.com/hook"
-                                        />
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <select
-                                                value={nodeForm.webhookMethod}
-                                                onChange={(e) => setNodeForm({ ...nodeForm, webhookMethod: e.target.value })}
-                                                className="mt-1 w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 px-4 py-2.5"
-                                            >
-                                                <option value="POST">POST</option>
-                                                <option value="GET">GET</option>
-                                            </select>
-                                            <TextInput
-                                                type="number"
-                                                value={nodeForm.webhookTimeout}
-                                                onChange={(e) => setNodeForm({ ...nodeForm, webhookTimeout: Number(e.target.value) })}
-                                                className="mt-1 rounded-xl"
-                                                placeholder="Timeout (seconds)"
-                                            />
-                                        </div>
-                                    </div>
-                                )}
                                 {nodeForm.type === 'webhook' && !supportAccess && (
                                     <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
                                         Advanced online steps are managed in the background and are hidden here.
                                     </div>
                                 )}
 
+                                <div className="rounded-xl border border-gray-200 dark:border-gray-700">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowStepAdvanced((value) => !value)}
+                                        className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-200"
+                                    >
+                                        <span>Advanced step options</span>
+                                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                                            {showStepAdvanced ? 'Hide' : 'Show'}
+                                        </span>
+                                    </button>
+
+                                    {showStepAdvanced && (
+                                        <div className="space-y-4 border-t border-gray-200 px-4 py-4 dark:border-gray-700">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <InputLabel value="Order" className="text-sm font-semibold mb-2" />
+                                                    <TextInput
+                                                        type="number"
+                                                        value={nodeForm.sortOrder}
+                                                        onChange={(e) =>
+                                                            setNodeForm({
+                                                                ...nodeForm,
+                                                                sortOrder: e.target.value === '' ? '' : Number(e.target.value),
+                                                            })
+                                                        }
+                                                        className="mt-1 rounded-xl"
+                                                    />
+                                                </div>
+                                                <label className="flex items-center gap-3 pt-7 text-sm text-gray-700 dark:text-gray-300">
+                                                    <Checkbox
+                                                        checked={nodeForm.isStart}
+                                                        onChange={(e) => setNodeForm({ ...nodeForm, isStart: e.target.checked })}
+                                                    />
+                                                    Mark as the first step
+                                                </label>
+                                            </div>
+
+                                            {nodeForm.type === 'webhook' && supportAccess && (
+                                                <div className="space-y-2 rounded-xl border border-gray-200 p-3 dark:border-gray-700">
+                                                    <InputLabel value="Webhook URL" className="text-sm font-semibold mb-2" />
+                                                    <TextInput
+                                                        value={nodeForm.webhookUrl}
+                                                        onChange={(e) => setNodeForm({ ...nodeForm, webhookUrl: e.target.value })}
+                                                        className="mt-1 rounded-xl"
+                                                        placeholder="https://example.com/hook"
+                                                    />
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        <div>
+                                                            <InputLabel value="Method" className="text-sm font-semibold mb-2" />
+                                                            <select
+                                                                value={nodeForm.webhookMethod}
+                                                                onChange={(e) => setNodeForm({ ...nodeForm, webhookMethod: e.target.value })}
+                                                                className="mt-1 w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 px-4 py-2.5"
+                                                            >
+                                                                <option value="POST">POST</option>
+                                                                <option value="GET">GET</option>
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <InputLabel value="Timeout" className="text-sm font-semibold mb-2" />
+                                                            <TextInput
+                                                                type="number"
+                                                                value={nodeForm.webhookTimeout}
+                                                                onChange={(e) => setNodeForm({ ...nodeForm, webhookTimeout: Number(e.target.value) })}
+                                                                className="mt-1 rounded-xl"
+                                                                placeholder="Timeout (seconds)"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+
                                 <div className="flex items-center gap-3">
                                     <Button type="submit" className="rounded-xl">
-                                        {editingNodeId ? 'Update Node' : 'Add Step'}
+                                        {editingNodeId ? 'Update step' : 'Add step'}
                                     </Button>
                                     <Button type="button" variant="secondary" className="rounded-xl" onClick={closeNodeForm}>
                                         Cancel
@@ -1551,15 +1627,15 @@ export default function ChatbotsShow({
                                     <LinkIcon className="h-5 w-5 text-white" />
                                 </div>
                                 <div>
-                                    <CardTitle className="text-xl font-bold">{edgeForm.id ? 'Edit Edge' : 'Link Steps'}</CardTitle>
-                                    <CardDescription>Connect nodes to define branching</CardDescription>
+                                    <CardTitle className="text-xl font-bold">{edgeForm.id ? 'Edit link' : 'Link steps'}</CardTitle>
+                                    <CardDescription>Choose which step should run next.</CardDescription>
                                 </div>
                             </div>
                         </CardHeader>
                         <CardContent className="p-6 space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <InputLabel value="From Node" className="text-sm font-semibold mb-2" />
+                                    <InputLabel value="From step" className="text-sm font-semibold mb-2" />
                                     <select
                                         value={edgeForm.fromNodeId}
                                         onChange={(e) => setEdgeForm({ ...edgeForm, fromNodeId: Number(e.target.value) })}
@@ -1567,13 +1643,13 @@ export default function ChatbotsShow({
                                     >
                                         {(flowById.get(edgeFlowId)?.nodes || []).map((node) => (
                                             <option key={node.id} value={node.id}>
-                                                Node #{node.id} ({node.type})
+                                                Step #{node.id} ({node.type})
                                             </option>
                                         ))}
                                     </select>
                                 </div>
                                 <div>
-                                    <InputLabel value="To Node" className="text-sm font-semibold mb-2" />
+                                    <InputLabel value="To step" className="text-sm font-semibold mb-2" />
                                     <select
                                         value={edgeForm.toNodeId}
                                         onChange={(e) => setEdgeForm({ ...edgeForm, toNodeId: Number(e.target.value) })}
@@ -1581,40 +1657,52 @@ export default function ChatbotsShow({
                                     >
                                         {(flowById.get(edgeFlowId)?.nodes || []).map((node) => (
                                             <option key={node.id} value={node.id}>
-                                                Node #{node.id} ({node.type})
+                                                Step #{node.id} ({node.type})
                                             </option>
                                         ))}
                                     </select>
                                 </div>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <InputLabel value="Label" className="text-sm font-semibold mb-2" />
-                                    <TextInput
-                                        value={edgeForm.label}
-                                        onChange={(e) => setEdgeForm({ ...edgeForm, label: e.target.value })}
-                                        className="mt-1 rounded-xl"
-                                        placeholder="true / false / next"
-                                    />
-                                </div>
-                                <div>
-                                    <InputLabel value="Sort Order" className="text-sm font-semibold mb-2" />
-                                    <TextInput
-                                        type="number"
-                                        value={edgeForm.sortOrder}
-                                        onChange={(e) =>
-                                            setEdgeForm({
-                                                ...edgeForm,
-                                                sortOrder: e.target.value === '' ? '' : Number(e.target.value),
-                                            })
-                                        }
-                                        className="mt-1 rounded-xl"
-                                    />
-                                </div>
+                            <div>
+                                <InputLabel value="Label" className="text-sm font-semibold mb-2" />
+                                <TextInput
+                                    value={edgeForm.label}
+                                    onChange={(e) => setEdgeForm({ ...edgeForm, label: e.target.value })}
+                                    className="mt-1 rounded-xl"
+                                    placeholder="yes / no / next"
+                                />
+                            </div>
+                            <div className="rounded-xl border border-gray-200 dark:border-gray-700">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowLinkAdvanced((value) => !value)}
+                                    className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-200"
+                                >
+                                    <span>Advanced link options</span>
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                        {showLinkAdvanced ? 'Hide' : 'Show'}
+                                    </span>
+                                </button>
+                                {showLinkAdvanced && (
+                                    <div className="border-t border-gray-200 px-4 py-4 dark:border-gray-700">
+                                        <InputLabel value="Order" className="text-sm font-semibold mb-2" />
+                                        <TextInput
+                                            type="number"
+                                            value={edgeForm.sortOrder}
+                                            onChange={(e) =>
+                                                setEdgeForm({
+                                                    ...edgeForm,
+                                                    sortOrder: e.target.value === '' ? '' : Number(e.target.value),
+                                                })
+                                            }
+                                            className="mt-1 rounded-xl"
+                                        />
+                                    </div>
+                                )}
                             </div>
                             <div className="flex items-center gap-3">
                                 <Button className="rounded-xl" onClick={saveEdge}>
-                                    Save Edge
+                                    Save link
                                 </Button>
                                 <Button variant="secondary" className="rounded-xl" onClick={closeEdgeForm}>
                                     Cancel

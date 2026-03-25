@@ -47,6 +47,7 @@ export default function BroadcastsCreate({
     const [selectedSegments, setSelectedSegments] = useState<number[]>([]);
     const [selectedConnection, setSelectedConnection] = useState<number | ''>('');
     const [selectedTemplate, setSelectedTemplate] = useState<number | ''>('');
+    const [showAdvancedTiming, setShowAdvancedTiming] = useState(false);
 
     const { data, setData, post, processing, errors } = useForm({
         name: '',
@@ -478,7 +479,7 @@ export default function BroadcastsCreate({
                     <Card>
                         <CardHeader>
                             <CardTitle>4. Timing</CardTitle>
-                            <CardDescription>When should this campaign be sent?</CardDescription>
+                            <CardDescription>Choose when to send, then open delivery controls only if you need them.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div>
@@ -493,46 +494,66 @@ export default function BroadcastsCreate({
                                 <InputError message={errors.scheduled_at} className="mt-2" />
                             </div>
 
-                            <div>
-                                <InputLabel htmlFor="send_delay_seconds" value="Delay Between Messages (seconds)" />
-                                <TextInput
-                                    id="send_delay_seconds"
-                                    type="number"
-                                    min="0"
-                                    max="3600"
-                                    value={data.send_delay_seconds}
-                                    onChange={(e) => setData('send_delay_seconds', Number(e.target.value))}
-                                    className="mt-1 block w-full"
-                                />
-                                <InputError message={errors.send_delay_seconds} className="mt-2" />
-                            </div>
+                            <div className="rounded-xl border border-gray-200 dark:border-gray-700">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAdvancedTiming((value) => !value)}
+                                    className="flex w-full items-center justify-between px-4 py-3 text-left"
+                                >
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Advanced delivery controls</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">Batching, sample size, and dry run.</p>
+                                    </div>
+                                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                                        {showAdvancedTiming ? 'Hide' : 'Show'}
+                                    </span>
+                                </button>
 
-                            <div>
-                                <InputLabel htmlFor="recipient_sample_size" value="Recipient Sample Size (0 = all recipients)" />
-                                <TextInput
-                                    id="recipient_sample_size"
-                                    type="number"
-                                    min="0"
-                                    value={data.recipient_sample_size}
-                                    onChange={(e) => setData('recipient_sample_size', Number(e.target.value) || 0)}
-                                    className="mt-1 block w-full"
-                                />
-                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                    Use sampling to launch in controlled batches before full scale.
-                                </p>
-                                <InputError message={errors.recipient_sample_size} className="mt-2" />
-                            </div>
+                                {showAdvancedTiming && (
+                                    <div className="space-y-4 border-t border-gray-200 px-4 py-4 dark:border-gray-700">
+                                        <div>
+                                            <InputLabel htmlFor="send_delay_seconds" value="Delay between messages (seconds)" />
+                                            <TextInput
+                                                id="send_delay_seconds"
+                                                type="number"
+                                                min="0"
+                                                max="3600"
+                                                value={data.send_delay_seconds}
+                                                onChange={(e) => setData('send_delay_seconds', Number(e.target.value))}
+                                                className="mt-1 block w-full"
+                                            />
+                                            <InputError message={errors.send_delay_seconds} className="mt-2" />
+                                        </div>
 
-                            <label className="flex items-center gap-2">
-                                <input
-                                    type="checkbox"
-                                    checked={data.dry_run}
-                                    onChange={(e) => setData('dry_run', e.target.checked)}
-                                />
-                                <span className="text-sm text-gray-700 dark:text-gray-300">
-                                    Dry-run only (preflight + recipient preparation, no outbound send)
-                                </span>
-                            </label>
+                                        <div>
+                                            <InputLabel htmlFor="recipient_sample_size" value="Sample size (0 = everyone)" />
+                                            <TextInput
+                                                id="recipient_sample_size"
+                                                type="number"
+                                                min="0"
+                                                value={data.recipient_sample_size}
+                                                onChange={(e) => setData('recipient_sample_size', Number(e.target.value) || 0)}
+                                                className="mt-1 block w-full"
+                                            />
+                                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                Use this to send to a smaller group first.
+                                            </p>
+                                            <InputError message={errors.recipient_sample_size} className="mt-2" />
+                                        </div>
+
+                                        <label className="flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                checked={data.dry_run}
+                                                onChange={(e) => setData('dry_run', e.target.checked)}
+                                            />
+                                            <span className="text-sm text-gray-700 dark:text-gray-300">
+                                                Check recipients only, without sending messages
+                                            </span>
+                                        </label>
+                                    </div>
+                                )}
+                            </div>
                         </CardContent>
                     </Card>
 

@@ -341,55 +341,37 @@ export default function BroadcastsShow({
                     <CardHeader>
                         <CardTitle>Recent recipients</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                <thead className="bg-gray-50 dark:bg-gray-800">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                            Phone Number
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                            Name
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                            Status
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                            Sent At
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                            Delivered At
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                            Read At
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                                    {recipients.map((recipient) => (
-                                        <tr key={recipient.id}>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                                                {recipient.phone_number}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
-                                                {recipient.name || '—'}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(recipient.status)}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
-                                                {formatDate(recipient.sent_at)}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
-                                                {formatDate(recipient.delivered_at)}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
-                                                {formatDate(recipient.read_at)}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                    <CardContent className="space-y-3">
+                        {recipients.map((recipient) => (
+                            <div key={recipient.id} className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                    <div className="space-y-1">
+                                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{recipient.phone_number}</p>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">{recipient.name || 'No name saved'}</p>
+                                    </div>
+                                    <div>{getStatusBadge(recipient.status)}</div>
+                                </div>
+                                <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+                                    <div>
+                                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Sent</p>
+                                        <p className="mt-1 text-gray-900 dark:text-gray-100">{formatDate(recipient.sent_at)}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Delivered</p>
+                                        <p className="mt-1 text-gray-900 dark:text-gray-100">{formatDate(recipient.delivered_at)}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Read</p>
+                                        <p className="mt-1 text-gray-900 dark:text-gray-100">{formatDate(recipient.read_at)}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                        {recipients.length === 0 && (
+                            <div className="rounded-xl border border-dashed border-gray-300 p-6 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                                No recipients yet.
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
             </div>
