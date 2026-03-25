@@ -40,6 +40,12 @@ interface Conversation {
     priority?: string | null;
     unread_count?: number;
     has_unread?: boolean;
+    customer_care_window?: {
+        is_open: boolean;
+        last_inbound_at: string | null;
+        expires_at: string | null;
+        seconds_remaining: number;
+    };
     latest_activity_type?: string | null;
     activity?: {
         event_type?: string | null;
@@ -79,6 +85,14 @@ const normalizeConversation = (value: any): Conversation | null => {
         priority: value.priority ?? null,
         unread_count: Math.max(0, Number(value.unread_count ?? 0) || 0),
         has_unread: Boolean(value.has_unread ?? (Number(value.unread_count ?? 0) > 0)),
+        customer_care_window: value.customer_care_window
+            ? {
+                  is_open: Boolean(value.customer_care_window.is_open),
+                  last_inbound_at: value.customer_care_window.last_inbound_at ?? null,
+                  expires_at: value.customer_care_window.expires_at ?? null,
+                  seconds_remaining: Math.max(0, Number(value.customer_care_window.seconds_remaining ?? 0) || 0),
+              }
+            : undefined,
         latest_activity_type: value.latest_activity_type ?? value.activity?.event_type ?? null,
         activity: value.activity
             ? {
@@ -141,6 +155,7 @@ export default function ConversationsIndex({
     const [syncDegraded, setSyncDegraded] = useState(false);
     const [syncErrorMessage, setSyncErrorMessage] = useState<string | null>(null);
     const [repairingUnread, setRepairingUnread] = useState(false);
+    const [timeTick, setTimeTick] = useState<number>(Date.now());
     const agents: Agent[] = Array.isArray(initialAgents) ? initialAgents : [];
     const lastPollRef = useRef<Date>(new Date());
     const processedMessageIds = useRef<Set<string>>(new Set());
@@ -171,6 +186,11 @@ export default function ConversationsIndex({
         }
     }, [soundEnabled]);
 
+    useEffect(() => {
+        const interval = window.setInterval(() => setTimeTick(Date.now()), 30000);
+        return () => window.clearInterval(interval);
+    }, []);
+
     const formatTime = (value: string | null) => {
         if (!value) return '';
         const date = new Date(value);
@@ -189,6 +209,32 @@ export default function ConversationsIndex({
         const diffDays = Math.floor(diffHours / 24);
         return `${diffDays}d ago`;
     };
+
+    const formatWindowCountdown = useCallback((conversation: Conversation) => {
+        const windowState = conversation.customer_care_window;
+        if (!windowState?.is_open || !windowState.expires_at) {
+            return null;
+        }
+
+        const diffSeconds = Math.max(
+            0,
+            Math.floor((new Date(windowState.expires_at).getTime() - timeTick) / 1000)
+        );
+
+        if (diffSeconds <= 0) {
+            return 'Window closed';
+        }
+
+        const totalMinutes = Math.ceil(diffSeconds / 60);
+        if (totalMinutes < 60) {
+            return `Closes in ${totalMinutes}m`;
+        }
+
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+
+        return minutes === 0 ? `Closes in ${hours}h` : `Closes in ${hours}h ${minutes}m`;
+    }, [timeTick]);
 
     const api = typeof window !== 'undefined' && (window as any).axios ? (window as any).axios : axios;
 
@@ -772,6 +818,7 @@ export default function ConversationsIndex({
                                             ? { ...conversation, assigned_to: pendingAssignment }
                                             : conversation;
                                         const assigneeMeta = getAssigneeMeta(displayConversation);
+                                        const windowCountdown = formatWindowCountdown(displayConversation);
                                         return (
                                             <div
                                                 key={conversation.id}
@@ -824,6 +871,11 @@ export default function ConversationsIndex({
                                                             <Badge variant={conversation.status === 'open' ? 'success' : 'default'} className="px-1.5 py-0.5 text-[10px]">
                                                                 {conversation.status}
                                                             </Badge>
+                                                            {windowCountdown && (
+                                                                <span className="inline-flex items-center rounded-full bg-[#e7f8f0] px-2 py-0.5 text-[10px] font-medium text-[#0a7c5a]">
+                                                                    {windowCountdown}
+                                                                </span>
+                                                            )}
                                                             <div className="flex items-center gap-1 text-[11px] text-[#667781]">
                                                                 <Phone className="h-3 w-3" />
                                                                 {conversation.connection.name}

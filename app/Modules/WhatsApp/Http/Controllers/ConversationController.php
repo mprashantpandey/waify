@@ -143,6 +143,9 @@ class ConversationController extends Controller
                         'wa_id' => $conversation->contact->wa_id,
                         'name' => $conversation->contact->name ?? $conversation->contact->wa_id],
                     'status' => $conversation->status,
+                    'customer_care_window' => $this->formatCustomerCareWindowState(
+                        $this->customerCareWindowService->forConversation($conversation)
+                    ),
                     'last_message_preview' => $conversation->last_message_preview,
                     'last_message_at' => $conversation->last_message_at?->toIso8601String(),
                     'connection' => [
@@ -610,13 +613,16 @@ class ConversationController extends Controller
             $assigneeName = $assigneeId ? (User::find($assigneeId)?->name ?? 'Unknown') : null;
             if ($assigneeId && $previousAssigneeId && (int) $previousAssigneeId !== (int) $assigneeId) {
                 $description = "Transferred to {$assigneeName} by {$actorName}";
+                $eventType = 'transferred';
             } elseif ($assigneeId) {
                 $description = "Assigned to {$assigneeName} by {$actorName}";
+                $eventType = 'assigned';
             } else {
                 $description = "Unassigned by {$actorName}";
+                $eventType = 'unassigned';
             }
             $auditPayloads[] = [
-                'event_type' => 'assigned',
+                'event_type' => $eventType,
                 'description' => $description,
                 'meta' => ['assigned_to' => $assigneeId],
             ];

@@ -160,6 +160,24 @@ const isTemporaryMetaHostedUrl = (url: string | null | undefined): boolean => {
     }
 };
 
+const formatWindowCountdown = (expiresAt: string | null | undefined, nowTick: number) => {
+    if (!expiresAt) return null;
+
+    const diffSeconds = Math.max(0, Math.floor((new Date(expiresAt).getTime() - nowTick) / 1000));
+
+    if (diffSeconds <= 0) return 'Closed';
+
+    const totalMinutes = Math.ceil(diffSeconds / 60);
+    if (totalMinutes < 60) {
+        return `Closes in ${totalMinutes}m`;
+    }
+
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
+    return minutes === 0 ? `Closes in ${hours}h` : `Closes in ${hours}h ${minutes}m`;
+};
+
 const normalizeMessage = (value: any): Message | null => {
     if (!value || value.id == null || !value.created_at) return null;
     const id = Number(value.id);
@@ -401,6 +419,7 @@ export default function ConversationsShow({
     const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
     const [notes, setNotes] = useState<NoteItem[]>(normalizedNotes);
     const [auditEvents, setAuditEvents] = useState<AuditEventItem[]>(normalizedAuditEvents);
+    const [timeTick, setTimeTick] = useState<number>(Date.now());
     const [noteDraft, setNoteDraft] = useState('');
     const [metaUpdating, setMetaUpdating] = useState(false);
     const [showConversationSettings, setShowConversationSettings] = useState(false);
@@ -496,6 +515,11 @@ export default function ConversationsShow({
         }
     }, [resolvedConversation, normalizedMessages, normalizedNotes, normalizedAuditEvents, initialTotalMessages]);
 
+    useEffect(() => {
+        const interval = window.setInterval(() => setTimeTick(Date.now()), 30000);
+        return () => window.clearInterval(interval);
+    }, []);
+
     const emojiList = ['😀', '😁', '😂', '🤣', '😍', '😘', '😊', '🥰', '😎', '🤝', '👍', '🙏', '🎉', '🔥', '✨', '💡', '😢', '😮', '😡', '🤔', '😅', '🙌', '✅', '❌'];
     const quickReplies = [
         { id: 'greeting', label: 'Greeting', text: 'Hi! How can I help you today?' },
@@ -506,6 +530,14 @@ export default function ConversationsShow({
     const availableTemplates = normalizedTemplates;
     const agentMap = new Map(normalizedAgents.map((agent) => [agent.id, agent]));
     const isCustomerCareWindowOpen = Boolean(conversation.customer_care_window?.is_open);
+    const customerCareWindowStatusText = isCustomerCareWindowOpen
+        ? formatWindowCountdown(conversation.customer_care_window?.expires_at, timeTick) ?? 'Open'
+        : 'Closed';
+    const customerCareWindowHelperText = isCustomerCareWindowOpen
+        ? `Free replies stay open until ${new Date(
+              conversation.customer_care_window?.expires_at ?? ''
+          ).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`
+        : 'Send an approved template to reopen the conversation.';
     const mentionTokens = useMemo(() => {
         if (!auth?.user) return [];
         const name = auth.user.name || '';
@@ -1682,7 +1714,7 @@ export default function ConversationsShow({
                                     : 'bg-amber-500/20 text-amber-100'
                             )}
                         >
-                            24h {isCustomerCareWindowOpen ? 'open' : 'closed'}
+                            {customerCareWindowStatusText}
                         </span>
                         <button
                             onClick={() => setMobileDrawerOpen(!mobileDrawerOpen)}
@@ -1739,8 +1771,9 @@ export default function ConversationsShow({
                                     <div>
                                         <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">24h Window</p>
                                         <Badge variant={isCustomerCareWindowOpen ? 'success' : 'warning'} className="px-3 py-1">
-                                            {isCustomerCareWindowOpen ? 'Open' : 'Closed'}
+                                            {customerCareWindowStatusText}
                                         </Badge>
+                                        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{customerCareWindowHelperText}</p>
                                     </div>
                                 </div>
                             </div>
@@ -1902,9 +1935,10 @@ export default function ConversationsShow({
                             <div className="flex items-center justify-between">
                                 <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">24h Window</span>
                                 <Badge variant={isCustomerCareWindowOpen ? 'success' : 'warning'} className="px-3 py-1">
-                                    {isCustomerCareWindowOpen ? 'Open' : 'Closed'}
+                                    {customerCareWindowStatusText}
                                 </Badge>
                             </div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{customerCareWindowHelperText}</p>
                         </div>
                     </div>
 
@@ -2667,6 +2701,11 @@ export default function ConversationsShow({
                         {!isCustomerCareWindowOpen && (
                             <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700/50 dark:bg-amber-500/10 dark:text-amber-100">
                                 {CUSTOMER_CARE_WINDOW_CLOSED_MESSAGE}
+                            </div>
+                        )}
+                        {isCustomerCareWindowOpen && conversation.customer_care_window?.expires_at && (
+                            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900 dark:border-emerald-700/50 dark:bg-emerald-500/10 dark:text-emerald-100">
+                                {customerCareWindowStatusText}. You can keep replying normally until then.
                             </div>
                         )}
 
