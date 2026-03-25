@@ -51,7 +51,7 @@ export default function ChatbotsIndex({
         if (!confirm(`Delete bot "${botName}"? This will also delete its flows and activity history.`)) {
             return;
         }
-        router.post(route('app.chatbots.destroy.post', { bot: botId }), { _method: 'delete' }, {
+        router.delete(route('app.chatbots.destroy', { bot: botId }), {
             preserveScroll: true,
             onError: () => toast.error('Failed to delete bot'),
         });

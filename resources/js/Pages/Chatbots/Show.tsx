@@ -238,8 +238,20 @@ export default function ChatbotsShow({
         if (!confirm(`Delete bot "${bot.name}"? This will also delete its reply paths and activity history.`)) {
             return;
         }
-        router.post(route('app.chatbots.destroy.post', { bot: bot.id }), { _method: 'delete' }, {
+        router.delete(route('app.chatbots.destroy', { bot: bot.id }), {
             onError: () => toast.error('Failed to delete bot'),
+        });
+    };
+
+    const updateBotStatus = (status: 'active' | 'paused' | 'draft') => {
+        router.patch(route('app.chatbots.update', { bot: bot.id }), {
+            ...data,
+            status,
+        }, {
+            preserveScroll: true,
+            onError: () => {
+                toast.error(status === 'active' ? 'Failed to start bot' : 'Failed to pause bot');
+            },
         });
     };
 
@@ -706,6 +718,25 @@ export default function ChatbotsShow({
                         </div>
                         <div className="flex items-center gap-3">
                             {getStatusBadge(bot.status)}
+                            {data.status === 'active' ? (
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    className="rounded-xl"
+                                    onClick={() => updateBotStatus('paused')}
+                                >
+                                    Pause bot
+                                </Button>
+                            ) : (
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    className="rounded-xl"
+                                    onClick={() => updateBotStatus('active')}
+                                >
+                                    Turn on bot
+                                </Button>
+                            )}
                             <Button
                                 type="button"
                                 variant="danger"

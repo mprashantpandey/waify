@@ -221,18 +221,18 @@ export default function ConnectionsEdit({
                             <CardHeader>
                                 <CardTitle>Need help?</CardTitle>
                                 <CardDescription>
-                                    Use support if setup is stuck or the number is not becoming ready.
+                                    Use support if setup is stuck.
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <div className="rounded-xl border border-dashed border-gray-200 p-3 dark:border-gray-800">
-                                    <div className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-gray-100">
-                                        <MessageCircleMore className="h-4 w-4 text-blue-500" />
-                                        Contact the Zyptos team
+                                <div className="flex items-start gap-3 rounded-xl border border-dashed border-gray-200 p-3 dark:border-gray-800">
+                                    <MessageCircleMore className="mt-0.5 h-4 w-4 text-blue-500" />
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Contact the Zyptos team</p>
+                                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                                            Share the connection name and business number.
+                                        </p>
                                     </div>
-                                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                                        Share the connection name and business number. Zyptos already keeps the background setup details for support.
-                                    </p>
                                 </div>
 
                                 <div className="flex flex-col gap-3">

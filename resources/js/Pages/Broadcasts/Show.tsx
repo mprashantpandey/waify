@@ -234,46 +234,46 @@ export default function BroadcastsShow({
                 {/* Stats Cards */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                     <Card>
-                        <CardContent className="p-6">
+                        <CardContent className="p-4">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-600 dark:text-gray-400">Total Recipients</p>
-                                    <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats.total}</p>
+                                    <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{stats.total}</p>
                                 </div>
-                                <Users className="h-8 w-8 text-blue-600" />
+                                <Users className="h-6 w-6 text-blue-600" />
                             </div>
                         </CardContent>
                     </Card>
                     <Card>
-                        <CardContent className="p-6">
+                        <CardContent className="p-4">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-600 dark:text-gray-400">Sent</p>
-                                    <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats.sent}</p>
+                                    <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{stats.sent}</p>
                                 </div>
-                                <Send className="h-8 w-8 text-green-600" />
+                                <Send className="h-6 w-6 text-green-600" />
                             </div>
                         </CardContent>
                     </Card>
                     <Card>
-                        <CardContent className="p-6">
+                        <CardContent className="p-4">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-600 dark:text-gray-400">Delivered</p>
-                                    <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats.delivered}</p>
+                                    <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{stats.delivered}</p>
                                 </div>
-                                <CheckCircle2 className="h-8 w-8 text-blue-600" />
+                                <CheckCircle2 className="h-6 w-6 text-blue-600" />
                             </div>
                         </CardContent>
                     </Card>
                     <Card>
-                        <CardContent className="p-6">
+                        <CardContent className="p-4">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-600 dark:text-gray-400">Read</p>
-                                    <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats.read}</p>
+                                    <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{stats.read}</p>
                                 </div>
-                                <Eye className="h-8 w-8 text-purple-600" />
+                                <Eye className="h-6 w-6 text-purple-600" />
                             </div>
                         </CardContent>
                     </Card>
@@ -304,7 +304,7 @@ export default function BroadcastsShow({
                     <CardHeader>
                         <CardTitle>Campaign summary</CardTitle>
                     </CardHeader>
-                    <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                         <div className="rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-3">
                             <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">Type</span>
                             <span className="mt-1 block text-sm font-medium">{campaign.type}</span>
@@ -341,9 +341,9 @@ export default function BroadcastsShow({
                     <CardHeader>
                         <CardTitle>Recent recipients</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-3">
+                    <CardContent className="space-y-2">
                         {recipients.map((recipient) => (
-                            <div key={recipient.id} className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                            <div key={recipient.id} className="rounded-xl border border-gray-200 p-3 dark:border-gray-700">
                                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                     <div className="space-y-1">
                                         <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{recipient.phone_number}</p>
@@ -351,7 +351,7 @@ export default function BroadcastsShow({
                                     </div>
                                     <div>{getStatusBadge(recipient.status)}</div>
                                 </div>
-                                <div className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+                                <div className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
                                     <div>
                                         <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Sent</p>
                                         <p className="mt-1 text-gray-900 dark:text-gray-100">{formatDate(recipient.sent_at)}</p>
