@@ -593,23 +593,21 @@ export default function ConversationsIndex({
         <AppShell>
             <Head title="Inbox" />
             <div className="min-h-[calc(100vh-8rem)] lg:min-h-[calc(100vh-6rem)]">
-                <div className="grid min-h-full lg:grid-cols-[380px_1fr] rounded-3xl overflow-hidden border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                    <section className="flex flex-col border-r border-gray-200 dark:border-gray-800">
-                        <div className="border-b border-gray-200 bg-white px-5 py-4 dark:border-gray-800 dark:bg-gray-900">
+                <div className="grid min-h-full overflow-hidden rounded-[28px] border border-[#d1d7db] bg-[#f0f2f5] shadow-sm lg:grid-cols-[400px_1fr] dark:border-gray-800 dark:bg-gray-900">
+                    <section className="flex min-h-0 flex-col border-r border-[#d1d7db] bg-white dark:border-gray-800 dark:bg-gray-900">
+                        <div className="border-b border-[#d1d7db] bg-[#f0f2f5] px-4 py-3 dark:border-gray-800 dark:bg-gray-900">
                             <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
-                                    <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Inbox</h1>
-                                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                                        Open chats, assign them, and reply faster.
-                                    </p>
+                                    <h1 className="text-lg font-semibold text-[#111b21] dark:text-gray-100">Chats</h1>
+                                    <p className="mt-0.5 text-xs text-[#667781] dark:text-gray-400">WhatsApp inbox</p>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <span
                                         className={cn(
                                             'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium',
                                             connected
-                                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
-                                                : 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300'
+                                                ? 'bg-[#d9fdd3] text-[#0a5c36] dark:bg-emerald-900/20 dark:text-emerald-300'
+                                                : 'bg-[#fff3cd] text-[#8f6a00] dark:bg-amber-900/20 dark:text-amber-300'
                                         )}
                                     >
                                         {connected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
@@ -617,7 +615,7 @@ export default function ConversationsIndex({
                                     </span>
                                     <Link
                                         href={route('app.whatsapp.conversations.new')}
-                                        className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                                        className="inline-flex items-center gap-1.5 rounded-full bg-[#00a884] px-3 py-2 text-sm font-medium text-white hover:bg-[#019270]"
                                         aria-label="Start new conversation"
                                     >
                                         <Plus className="h-4 w-4" aria-hidden />
@@ -627,7 +625,7 @@ export default function ConversationsIndex({
                             </div>
                         </div>
 
-                        <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-950/40">
+                        <div className="border-b border-[#d1d7db] bg-white px-3 py-3 dark:border-gray-800 dark:bg-gray-950/40">
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                                 <TextInput
@@ -635,14 +633,14 @@ export default function ConversationsIndex({
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     placeholder="Search chats"
-                                    className="rounded-2xl bg-white pl-9 dark:bg-gray-800"
+                                    className="rounded-lg border-transparent bg-[#f0f2f5] pl-9 shadow-none focus:border-[#00a884] focus:ring-[#00a884] dark:bg-gray-800"
                                 />
                             </div>
                             <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                                 <select
                                     value={statusFilter}
                                     onChange={(e) => setStatusFilter(e.target.value)}
-                                    className="w-full rounded-xl border-gray-300 px-3 py-2 text-xs shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800"
+                                    className="w-full rounded-lg border-[#d1d7db] bg-white px-3 py-2 text-xs shadow-none focus:border-[#00a884] focus:ring-[#00a884] dark:border-gray-700 dark:bg-gray-800"
                                 >
                                     <option value="all">All</option>
                                     <option value="open">Open</option>
@@ -653,7 +651,7 @@ export default function ConversationsIndex({
                                     <select
                                         value={connectionFilter}
                                         onChange={(e) => setConnectionFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                                        className="w-full rounded-xl border-gray-300 px-3 py-2 text-xs shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800"
+                                        className="w-full rounded-lg border-[#d1d7db] bg-white px-3 py-2 text-xs shadow-none focus:border-[#00a884] focus:ring-[#00a884] dark:border-gray-700 dark:bg-gray-800"
                                     >
                                         <option value="all">All numbers</option>
                                         {connections.map((conn) => (
@@ -666,7 +664,7 @@ export default function ConversationsIndex({
                                 <select
                                     value={assigneeFilter}
                                     onChange={(e) => setAssigneeFilter(e.target.value as 'all' | 'me' | 'unassigned')}
-                                    className="w-full rounded-xl border-gray-300 px-3 py-2 text-xs shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800"
+                                    className="w-full rounded-lg border-[#d1d7db] bg-white px-3 py-2 text-xs shadow-none focus:border-[#00a884] focus:ring-[#00a884] dark:border-gray-700 dark:bg-gray-800"
                                 >
                                     <option value="all">All assignees</option>
                                     <option value="me">Assigned to me</option>
@@ -765,7 +763,7 @@ export default function ConversationsIndex({
                                     />
                                 </div>
                             ) : (
-                                <div className="divide-y divide-gray-200 dark:divide-gray-800">
+                                <div className="divide-y divide-[#e9edef] dark:divide-gray-800">
                                     {filteredConversations.map((conversation) => {
                                         const pendingAssignment = Object.prototype.hasOwnProperty.call(assignmentSaving, conversation.id)
                                             ? assignmentSaving[conversation.id]
@@ -777,18 +775,18 @@ export default function ConversationsIndex({
                                         return (
                                             <div
                                                 key={conversation.id}
-                                                className="group flex flex-col gap-2 px-4 py-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/60 sm:flex-row sm:items-start"
+                                                className="group flex flex-col gap-2 px-3 py-3 transition-colors hover:bg-[#f5f6f6] dark:hover:bg-gray-800/60 sm:flex-row sm:items-start"
                                             >
                                                 <Link
                                                     href={route('app.whatsapp.conversations.show', { conversation: conversation.id })}
                                                     className="flex min-w-0 flex-1 items-start gap-3"
                                                 >
-                                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
+                                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-sm font-semibold text-white">
                                                         {conversation.contact.name?.charAt(0).toUpperCase() || conversation.contact.wa_id.charAt(0)}
                                                     </div>
                                                     <div className="min-w-0 flex-1">
                                                         <div className="flex items-center justify-between">
-                                                            <p className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                                            <p className="truncate text-[14px] font-medium text-[#111b21] dark:text-gray-100">
                                                                 {conversation.contact.name || conversation.contact.wa_id}
                                                             </p>
                                                             <div className="ml-2 flex shrink-0 items-center gap-1">
@@ -797,18 +795,18 @@ export default function ConversationsIndex({
                                                                         {conversation.unread_count}
                                                                     </span>
                                                                 )}
-                                                                <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                                                                <span className="text-[11px] text-[#667781] dark:text-gray-400">
                                                                     {formatTime(conversation.last_message_at)}
                                                                 </span>
                                                             </div>
                                                         </div>
-                                                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                                        <div className="flex items-center gap-2 text-xs text-[#667781] dark:text-gray-400">
                                                             <span className="truncate">
                                                                 {conversation.last_message_preview || 'No messages yet'}
                                                             </span>
                                                         </div>
                                                         {conversation.activity?.description && (
-                                                            <div className="mt-1.5 flex max-w-full flex-wrap items-center gap-1 rounded-lg bg-gray-50 px-2 py-1 text-[10px] text-gray-600 dark:bg-gray-900/70 dark:text-gray-300">
+                                                            <div className="mt-1 flex max-w-full flex-wrap items-center gap-1 rounded-md bg-[#f0f2f5] px-2 py-1 text-[10px] text-[#54656f] dark:bg-gray-900/70 dark:text-gray-300">
                                                                 {(() => {
                                                                     const meta = activityMeta(conversation.activity?.event_type);
                                                                     const Icon = meta.Icon;
@@ -826,7 +824,7 @@ export default function ConversationsIndex({
                                                             <Badge variant={conversation.status === 'open' ? 'success' : 'default'} className="px-1.5 py-0.5 text-[10px]">
                                                                 {conversation.status}
                                                             </Badge>
-                                                            <div className="flex items-center gap-1 text-[11px] text-gray-500">
+                                                            <div className="flex items-center gap-1 text-[11px] text-[#667781]">
                                                                 <Phone className="h-3 w-3" />
                                                                 {conversation.connection.name}
                                                             </div>
@@ -893,7 +891,7 @@ export default function ConversationsIndex({
                                                                     }
                                                                 );
                                                             }}
-                                                            className="w-full rounded-lg border-gray-300 px-2 py-1.5 text-[11px] focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 sm:w-auto sm:max-w-[132px] truncate"
+                                                            className="w-full rounded-lg border-[#d1d7db] bg-white px-2 py-1.5 text-[11px] focus:border-[#00a884] focus:ring-[#00a884] dark:border-gray-600 dark:bg-gray-800 sm:w-auto sm:max-w-[132px] truncate"
                                                             title="Assign to"
                                                         >
                                                             <option value="">Unassigned</option>
@@ -913,23 +911,32 @@ export default function ConversationsIndex({
                         </div>
                     </section>
 
-                    <section className="hidden bg-gray-50 lg:flex lg:items-center lg:justify-center dark:bg-gray-950/40">
+                    <section
+                        className="hidden lg:flex lg:items-center lg:justify-center dark:bg-gray-950/40"
+                        style={{
+                            backgroundColor: '#efeae2',
+                            backgroundImage:
+                                'radial-gradient(rgba(17,27,33,0.035) 1px, transparent 1px), radial-gradient(rgba(17,27,33,0.02) 1px, transparent 1px)',
+                            backgroundPosition: '0 0, 12px 12px',
+                            backgroundSize: '24px 24px',
+                        }}
+                    >
                         <div className="mx-auto max-w-md px-8 py-10 text-center">
-                            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-sm dark:bg-gray-900">
-                                <MessageSquare className="h-8 w-8 text-blue-600" />
+                            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/90 shadow-sm dark:bg-gray-900">
+                                <MessageSquare className="h-8 w-8 text-[#00a884]" />
                             </div>
-                            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Choose a chat</h2>
-                            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                            <h2 className="text-xl font-semibold text-[#111b21] dark:text-gray-100">Choose a chat</h2>
+                            <p className="mt-2 text-sm text-[#54656f] dark:text-gray-400">
                                 Pick a conversation from the left to read messages, reply, and manage assignments.
                             </p>
                             <div className="mt-6 space-y-3 text-left">
-                                <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-                                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Start with open chats</p>
-                                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Work through unread conversations first so replies do not get delayed.</p>
+                                <div className="rounded-2xl border border-[#d1d7db] bg-white/90 p-4 dark:border-gray-800 dark:bg-gray-900">
+                                    <p className="text-sm font-medium text-[#111b21] dark:text-gray-100">Start with open chats</p>
+                                    <p className="mt-1 text-sm text-[#54656f] dark:text-gray-400">Work through unread conversations first so replies do not get delayed.</p>
                                 </div>
-                                <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-                                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Use filters when the list grows</p>
-                                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Filter by assignee, status, or number to keep the inbox focused.</p>
+                                <div className="rounded-2xl border border-[#d1d7db] bg-white/90 p-4 dark:border-gray-800 dark:bg-gray-900">
+                                    <p className="text-sm font-medium text-[#111b21] dark:text-gray-100">Use filters when the list grows</p>
+                                    <p className="mt-1 text-sm text-[#54656f] dark:text-gray-400">Filter by assignee, status, or number to keep the inbox focused.</p>
                                 </div>
                             </div>
                         </div>
