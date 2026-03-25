@@ -4,6 +4,8 @@ import {
     BarChart3,
     Bell,
     Bot,
+    ChevronDown,
+    ChevronRight,
     Code2,
     CreditCard,
     FileText,
@@ -19,7 +21,7 @@ import {
     X,
     Zap,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { getPlatformName, getLogoUrl } from '@/lib/branding';
 import { Input } from '@/Components/UI/Input';
@@ -62,6 +64,7 @@ export function Sidebar({ navigation, currentRoute, account, isOpen = false, onC
     const platformName = getPlatformName(branding);
     const logoUrl = getLogoUrl(branding);
     const [query, setQuery] = useState('');
+    const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
     const groupOrder = ['core', 'messaging', 'automation', 'ai', 'growth', 'billing', 'developer', 'other'] as const;
     const navOrder: string[] = [
@@ -95,6 +98,7 @@ export function Sidebar({ navigation, currentRoute, account, isOpen = false, onC
         billing: 'Billing',
         developer: 'Developer',
     };
+    const defaultExpandedGroups = new Set(['core', 'messaging', 'growth']);
 
     const tryRouteHref = (routeName: string): string | null => {
         try {
@@ -131,6 +135,40 @@ export function Sidebar({ navigation, currentRoute, account, isOpen = false, onC
         ...groupOrder.filter((g) => groupedNav[g]),
         ...Object.keys(groupedNav).filter((g) => !groupOrder.includes(g as any)).sort((a, b) => a.localeCompare(b)),
     ];
+
+    useEffect(() => {
+        try {
+            const raw = window.localStorage.getItem('tenant-sidebar-groups');
+            if (raw) {
+                setCollapsedGroups(JSON.parse(raw));
+            }
+        } catch {
+            setCollapsedGroups({});
+        }
+    }, []);
+
+    const persistGroups = (next: Record<string, boolean>) => {
+        setCollapsedGroups(next);
+        try {
+            window.localStorage.setItem('tenant-sidebar-groups', JSON.stringify(next));
+        } catch {
+            // no-op
+        }
+    };
+
+    const toggleGroup = (group: string) => {
+        const next = {
+            ...collapsedGroups,
+            [group]: !isGroupExpanded(group),
+        };
+        persistGroups(next);
+    };
+
+    function isGroupExpanded(group: string): boolean {
+        if (query.trim() !== '') return true;
+        if (collapsedGroups[group] !== undefined) return collapsedGroups[group];
+        return defaultExpandedGroups.has(group);
+    }
 
     const sortNavItems = (items: NavItem[]) => {
         return [...items].sort((a, b) => {
@@ -213,15 +251,23 @@ export function Sidebar({ navigation, currentRoute, account, isOpen = false, onC
                     const items = sortNavItems(groupedNav[group] || []);
                     const validItems = items.map(renderNavItem).filter((item) => item !== null);
                     if (validItems.length === 0) return null;
+                    const expanded = isGroupExpanded(group);
 
                     return (
                         <div key={group}>
-                            {groupLabels[group] && (
-                                <h3 className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400 dark:text-gray-500">
-                                    {groupLabels[group]}
-                                </h3>
-                            )}
-                            <div className="space-y-1">{validItems}</div>
+                            <button
+                                type="button"
+                                onClick={() => toggleGroup(group)}
+                                className="mb-2 flex w-full items-center justify-between px-3 text-left"
+                            >
+                                <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400 dark:text-gray-500">
+                                    {groupLabels[group] || group}
+                                </span>
+                                <span className="text-gray-400 dark:text-gray-500">
+                                    {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                </span>
+                            </button>
+                            {expanded && <div className="space-y-1">{validItems}</div>}
                         </div>
                     );
                 })}

@@ -55,6 +55,15 @@ class HandleInertiaRequests extends Middleware
 
                 $moduleRegistry = app(\App\Core\Modules\ModuleRegistry::class);
                 $navigation = $moduleRegistry->getNavigationForAccount($account);
+                $navigation = array_values(array_filter($navigation, function ($item) {
+                    $href = $item['href'] ?? null;
+
+                    return ! in_array($href, [
+                        'app.developer.index',
+                        'app.activity-logs',
+                        'app.alerts.index',
+                    ], true);
+                }));
 
                 // Chat agents (role === 'member') only see Inbox + AI Assistant
                 if ($accountRole === 'member') {
@@ -78,16 +87,6 @@ class HandleInertiaRequests extends Middleware
                             'label' => 'Team',
                             'href' => 'app.team.index',
                             'icon' => 'Users',
-                            'group' => 'core'],
-                        [
-                            'label' => 'Activity Logs',
-                            'href' => 'app.activity-logs',
-                            'icon' => 'Activity',
-                            'group' => 'core'],
-                        [
-                            'label' => 'Alerts',
-                            'href' => 'app.alerts.index',
-                            'icon' => 'Bell',
                             'group' => 'core'],
                         [
                             'label' => 'Settings',
