@@ -442,7 +442,7 @@ export default function TemplatesSend({
                                             required
                                         />
                                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                            This template requires a media header. Provide a public URL accessible by Meta.
+                                            This template needs a media file link that WhatsApp can reach.
                                         </p>
                                         <InputError message={errors.header_media_url} className="mt-2" />
                                     </div>
@@ -544,7 +544,7 @@ export default function TemplatesSend({
                                 </div>
                                 <div>
                                     <CardTitle className="text-xl font-bold">Recent Send Attempts</CardTitle>
-                                    <CardDescription>Latest status and exact Meta/API error details</CardDescription>
+                                    <CardDescription>Recent sends and what happened next</CardDescription>
                                 </div>
                             </div>
                         </CardHeader>

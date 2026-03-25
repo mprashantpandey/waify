@@ -48,7 +48,7 @@ export default function ChatbotsIndex({
     };
 
     const deleteBot = (botId: number, botName: string) => {
-        if (!confirm(`Delete bot "${botName}"? This will also delete flows and execution logs.`)) {
+        if (!confirm(`Delete bot "${botName}"? This will also delete its flows and activity history.`)) {
             return;
         }
         router.post(route('app.chatbots.destroy.post', { bot: botId }), { _method: 'delete' }, {
@@ -67,7 +67,7 @@ export default function ChatbotsIndex({
                             Chatbots
                         </h1>
                         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                            Build automation bots for WhatsApp conversations
+                            Build reply flows for WhatsApp conversations
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -98,7 +98,7 @@ export default function ChatbotsIndex({
                                 No chatbots yet
                             </h3>
                             <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-md mx-auto">
-                                Create your first chatbot to automate WhatsApp conversations and improve customer engagement.
+                                Create your first reply flow to answer customers faster on WhatsApp.
                             </p>
                             <Link href={route('app.chatbots.create', {})}>
                                 <Button className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 shadow-lg shadow-purple-500/50">
@@ -146,7 +146,7 @@ export default function ChatbotsIndex({
                                         <div className="p-3 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl">
                                             <div className="flex items-center gap-2 mb-1">
                                                 <Activity className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                                                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Executions</span>
+                                                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Runs</span>
                                             </div>
                                             <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
                                                 {bot.executions_count}
@@ -158,7 +158,7 @@ export default function ChatbotsIndex({
                                         <div className="flex items-center gap-2 p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-700">
                                             <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                                             <span className="text-xs font-medium text-amber-800 dark:text-amber-200">
-                                                Active but no runnable flow
+                                                Active but not ready to reply
                                             </span>
                                         </div>
                                     )}
@@ -167,7 +167,7 @@ export default function ChatbotsIndex({
                                         <div className="flex items-center gap-2 p-2 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
                                             <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
                                             <span className="text-xs font-medium text-red-800 dark:text-red-200">
-                                                {bot.errors_count} error{bot.errors_count !== 1 ? 's' : ''}
+                                                {bot.errors_count} issue{bot.errors_count !== 1 ? 's' : ''}
                                             </span>
                                         </div>
                                     )}

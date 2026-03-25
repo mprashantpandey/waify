@@ -211,7 +211,7 @@ export default function EmbeddedWizard({
             setWizardState(prev => ({
                 ...prev,
                 step: 'error',
-                error: 'Embedded Signup is not configured yet. Please contact support or use manual setup.'
+                error: 'WhatsApp setup is not ready yet. Please try again shortly.'
             }));
             return;
         }
@@ -238,7 +238,7 @@ export default function EmbeddedWizard({
             setWizardState(prev => ({
                 ...prev,
                 step: 'init',
-                message: 'Meta SDK loaded. Click "Start Setup" to begin.'
+                message: 'WhatsApp setup is ready. Click "Start setup" to begin.'
             }));
             emitTelemetry({ step: 'sdk_ready', status: 'progress', message: 'Meta SDK initialized' });
         };
@@ -756,7 +756,7 @@ export default function EmbeddedWizard({
                             >
                                 <p className="text-sm font-semibold">Existing WhatsApp Business App number</p>
                                 <p className={`mt-1 text-xs ${signupVariant === 'existing_business_app' ? 'text-gray-100 dark:text-gray-700' : 'text-gray-500 dark:text-gray-400'}`}>
-                                    Meta coexistence-style onboarding for a current WhatsApp Business App number.
+                                    Keep using your current WhatsApp Business App number while connecting it here.
                                 </p>
                             </button>
                         </div>
@@ -765,11 +765,11 @@ export default function EmbeddedWizard({
                             <div className="space-y-1 text-sm">
                                 <p className="font-medium text-gray-900 dark:text-white">
                                     {signupVariant === 'existing_business_app'
-                                        ? 'Zyptos will open the Meta flow for an existing WhatsApp Business App number.'
-                                        : 'Zyptos will open the standard Meta flow for a new Cloud API number.'}
+                                        ? 'Zyptos will open the Meta flow for your existing WhatsApp Business App number.'
+                                        : 'Zyptos will open the standard Meta flow for a new WhatsApp number.'}
                                 </p>
                                 <p className="text-gray-600 dark:text-gray-400">
-                                    After Meta returns the code, WABA ID, and phone number ID, Zyptos will continue setup automatically.
+                                    After Meta returns the details, Zyptos will continue setup automatically.
                                 </p>
                             </div>
                         </Alert>
@@ -784,7 +784,7 @@ export default function EmbeddedWizard({
                                     <p className="text-sm text-red-600 dark:text-red-400">{wizardState.error}</p>
                                     <div className="mt-3 flex flex-wrap gap-2">
                                         <Button type="button" size="sm" variant="secondary" onClick={startWizard}>
-                                            Retry Authorization
+                                            Try again
                                         </Button>
                                         {(embeddedForm.data.code || embeddedForm.data.access_token) && (
                                             <Button
@@ -793,7 +793,7 @@ export default function EmbeddedWizard({
                                                 onClick={() => createConnection('manual')}
                                                 disabled={embeddedForm.processing}
                                             >
-                                                Retry Connection Create
+                                                Save connection again
                                             </Button>
                                         )}
                                     </div>
@@ -803,10 +803,10 @@ export default function EmbeddedWizard({
 
                         <div className="grid grid-cols-2 gap-3 pt-2 md:grid-cols-4">
                             {[
-                                { key: 'auth', label: 'Authorize', icon: Key },
-                                { key: 'code-exchange', label: 'Exchange', icon: Sparkles },
-                                { key: 'waba-lookup', label: 'Lookup', icon: Phone },
-                                { key: 'complete', label: 'Complete', icon: CheckCircle2 },
+                                { key: 'auth', label: 'Sign in', icon: Key },
+                                { key: 'code-exchange', label: 'Confirm', icon: Sparkles },
+                                { key: 'waba-lookup', label: 'Load details', icon: Phone },
+                                { key: 'complete', label: 'Ready', icon: CheckCircle2 },
                             ].map(({ key, label, icon: Icon }) => {
                                 const isActive = wizardState.step === key;
                                 const isCompleted = ['waba-lookup', 'phone-lookup', 'subscribe', 'register', 'complete'].includes(wizardState.step) &&
@@ -864,7 +864,7 @@ export default function EmbeddedWizard({
                                     Start with Meta
                                 </h3>
                                 <p className="mt-2 max-w-xl text-sm text-gray-600 dark:text-gray-400">
-                                    A Meta popup will ask you to sign in and choose your WhatsApp Business Account. When it closes, the details will appear here automatically.
+                                    A Meta popup will ask you to sign in and choose your WhatsApp account. When it closes, the details will appear here automatically.
                                 </p>
                                 <Button
                                     onClick={startWizard}
@@ -889,7 +889,7 @@ export default function EmbeddedWizard({
                             <div className="rounded-xl border border-gray-200 bg-gray-50 p-6 text-center dark:border-gray-800 dark:bg-gray-900/40">
                                 <Loader2 className="mx-auto mb-4 h-10 w-10 animate-spin text-gray-700 dark:text-gray-200" />
                                 <h3 className="mb-2 text-lg font-semibold text-gray-900 dark:text-gray-100">
-                                    {wizardState.step === 'auth' ? 'Authorizing with Meta...' : 'Exchanging authorization code...'}
+                                    {wizardState.step === 'auth' ? 'Signing in with Meta...' : 'Confirming your setup...'}
                                 </h3>
                                 <p className="text-sm text-gray-600 dark:text-gray-400">
                                     {wizardState.message}
@@ -907,14 +907,14 @@ export default function EmbeddedWizard({
                                         value={embeddedForm.data.name}
                                         className="mt-1 block w-full rounded-xl"
                                         onChange={(e) => embeddedForm.setData('name', e.target.value)}
-                                        placeholder="My Meta WhatsApp Connection"
+                                        placeholder="My WhatsApp connection"
                                     />
                                     <InputError message={(embeddedForm.errors as any)?.name} className="mt-2" />
                                 </div>
 
                                 <div className="grid md:grid-cols-2 gap-4">
                                     <div>
-                                        <InputLabel htmlFor="wizard_waba" value="WhatsApp Business Account ID" className="text-sm font-semibold mb-2" />
+                                        <InputLabel htmlFor="wizard_waba" value="WhatsApp account ID" className="text-sm font-semibold mb-2" />
                                         <TextInput
                                             id="wizard_waba"
                                             type="text"
@@ -927,12 +927,12 @@ export default function EmbeddedWizard({
                                         {wizardState.data.wabaId && (
                                             <p className="mt-1 text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
                                                 <CheckCircle2 className="h-3 w-3" />
-                                                Auto-detected from Meta
+                                                Filled in automatically
                                             </p>
                                         )}
                                     </div>
                                     <div>
-                                        <InputLabel htmlFor="wizard_phone_id" value="Phone Number ID" className="text-sm font-semibold mb-2" />
+                                        <InputLabel htmlFor="wizard_phone_id" value="WhatsApp number ID" className="text-sm font-semibold mb-2" />
                                         <TextInput
                                             id="wizard_phone_id"
                                             type="text"
@@ -945,14 +945,14 @@ export default function EmbeddedWizard({
                                         {wizardState.data.phoneNumberId && (
                                             <p className="mt-1 text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
                                                 <CheckCircle2 className="h-3 w-3" />
-                                                Auto-detected from Meta
+                                                Filled in automatically
                                             </p>
                                         )}
                                     </div>
                                 </div>
 
                                 <div>
-                                    <InputLabel htmlFor="wizard_business_phone" value="Business Phone (Optional)" className="text-sm font-semibold mb-2" />
+                                    <InputLabel htmlFor="wizard_business_phone" value="Business phone (optional)" className="text-sm font-semibold mb-2" />
                                     <TextInput
                                         id="wizard_business_phone"
                                         type="text"
@@ -965,7 +965,7 @@ export default function EmbeddedWizard({
                                     {wizardState.data.businessPhone && (
                                         <p className="mt-1 text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
                                             <CheckCircle2 className="h-3 w-3" />
-                                            Auto-detected from Meta
+                                            Filled in automatically
                                         </p>
                                     )}
                                 </div>
@@ -982,7 +982,7 @@ export default function EmbeddedWizard({
                                         maxLength={6}
                                     />
                                     <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                        Provide PIN to register the phone number immediately after signup.
+                                        Add the PIN only if your number setup asks for one.
                                     </p>
                                 </div>
 

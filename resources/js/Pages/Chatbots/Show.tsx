@@ -709,10 +709,10 @@ export default function ChatbotsShow({
                         <Card className="border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 shadow-none">
                             <CardContent className="p-4">
                                 <div className="text-sm font-medium text-amber-800 dark:text-amber-100">
-                                    This bot is active but has no runnable flow.
+                                    This bot is active but not ready to reply yet.
                                 </div>
                                 <div className="text-xs text-amber-700 dark:text-amber-200 mt-1">
-                                    Add an enabled flow with at least one executable step, like an action or a delay.
+                                    Add one enabled flow with at least one reply or action step.
                                 </div>
                             </CardContent>
                         </Card>
@@ -725,8 +725,8 @@ export default function ChatbotsShow({
                                     <Bot className="h-5 w-5 text-white" />
                                 </div>
                                 <div>
-                                    <CardTitle className="text-xl font-bold">Bot Settings</CardTitle>
-                                    <CardDescription>Update your chatbot configuration</CardDescription>
+                                    <CardTitle className="text-xl font-bold">Bot settings</CardTitle>
+                                    <CardDescription>Update how this bot replies and when it runs</CardDescription>
                                 </div>
                             </div>
                         </CardHeader>
@@ -1526,7 +1526,7 @@ export default function ChatbotsShow({
                                 )}
                                 {nodeForm.type === 'webhook' && !supportAccess && (
                                     <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
-                                        Webhook steps are managed by Zyptos support and are hidden from the tenant panel.
+                                        Advanced online steps are managed in the background and are hidden here.
                                     </div>
                                 )}
 

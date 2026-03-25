@@ -579,7 +579,7 @@ export default function ConnectionsCreate({
                                     >
                                         <p className="text-sm font-semibold">Use an existing WhatsApp Business App number</p>
                                         <p className={`mt-1 text-xs ${signupVariant === 'existing_business_app' ? 'text-gray-100 dark:text-gray-700' : 'text-gray-500 dark:text-gray-400'}`}>
-                                            Use Meta&apos;s coexistence flow for an existing WhatsApp Business App phone number.
+                                            Keep using your current WhatsApp Business App number while connecting it here.
                                         </p>
                                     </button>
                                 </div>
@@ -605,7 +605,7 @@ export default function ConnectionsCreate({
                                         : 'Selected flow: new WhatsApp API number'}
                                 </p>
                                 <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-                                    Zyptos will launch the matching Meta onboarding flow and continue setup automatically after Meta returns the code and asset IDs.
+                                    Zyptos will open the matching WhatsApp setup flow and finish the connection automatically when Meta returns the details.
                                 </p>
                             </div>
 
@@ -619,7 +619,7 @@ export default function ConnectionsCreate({
                             {hasEmbeddedAuthData && !hasEmbeddedResolvedIds && (
                                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
                                     <p className="text-sm text-amber-800 dark:text-amber-200">
-                                        Meta authorization is complete. If WhatsApp Business Account ID / Phone Number ID stay empty, click <strong>Create Connection</strong> and the server will auto-resolve them using your Meta authorization.
+                                        Login is complete. If these details stay empty, click <strong>Create Connection</strong> and Zyptos will fill them in automatically.
                                     </p>
                                 </div>
                             )}
@@ -639,7 +639,7 @@ export default function ConnectionsCreate({
 
                                 <div className="grid md:grid-cols-2 gap-4">
                                     <div>
-                                        <InputLabel htmlFor="embedded_waba" value="WhatsApp Business Account ID" className="text-sm font-semibold mb-2" />
+                                    <InputLabel htmlFor="embedded_waba" value="WhatsApp account ID" className="text-sm font-semibold mb-2" />
                                         <TextInput
                                             id="embedded_waba"
                                             type="text"
@@ -650,7 +650,7 @@ export default function ConnectionsCreate({
                                         />
                                     </div>
                                     <div>
-                                        <InputLabel htmlFor="embedded_phone_id" value="Phone Number ID" className="text-sm font-semibold mb-2" />
+                                    <InputLabel htmlFor="embedded_phone_id" value="WhatsApp number ID" className="text-sm font-semibold mb-2" />
                                         <TextInput
                                             id="embedded_phone_id"
                                             type="text"
@@ -686,7 +686,7 @@ export default function ConnectionsCreate({
                                         maxLength={6}
                                     />
                                     <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                        Provide PIN to register the phone number immediately after signup.
+                                        Add the PIN only if your number setup asks for one.
                                     </p>
                                 </div>
 
@@ -714,7 +714,7 @@ export default function ConnectionsCreate({
                                     <Info className="h-5 w-5" />
                                 </span>
                                 <div>
-                                    <CardTitle className="text-lg font-semibold">Meta signup unavailable</CardTitle>
+                                    <CardTitle className="text-lg font-semibold">WhatsApp setup is unavailable</CardTitle>
                                     <CardDescription>
                                         {embeddedSignup?.enabled === false
                                             ? 'Disabled by your platform administrator'
@@ -734,7 +734,7 @@ export default function ConnectionsCreate({
                                     href={route('contact')}
                                     className="inline-flex items-center text-sm font-semibold text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
                                 >
-                                    Contact us
+                                    Get help
                                 </Link>
                             </div>
                         </CardContent>
@@ -746,10 +746,10 @@ export default function ConnectionsCreate({
                         <div className="rounded-xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-800 dark:bg-gray-900/40">
                             <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Only Meta direct connection is available</p>
                             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                                Manual token-based connection setup has been removed from the user panel. This keeps setup simpler and avoids invalid or partially configured WhatsApp connections.
+                                Zyptos uses the official WhatsApp setup flow here. This keeps setup simpler and avoids partial connections.
                             </p>
                             <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-                                If Meta Embedded Signup is unavailable for your account, contact support and we will help you complete the connection.
+                                If the Meta setup does not open, use the help link above.
                             </p>
                         </div>
                     </CardContent>

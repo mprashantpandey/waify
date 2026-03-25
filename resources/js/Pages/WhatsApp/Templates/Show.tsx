@@ -413,7 +413,7 @@ export default function TemplatesShow({
                     <Alert variant="error" className="border-red-200 dark:border-red-800">
                         <AlertCircle className="h-5 w-5" />
                         <div>
-                            <h3 className="font-semibold text-red-800 dark:text-red-200 mb-1">Meta Rejection Detail</h3>
+                            <h3 className="font-semibold text-red-800 dark:text-red-200 mb-1">More detail</h3>
                             <p className="text-sm text-red-600 dark:text-red-400">{liveTemplate.meta_rejection_reason}</p>
                         </div>
                     </Alert>
@@ -423,7 +423,7 @@ export default function TemplatesShow({
                     <Alert variant="error" className="border-red-200 dark:border-red-800">
                         <AlertCircle className="h-5 w-5" />
                         <div>
-                            <h3 className="font-semibold text-red-800 dark:text-red-200 mb-1">Meta Error</h3>
+                            <h3 className="font-semibold text-red-800 dark:text-red-200 mb-1">WhatsApp returned an error</h3>
                             <p className="text-sm text-red-600 dark:text-red-400">{liveTemplate.last_meta_error}</p>
                         </div>
                     </Alert>
@@ -433,12 +433,12 @@ export default function TemplatesShow({
                     <Alert variant="warning">
                         <AlertCircle className="h-5 w-5" />
                         <div className="space-y-1">
-                            <h3 className="font-semibold text-amber-900 dark:text-amber-100">Template Sendability Warning</h3>
+                            <h3 className="font-semibold text-amber-900 dark:text-amber-100">Check this template before sending</h3>
                             {liveTemplate.is_remote_deleted && (
-                                <p className="text-sm text-amber-800 dark:text-amber-200">This template was not found in the latest Meta sync. Run Sync from Meta before sending.</p>
+                                <p className="text-sm text-amber-800 dark:text-amber-200">This template is no longer available on WhatsApp. Refresh templates before sending.</p>
                             )}
                             {liveTemplate.is_stale && !liveTemplate.is_remote_deleted && (
-                                <p className="text-sm text-amber-800 dark:text-amber-200">Template status is stale. Refresh status or run Sync from Meta before sending.</p>
+                                <p className="text-sm text-amber-800 dark:text-amber-200">This template needs a fresh status check before sending.</p>
                             )}
                             {liveTemplate.sendability && !liveTemplate.sendability.ok && liveTemplate.sendability.reason && (
                                 <p className="text-sm text-amber-800 dark:text-amber-200">{liveTemplate.sendability.reason}</p>
@@ -676,7 +676,7 @@ export default function TemplatesShow({
                             </div>
                             <div>
                                 <CardTitle className="text-xl font-bold">Template Details</CardTitle>
-                                <CardDescription>Metadata and sync information</CardDescription>
+                                <CardDescription>Template status and saved details</CardDescription>
                             </div>
                         </div>
                     </CardHeader>
