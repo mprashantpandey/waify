@@ -162,6 +162,7 @@ class ConnectionTest extends TestCase
         ]);
 
         $meta = Mockery::mock(MetaGraphService::class);
+        $meta->shouldReceive('appAccessToken')->times(2)->andReturnNull();
         $meta->shouldReceive('debugToken')->once()->with('embedded-token', 'embedded-token')->andReturn([
             'app_id' => 'app-id',
             'type' => 'USER',
@@ -169,7 +170,6 @@ class ConnectionTest extends TestCase
             'granular_scopes' => [],
             'scopes' => ['whatsapp_business_management'],
         ]);
-        $meta->shouldReceive('appAccessToken')->once()->andReturnNull();
         $meta->shouldReceive('ensureAppSubscribedToWaba')->once()->with('waba-1', 'embedded-token')->andReturn(['already_subscribed' => false]);
         $meta->shouldReceive('getApiVersion')->andReturn('v21.0');
         $meta->shouldReceive('getPhoneNumberDetails')->once()->andReturn([
@@ -225,7 +225,7 @@ class ConnectionTest extends TestCase
             'granular_scopes' => [],
             'scopes' => ['whatsapp_business_management'],
         ]);
-        $meta->shouldReceive('appAccessToken')->once()->andReturnNull();
+        $meta->shouldReceive('appAccessToken')->times(2)->andReturnNull();
         $meta->shouldReceive('getApiVersion')->andReturn('v21.0');
         $meta->shouldReceive('getPhoneNumberDetails')->once()->andReturn([
             'display_phone_number' => '+91 99999 00000',
@@ -265,14 +265,14 @@ class ConnectionTest extends TestCase
         ]);
 
         $meta = Mockery::mock(MetaGraphService::class);
-        $meta->shouldReceive('debugToken')->once()->with('embedded-token', 'embedded-token')->andReturn([
+        $meta->shouldReceive('appAccessToken')->times(2)->andReturn('app-id|app-secret');
+        $meta->shouldReceive('debugToken')->once()->with('embedded-token', 'app-id|app-secret')->andReturn([
             'app_id' => 'app-id',
             'type' => 'USER',
             'application' => 'Zyptos',
             'granular_scopes' => [],
             'scopes' => ['whatsapp_business_management'],
         ]);
-        $meta->shouldReceive('appAccessToken')->once()->andReturn('app-id|app-secret');
         $meta->shouldReceive('ensureAppSubscribedToWaba')->once()->with('waba-app-token', 'app-id|app-secret')->andReturn(['already_subscribed' => false]);
         $meta->shouldReceive('getApiVersion')->andReturn('v21.0');
         $meta->shouldReceive('getPhoneNumberDetails')->once()->andReturn([
@@ -306,6 +306,68 @@ class ConnectionTest extends TestCase
             'account_id' => $this->account->id,
             'waba_id' => 'waba-app-token',
             'phone_number_id' => 'pn-app-token',
+            'provisioning_step' => 'connection_ready',
+            'provisioning_status' => 'completed',
+        ]);
+    }
+
+    public function test_embedded_signup_uses_app_access_token_for_debug_token(): void
+    {
+        config([
+            'whatsapp.meta.app_id' => 'app-id',
+            'whatsapp.meta.app_secret' => 'app-secret',
+            'whatsapp.meta.embedded_signup_config_id' => 'config-id',
+        ]);
+
+        $meta = Mockery::mock(MetaGraphService::class);
+        $meta->shouldReceive('exchangeCodeForToken')->once()->with('auth-code', null)->andReturn([
+            'access_token' => 'embedded-token',
+        ]);
+        $meta->shouldReceive('appAccessToken')->times(2)->andReturn('app-id|app-secret');
+        $meta->shouldReceive('debugToken')->once()->with('embedded-token', 'app-id|app-secret')->andReturn([
+            'app_id' => 'app-id',
+            'type' => 'USER',
+            'application' => 'Zyptos',
+            'granular_scopes' => [],
+            'scopes' => ['whatsapp_business_management'],
+        ]);
+        $meta->shouldReceive('subscribeAppToWaba')->once()->with('waba-debug', 'app-id|app-secret')->andReturn(['success' => true]);
+        $meta->shouldReceive('getApiVersion')->andReturn('v21.0');
+        $meta->shouldReceive('getPhoneNumberDetails')->once()->andReturn([
+            'display_phone_number' => '+91 99999 00000',
+        ]);
+        $meta->shouldReceive('ensureAppSubscribedToWaba')->once()->with('waba-debug', 'app-id|app-secret')->andReturn([
+            'already_subscribed' => true,
+        ]);
+        $this->instance(MetaGraphService::class, $meta);
+
+        $sync = Mockery::mock(ConnectionHealthSyncService::class);
+        $sync->shouldReceive('syncConnection')->once()->andReturnUsing(function (WhatsAppConnection $connection) {
+            return new WhatsAppConnectionHealthSnapshot([
+                'id' => 778,
+                'account_id' => $connection->account_id,
+                'whatsapp_connection_id' => $connection->id,
+                'source' => 'embedded_signup',
+                'health_state' => 'healthy',
+                'captured_at' => now(),
+            ]);
+        });
+        $this->instance(ConnectionHealthSyncService::class, $sync);
+
+        $response = $this->actingAs($this->user)
+            ->post(route('app.whatsapp.connections.store-embedded', ['account' => $this->account->slug]), [
+                'name' => 'Debug Token Connection',
+                'code' => 'auth-code',
+                'code_source' => 'fb_login_callback',
+                'session_waba_id' => 'waba-debug',
+                'session_phone_number_id' => 'pn-debug',
+            ]);
+
+        $response->assertRedirect(route('app.whatsapp.connections.index'));
+        $this->assertDatabaseHas('whatsapp_connections', [
+            'account_id' => $this->account->id,
+            'waba_id' => 'waba-debug',
+            'phone_number_id' => 'pn-debug',
             'provisioning_step' => 'connection_ready',
             'provisioning_status' => 'completed',
         ]);
@@ -360,7 +422,7 @@ class ConnectionTest extends TestCase
         $meta->shouldReceive('getPhoneNumberDetails')->once()->with('pn-embedded', 'embedded-token')->andReturn([
             'display_phone_number' => '+91 99999 00000',
         ]);
-        $meta->shouldReceive('appAccessToken')->once()->andReturnNull();
+        $meta->shouldReceive('appAccessToken')->times(2)->andReturnNull();
         $meta->shouldReceive('ensureAppSubscribedToWaba')->once()->with('waba-embedded', 'embedded-token')->andReturn([
             'already_subscribed' => false,
         ]);
@@ -450,7 +512,7 @@ class ConnectionTest extends TestCase
         $meta->shouldReceive('getPhoneNumberDetails')->once()->with('pn-session', 'embedded-token')->andReturn([
             'display_phone_number' => '+91 99999 00000',
         ]);
-        $meta->shouldReceive('appAccessToken')->once()->andReturnNull();
+        $meta->shouldReceive('appAccessToken')->times(2)->andReturnNull();
         $meta->shouldReceive('ensureAppSubscribedToWaba')->once()->with('waba-session', 'embedded-token')->andReturn([
             'already_subscribed' => false,
         ]);

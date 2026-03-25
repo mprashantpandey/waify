@@ -336,10 +336,11 @@ class ConnectionController extends Controller
                 FILTER_VALIDATE_BOOLEAN
             );
             $effectiveToken = $systemUserToken !== '' ? $systemUserToken : $accessToken;
+            $appAccessToken = $this->metaGraphService->appAccessToken();
 
             $wabaId = ($validated['session_waba_id'] ?? null) ?: ($validated['waba_id'] ?? null);
             if (!$wabaId) {
-                $debugData = $this->metaGraphService->debugToken($accessToken, $effectiveToken);
+                $debugData = $this->metaGraphService->debugToken($accessToken, $appAccessToken ?: $effectiveToken);
                 $wabaId = $this->extractWabaIdFromDebugToken($debugData);
             }
 
@@ -383,7 +384,7 @@ class ConnectionController extends Controller
 
             // Subscribe app to WABA (best practice)
             try {
-                $this->metaGraphService->subscribeAppToWaba($wabaId, $effectiveToken);
+                $this->metaGraphService->subscribeAppToWaba($wabaId, $appAccessToken ?: $effectiveToken);
             } catch (\Throwable $e) {
                 Log::channel('whatsapp')->warning('Subscribe app to WABA failed (continuing)', [
                     'waba_id' => $wabaId,
@@ -397,7 +398,7 @@ class ConnectionController extends Controller
 
             $connectionName = ($validated['name'] ?? null) ?: ($businessPhone ? "WhatsApp {$businessPhone}" : 'WhatsApp Connection');
             $targetConnection = $existingByAssets;
-            $tokenDebugData = $this->metaGraphService->debugToken($accessToken, $accessToken);
+            $tokenDebugData = $this->metaGraphService->debugToken($accessToken, $appAccessToken ?: $effectiveToken);
             $tokenMetadata = [
                 'debug' => [
                     'app_id' => $tokenDebugData['app_id'] ?? null,
