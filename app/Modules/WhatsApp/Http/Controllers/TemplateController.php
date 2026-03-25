@@ -121,6 +121,38 @@ class TemplateController extends Controller
                 ];
             });
 
+        $archivedTemplates = WhatsAppTemplate::where('account_id', $account->id)
+            ->with('connection:id,name')
+            ->where(function ($query) {
+                $query->where('is_archived', true)
+                    ->orWhere('is_remote_deleted', true)
+                    ->orWhereRaw('LOWER(TRIM(COALESCE(sync_state, ?))) = ?', ['', 'missing_remote']);
+            })
+            ->orderByDesc('updated_at')
+            ->limit(20)
+            ->get()
+            ->map(function ($template) {
+                return [
+                    'id' => $template->id,
+                    'slug' => $template->slug,
+                    'name' => $template->name,
+                    'language' => $template->language,
+                    'status' => $template->status,
+                    'sync_state' => $template->sync_state,
+                    'is_archived' => (bool) ($template->is_archived ?? false),
+                    'is_remote_deleted' => (bool) ($template->is_remote_deleted ?? false),
+                    'last_meta_error' => $template->last_meta_error,
+                    'meta_rejection_reason' => $template->meta_rejection_reason,
+                    'last_meta_sync_at' => $template->last_meta_sync_at?->toIso8601String(),
+                    'updated_at' => $template->updated_at?->toIso8601String(),
+                    'connection' => $template->connection ? [
+                        'id' => $template->connection->id,
+                        'name' => $template->connection->name,
+                    ] : null,
+                ];
+            })
+            ->values();
+
         $connectionColumns = ['id', 'name'];
         if (Schema::hasColumn('whatsapp_connections', 'templates_last_synced_at')) {
             $connectionColumns[] = 'templates_last_synced_at';
@@ -148,6 +180,7 @@ class TemplateController extends Controller
         return Inertia::render('WhatsApp/Templates/Index', [
             'account' => $account,
             'templates' => $templates,
+            'archived_templates' => $archivedTemplates,
             'connections' => $connections,
             'sync_report' => session('sync_report'),
             'filters' => [

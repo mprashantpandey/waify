@@ -55,6 +55,25 @@ interface Template {
     } | null;
 }
 
+interface ArchivedTemplate {
+    id: number;
+    slug: string;
+    name: string;
+    language: string;
+    status: string;
+    sync_state?: string | null;
+    is_archived?: boolean;
+    is_remote_deleted?: boolean;
+    last_meta_error?: string | null;
+    meta_rejection_reason?: string | null;
+    last_meta_sync_at?: string | null;
+    updated_at?: string | null;
+    connection?: {
+        id: number;
+        name: string;
+    } | null;
+}
+
 interface Filters {
     connection: string;
     status: string;
@@ -66,6 +85,7 @@ interface Filters {
 export default function TemplatesIndex({
     account,
     templates,
+    archived_templates,
     connections,
     filters,
     sync_report}: {
@@ -75,6 +95,7 @@ export default function TemplatesIndex({
         links: any;
         meta: any;
     };
+    archived_templates: ArchivedTemplate[];
     connections: Array<{ id: number; name: string; last_synced_at?: string | null; last_sync_error?: string | null }>;
     filters: Filters;
     sync_report?: {
@@ -100,6 +121,7 @@ export default function TemplatesIndex({
     const [archiving, setArchiving] = useState<string | null>(null);
     const [deleting, setDeleting] = useState<string | null>(null);
     const [syncing, setSyncing] = useState(false);
+    const [showArchivedTemplates, setShowArchivedTemplates] = useState(false);
     const hasConnections = connections.length > 0;
 
     const buildFailedSendDiagnosticsBundle = (template: Template) => {
@@ -448,6 +470,100 @@ export default function TemplatesIndex({
                                 ))}
                             </div>
                         </CardContent>
+                    </Card>
+                )}
+
+                {archived_templates.length > 0 && (
+                    <Card className="border-0 shadow-lg">
+                        <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/10 dark:to-orange-900/10">
+                            <div className="flex items-center justify-between gap-4">
+                                <div>
+                                    <CardTitle>Recovery Visibility</CardTitle>
+                                    <CardDescription>
+                                        Templates hidden from the main list because they were archived locally, marked missing on Meta, or both.
+                                    </CardDescription>
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    onClick={() => setShowArchivedTemplates((value) => !value)}
+                                    className="rounded-xl"
+                                >
+                                    {showArchivedTemplates ? 'Hide Hidden Templates' : `Show Hidden Templates (${archived_templates.length})`}
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        {showArchivedTemplates && (
+                            <CardContent className="space-y-3">
+                                {archived_templates.map((template) => (
+                                    <div key={template.id} className="rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                            <div className="space-y-1">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                                        {template.name}
+                                                    </span>
+                                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                        {template.language}
+                                                    </span>
+                                                    {getStatusBadge(template.status)}
+                                                    {getSyncStateBadge(template.sync_state || undefined)}
+                                                    {template.is_archived && (
+                                                        <Badge variant="default" className="px-2 py-0.5 text-[10px]">
+                                                            Archived
+                                                        </Badge>
+                                                    )}
+                                                    {template.is_remote_deleted && (
+                                                        <Badge variant="danger" className="px-2 py-0.5 text-[10px]">
+                                                            Missing On Meta
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                                {template.connection?.name && (
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                        Connection: {template.connection.name}
+                                                    </p>
+                                                )}
+                                                {template.last_meta_sync_at && (
+                                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                        Last Meta sync: {new Date(template.last_meta_sync_at).toLocaleString()}
+                                                    </p>
+                                                )}
+                                                {template.last_meta_error && (
+                                                    <p className="text-xs text-red-600 dark:text-red-400">
+                                                        Error: {template.last_meta_error}
+                                                    </p>
+                                                )}
+                                                {template.meta_rejection_reason && template.meta_rejection_reason !== template.last_meta_error && (
+                                                    <p className="text-xs text-red-600 dark:text-red-400">
+                                                        Rejection: {template.meta_rejection_reason}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                <Link
+                                                    href={route('app.whatsapp.templates.show', { template: template.slug })}
+                                                >
+                                                    <Button variant="secondary" size="sm" className="rounded-lg">
+                                                        View
+                                                    </Button>
+                                                </Link>
+                                                {template.is_archived && (
+                                                    <Button
+                                                        variant="secondary"
+                                                        size="sm"
+                                                        className="rounded-lg"
+                                                        onClick={() => router.post(route('app.whatsapp.templates.restore', { template: template.slug }))}
+                                                    >
+                                                        Restore
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </CardContent>
+                        )}
                     </Card>
                 )}
 

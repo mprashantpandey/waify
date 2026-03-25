@@ -209,6 +209,42 @@ class TemplateTest extends TestCase
         );
     }
 
+    public function test_template_list_includes_hidden_archived_or_missing_templates_section(): void
+    {
+        WhatsAppTemplate::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_connection_id' => $this->connection->id,
+            'name' => 'visible_template',
+            'status' => 'approved',
+            'is_archived' => false,
+            'is_remote_deleted' => false,
+            'sync_state' => 'synced',
+        ]);
+
+        WhatsAppTemplate::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_connection_id' => $this->connection->id,
+            'name' => 'hidden_missing_template',
+            'status' => 'rejected',
+            'is_archived' => true,
+            'is_remote_deleted' => true,
+            'sync_state' => 'missing_remote',
+            'last_meta_error' => 'Template not found in latest Meta sync result.',
+        ]);
+
+        $this->actingAs($this->user)
+            ->get(route('app.whatsapp.templates.index', ['account' => $this->account->slug]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('WhatsApp/Templates/Index')
+                ->where('templates.data.0.name', 'visible_template')
+                ->where('archived_templates.0.name', 'hidden_missing_template')
+                ->where('archived_templates.0.is_archived', true)
+                ->where('archived_templates.0.is_remote_deleted', true)
+                ->where('archived_templates.0.sync_state', 'missing_remote')
+            );
+    }
+
     public function test_template_list_includes_latest_failed_send_reason(): void
     {
         $template = WhatsAppTemplate::factory()->create([
