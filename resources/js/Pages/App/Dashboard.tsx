@@ -15,8 +15,6 @@ import {
     Activity,
     ArrowRight,
     CheckCircle,
-    Sparkles,
-    Zap,
     Copy,
     QrCode
 } from 'lucide-react';
@@ -224,53 +222,71 @@ export default function Dashboard({
 
     const statCards = [
         {
-            label: 'Total Messages',
+            label: 'Messages',
             value: formatNumber(stats.messages.total),
             change: `${stats.messages.today} today`,
             icon: MessageSquare,
-            gradient: 'from-blue-500 to-blue-600',
-            bgGradient: 'from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20'},
+        },
         {
-            label: 'Active Connections',
+            label: 'Connections',
             value: stats.connections.active,
             change: `${stats.connections.total} total`,
             icon: LinkIcon,
-            gradient: 'from-green-500 to-emerald-600',
-            bgGradient: 'from-green-50 to-emerald-100 dark:from-green-900/20 dark:to-emerald-800/20'},
+        },
         {
-            label: 'Open Conversations',
+            label: 'Open chats',
             value: stats.conversations.open,
             change: `${stats.conversations.total} total`,
             icon: Inbox,
-            gradient: 'from-purple-500 to-purple-600',
-            bgGradient: 'from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20'},
+        },
         {
-            label: 'Team Members',
+            label: 'Team',
             value: stats.team.total_members,
             change: `${stats.team.admins} admins`,
             icon: Users,
-            gradient: 'from-amber-500 to-orange-600',
-            bgGradient: 'from-amber-50 to-orange-100 dark:from-amber-900/20 dark:to-orange-800/20'},
+        },
     ];
 
     return (
         <AppShell>
             <Head title="Dashboard" />
-            <div className="space-y-8">
-                {/* Header */}
-                <div className="flex items-center justify-between">
+            <div className="space-y-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div>
-                        <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
+                        <h1 className="text-3xl font-semibold text-gray-900 dark:text-gray-100">
                             Dashboard
                         </h1>
-                        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                            Welcome back
+                        <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
+                            See what needs attention, continue setup, and open the pages you use most.
                         </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                        {hasRoute('app.whatsapp.conversations.index') && (
+                            <Link href={route('app.whatsapp.conversations.index', {})}>
+                                <Button className="w-full sm:w-auto">Open Inbox</Button>
+                            </Link>
+                        )}
+                        {hasRoute('app.whatsapp.templates.create') && (
+                            <Link href={route('app.whatsapp.templates.create', {})}>
+                                <Button variant="secondary" className="w-full sm:w-auto">Create Template</Button>
+                            </Link>
+                        )}
+                        {hasRoute('app.broadcasts.create') && (
+                            <Link href={route('app.broadcasts.create', {})}>
+                                <Button variant="secondary" className="w-full sm:w-auto">Create Campaign</Button>
+                            </Link>
+                        )}
+                        {hasRoute('app.whatsapp.connections.index') && (
+                            <Link href={route('app.whatsapp.connections.index', {})}>
+                                <Button variant="secondary" className="w-full sm:w-auto">Manage Connection</Button>
+                            </Link>
+                        )}
                     </div>
                 </div>
 
                 {connection_alerts.length > 0 && (
-                    <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-900/20">
+                    <Card className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20">
                         <CardContent className="p-4">
                             <div className="flex items-start justify-between gap-4">
                                 <div>
@@ -296,101 +312,256 @@ export default function Dashboard({
                     </Card>
                 )}
 
-                {connection_heartbeat && connection_heartbeat.active_connections > 0 && (
-                    <Card className="border-0 shadow-lg">
-                        <CardHeader className="bg-gradient-to-r from-sky-50 to-cyan-100 dark:from-sky-900/20 dark:to-cyan-800/20">
-                            <CardTitle className="text-base font-semibold">Webhook Live Heartbeat</CardTitle>
-                            <CardDescription>
-                                Last {connection_heartbeat.window_minutes} minutes for active WhatsApp connections.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="p-4">
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                <div className="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3">
-                                    <div className="text-xs text-green-700 dark:text-green-300">Healthy</div>
-                                    <div className="text-lg font-semibold text-green-800 dark:text-green-200">{connection_heartbeat.healthy}</div>
-                                </div>
-                                <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3">
-                                    <div className="text-xs text-amber-700 dark:text-amber-300">Stale</div>
-                                    <div className="text-lg font-semibold text-amber-800 dark:text-amber-200">{connection_heartbeat.stale}</div>
-                                </div>
-                                <div className="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
-                                    <div className="text-xs text-red-700 dark:text-red-300">Offline/Error</div>
-                                    <div className="text-lg font-semibold text-red-800 dark:text-red-200">{connection_heartbeat.offline_or_error}</div>
-                                </div>
-                                <div className="rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-3">
-                                    <div className="text-xs text-gray-600 dark:text-gray-400">Last event</div>
-                                    <div className="text-xs font-medium text-gray-800 dark:text-gray-200">
-                                        {connection_heartbeat.latest_received_at
-                                            ? new Date(connection_heartbeat.latest_received_at).toLocaleString()
-                                            : 'No webhook events yet'}
-                                    </div>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)]">
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+                            {statCards.map((stat, index) => {
+                                const Icon = stat.icon;
 
-                {connection_health_summary && connection_health_summary.total_active > 0 && (
-                    <Card className="border-0 shadow-lg">
-                        <CardHeader className="bg-gradient-to-r from-violet-50 to-fuchsia-100 dark:from-violet-900/20 dark:to-fuchsia-800/20">
-                            <CardTitle className="text-base font-semibold">Connection Quality Health</CardTitle>
-                            <CardDescription>
-                                Quality rating, verification, and messaging tier overview.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="p-4 space-y-3">
-                            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                                <div className="rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 p-3">
-                                    <div className="text-xs text-green-700 dark:text-green-300">Healthy</div>
-                                    <div className="text-lg font-semibold text-green-800 dark:text-green-200">{connection_health_summary.healthy}</div>
-                                </div>
-                                <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3">
-                                    <div className="text-xs text-amber-700 dark:text-amber-300">Warning</div>
-                                    <div className="text-lg font-semibold text-amber-800 dark:text-amber-200">{connection_health_summary.warning}</div>
-                                </div>
-                                <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-3">
-                                    <div className="text-xs text-red-700 dark:text-red-300">Restricted</div>
-                                    <div className="text-lg font-semibold text-red-800 dark:text-red-200">{connection_health_summary.restricted}</div>
-                                </div>
-                                <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3">
-                                    <div className="text-xs text-gray-600 dark:text-gray-400">Unknown</div>
-                                    <div className="text-lg font-semibold text-gray-800 dark:text-gray-200">{connection_health_summary.unknown}</div>
-                                </div>
-                                <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-3">
-                                    <div className="text-xs text-blue-700 dark:text-blue-300">Total Active</div>
-                                    <div className="text-lg font-semibold text-blue-800 dark:text-blue-200">{connection_health_summary.total_active}</div>
-                                </div>
-                            </div>
-                            {connection_health_summary.at_risk.length > 0 && (
-                                <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-900/20 p-3">
-                                    <div className="text-xs font-semibold text-amber-800 dark:text-amber-200 mb-1">Connections at Risk</div>
-                                    {connection_health_summary.at_risk.map((row) => (
-                                        <div key={row.id} className="text-xs text-amber-800 dark:text-amber-200">
-                                            {row.name}: {row.health_state.toUpperCase()} · Quality {row.quality_rating || 'Unknown'} · Tier {row.messaging_limit_tier || 'Unknown'}
+                                return (
+                                    <Card key={index} className="border border-gray-200 shadow-sm dark:border-gray-800">
+                                        <CardContent className="p-5">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                                                        {stat.label}
+                                                    </p>
+                                                    <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">
+                                                        {stat.value}
+                                                    </p>
+                                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                        {stat.change}
+                                                    </p>
+                                                </div>
+                                                <div className="rounded-lg border border-gray-200 bg-gray-50 p-2.5 dark:border-gray-700 dark:bg-gray-800">
+                                                    <Icon className="h-5 w-5 text-gray-700 dark:text-gray-200" />
+                                                </div>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                );
+                            })}
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                            {onboarding_checklist?.show && (
+                                <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
+                                    <CardHeader className="pb-3">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div>
+                                                <CardTitle className="text-base font-semibold">Setup progress</CardTitle>
+                                                <CardDescription>
+                                                    Finish these steps to start using the account fully.
+                                                </CardDescription>
+                                            </div>
+                                            <Badge variant="default">
+                                                {onboarding_checklist.completed}/{onboarding_checklist.total}
+                                            </Badge>
                                         </div>
-                                    ))}
-                                </div>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        <div className="h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                                            <div
+                                                className="h-full rounded-full bg-gray-900 transition-all dark:bg-gray-100"
+                                                style={{ width: `${onboarding_checklist.progress_percent}%` }}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            {onboarding_checklist.items.slice(0, 4).map((item) => (
+                                                <button
+                                                    key={item.key}
+                                                    type="button"
+                                                    onClick={() => openSetupWizard(item.key)}
+                                                    className="flex w-full items-start justify-between rounded-lg border border-gray-200 px-3 py-3 text-left transition hover:border-gray-300 hover:bg-gray-50 dark:border-gray-800 dark:hover:border-gray-700 dark:hover:bg-gray-900"
+                                                >
+                                                    <div className="pr-3">
+                                                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{item.label}</p>
+                                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{item.description}</p>
+                                                    </div>
+                                                    <Badge variant={item.done ? 'success' : 'default'} className="shrink-0 text-[10px]">
+                                                        {item.done ? 'Done' : 'Pending'}
+                                                    </Badge>
+                                                </button>
+                                            ))}
+                                        </div>
+                                        {onboarding_checklist.next_item && (
+                                            <Button size="sm" onClick={() => openSetupWizard(onboarding_checklist.next_item?.key)}>
+                                                {onboarding_checklist.next_item.cta}
+                                            </Button>
+                                        )}
+                                    </CardContent>
+                                </Card>
                             )}
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                                Last synced: {connection_health_summary.last_synced_at ? new Date(connection_health_summary.last_synced_at).toLocaleString() : 'Never'}
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
 
-                {customer_start_conversation && (
-                    <Card className="border-0 shadow-lg">
-                        <CardHeader className="bg-gradient-to-r from-emerald-50 to-teal-100 dark:from-emerald-900/20 dark:to-teal-800/20">
-                            <CardTitle className="text-base font-semibold">Customer Start Conversation</CardTitle>
-                            <CardDescription>
-                                Share this link or QR code with customers to start a WhatsApp chat instantly.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="p-4">
+                            <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-base font-semibold">Account status</CardTitle>
+                                    <CardDescription>
+                                        A simple summary of connection health and delivery readiness.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    {connection_health_summary && connection_health_summary.total_active > 0 ? (
+                                        <>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+                                                    <div className="text-xs text-gray-500 dark:text-gray-400">Healthy connections</div>
+                                                    <div className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">{connection_health_summary.healthy}</div>
+                                                </div>
+                                                <div className="rounded-lg border border-gray-200 p-3 dark:border-gray-800">
+                                                    <div className="text-xs text-gray-500 dark:text-gray-400">Need attention</div>
+                                                    <div className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">
+                                                        {connection_health_summary.warning + connection_health_summary.restricted}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                                                <div className="flex items-center justify-between gap-4">
+                                                    <span>Webhook status</span>
+                                                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                                                        {connection_heartbeat
+                                                            ? `${connection_heartbeat.healthy} healthy / ${connection_heartbeat.offline_or_error} offline`
+                                                            : 'No live data'}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center justify-between gap-4">
+                                                    <span>Last sync</span>
+                                                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                                                        {connection_health_summary.last_synced_at
+                                                            ? new Date(connection_health_summary.last_synced_at).toLocaleString()
+                                                            : 'Never'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            {connection_health_summary.at_risk.length > 0 && (
+                                                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                                                    <p className="font-medium">Needs review</p>
+                                                    <p className="mt-1 text-xs">
+                                                        {connection_health_summary.at_risk[0].name} has reduced health. Review connection quality and recent sends.
+                                                    </p>
+                                                </div>
+                                            )}
+                                            {hasRoute('app.whatsapp.connections.index') && (
+                                                <Link href={route('app.whatsapp.connections.index', {})}>
+                                                    <Button variant="secondary" size="sm">Open Connections</Button>
+                                                </Link>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <div className="rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-400">
+                                            No active WhatsApp connection yet. Connect your number to start receiving and sending messages.
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                            <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
+                                <CardHeader className="pb-4">
+                                    <CardTitle className="text-base font-semibold">Message volume</CardTitle>
+                                    <CardDescription>How your account is being used right now.</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">Inbound</p>
+                                            <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">
+                                                {formatNumber(stats.messages.inbound)}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">Outbound</p>
+                                            <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">
+                                                {formatNumber(stats.messages.outbound)}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">This week</p>
+                                            <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">
+                                                {formatNumber(stats.messages.this_week)}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">This month</p>
+                                            <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">
+                                                {formatNumber(stats.messages.this_month)}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
+                                <CardHeader className="pb-4">
+                                    <CardTitle className="text-base font-semibold">Recent conversations</CardTitle>
+                                    <CardDescription>Latest customer activity from your inbox.</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    {recent_conversations.length === 0 ? (
+                                        <div className="rounded-lg border border-dashed border-gray-300 p-5 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-400">
+                                            No conversations yet. When customers message you, they will appear here.
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {recent_conversations.map((conversation) => {
+                                                const convId = Number(conversation.id);
+                                                const conversationRoute = hasRoute('app.whatsapp.conversations.index') && Number.isInteger(convId) && convId >= 1
+                                                    ? route('app.whatsapp.conversations.show', {
+                                                        conversation: convId,
+                                                    })
+                                                    : '#';
+
+                                                return (
+                                                    <Link
+                                                        key={conversation.id}
+                                                        href={conversationRoute}
+                                                        className="flex items-center justify-between gap-4 rounded-lg border border-gray-200 px-4 py-3 transition hover:border-gray-300 hover:bg-gray-50 dark:border-gray-800 dark:hover:border-gray-700 dark:hover:bg-gray-900"
+                                                    >
+                                                        <div className="min-w-0">
+                                                            <div className="flex items-center gap-2">
+                                                                <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+                                                                    {conversation.contact_name}
+                                                                </p>
+                                                                <Badge variant={conversation.status === 'open' ? 'success' : 'default'} className="text-[10px]">
+                                                                    {conversation.status}
+                                                                </Badge>
+                                                            </div>
+                                                            <p className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">
+                                                                {conversation.last_message || 'No message preview'}
+                                                            </p>
+                                                        </div>
+                                                        <ArrowRight className="h-4 w-4 shrink-0 text-gray-400" />
+                                                    </Link>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                    {hasRoute('app.whatsapp.conversations.index') && recent_conversations.length > 0 && (
+                                        <div className="mt-4">
+                                            <Link href={route('app.whatsapp.conversations.index', {})}>
+                                                <Button variant="secondary" size="sm">Open Inbox</Button>
+                                            </Link>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        {customer_start_conversation && (
+                            <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-base font-semibold">Customer start link</CardTitle>
+                                    <CardDescription>
+                                        Share one link or QR code so customers can message you directly.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
                             {customer_start_conversation.start_link ? (
-                                <div className="grid gap-4 md:grid-cols-[1fr,220px]">
-                                    <div className="space-y-3">
+                                <div className="space-y-4">
+                                    <div>
                                         <div className="text-xs text-gray-500 dark:text-gray-400">
                                             Source widget: <span className="font-semibold text-gray-700 dark:text-gray-200">{customer_start_conversation.widget_name}</span>
                                             <span className="ml-2 rounded px-2 py-0.5 bg-gray-100 dark:bg-gray-800 uppercase tracking-wide">
@@ -433,166 +604,14 @@ export default function Dashboard({
                                     Configure a valid WhatsApp phone in your widget to generate the start conversation link.
                                 </div>
                             )}
-                        </CardContent>
-                    </Card>
-                )}
-
-                {/* Key Metrics */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {statCards.map((stat, index) => {
-                        const Icon = stat.icon;
-                        return (
-                            <Card key={index} className="overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300 group">
-                                <CardContent className="p-6">
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex-1">
-                                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">
-                                                {stat.label}
-                                            </p>
-                                            <p className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-                                                {stat.value}
-                                            </p>
-                                            <p className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                                                {stat.change}
-                                            </p>
-                                        </div>
-                                        <div className={`p-3 rounded-xl bg-gradient-to-br ${stat.bgGradient} group-hover:scale-110 transition-transform duration-300`}>
-                                            <Icon className={`h-6 w-6 bg-gradient-to-br ${stat.gradient} bg-clip-text text-transparent`} style={{ WebkitTextFillColor: 'transparent' }} />
-                                        </div>
-                                    </div>
                                 </CardContent>
                             </Card>
-                        );
-                    })}
-                </div>
+                        )}
 
-                {onboarding_checklist?.show && (
-                    <Card className="border-0 shadow-lg overflow-hidden">
-                        <CardHeader className="bg-gradient-to-r from-indigo-50 to-blue-100 dark:from-indigo-900/20 dark:to-blue-900/20">
-                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                                <div>
-                                    <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                                        <Sparkles className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-                                        Getting Started Checklist
-                                    </CardTitle>
-                                    <CardDescription>
-                                        Complete the setup steps to get your account production-ready.
-                                    </CardDescription>
-                                </div>
-                                <div className="text-sm text-gray-700 dark:text-gray-300">
-                                    {onboarding_checklist.completed}/{onboarding_checklist.total} completed
-                                </div>
-                            </div>
-                            <div className="mt-3">
-                                <div className="h-2 w-full rounded-full bg-white/60 dark:bg-gray-800/60 overflow-hidden">
-                                    <div
-                                        className="h-full bg-gradient-to-r from-indigo-500 to-blue-600 transition-all duration-500"
-                                        style={{ width: `${onboarding_checklist.progress_percent}%` }}
-                                    />
-                                </div>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="p-6 space-y-4">
-                                    {onboarding_checklist.next_item && (
-                                <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-900/10 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                                    <div>
-                                        <p className="text-xs uppercase tracking-wide text-indigo-600 dark:text-indigo-400 font-semibold">Next Recommended Step</p>
-                                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{onboarding_checklist.next_item.label}</p>
-                                    </div>
-                                    <Button size="sm" onClick={() => openSetupWizard(onboarding_checklist.next_item?.key)}>
-                                            {onboarding_checklist.next_item.cta}
-                                            <ArrowRight className="h-4 w-4 ml-2" />
-                                    </Button>
-                                </div>
-                            )}
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {onboarding_checklist.items.map((item) => (
-                                    <button
-                                        key={item.key}
-                                        type="button"
-                                        onClick={() => openSetupWizard(item.key)}
-                                        className={`rounded-xl border p-4 transition ${
-                                            item.done
-                                                ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-900/10'
-                                                : 'border-gray-200 dark:border-gray-800 hover:border-blue-300 dark:hover:border-blue-700'
-                                        }`}
-                                    >
-                                        <div className="flex items-start gap-3">
-                                            <div className={`mt-0.5 flex h-6 w-6 items-center justify-center rounded-full ${item.done ? 'bg-emerald-600' : 'bg-gray-300 dark:bg-gray-700'}`}>
-                                                <CheckCircle className="h-3.5 w-3.5 text-white" />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{item.label}</p>
-                                                    <Badge variant={item.done ? 'success' : 'default'} className="text-[10px]">
-                                                        {item.done ? 'Done' : 'Pending'}
-                                                    </Badge>
-                                                </div>
-                                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{item.description}</p>
-                                                {!item.done && (
-                                                    <p className="mt-2 text-xs font-semibold text-blue-600 dark:text-blue-400">{item.cta} →</p>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </button>
-                                ))}
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
-
-                {/* Message Breakdown & Trends */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <Card className="border-0 shadow-lg">
+                    <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
                         <CardHeader className="pb-4">
-                            <CardTitle className="text-lg font-semibold">Message Statistics</CardTitle>
-                            <CardDescription>Message volume breakdown</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="p-5 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl border border-blue-200/50 dark:border-blue-800/50">
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <div className="p-2 bg-blue-500 rounded-lg">
-                                            <Inbox className="h-4 w-4 text-white" />
-                                        </div>
-                                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Inbound</p>
-                                    </div>
-                                    <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                                        {formatNumber(stats.messages.inbound)}
-                                    </p>
-                                </div>
-                                <div className="p-5 bg-gradient-to-br from-green-50 to-emerald-100 dark:from-green-900/20 dark:to-emerald-800/20 rounded-xl border border-green-200/50 dark:border-green-800/50">
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <div className="p-2 bg-green-500 rounded-lg">
-                                            <Send className="h-4 w-4 text-white" />
-                                        </div>
-                                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Outbound</p>
-                                    </div>
-                                    <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                                        {formatNumber(stats.messages.outbound)}
-                                    </p>
-                                </div>
-                                <div className="p-5 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200/50 dark:border-gray-700/50">
-                                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">This Week</p>
-                                    <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                                        {formatNumber(stats.messages.this_week)}
-                                    </p>
-                                </div>
-                                <div className="p-5 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200/50 dark:border-gray-700/50">
-                                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">This Month</p>
-                                    <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                                        {formatNumber(stats.messages.this_month)}
-                                    </p>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-0 shadow-lg">
-                        <CardHeader className="pb-4">
-                            <CardTitle className="text-lg font-semibold">Message Trends</CardTitle>
-                            <CardDescription>Last 7 days activity</CardDescription>
+                            <CardTitle className="text-base font-semibold">Message trend</CardTitle>
+                            <CardDescription>Last 7 days</CardDescription>
                         </CardHeader>
                         <CardContent>
                             {message_trends.length === 0 ? (
@@ -611,9 +630,9 @@ export default function Dashboard({
                                                 <div className="w-20 text-xs font-medium text-gray-600 dark:text-gray-400">
                                                     {new Date(trend.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                                                 </div>
-                                                <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                                                <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
                                                     <div
-                                                        className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full transition-all duration-500"
+                                                        className="h-full rounded-full bg-gray-900 transition-all duration-500 dark:bg-gray-100"
                                                         style={{ width: `${percentage}%` }}
                                                     />
                                                 </div>
@@ -627,154 +646,86 @@ export default function Dashboard({
                             )}
                         </CardContent>
                     </Card>
-                </div>
 
-                {/* Recent Conversations & Quick Actions */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <Card className="border-0 shadow-lg">
+                    <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
                         <CardHeader className="pb-4">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <CardTitle className="text-lg font-semibold">Recent Conversations</CardTitle>
-                                    <CardDescription>Latest activity</CardDescription>
-                                </div>
-                                {hasRoute('app.whatsapp.conversations.index') && (
-                                <Link
-                                    href={route('app.whatsapp.conversations.index', {})}
-                                    className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
-                                >
-                                    View All →
-                                </Link>
-                                )}
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            {recent_conversations.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center py-12">
-                                    <Inbox className="h-12 w-12 text-gray-400 mb-4" />
-                                    <p className="text-gray-500 dark:text-gray-400 mb-2">No conversations yet</p>
-                                    <p className="text-xs text-gray-400 dark:text-gray-500">Start a conversation to see it here</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    {recent_conversations.map((conversation) => {
-                                        const convId = Number(conversation.id);
-                                        const conversationRoute = hasRoute('app.whatsapp.conversations.index') && Number.isInteger(convId) && convId >= 1
-                                            ? route('app.whatsapp.conversations.show', {
-                                                conversation: convId,
-                                            })
-                                            : '#';
-                                        
-                                        return (
-                                        <Link
-                                            key={conversation.id}
-                                            href={conversationRoute}
-                                            className="block p-4 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all duration-200 border border-transparent hover:border-gray-200 dark:hover:border-gray-700 group"
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                                                            {conversation.contact_name}
-                                                        </p>
-                                                        <Badge variant={conversation.status === 'open' ? 'success' : 'default'} className="text-xs">
-                                                            {conversation.status}
-                                                        </Badge>
-                                                    </div>
-                                                    {conversation.last_message && (
-                                                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                                                            {conversation.last_message}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                                <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors ml-4" />
-                                            </div>
-                                        </Link>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-0 shadow-lg">
-                        <CardHeader className="pb-4">
-                            <CardTitle className="text-lg font-semibold">Quick Actions</CardTitle>
-                            <CardDescription>Common tasks and shortcuts</CardDescription>
+                            <CardTitle className="text-base font-semibold">Quick actions</CardTitle>
+                            <CardDescription>Open the pages you use most often.</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-2">
                                 {hasRoute('app.whatsapp.connections.index') && (
                                 <Link
                                     href={route('app.whatsapp.connections.index', {})}
-                                    className="flex items-center gap-4 p-4 rounded-xl hover:bg-gradient-to-r hover:from-blue-50 hover:to-blue-100 dark:hover:from-blue-900/20 dark:hover:to-blue-800/20 transition-all duration-200 border border-transparent hover:border-blue-200 dark:hover:border-blue-800 group"
+                                    className="flex items-center gap-4 rounded-lg border border-gray-200 px-4 py-3 transition hover:border-gray-300 hover:bg-gray-50 dark:border-gray-800 dark:hover:border-gray-700 dark:hover:bg-gray-900"
                                 >
-                                    <div className="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl group-hover:scale-110 transition-transform duration-200 shadow-lg">
-                                        <LinkIcon className="h-5 w-5 text-white" />
+                                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800">
+                                        <LinkIcon className="h-4 w-4 text-gray-700 dark:text-gray-200" />
                                     </div>
                                     <div className="flex-1">
-                                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                                             Manage Connections
                                         </p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">Add or configure WhatsApp connections</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">Connect and review your WhatsApp numbers</p>
                                     </div>
-                                    <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" />
+                                    <ArrowRight className="h-4 w-4 text-gray-400" />
                                 </Link>
                                 )}
                                 
                                 {hasRoute('app.whatsapp.templates.index') && (
                                 <Link
                                     href={route('app.whatsapp.templates.index', {})}
-                                    className="flex items-center gap-4 p-4 rounded-xl hover:bg-gradient-to-r hover:from-green-50 hover:to-emerald-100 dark:hover:from-green-900/20 dark:hover:to-emerald-800/20 transition-all duration-200 border border-transparent hover:border-green-200 dark:hover:border-green-800 group"
+                                    className="flex items-center gap-4 rounded-lg border border-gray-200 px-4 py-3 transition hover:border-gray-300 hover:bg-gray-50 dark:border-gray-800 dark:hover:border-gray-700 dark:hover:bg-gray-900"
                                 >
-                                    <div className="p-3 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl group-hover:scale-110 transition-transform duration-200 shadow-lg">
-                                        <FileText className="h-5 w-5 text-white" />
+                                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800">
+                                        <FileText className="h-4 w-4 text-gray-700 dark:text-gray-200" />
                                     </div>
                                     <div className="flex-1">
-                                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors">
+                                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                                             Message Templates
                                         </p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">Create and manage templates</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">Create approved WhatsApp message templates</p>
                                     </div>
-                                    <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors" />
+                                    <ArrowRight className="h-4 w-4 text-gray-400" />
                                 </Link>
                                 )}
 
                                 <Link
                                     href={route('app.settings', {})}
-                                    className="flex items-center gap-4 p-4 rounded-xl hover:bg-gradient-to-r hover:from-purple-50 hover:to-purple-100 dark:hover:from-purple-900/20 dark:hover:to-purple-800/20 transition-all duration-200 border border-transparent hover:border-purple-200 dark:hover:border-purple-800 group"
+                                    className="flex items-center gap-4 rounded-lg border border-gray-200 px-4 py-3 transition hover:border-gray-300 hover:bg-gray-50 dark:border-gray-800 dark:hover:border-gray-700 dark:hover:bg-gray-900"
                                 >
-                                    <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl group-hover:scale-110 transition-transform duration-200 shadow-lg">
-                                        <Users className="h-5 w-5 text-white" />
+                                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800">
+                                        <Users className="h-4 w-4 text-gray-700 dark:text-gray-200" />
                                     </div>
                                     <div className="flex-1">
-                                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
+                                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                                             Team Settings
                                         </p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">Manage team members and roles</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">Invite teammates and manage access</p>
                                     </div>
-                                    <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors" />
+                                    <ArrowRight className="h-4 w-4 text-gray-400" />
                                 </Link>
 
                                 <Link
                                     href={route('app.billing.index', { })}
-                                    className="flex items-center gap-4 p-4 rounded-xl hover:bg-gradient-to-r hover:from-amber-50 hover:to-orange-100 dark:hover:from-amber-900/20 dark:hover:to-orange-800/20 transition-all duration-200 border border-transparent hover:border-amber-200 dark:hover:border-amber-800 group"
+                                    className="flex items-center gap-4 rounded-lg border border-gray-200 px-4 py-3 transition hover:border-gray-300 hover:bg-gray-50 dark:border-gray-800 dark:hover:border-gray-700 dark:hover:bg-gray-900"
                                 >
-                                    <div className="p-3 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl group-hover:scale-110 transition-transform duration-200 shadow-lg">
-                                        <TrendingUp className="h-5 w-5 text-white" />
+                                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-gray-700 dark:bg-gray-800">
+                                        <TrendingUp className="h-4 w-4 text-gray-700 dark:text-gray-200" />
                                     </div>
                                     <div className="flex-1">
-                                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                                             Billing & Usage
                                         </p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">View usage and manage subscription</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">Check plan, invoices, and payment status</p>
                                     </div>
-                                    <ArrowRight className="h-4 w-4 text-gray-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors" />
+                                    <ArrowRight className="h-4 w-4 text-gray-400" />
                                 </Link>
                             </div>
                         </CardContent>
                     </Card>
                 </div>
+            </div>
             </div>
 
             <Modal show={setupWizardOpen} onClose={() => setSetupWizardOpen(false)} maxWidth="2xl">
