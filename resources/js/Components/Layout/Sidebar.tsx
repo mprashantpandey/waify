@@ -192,28 +192,24 @@ export function Sidebar({ navigation, currentRoute, account, isOpen = false, onC
                 key={`${item.href}-${item.label}-${index}`}
                 href={href}
                 className={cn(
-                    'group flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm transition-all duration-150',
+                    'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors',
                     isActive
-                        ? 'border border-blue-100 bg-blue-600 text-white shadow-[0_12px_28px_-18px_rgba(37,99,235,0.9)] dark:border-blue-400/20 dark:bg-blue-500'
-                        : 'text-gray-700 hover:bg-gray-100/90 dark:text-gray-300 dark:hover:bg-gray-800'
+                        ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
+                        : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
                 )}
             >
                 <span
                     className={cn(
-                        'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-colors',
+                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors',
                         isActive
-                            ? 'bg-white/18 text-white'
-                            : 'bg-gray-100 text-gray-500 group-hover:bg-white group-hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:group-hover:bg-gray-700 dark:group-hover:text-gray-200'
+                            ? 'bg-white/12 text-white dark:bg-gray-800 dark:text-gray-900'
+                            : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
                     )}
                 >
                     <Icon className="h-4 w-4" />
                 </span>
                 <span className="min-w-0 flex-1 truncate font-medium">{item.label}</span>
-                {isActive && (
-                    <span className="rounded-full bg-white/18 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white">
-                        Live
-                    </span>
-                )}
+
             </Link>
         );
     };
@@ -221,22 +217,19 @@ export function Sidebar({ navigation, currentRoute, account, isOpen = false, onC
     const sidebarContent = (
         <>
             <div className="border-b border-gray-200/80 px-4 py-4 dark:border-gray-800/80">
-                <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-3 dark:border-gray-800 dark:bg-gray-900/70">
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
-                            Navigation
-                        </p>
-                        {account?.name && (
-                            <span className="truncate text-xs text-gray-500 dark:text-gray-400">{account.name}</span>
-                        )}
-                    </div>
+                <div className="space-y-3">
+                    {account?.name && (
+                        <div>
+                            <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{account.name}</p>
+                        </div>
+                    )}
                     <div className="relative">
                         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                         <Input
                             value={query}
                             onChange={(event) => setQuery(event.target.value)}
                             placeholder="Search pages"
-                            className="h-10 rounded-xl border-gray-200 bg-white pl-9 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-950"
+                            className="h-10 rounded-xl border-gray-200 bg-white pl-9 text-sm dark:border-gray-700 dark:bg-gray-950"
                         />
                     </div>
                 </div>
@@ -260,7 +253,7 @@ export function Sidebar({ navigation, currentRoute, account, isOpen = false, onC
                                 onClick={() => toggleGroup(group)}
                                 className="mb-2 flex w-full items-center justify-between px-3 text-left"
                             >
-                                <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-gray-400 dark:text-gray-500">
+                                <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
                                     {groupLabels[group] || group}
                                 </span>
                                 <span className="text-gray-400 dark:text-gray-500">
@@ -275,15 +268,12 @@ export function Sidebar({ navigation, currentRoute, account, isOpen = false, onC
             <div className="border-t border-gray-200/80 p-3 dark:border-gray-800/80">
                 <Link
                     href={resolveRouteHref('app.support.index') ?? '#'}
-                    className="flex items-center gap-3 rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 px-3 py-3 text-sm font-medium text-gray-700 shadow-sm transition hover:border-blue-200 hover:text-blue-700 dark:border-gray-800 dark:from-gray-950 dark:to-gray-900 dark:text-gray-200 dark:hover:border-gray-700 dark:hover:text-blue-300"
+                    className="flex items-center gap-3 rounded-xl border border-gray-200 px-3 py-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-800 dark:text-gray-200 dark:hover:bg-gray-900"
                 >
-                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                         <LifeBuoy className="h-4 w-4" />
                     </span>
-                    <span className="flex-1">
-                        <span className="block">Support</span>
-                        <span className="block text-xs font-normal text-gray-500 dark:text-gray-400">Get help fast</span>
-                    </span>
+                    <span className="flex-1">Support</span>
                 </Link>
             </div>
         </>
@@ -295,7 +285,7 @@ export function Sidebar({ navigation, currentRoute, account, isOpen = false, onC
 
             <aside
                 className={cn(
-                    'fixed inset-y-0 left-0 z-50 flex h-dvh max-h-screen w-72 flex-col border-r border-gray-200/80 bg-white transition-transform duration-300 ease-in-out dark:border-gray-800 dark:bg-gray-900 lg:z-30 lg:w-72 lg:translate-x-0',
+                    'fixed inset-y-0 left-0 z-50 flex h-dvh max-h-screen w-64 flex-col border-r border-gray-200/80 bg-white transition-transform duration-300 ease-in-out dark:border-gray-800 dark:bg-gray-900 lg:z-30 lg:w-64 lg:translate-x-0',
                     isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
                 )}
             >
