@@ -16,12 +16,25 @@ export default function IntegrationsTab({ data, setData, errors }: IntegrationsT
     const [showApiKey, setShowApiKey] = useState(false);
     const [showMetaSecret, setShowMetaSecret] = useState(false);
     const [showSystemToken, setShowSystemToken] = useState(false);
+    const [webhookCopied, setWebhookCopied] = useState(false);
 
     const generateApiKey = () => {
         const key = 'wacp_' + Array.from(crypto.getRandomValues(new Uint8Array(32)))
             .map(b => b.toString(16).padStart(2, '0'))
             .join('');
         setData('integrations.api_key', key);
+    };
+
+    const webhookUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/webhooks/whatsapp`;
+
+    const copyWebhookUrl = async () => {
+        if (!webhookUrl) {
+            return;
+        }
+
+        await navigator.clipboard.writeText(webhookUrl);
+        setWebhookCopied(true);
+        window.setTimeout(() => setWebhookCopied(false), 1500);
     };
 
     return (
@@ -364,9 +377,19 @@ export default function IntegrationsTab({ data, setData, errors }: IntegrationsT
                                 className="mt-1"
                                 placeholder="Set the Meta webhook verify token"
                             />
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                Meta callback URL: <span className="font-mono">/webhooks/whatsapp</span>
-                            </p>
+                            <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/60">
+                                <div className="flex items-center justify-between gap-3">
+                                    <div>
+                                        <p className="text-xs font-medium text-gray-700 dark:text-gray-200">Central callback URL</p>
+                                        <p className="mt-1 break-all font-mono text-xs text-gray-500 dark:text-gray-400">
+                                            {webhookUrl || '/webhooks/whatsapp'}
+                                        </p>
+                                    </div>
+                                    <Button type="button" variant="secondary" size="sm" onClick={copyWebhookUrl}>
+                                        {webhookCopied ? 'Copied' : 'Copy'}
+                                    </Button>
+                                </div>
+                            </div>
                             <InputError message={errors['whatsapp.webhook_verify_token']} />
                         </div>
                         <div>
