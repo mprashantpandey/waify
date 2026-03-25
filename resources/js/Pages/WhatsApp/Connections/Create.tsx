@@ -13,6 +13,7 @@ declare global {
     interface Window {
         FB?: any;
         fbAsyncInit?: () => void;
+        __zyptosEmbeddedSignupDebug?: Array<Record<string, unknown>>;
     }
 }
 
@@ -52,8 +53,29 @@ export default function ConnectionsCreate({
     });
     const hasEmbeddedAuthData = Boolean(embeddedForm.data.code || embeddedForm.data.access_token);
     const hasEmbeddedResolvedIds = Boolean(embeddedForm.data.waba_id && embeddedForm.data.phone_number_id);
+    const logEmbeddedDebug = (label: string, payload: Record<string, unknown> = {}) => {
+        const entry = {
+            label,
+            timestamp: new Date().toISOString(),
+            ...payload,
+        };
+
+        if (!window.__zyptosEmbeddedSignupDebug) {
+            window.__zyptosEmbeddedSignupDebug = [];
+        }
+        window.__zyptosEmbeddedSignupDebug.push(entry);
+
+        console.groupCollapsed(`[Zyptos Embedded Signup] ${label}`);
+        console.log(entry);
+        console.groupEnd();
+    };
 
     const applyEmbeddedCode = (code: string) => {
+        logEmbeddedDebug('apply_code', {
+            code_length: code.length,
+            code_prefix: code.slice(0, 12),
+            redirect_uri: resolveOAuthRedirectUri(),
+        });
         embeddedForm.setData('code', code);
         embeddedForm.setData('redirect_uri', resolveOAuthRedirectUri());
         setEmbeddedStatus('Authorization complete. Finishing Meta setup...');
@@ -66,6 +88,12 @@ export default function ConnectionsCreate({
         if (!code) {
             return;
         }
+
+        logEmbeddedDebug('query_code_detected', {
+            code_length: code.length,
+            code_prefix: code.slice(0, 12),
+            href: window.location.href,
+        });
 
         if (window.opener && window.opener !== window) {
             window.opener.postMessage(
@@ -112,7 +140,25 @@ export default function ConnectionsCreate({
 
         embeddedForm.post(route('app.whatsapp.connections.store-embedded', {}), {
             preserveScroll: true,
+            onBefore: () => {
+                logEmbeddedDebug('auto_submit_begin', {
+                    route: route('app.whatsapp.connections.store-embedded', {}),
+                    has_code: Boolean(embeddedForm.data.code),
+                    has_access_token: Boolean(embeddedForm.data.access_token),
+                    waba_id: embeddedForm.data.waba_id || null,
+                    phone_number_id: embeddedForm.data.phone_number_id || null,
+                    session_waba_id: embeddedForm.data.session_waba_id || null,
+                    session_phone_number_id: embeddedForm.data.session_phone_number_id || null,
+                    redirect_uri: embeddedForm.data.redirect_uri || null,
+                });
+            },
+            onSuccess: () => {
+                logEmbeddedDebug('auto_submit_success');
+            },
             onError: () => {
+                logEmbeddedDebug('auto_submit_error', {
+                    errors: embeddedForm.errors,
+                });
                 setEmbeddedStatus('Auto-setup needs your review. Fix the error below and click Create Connection.');
             },
         });
@@ -141,6 +187,12 @@ export default function ConnectionsCreate({
                 cookie: true,
                 xfbml: true,
                 version: 'v25.0'
+            });
+            logEmbeddedDebug('sdk_initialized', {
+                app_id: embeddedSignup.appId,
+                config_id: embeddedSignup.configId,
+                oauth_redirect_uri: resolveOAuthRedirectUri(),
+                sdk_version: 'v25.0',
             });
             setEmbeddedReady(true);
         };
@@ -202,6 +254,11 @@ export default function ConnectionsCreate({
             }
 
             let payload: any = event.data;
+            logEmbeddedDebug('postmessage_received_raw', {
+                origin: event.origin,
+                payload_type: typeof event.data,
+                payload_preview: typeof event.data === 'string' ? event.data.slice(0, 500) : event.data,
+            });
             if (typeof payload === 'string') {
                 try {
                     payload = JSON.parse(payload);
@@ -263,6 +320,15 @@ export default function ConnectionsCreate({
 
             const hasSignupData = Boolean(extracted.waba_id || extracted.phone_number_id);
             const hasAuthData = Boolean(extracted.code || extracted.access_token);
+            logEmbeddedDebug('postmessage_parsed', {
+                origin: event.origin,
+                action,
+                is_embedded_event: isEmbeddedSignupEvent,
+                current_step: currentStep,
+                extracted,
+                has_signup_data: hasSignupData,
+                has_auth_data: hasAuthData,
+            });
 
             if (isEmbeddedSignupEvent || action === 'FINISH' || action === 'FINISH_ONLY_WABA' || action === 'CANCEL') {
                 void fetch(route('app.whatsapp.connections.embedded-telemetry', {}), {
@@ -333,9 +399,25 @@ export default function ConnectionsCreate({
         setEmbeddedAutoSubmitAttempted(false);
         const oauthRedirectUri = resolveOAuthRedirectUri();
         embeddedForm.setData('redirect_uri', oauthRedirectUri);
+        logEmbeddedDebug('launch_login', {
+            app_id: embeddedSignup.appId,
+            config_id: embeddedSignup.configId,
+            redirect_uri: oauthRedirectUri,
+            extras: {
+                feature: 'whatsapp_embedded_signup',
+                sessionInfoVersion: 3,
+                version: '4',
+            },
+        });
 
         window.FB.login(
             (response: any) => {
+                logEmbeddedDebug('fb_login_callback', {
+                    response,
+                    has_auth_response: Boolean(response?.authResponse),
+                    has_code: Boolean(response?.authResponse?.code),
+                    has_access_token: Boolean(response?.authResponse?.accessToken),
+                });
                 if (!response?.authResponse) {
                     setEmbeddedStatus('Meta signup was cancelled or not completed.');
                     return;
@@ -376,6 +458,16 @@ export default function ConnectionsCreate({
 
     const submitEmbedded: FormEventHandler = (e) => {
         e.preventDefault();
+        logEmbeddedDebug('manual_submit_begin', {
+            route: route('app.whatsapp.connections.store-embedded', {}),
+            has_code: Boolean(embeddedForm.data.code),
+            has_access_token: Boolean(embeddedForm.data.access_token),
+            waba_id: embeddedForm.data.waba_id || null,
+            phone_number_id: embeddedForm.data.phone_number_id || null,
+            session_waba_id: embeddedForm.data.session_waba_id || null,
+            session_phone_number_id: embeddedForm.data.session_phone_number_id || null,
+            redirect_uri: embeddedForm.data.redirect_uri || null,
+        });
         embeddedForm.post(route('app.whatsapp.connections.store-embedded', {}));
     };
 

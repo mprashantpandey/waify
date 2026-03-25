@@ -17,6 +17,7 @@ declare global {
     interface Window {
         FB?: any;
         fbAsyncInit?: () => void;
+        __zyptosEmbeddedSignupDebug?: Array<Record<string, unknown>>;
     }
 }
 
@@ -57,6 +58,22 @@ export default function EmbeddedWizard({
     const lastTelemetryKeyRef = useRef<string>('');
     const autoCreateTriggeredRef = useRef(false);
     const embeddedEnabled = Boolean(embeddedSignup?.enabled && embeddedSignup?.appId && embeddedSignup?.configId);
+    const logEmbeddedDebug = (label: string, payload: Record<string, unknown> = {}) => {
+        const entry = {
+            label,
+            timestamp: new Date().toISOString(),
+            ...payload,
+        };
+
+        if (!window.__zyptosEmbeddedSignupDebug) {
+            window.__zyptosEmbeddedSignupDebug = [];
+        }
+        window.__zyptosEmbeddedSignupDebug.push(entry);
+
+        console.groupCollapsed(`[Zyptos Embedded Signup] ${label}`);
+        console.log(entry);
+        console.groupEnd();
+    };
     const resolveOAuthRedirectUri = () => {
         const raw = embeddedSignup?.oauthRedirectUri || route('app.whatsapp.connections.create', {});
         try {
@@ -80,6 +97,11 @@ export default function EmbeddedWizard({
     });
 
     const applyEmbeddedCode = (code: string) => {
+        logEmbeddedDebug('wizard_apply_code', {
+            code_length: code.length,
+            code_prefix: code.slice(0, 12),
+            redirect_uri: resolveOAuthRedirectUri(),
+        });
         embeddedForm.setData('code', code);
         embeddedForm.setData('redirect_uri', resolveOAuthRedirectUri());
         setWizardState((prev) => ({
@@ -125,6 +147,12 @@ export default function EmbeddedWizard({
         if (!code) {
             return;
         }
+
+        logEmbeddedDebug('wizard_query_code_detected', {
+            code_length: code.length,
+            code_prefix: code.slice(0, 12),
+            href: window.location.href,
+        });
 
         if (window.opener && window.opener !== window) {
             window.opener.postMessage(
@@ -193,6 +221,12 @@ export default function EmbeddedWizard({
                 xfbml: true,
                 version: 'v25.0'
             });
+            logEmbeddedDebug('wizard_sdk_initialized', {
+                app_id: embeddedSignup.appId,
+                config_id: embeddedSignup.configId,
+                oauth_redirect_uri: resolveOAuthRedirectUri(),
+                sdk_version: 'v25.0',
+            });
             setEmbeddedReady(true);
             setWizardState(prev => ({
                 ...prev,
@@ -237,6 +271,11 @@ export default function EmbeddedWizard({
             }
 
             let payload: any = event.data;
+            logEmbeddedDebug('wizard_postmessage_received_raw', {
+                origin: event.origin,
+                payload_type: typeof event.data,
+                payload_preview: typeof event.data === 'string' ? event.data.slice(0, 500) : event.data,
+            });
 
             // Handle string payloads
             if (typeof payload === 'string') {
@@ -287,6 +326,13 @@ export default function EmbeddedWizard({
                 };
 
                 if (extractedData.waba_id || extractedData.phone_number_id) {
+                    logEmbeddedDebug('wizard_postmessage_signup_data', {
+                        origin: event.origin,
+                        action,
+                        is_embedded_event: isEmbeddedSignupEvent,
+                        current_step: currentStep,
+                        extracted: extractedData,
+                    });
                     setWizardState(prev => ({
                         ...prev,
                         step: 'waba-lookup',
@@ -356,6 +402,13 @@ export default function EmbeddedWizard({
             if (data?.code || payload?.code || data?.accessToken || payload?.accessToken) {
                 const code = data?.code || payload?.code;
                 const accessToken = data?.accessToken || payload?.accessToken || data?.access_token || payload?.access_token;
+                logEmbeddedDebug('wizard_postmessage_auth_data', {
+                    origin: event.origin,
+                    action,
+                    has_code: Boolean(code),
+                    has_access_token: Boolean(accessToken),
+                    code_prefix: code ? String(code).slice(0, 12) : null,
+                });
 
                 if (code) {
                     embeddedForm.setData('code', code);
@@ -414,6 +467,16 @@ export default function EmbeddedWizard({
         }
 
         const oauthRedirectUri = resolveOAuthRedirectUri();
+        logEmbeddedDebug('wizard_launch_login', {
+            app_id: embeddedSignup.appId,
+            config_id: embeddedSignup.configId,
+            redirect_uri: oauthRedirectUri,
+            extras: {
+                feature: 'whatsapp_embedded_signup',
+                sessionInfoVersion: 3,
+                version: '4',
+            },
+        });
 
         setWizardState({
             step: 'auth',
@@ -429,6 +492,12 @@ export default function EmbeddedWizard({
 
         window.FB.login(
             (response: any) => {
+                logEmbeddedDebug('wizard_fb_login_callback', {
+                    response,
+                    has_auth_response: Boolean(response?.authResponse),
+                    has_code: Boolean(response?.authResponse?.code),
+                    has_access_token: Boolean(response?.authResponse?.accessToken),
+                });
                 if (!response?.authResponse) {
                     setWizardState((prev) => ({
                         ...prev,
@@ -515,7 +584,21 @@ export default function EmbeddedWizard({
         }));
 
         embeddedForm.post(route('app.whatsapp.connections.store-embedded', {}), {
+            onBefore: () => {
+                logEmbeddedDebug('wizard_submit_begin', {
+                    mode,
+                    route: route('app.whatsapp.connections.store-embedded', {}),
+                    has_code: Boolean(embeddedForm.data.code),
+                    has_access_token: Boolean(embeddedForm.data.access_token),
+                    waba_id: embeddedForm.data.waba_id || null,
+                    phone_number_id: embeddedForm.data.phone_number_id || null,
+                    session_waba_id: embeddedForm.data.session_waba_id || null,
+                    session_phone_number_id: embeddedForm.data.session_phone_number_id || null,
+                    redirect_uri: embeddedForm.data.redirect_uri || null,
+                });
+            },
             onSuccess: () => {
+                logEmbeddedDebug('wizard_submit_success', { mode });
                 setAutoCreateMode(false);
                 setWizardState(prev => ({
                     ...prev,
@@ -526,6 +609,10 @@ export default function EmbeddedWizard({
                 emitTelemetry({ step: 'connection_created', status: 'success', message: 'Embedded connection created' });
             },
             onError: (errors) => {
+                logEmbeddedDebug('wizard_submit_error', {
+                    mode,
+                    errors,
+                });
                 setWizardState(prev => ({
                     ...prev,
                     step: 'error',
