@@ -201,9 +201,10 @@ export default function EmbeddedWizard({
 
             window.FB.init({
                 appId: embeddedSignup.appId,
+                autoLogAppEvents: true,
                 cookie: true,
                 xfbml: true,
-                version: embeddedSignup.apiVersion || 'v21.0'
+                version: 'v25.0'
             });
             setEmbeddedReady(true);
             setWizardState(prev => ({
