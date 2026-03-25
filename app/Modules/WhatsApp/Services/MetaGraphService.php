@@ -33,7 +33,7 @@ class MetaGraphService
         return $this->graphRequest()->withToken($token);
     }
 
-    public function exchangeCodeForToken(string $code, string $redirectUri): array
+    public function exchangeCodeForToken(string $code, ?string $redirectUri = null): array
     {
         $appId = config('whatsapp.meta.app_id');
         $appSecret = config('whatsapp.meta.app_secret');
@@ -48,11 +48,17 @@ class MetaGraphService
             'code_sha1' => sha1($code),
         ]);
 
-        $response = $this->graphRequest()->get("{$this->baseUrl}/{$this->apiVersion}/oauth/access_token", [
+        $params = [
             'client_id' => $appId,
             'client_secret' => $appSecret,
-            'redirect_uri' => $redirectUri,
-            'code' => $code]);
+            'code' => $code,
+        ];
+
+        if ($redirectUri) {
+            $params['redirect_uri'] = $redirectUri;
+        }
+
+        $response = $this->graphRequest()->get("{$this->baseUrl}/{$this->apiVersion}/oauth/access_token", $params);
 
         $data = $response->json();
         if (!$response->successful()) {

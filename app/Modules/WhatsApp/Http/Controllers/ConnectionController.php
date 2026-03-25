@@ -235,6 +235,7 @@ class ConnectionController extends Controller
             'business_phone' => 'nullable|string|max:255',
             'access_token' => 'nullable|string',
             'code' => 'nullable|string',
+            'code_source' => 'nullable|string|max:64',
             'redirect_uri' => 'nullable|url',
             'session_waba_id' => 'nullable|string|max:255',
             'session_phone_number_id' => 'nullable|string|max:255',
@@ -258,11 +259,15 @@ class ConnectionController extends Controller
         try {
             $accessToken = $validated['access_token'] ?? null;
             if (!$accessToken && !empty($validated['code'])) {
-                $redirectCandidates = $this->buildEmbeddedRedirectUriCandidates($validated['redirect_uri'] ?? null);
+                $redirectCandidates = $this->buildEmbeddedRedirectUriCandidates(
+                    $validated['redirect_uri'] ?? null,
+                    $validated['code_source'] ?? null
+                );
                 Log::channel('whatsapp')->info('Embedded signup redirect URI candidates resolved', [
                     'account_id' => $account?->id,
                     'request_path' => $request->path(),
                     'requested_redirect_uri' => $validated['redirect_uri'] ?? null,
+                    'code_source' => $validated['code_source'] ?? null,
                     'resolved_redirect_uri' => $this->resolveEmbeddedRedirectUri($validated['redirect_uri'] ?? null),
                     'redirect_candidates' => $redirectCandidates,
                     'code_summary' => $this->summarizeOAuthCode($validated['code'] ?? null),
@@ -275,6 +280,7 @@ class ConnectionController extends Controller
                             'account_id' => $account?->id,
                             'request_path' => $request->path(),
                             'requested_redirect_uri' => $validated['redirect_uri'] ?? null,
+                            'code_source' => $validated['code_source'] ?? null,
                             'attempt_redirect_uri' => $redirectUri,
                             'code_summary' => $this->summarizeOAuthCode($validated['code'] ?? null),
                         ]);
@@ -387,7 +393,7 @@ class ConnectionController extends Controller
                 $this->metaGraphService->registerPhoneNumber($phoneNumberId, $validated['pin'], $effectiveToken);
             }
 
-            $connectionName = $validated['name'] ?: ($businessPhone ? "WhatsApp {$businessPhone}" : 'WhatsApp Connection');
+            $connectionName = ($validated['name'] ?? null) ?: ($businessPhone ? "WhatsApp {$businessPhone}" : 'WhatsApp Connection');
             $targetConnection = $existingByAssets;
             $tokenDebugData = $this->metaGraphService->debugToken($accessToken, $accessToken);
             $tokenMetadata = [
@@ -583,8 +589,12 @@ class ConnectionController extends Controller
     /**
      * Build a short allowlisted candidate list for Meta code exchange, including slash variants.
      */
-    private function buildEmbeddedRedirectUriCandidates(?string $requestedRedirectUri): array
+    private function buildEmbeddedRedirectUriCandidates(?string $requestedRedirectUri, ?string $codeSource = null): array
     {
+        if ($codeSource === 'fb_login_callback' || $codeSource === 'postmessage') {
+            return [null];
+        }
+
         $primary = $this->resolveEmbeddedRedirectUri($requestedRedirectUri);
         $platformConfiguredRaw = (string) PlatformSetting::get(
             'whatsapp.embedded_oauth_redirect_uri',

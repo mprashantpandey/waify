@@ -48,6 +48,7 @@ export default function ConnectionsCreate({
         business_phone: '',
         access_token: '',
         code: '',
+        code_source: '',
         pin: '',
         redirect_uri: ''
     });
@@ -70,13 +71,15 @@ export default function ConnectionsCreate({
         console.groupEnd();
     };
 
-    const applyEmbeddedCode = (code: string) => {
+    const applyEmbeddedCode = (code: string, source: 'query_string' | 'fb_login_callback' | 'postmessage' = 'query_string') => {
         logEmbeddedDebug('apply_code', {
             code_length: code.length,
             code_prefix: code.slice(0, 12),
             redirect_uri: resolveOAuthRedirectUri(),
+            source,
         });
         embeddedForm.setData('code', code);
+        embeddedForm.setData('code_source', source);
         embeddedForm.setData('redirect_uri', resolveOAuthRedirectUri());
         setEmbeddedStatus('Authorization complete. Finishing Meta setup...');
         setEmbeddedAutoSubmitRequested(true);
@@ -107,7 +110,7 @@ export default function ConnectionsCreate({
             return;
         }
 
-        applyEmbeddedCode(code);
+        applyEmbeddedCode(code, 'query_string');
     }, []);
 
     useEffect(() => {
@@ -120,7 +123,7 @@ export default function ConnectionsCreate({
                 return;
             }
 
-            applyEmbeddedCode(String(event.data.code));
+            applyEmbeddedCode(String(event.data.code), 'query_string');
         };
 
         window.addEventListener('message', handler);
@@ -427,7 +430,7 @@ export default function ConnectionsCreate({
                 const accessToken = response?.authResponse?.accessToken;
 
                 if (code) {
-                    applyEmbeddedCode(String(code));
+                    applyEmbeddedCode(String(code), 'fb_login_callback');
                     return;
                 }
 
@@ -462,6 +465,7 @@ export default function ConnectionsCreate({
             route: route('app.whatsapp.connections.store-embedded', {}),
             has_code: Boolean(embeddedForm.data.code),
             has_access_token: Boolean(embeddedForm.data.access_token),
+            code_source: embeddedForm.data.code_source || null,
             waba_id: embeddedForm.data.waba_id || null,
             phone_number_id: embeddedForm.data.phone_number_id || null,
             session_waba_id: embeddedForm.data.session_waba_id || null,

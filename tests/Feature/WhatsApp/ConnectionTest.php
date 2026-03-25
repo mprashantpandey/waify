@@ -281,6 +281,64 @@ class ConnectionTest extends TestCase
         ]);
     }
 
+    public function test_embedded_signup_fb_login_callback_exchanges_code_without_redirect_uri(): void
+    {
+        config([
+            'whatsapp.meta.app_id' => 'app-id',
+            'whatsapp.meta.embedded_signup_config_id' => 'config-id',
+        ]);
+
+        $meta = Mockery::mock(MetaGraphService::class);
+        $meta->shouldReceive('exchangeCodeForToken')
+            ->once()
+            ->with('auth-code', null)
+            ->andReturn(['access_token' => 'embedded-token']);
+        $meta->shouldReceive('debugToken')->once()->with('embedded-token', 'embedded-token')->andReturn([
+            'app_id' => 'app-id',
+            'type' => 'USER',
+            'application' => 'Zyptos',
+            'granular_scopes' => [],
+            'scopes' => ['whatsapp_business_management'],
+        ]);
+        $meta->shouldReceive('getPhoneNumberDetails')->once()->with('pn-embedded', 'embedded-token')->andReturn([
+            'display_phone_number' => '+91 99999 00000',
+        ]);
+        $meta->shouldReceive('ensureAppSubscribedToWaba')->once()->with('waba-embedded', 'embedded-token')->andReturn([
+            'already_subscribed' => false,
+        ]);
+        $meta->shouldReceive('getApiVersion')->andReturn('v21.0');
+        $this->instance(MetaGraphService::class, $meta);
+
+        $sync = Mockery::mock(ConnectionHealthSyncService::class);
+        $sync->shouldReceive('syncConnection')->once()->andReturnUsing(function (WhatsAppConnection $connection) {
+            return new WhatsAppConnectionHealthSnapshot([
+                'id' => 777,
+                'account_id' => $connection->account_id,
+                'whatsapp_connection_id' => $connection->id,
+                'source' => 'embedded_signup',
+                'health_state' => 'healthy',
+                'captured_at' => now(),
+            ]);
+        });
+        $this->instance(ConnectionHealthSyncService::class, $sync);
+
+        $response = $this->actingAs($this->user)
+            ->post(route('app.whatsapp.connections.store-embedded', ['account' => $this->account->slug]), [
+                'code' => 'auth-code',
+                'code_source' => 'fb_login_callback',
+                'redirect_uri' => 'https://zyptos.com/app/connections/create',
+                'waba_id' => 'waba-embedded',
+                'phone_number_id' => 'pn-embedded',
+            ]);
+
+        $response->assertRedirect(route('app.whatsapp.connections.index'));
+        $this->assertDatabaseHas('whatsapp_connections', [
+            'account_id' => $this->account->id,
+            'waba_id' => 'waba-embedded',
+            'phone_number_id' => 'pn-embedded',
+        ]);
+    }
+
     public function test_embedded_signup_blocks_assets_already_owned_by_another_account(): void
     {
         config([
