@@ -122,12 +122,17 @@ return Application::configure(basePath: dirname(__DIR__))
             
             // Don't leak stack traces in production
             if (app()->environment('production')) {
-                // For webhook routes, always return generic errors
+                // For webhook routes, preserve explicit HTTP errors (401/403/429/etc.)
+                // and only mask unexpected 5xx failures.
                 if ($request->is('webhooks/*')) {
+                    $statusCode = method_exists($e, 'getStatusCode') ? (int) $e->getStatusCode() : 500;
+
                     return response()->json([
                         'success' => false,
-                        'error' => 'An error occurred processing the webhook',
-                    ], 500);
+                        'error' => $statusCode >= 500
+                            ? 'An error occurred processing the webhook'
+                            : ($e->getMessage() ?: 'Webhook request failed'),
+                    ], $statusCode);
                 }
 
                 // For API routes, return JSON errors without stack traces
