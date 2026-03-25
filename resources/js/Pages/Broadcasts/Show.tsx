@@ -232,7 +232,7 @@ export default function BroadcastsShow({
                 </div>
 
                 {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                     <Card>
                         <CardContent className="p-6">
                             <div className="flex items-center justify-between">
@@ -302,36 +302,36 @@ export default function BroadcastsShow({
                 {/* Campaign Details */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Campaign Details</CardTitle>
+                        <CardTitle>Campaign summary</CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-2">
-                        <div className="flex justify-between">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">Type</span>
-                            <span className="text-sm font-medium">{campaign.type}</span>
+                    <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-3">
+                            <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">Type</span>
+                            <span className="mt-1 block text-sm font-medium">{campaign.type}</span>
                         </div>
                         {campaign.connection && (
-                            <div className="flex justify-between">
-                                <span className="text-sm text-gray-600 dark:text-gray-400">Connection</span>
-                                <span className="text-sm font-medium">{campaign.connection.name}</span>
+                            <div className="rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-3">
+                                <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">Connection</span>
+                                <span className="mt-1 block text-sm font-medium">{campaign.connection.name}</span>
                             </div>
                         )}
                         {campaign.template && (
-                            <div className="flex justify-between">
-                                <span className="text-sm text-gray-600 dark:text-gray-400">Template</span>
-                                <span className="text-sm font-medium">{campaign.template.name}</span>
+                            <div className="rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-3">
+                                <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">Template</span>
+                                <span className="mt-1 block text-sm font-medium">{campaign.template.name}</span>
                             </div>
                         )}
-                        <div className="flex justify-between">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">Scheduled At</span>
-                            <span className="text-sm font-medium">{formatDate(campaign.scheduled_at)}</span>
+                        <div className="rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-3">
+                            <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">Scheduled At</span>
+                            <span className="mt-1 block text-sm font-medium">{formatDate(campaign.scheduled_at)}</span>
                         </div>
-                        <div className="flex justify-between">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">Started At</span>
-                            <span className="text-sm font-medium">{formatDate(campaign.started_at)}</span>
+                        <div className="rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-3">
+                            <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">Started At</span>
+                            <span className="mt-1 block text-sm font-medium">{formatDate(campaign.started_at)}</span>
                         </div>
-                        <div className="flex justify-between">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">Completed At</span>
-                            <span className="text-sm font-medium">{formatDate(campaign.completed_at)}</span>
+                        <div className="rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-3">
+                            <span className="block text-xs font-medium text-gray-500 dark:text-gray-400">Completed At</span>
+                            <span className="mt-1 block text-sm font-medium">{formatDate(campaign.completed_at)}</span>
                         </div>
                     </CardContent>
                 </Card>
@@ -339,7 +339,7 @@ export default function BroadcastsShow({
                 {/* Recipients List */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Recipients</CardTitle>
+                        <CardTitle>Recent recipients</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="overflow-x-auto">

@@ -864,7 +864,7 @@ export default function ChatbotsShow({
                                 </div>
                                 <div>
                                     <CardTitle className="text-xl font-bold">Flows</CardTitle>
-                                    <CardDescription>Define when and how the bot responds</CardDescription>
+                                    <CardDescription>Set simple reply rules. Start with one reply path and add more only when needed.</CardDescription>
                                 </div>
                             </div>
                             <Button
@@ -880,7 +880,7 @@ export default function ChatbotsShow({
                                 }}
                             >
                                 <Plus className="h-4 w-4 mr-2" />
-                                {flowFormOpen ? 'Close' : 'Add Flow'}
+                                {flowFormOpen ? 'Close' : 'Add Reply Path'}
                             </Button>
                         </div>
                     </CardHeader>
@@ -889,10 +889,10 @@ export default function ChatbotsShow({
                             <form onSubmit={submitFlow} className="space-y-4 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
                                 <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
                                     <Settings className="h-4 w-4" />
-                                    {editingFlowId ? 'Edit Flow' : 'Create Flow'}
+                                    {editingFlowId ? 'Edit reply path' : 'Create reply path'}
                                 </div>
                                 <div>
-                                    <InputLabel value="Flow Name" className="text-sm font-semibold mb-2" />
+                                    <InputLabel value="Reply path name" className="text-sm font-semibold mb-2" />
                                     <TextInput
                                         value={flowForm.name}
                                         onChange={(e) => setFlowForm({ ...flowForm, name: e.target.value })}
@@ -902,7 +902,7 @@ export default function ChatbotsShow({
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div>
-                                        <InputLabel value="Priority" className="text-sm font-semibold mb-2" />
+                                        <InputLabel value="Order" className="text-sm font-semibold mb-2" />
                                         <TextInput
                                             type="number"
                                             value={flowForm.priority}
@@ -919,15 +919,15 @@ export default function ChatbotsShow({
                                     </div>
                                 </div>
                                 <div>
-                                    <InputLabel value="Trigger Type" className="text-sm font-semibold mb-2" />
+                                    <InputLabel value="When should this reply path run?" className="text-sm font-semibold mb-2" />
                                     <select
                                         value={flowForm.triggerType}
                                         onChange={(e) => setFlowForm({ ...flowForm, triggerType: e.target.value })}
                                         className="mt-1 w-full rounded-xl border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-800 dark:border-gray-700 px-4 py-2.5"
                                     >
-                                        <option value="inbound_message">Inbound message</option>
-                                        <option value="keyword">Keyword match</option>
-                                        <option value="button_reply">Button reply</option>
+                                        <option value="inbound_message">Any new message</option>
+                                        <option value="keyword">Specific words</option>
+                                        <option value="button_reply">Button tap</option>
                                     </select>
                                 </div>
 
@@ -938,17 +938,17 @@ export default function ChatbotsShow({
                                                 checked={flowForm.firstMessageOnly}
                                                 onChange={(e) => setFlowForm({ ...flowForm, firstMessageOnly: e.target.checked })}
                                             />
-                                            <span className="text-sm text-gray-700 dark:text-gray-300">Only first inbound message</span>
+                                            <span className="text-sm text-gray-700 dark:text-gray-300">Only the first message in a chat</span>
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <Checkbox
                                                 checked={flowForm.skipIfAssigned}
                                                 onChange={(e) => setFlowForm({ ...flowForm, skipIfAssigned: e.target.checked })}
                                             />
-                                            <span className="text-sm text-gray-700 dark:text-gray-300">Skip if already assigned</span>
+                                            <span className="text-sm text-gray-700 dark:text-gray-300">Skip when a teammate already owns the chat</span>
                                         </div>
                                         <div>
-                                            <InputLabel value="Connections (optional)" className="text-sm font-semibold mb-2" />
+                                            <InputLabel value="Run only on these numbers (optional)" className="text-sm font-semibold mb-2" />
                                             <div className="space-y-2">
                                                 {connections.length === 0 && (
                                                     <p className="text-xs text-gray-500">No connections available</p>
@@ -975,7 +975,7 @@ export default function ChatbotsShow({
                                 {flowForm.triggerType === 'keyword' && (
                                     <div className="space-y-3 rounded-xl border border-gray-200 dark:border-gray-700 p-3">
                                         <div>
-                                            <InputLabel value="Keywords (comma separated)" className="text-sm font-semibold mb-2" />
+                                            <InputLabel value="Words or phrases" className="text-sm font-semibold mb-2" />
                                             <TextInput
                                                 value={flowForm.keywords}
                                                 onChange={(e) => setFlowForm({ ...flowForm, keywords: e.target.value })}
@@ -1015,7 +1015,7 @@ export default function ChatbotsShow({
 
                                 {flowForm.triggerType === 'button_reply' && (
                                     <div className="space-y-3 rounded-xl border border-gray-200 dark:border-gray-700 p-3">
-                                        <InputLabel value="Button Reply ID" className="text-sm font-semibold mb-2" />
+                                        <InputLabel value="Button ID" className="text-sm font-semibold mb-2" />
                                         <TextInput
                                             value={flowForm.buttonId}
                                             onChange={(e) => setFlowForm({ ...flowForm, buttonId: e.target.value })}
@@ -1042,10 +1042,10 @@ export default function ChatbotsShow({
                                     <Zap className="h-8 w-8 text-gray-400" />
                                 </div>
                                 <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                                    No flows yet
+                                    No reply paths yet
                                 </h3>
                                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                                    Add a flow to define when and how the bot responds to messages.
+                                    Add one reply path to decide when the bot should reply and what it should do.
                                 </p>
                             </div>
                         ) : (
@@ -1064,11 +1064,11 @@ export default function ChatbotsShow({
                                                     </Badge>
                                                 </div>
                                                 <div className="text-xs text-gray-500 dark:text-gray-400">
-                                                    Trigger: {flow.trigger?.type || 'inbound_message'} • Priority: {flow.priority}
+                                                    Starts when: {flow.trigger?.type || 'inbound_message'} • Priority: {flow.priority}
                                                 </div>
                                                 {flow.enabled && flow.health && !flow.health.is_runnable && (
                                                     <div className="text-xs text-amber-600 dark:text-amber-300 mt-1">
-                                                        Not runnable: add at least one executable node.
+                                                        This reply path needs at least one action step before it can run.
                                                     </div>
                                                 )}
                                             </div>
@@ -1089,7 +1089,7 @@ export default function ChatbotsShow({
                                                     onClick={() => openNodeForm(flow.id)}
                                                 >
                                                     <Plus className="h-4 w-4 mr-1" />
-                                                    Add Node
+                                                    Add Step
                                                 </Button>
                                                 <Button
                                                     variant="secondary"
@@ -1098,7 +1098,7 @@ export default function ChatbotsShow({
                                                     onClick={() => openEdgeForm(flow.id)}
                                                 >
                                                     <LinkIcon className="h-4 w-4 mr-1" />
-                                                    Add Edge
+                                                    Link Steps
                                                 </Button>
                                                 <Button
                                                     variant="danger"
@@ -1137,8 +1137,8 @@ export default function ChatbotsShow({
                                     <LinkIcon className="h-5 w-5 text-white" />
                                 </div>
                                 <div>
-                                    <CardTitle className="text-xl font-bold">{editingNodeId ? 'Edit Node' : 'Add Node'}</CardTitle>
-                                    <CardDescription>Configure bot behavior step</CardDescription>
+                                    <CardTitle className="text-xl font-bold">{editingNodeId ? 'Edit Node' : 'Add Step'}</CardTitle>
+                                    <CardDescription>Add one step to this reply path.</CardDescription>
                                 </div>
                             </div>
                         </CardHeader>
@@ -1146,7 +1146,7 @@ export default function ChatbotsShow({
                             <form onSubmit={submitNode} className="space-y-4">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <InputLabel value="Node Type" className="text-sm font-semibold mb-2" />
+                                        <InputLabel value="Step type" className="text-sm font-semibold mb-2" />
                                         <select
                                             value={nodeForm.type}
                                             onChange={(e) => setNodeForm({ ...nodeForm, type: e.target.value })}
@@ -1532,7 +1532,7 @@ export default function ChatbotsShow({
 
                                 <div className="flex items-center gap-3">
                                     <Button type="submit" className="rounded-xl">
-                                        {editingNodeId ? 'Update Node' : 'Add Node'}
+                                        {editingNodeId ? 'Update Node' : 'Add Step'}
                                     </Button>
                                     <Button type="button" variant="secondary" className="rounded-xl" onClick={closeNodeForm}>
                                         Cancel
@@ -1551,7 +1551,7 @@ export default function ChatbotsShow({
                                     <LinkIcon className="h-5 w-5 text-white" />
                                 </div>
                                 <div>
-                                    <CardTitle className="text-xl font-bold">{edgeForm.id ? 'Edit Edge' : 'Add Edge'}</CardTitle>
+                                    <CardTitle className="text-xl font-bold">{edgeForm.id ? 'Edit Edge' : 'Link Steps'}</CardTitle>
                                     <CardDescription>Connect nodes to define branching</CardDescription>
                                 </div>
                             </div>

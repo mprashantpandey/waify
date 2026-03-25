@@ -597,7 +597,7 @@ export default function TemplatesShow({
                             </div>
                         </div>
                     </CardHeader>
-                    <CardContent className="p-6 space-y-6">
+                    <CardContent className="p-6 space-y-4">
                         {liveTemplate.header_type && liveTemplate.header_text && (
                             <div className="p-5 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700">
                                 <div className="flex items-center gap-2 mb-3">
@@ -681,7 +681,7 @@ export default function TemplatesShow({
                         </div>
                     </CardHeader>
                     <CardContent className="p-6">
-                        <dl className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <dl className="space-y-3">
                             <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl">
                                 <dt className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Name</dt>
                                 <dd className="text-sm font-semibold text-gray-900 dark:text-gray-100">{liveTemplate.name}</dd>

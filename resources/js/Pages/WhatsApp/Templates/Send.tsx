@@ -277,7 +277,7 @@ export default function TemplatesSend({
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="mx-auto max-w-5xl space-y-6">
                     {/* Form */}
                     <Card className="shadow-sm">
                         <CardHeader className="border-b border-gray-100 dark:border-gray-800">

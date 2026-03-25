@@ -112,7 +112,7 @@ export default function BroadcastsCreate({
             <Head title="Create Campaign" />
             <div className="space-y-6">
                 <Card className="border-0 shadow-sm">
-                    <CardContent className="grid gap-4 p-5 md:grid-cols-3">
+                    <CardContent className="grid gap-3 p-5">
                         <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900">
                             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Step 1</p>
                             <p className="mt-2 font-medium text-gray-900 dark:text-gray-100">Choose the sending number</p>
@@ -146,10 +146,10 @@ export default function BroadcastsCreate({
                     </p>
                 </div>
 
-                <form onSubmit={submit} className="space-y-6">
+                <form onSubmit={submit} className="mx-auto max-w-4xl space-y-6">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Campaign Details</CardTitle>
+                            <CardTitle>1. Basic details</CardTitle>
                             <CardDescription>Basic information about your campaign</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -206,7 +206,7 @@ export default function BroadcastsCreate({
 
                     <Card>
                         <CardHeader>
-                            <CardTitle>Message Type</CardTitle>
+                            <CardTitle>2. Message</CardTitle>
                             <CardDescription>Choose how to send your campaign</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -351,7 +351,7 @@ export default function BroadcastsCreate({
 
                     <Card>
                         <CardHeader>
-                            <CardTitle>Recipients</CardTitle>
+                            <CardTitle>3. Recipients</CardTitle>
                             <CardDescription>Who should receive this campaign?</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -477,7 +477,7 @@ export default function BroadcastsCreate({
 
                     <Card>
                         <CardHeader>
-                            <CardTitle>Schedule</CardTitle>
+                            <CardTitle>4. Timing</CardTitle>
                             <CardDescription>When should this campaign be sent?</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
