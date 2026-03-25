@@ -30,21 +30,6 @@ export default function ConnectionsCreate({
     const [embeddedAutoSubmitAttempted, setEmbeddedAutoSubmitAttempted] = useState(false);
 
     const embeddedEnabled = Boolean(embeddedSignup?.enabled && embeddedSignup?.appId && embeddedSignup?.configId);
-    const buildEmbeddedSignupUrl = () => {
-        const oauthRedirectUri = resolveOAuthRedirectUri();
-        const extras = encodeURIComponent(JSON.stringify({
-            feature: 'whatsapp_embedded_signup',
-            sessionInfoVersion: '3',
-            version: 'v3',
-            redirect_uri: oauthRedirectUri,
-        }));
-
-        return `https://business.facebook.com/messaging/whatsapp/onboard/?app_id=${encodeURIComponent(
-            embeddedSignup.appId || ''
-        )}&config_id=${encodeURIComponent(embeddedSignup.configId || '')}&redirect_uri=${encodeURIComponent(
-            oauthRedirectUri
-        )}&extras=${extras}`;
-    };
     const resolveOAuthRedirectUri = () => {
         const raw = embeddedSignup?.oauthRedirectUri || route('app.whatsapp.connections.create', {});
         try {
@@ -295,7 +280,7 @@ export default function ConnectionsCreate({
     }, [embeddedEnabled]);
 
     const startEmbeddedSignup = () => {
-        if (!embeddedEnabled) {
+        if (!embeddedEnabled || !window.FB) {
             return;
         }
 
@@ -304,22 +289,43 @@ export default function ConnectionsCreate({
         setEmbeddedAutoSubmitAttempted(false);
         const oauthRedirectUri = resolveOAuthRedirectUri();
         embeddedForm.setData('redirect_uri', oauthRedirectUri);
-        const width = 540;
-        const height = 720;
-        const left = Math.max(window.screenX + (window.outerWidth - width) / 2, 0);
-        const top = Math.max(window.screenY + (window.outerHeight - height) / 2, 0);
-        const popup = window.open(
-            buildEmbeddedSignupUrl(),
-            'zyptos-meta-embedded-signup',
-            `popup=yes,width=${width},height=${height},left=${Math.round(left)},top=${Math.round(top)},resizable=yes,scrollbars=yes`
+
+        window.FB.login(
+            (response: any) => {
+                if (!response?.authResponse) {
+                    setEmbeddedStatus('Meta signup was cancelled or not completed.');
+                    return;
+                }
+
+                const code = response?.code || response?.authResponse?.code;
+                const accessToken = response?.accessToken || response?.authResponse?.accessToken;
+
+                if (code) {
+                    applyEmbeddedCode(String(code));
+                    return;
+                }
+
+                if (accessToken) {
+                    embeddedForm.setData('access_token', String(accessToken));
+                    embeddedForm.setData('redirect_uri', oauthRedirectUri);
+                    setEmbeddedStatus('Authorization complete. Finishing Meta setup...');
+                    setEmbeddedAutoSubmitRequested(true);
+                    return;
+                }
+
+                setEmbeddedStatus('Meta signup finished but did not return an authorization code.');
+            },
+            {
+                config_id: embeddedSignup.configId,
+                override_default_response_type: true,
+                response_type: 'code',
+                extras: {
+                    feature: 'whatsapp_embedded_signup',
+                    sessionInfoVersion: 3,
+                },
+            }
         );
 
-        if (!popup) {
-            setEmbeddedStatus('Popup blocked. Allow popups for Zyptos and try again.');
-            return;
-        }
-
-        popup.focus();
         setEmbeddedStatus('Complete the Meta setup in the popup. We will continue here automatically.');
     };
 

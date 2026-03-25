@@ -57,21 +57,6 @@ export default function EmbeddedWizard({
     const lastTelemetryKeyRef = useRef<string>('');
     const autoCreateTriggeredRef = useRef(false);
     const embeddedEnabled = Boolean(embeddedSignup?.enabled && embeddedSignup?.appId && embeddedSignup?.configId);
-    const buildEmbeddedSignupUrl = () => {
-        const oauthRedirectUri = resolveOAuthRedirectUri();
-        const extras = encodeURIComponent(JSON.stringify({
-            feature: 'whatsapp_embedded_signup',
-            sessionInfoVersion: '3',
-            version: 'v3',
-            redirect_uri: oauthRedirectUri,
-        }));
-
-        return `https://business.facebook.com/messaging/whatsapp/onboard/?app_id=${encodeURIComponent(
-            embeddedSignup.appId || ''
-        )}&config_id=${encodeURIComponent(embeddedSignup.configId || '')}&redirect_uri=${encodeURIComponent(
-            oauthRedirectUri
-        )}&extras=${extras}`;
-    };
     const resolveOAuthRedirectUri = () => {
         const raw = embeddedSignup?.oauthRedirectUri || route('app.whatsapp.connections.create', {});
         try {
@@ -378,7 +363,7 @@ export default function EmbeddedWizard({
     }, [embeddedSignup?.appId, toast]);
 
     const startWizard = () => {
-        if (!embeddedEnabled) {
+        if (!embeddedEnabled || !window.FB) {
             toast.error('Meta signup is not configured yet.');
             return;
         }
@@ -396,31 +381,63 @@ export default function EmbeddedWizard({
         emitTelemetry({ step: 'authorization_start', status: 'started', message: 'Started Meta OAuth flow' });
 
         embeddedForm.setData('redirect_uri', oauthRedirectUri);
-        const width = 540;
-        const height = 720;
-        const left = Math.max(window.screenX + (window.outerWidth - width) / 2, 0);
-        const top = Math.max(window.screenY + (window.outerHeight - height) / 2, 0);
-        const popup = window.open(
-            buildEmbeddedSignupUrl(),
-            'zyptos-meta-embedded-signup',
-            `popup=yes,width=${width},height=${height},left=${Math.round(left)},top=${Math.round(top)},resizable=yes,scrollbars=yes`
+
+        window.FB.login(
+            (response: any) => {
+                if (!response?.authResponse) {
+                    setWizardState((prev) => ({
+                        ...prev,
+                        step: 'error',
+                        error: 'Meta signup was cancelled or not completed.',
+                    }));
+                    emitTelemetry({
+                        step: 'authorization_start',
+                        status: 'cancelled',
+                        message: 'Meta signup cancelled or did not complete',
+                    });
+                    return;
+                }
+
+                const code = response?.code || response?.authResponse?.code;
+                const accessToken = response?.accessToken || response?.authResponse?.accessToken;
+
+                if (code) {
+                    applyEmbeddedCode(String(code));
+                    return;
+                }
+
+                if (accessToken) {
+                    embeddedForm.setData('access_token', String(accessToken));
+                    setWizardState((prev) => ({
+                        ...prev,
+                        step: 'code-exchange',
+                        progress: 40,
+                        message: 'Authorization complete. Finishing setup...',
+                        data: {
+                            ...prev.data,
+                            accessToken: String(accessToken),
+                        },
+                    }));
+                    return;
+                }
+
+                setWizardState((prev) => ({
+                    ...prev,
+                    step: 'error',
+                    error: 'Meta signup finished but did not return an authorization code.',
+                }));
+            },
+            {
+                config_id: embeddedSignup.configId,
+                override_default_response_type: true,
+                response_type: 'code',
+                extras: {
+                    feature: 'whatsapp_embedded_signup',
+                    sessionInfoVersion: 3,
+                },
+            }
         );
 
-        if (!popup) {
-            setWizardState((prev) => ({
-                ...prev,
-                step: 'error',
-                error: 'Popup blocked. Allow popups for Zyptos and try again.',
-            }));
-            emitTelemetry({
-                step: 'authorization_start',
-                status: 'error',
-                message: 'Popup blocked before Meta onboarding could open',
-            });
-            return;
-        }
-
-        popup.focus();
         setWizardState((prev) => ({
             ...prev,
             step: 'auth',
