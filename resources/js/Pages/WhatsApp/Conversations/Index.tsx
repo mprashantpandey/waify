@@ -592,8 +592,8 @@ export default function ConversationsIndex({
     return (
         <AppShell>
             <Head title="Inbox" />
-            <div className="h-[calc(100vh-8rem)] lg:h-[calc(100vh-6rem)]">
-                <div className="grid h-full lg:grid-cols-[380px_1fr] rounded-3xl overflow-hidden border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            <div className="min-h-[calc(100vh-8rem)] lg:min-h-[calc(100vh-6rem)]">
+                <div className="grid min-h-full lg:grid-cols-[380px_1fr] rounded-3xl overflow-hidden border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
                     <section className="flex flex-col border-r border-gray-200 dark:border-gray-800">
                         <div className="border-b border-gray-200 bg-white px-5 py-4 dark:border-gray-800 dark:bg-gray-900">
                             <div className="flex items-start justify-between gap-3">
@@ -721,7 +721,7 @@ export default function ConversationsIndex({
                             )}
                         </div>
 
-                        <div className="flex-1 overflow-y-auto">
+                        <div className="min-h-0 flex-1 overflow-y-auto">
                             {/* Debug line removed */}
                             {loading ? (
                                 <div className="p-2">
@@ -913,8 +913,8 @@ export default function ConversationsIndex({
                         </div>
                     </section>
 
-                    <section className="hidden flex-col items-center justify-center bg-gray-50 lg:flex dark:bg-gray-950/40">
-                        <div className="max-w-md px-8 text-center">
+                    <section className="hidden bg-gray-50 lg:flex lg:items-center lg:justify-center dark:bg-gray-950/40">
+                        <div className="mx-auto max-w-md px-8 py-10 text-center">
                             <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-sm dark:bg-gray-900">
                                 <MessageSquare className="h-8 w-8 text-blue-600" />
                             </div>
