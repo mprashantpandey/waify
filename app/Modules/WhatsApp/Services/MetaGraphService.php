@@ -33,6 +33,18 @@ class MetaGraphService
         return $this->graphRequest()->withToken($token);
     }
 
+    public function appAccessToken(): ?string
+    {
+        $appId = (string) config('whatsapp.meta.app_id', '');
+        $appSecret = (string) config('whatsapp.meta.app_secret', '');
+
+        if ($appId === '' || $appSecret === '') {
+            return null;
+        }
+
+        return sprintf('%s|%s', $appId, $appSecret);
+    }
+
     public function exchangeCodeForToken(string $code, ?string $redirectUri = null): array
     {
         $appId = config('whatsapp.meta.app_id');

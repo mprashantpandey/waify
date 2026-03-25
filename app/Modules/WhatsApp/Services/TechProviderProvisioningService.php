@@ -80,9 +80,11 @@ class TechProviderProvisioningService
 
         $this->embeddedSignupProvisioningService->start($connection, 'app_subscription');
         try {
-            $subscriptionResult = $this->metaGraphService->ensureAppSubscribedToWaba($wabaId, $operatingToken);
+            $appSubscriptionToken = $this->metaGraphService->appAccessToken() ?: $operatingToken;
+            $subscriptionResult = $this->metaGraphService->ensureAppSubscribedToWaba($wabaId, $appSubscriptionToken);
             $this->embeddedSignupProvisioningService->complete($connection, 'app_subscription', [
                 'already_subscribed' => (bool) ($subscriptionResult['already_subscribed'] ?? false),
+                'token_type' => $appSubscriptionToken === $operatingToken ? 'operating' : 'app',
             ]);
         } catch (\Throwable $e) {
             $this->embeddedSignupProvisioningService->fail($connection, 'app_subscription', $e->getMessage());
