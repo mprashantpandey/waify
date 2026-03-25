@@ -229,16 +229,18 @@ Route::middleware(['auth', 'account.resolve', 'account.active', 'account.subscri
         Route::delete('/{user}/remove', [\App\Http\Controllers\TeamController::class, 'remove'])->name('remove');
     });
     
-    // Activity Logs
-    Route::get('/activity-logs', [\App\Http\Controllers\ActivityLogController::class, 'index'])->name('activity-logs');
-    Route::get('/activity-logs/export', [\App\Http\Controllers\ActivityLogController::class, 'export'])->name('activity-logs.export');
-    Route::post('/activity-logs/saved-views', [\App\Http\Controllers\ActivityLogController::class, 'storeSavedView'])->name('activity-logs.saved-views.store');
-    Route::patch('/activity-logs/saved-views/{savedView}', [\App\Http\Controllers\ActivityLogController::class, 'updateSavedView'])->name('activity-logs.saved-views.update');
-    Route::delete('/activity-logs/saved-views/{savedView}', [\App\Http\Controllers\ActivityLogController::class, 'deleteSavedView'])->name('activity-logs.saved-views.delete');
-    Route::get('/alerts', [\App\Http\Controllers\OperationalAlertsController::class, 'index'])->name('alerts.index');
-    Route::post('/alerts/{event}/acknowledge', [\App\Http\Controllers\OperationalAlertsController::class, 'acknowledge'])->name('alerts.acknowledge');
-    Route::get('/alerts/export', [\App\Http\Controllers\OperationalAlertsController::class, 'export'])->name('alerts.export');
-    Route::get('/alerts/diagnostics-bundle', [\App\Http\Controllers\OperationalAlertsController::class, 'diagnosticsBundle'])->name('alerts.bundle');
+    Route::middleware('support.access')->group(function () {
+        // Activity Logs
+        Route::get('/activity-logs', [\App\Http\Controllers\ActivityLogController::class, 'index'])->name('activity-logs');
+        Route::get('/activity-logs/export', [\App\Http\Controllers\ActivityLogController::class, 'export'])->name('activity-logs.export');
+        Route::post('/activity-logs/saved-views', [\App\Http\Controllers\ActivityLogController::class, 'storeSavedView'])->name('activity-logs.saved-views.store');
+        Route::patch('/activity-logs/saved-views/{savedView}', [\App\Http\Controllers\ActivityLogController::class, 'updateSavedView'])->name('activity-logs.saved-views.update');
+        Route::delete('/activity-logs/saved-views/{savedView}', [\App\Http\Controllers\ActivityLogController::class, 'deleteSavedView'])->name('activity-logs.saved-views.delete');
+        Route::get('/alerts', [\App\Http\Controllers\OperationalAlertsController::class, 'index'])->name('alerts.index');
+        Route::post('/alerts/{event}/acknowledge', [\App\Http\Controllers\OperationalAlertsController::class, 'acknowledge'])->name('alerts.acknowledge');
+        Route::get('/alerts/export', [\App\Http\Controllers\OperationalAlertsController::class, 'export'])->name('alerts.export');
+        Route::get('/alerts/diagnostics-bundle', [\App\Http\Controllers\OperationalAlertsController::class, 'diagnosticsBundle'])->name('alerts.bundle');
+    });
 
     // Core Support Tickets (tenant-facing)
     Route::prefix('/support')->name('support.')->group(function () {
