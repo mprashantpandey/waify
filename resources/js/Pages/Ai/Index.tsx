@@ -20,12 +20,6 @@ interface PromptRow {
     enabled?: boolean;
 }
 
-interface PurposeOption {
-    value: string;
-    label: string;
-    description: string;
-}
-
 interface UsageStats {
     this_month: number;
     by_feature: Record<string, number>;
@@ -58,7 +52,6 @@ export default function AiIndex({
     ai_suggestions_enabled = false,
     ai_prompts = [],
     prompt_library = [],
-    purpose_options = [],
     platform_ai_enabled = false,
     platform_ai_provider = 'openai',
     usage = { this_month: 0, by_feature: {}, period_start: '' },
@@ -77,7 +70,6 @@ export default function AiIndex({
     ai_suggestions_enabled: boolean;
     ai_prompts: PromptRow[];
     prompt_library?: (PromptRow & { purpose_description?: string })[];
-    purpose_options?: PurposeOption[];
     platform_ai_enabled?: boolean;
     platform_ai_provider?: string;
     usage: UsageStats;
@@ -87,7 +79,6 @@ export default function AiIndex({
     auto_reply_modes?: AutoReplyMode[];
 }) {
     const { toast } = useNotifications();
-    const [showAdvanced, setShowAdvanced] = useState(false);
     const [showKnowledgeBase, setShowKnowledgeBase] = useState((knowledge_items?.length ?? 0) > 0);
 
     const { data, setData, post, transform, processing, errors, recentlySuccessful } = useForm({
@@ -115,14 +106,6 @@ export default function AiIndex({
         auto_reply: 'Auto replies',
     };
 
-    const addPrompt = () => {
-        setShowAdvanced(true);
-        setData('ai_prompts', [
-            ...data.ai_prompts,
-            { purpose: 'conversation_suggest', label: '', prompt: '', scope: 'all' as const, enabled: true },
-        ]);
-    };
-
     const addFromLibrary = (libraryPrompt: PromptRow) => {
         const alreadyExists = data.ai_prompts.some(
             (row) => row.purpose === libraryPrompt.purpose && row.label === libraryPrompt.label && row.prompt === libraryPrompt.prompt,
@@ -144,20 +127,6 @@ export default function AiIndex({
             },
         ]);
         toast.success('Reply style added');
-    };
-
-    const updatePrompt = (index: number, field: keyof PromptRow, value: PromptRow[keyof PromptRow]) => {
-        setData(
-            'ai_prompts',
-            data.ai_prompts.map((row, rowIndex) => (rowIndex === index ? { ...row, [field]: value } : row)),
-        );
-    };
-
-    const removePrompt = (index: number) => {
-        setData(
-            'ai_prompts',
-            data.ai_prompts.filter((_, rowIndex) => rowIndex !== index),
-        );
     };
 
     const addKnowledgeItem = () => {
@@ -194,12 +163,6 @@ export default function AiIndex({
                 enabled: row.enabled !== false,
             }))
             .filter((row) => row.purpose || row.label || row.prompt);
-
-        const hasIncompletePrompts = cleanedPrompts.some((row) => !row.purpose || !row.label || !row.prompt);
-        if (hasIncompletePrompts) {
-            toast.warning('Incomplete instructions', 'Finish each custom instruction or remove the empty row.');
-            return;
-        }
 
         const cleanedKnowledgeItems = data.knowledge_items
             .map((item, index) => ({
@@ -558,91 +521,6 @@ export default function AiIndex({
                                 </div>
                             ) : null}
                         </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader>
-                            <div className="flex items-center justify-between gap-3">
-                                <div>
-                                    <CardTitle>Advanced instructions</CardTitle>
-                                    <CardDescription>
-                                        Add custom instructions only if your team needs something more specific.
-                                    </CardDescription>
-                                </div>
-                                <Button type="button" variant="ghost" onClick={() => setShowAdvanced((value) => !value)} className="gap-2">
-                                    {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                                    {showAdvanced ? 'Hide' : 'Show'}
-                                </Button>
-                            </div>
-                        </CardHeader>
-                        {showAdvanced ? (
-                            <CardContent className="space-y-4">
-                                {Array.isArray(purpose_options) && purpose_options.length > 0 ? (
-                                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-900/50 dark:text-gray-400">
-                                        <p className="font-medium text-gray-900 dark:text-gray-100">Where each instruction is used</p>
-                                        <div className="mt-2 space-y-1">
-                                            {purpose_options.map((option) => (
-                                                <div key={option.value}>
-                                                    <span className="font-mono text-xs text-[#007f67] dark:text-[#6ce0c1]">{option.value}</span>
-                                                    <span> — {option.description}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ) : null}
-
-                                {data.ai_prompts.map((row, index) => (
-                                    <div key={index} className="rounded-2xl border border-gray-200 p-4 dark:border-gray-800">
-                                        <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_180px_auto_auto]">
-                                            <TextInput
-                                                placeholder="Purpose"
-                                                value={row.purpose}
-                                                onChange={(event) => updatePrompt(index, 'purpose', event.target.value)}
-                                            />
-                                            <TextInput
-                                                placeholder="Label"
-                                                value={row.label}
-                                                onChange={(event) => updatePrompt(index, 'label', event.target.value)}
-                                            />
-                                            <select
-                                                value={row.scope || 'all'}
-                                                onChange={(event) => updatePrompt(index, 'scope', event.target.value)}
-                                                className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
-                                            >
-                                                <option value="all">All roles</option>
-                                                <option value="owner">Owner</option>
-                                                <option value="admin">Admin</option>
-                                                <option value="member">Member</option>
-                                            </select>
-                                            <div className="flex items-center justify-center">
-                                                <Switch
-                                                    checked={row.enabled !== false}
-                                                    onCheckedChange={(checked) => updatePrompt(index, 'enabled', checked)}
-                                                />
-                                            </div>
-                                            <Button type="button" variant="ghost" onClick={() => removePrompt(index)} className="px-3">
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                        <Textarea
-                                            placeholder="Prompt text"
-                                            value={row.prompt}
-                                            onChange={(event) => updatePrompt(index, 'prompt', event.target.value)}
-                                            rows={3}
-                                            className="mt-3 w-full text-sm"
-                                        />
-                                    </div>
-                                ))}
-
-                                <div className="flex items-center justify-between gap-3">
-                                    <Button type="button" variant="secondary" onClick={addPrompt} className="gap-2">
-                                        <Plus className="h-4 w-4" />
-                                        Add instruction
-                                    </Button>
-                                    <InputError message={errors?.ai_prompts} className="mt-0" />
-                                </div>
-                            </CardContent>
-                        ) : null}
                     </Card>
 
                     <div className="flex items-center justify-end gap-4">
