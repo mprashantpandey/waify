@@ -41,7 +41,8 @@ function formatSetupLabel(connection: Connection): string {
     if (connection.provisioning_status === 'failed') return 'Needs attention';
     if (connection.provisioning_status && connection.provisioning_status !== 'completed') return 'Getting ready';
     if (connection.activation_state && connection.activation_state !== 'active') return 'Almost ready';
-    return connection.is_active ? 'Ready' : 'Inactive';
+    if (connection.activation_state === 'active' || connection.is_active) return 'Ready';
+    return 'Inactive';
 }
 
 function formatSetupTone(connection: Connection): 'success' | 'warning' | 'default' {

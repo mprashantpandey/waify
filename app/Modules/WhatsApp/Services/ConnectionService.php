@@ -16,8 +16,12 @@ class ConnectionService
         $this->assertAssetNotOwnedByAnotherAccount($account, $data['phone_number_id'] ?? null, $data['waba_id'] ?? null);
 
         $data['account_id'] = $account->id;
+        $activationState = $data['activation_state'] ?? 'active';
         $data['api_version'] = $data['api_version'] ?? config('whatsapp.meta.api_version', 'v21.0');
-        $data['activation_state'] = $data['activation_state'] ?? 'active';
+        $data['activation_state'] = $activationState;
+        $data['is_active'] = array_key_exists('is_active', $data)
+            ? (bool) $data['is_active']
+            : $this->isActiveForState($activationState);
         $data['activation_updated_at'] = $data['activation_updated_at'] ?? now();
         $data['metadata_sync_status'] = $data['metadata_sync_status'] ?? 'pending';
         $data['provisioning_status'] = $data['provisioning_status'] ?? 'pending';
@@ -54,6 +58,10 @@ class ConnectionService
 
         if (array_key_exists('api_version', $data) && $data['api_version'] === null) {
             unset($data['api_version']);
+        }
+
+        if (array_key_exists('activation_state', $data) && !array_key_exists('is_active', $data)) {
+            $data['is_active'] = $this->isActiveForState($data['activation_state']);
         }
 
         $data = $this->normalizeCampaignSafetySettings($data);
@@ -113,6 +121,11 @@ class ConnectionService
         ]);
 
         return $url;
+    }
+
+    protected function isActiveForState(?string $activationState): bool
+    {
+        return strtolower(trim((string) ($activationState ?: 'active'))) !== 'failed';
     }
 
     protected function assertAssetNotOwnedByAnotherAccount(

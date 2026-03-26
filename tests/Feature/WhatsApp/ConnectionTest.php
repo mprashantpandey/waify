@@ -76,6 +76,8 @@ class ConnectionTest extends TestCase
             'account_id' => $this->account->id,
             'name' => 'Test Connection',
             'phone_number_id' => '123456789',
+            'activation_state' => 'active',
+            'is_active' => true,
         ]);
     }
 
@@ -144,6 +146,26 @@ class ConnectionTest extends TestCase
         $this->assertDatabaseHas('whatsapp_connections', [
             'id' => $connection->id,
             'name' => 'Updated Name',
+        ]);
+    }
+
+    public function test_connection_update_keeps_is_active_in_sync_with_activation_state(): void
+    {
+        $connection = WhatsAppConnection::factory()->create([
+            'account_id' => $this->account->id,
+            'name' => 'Original Name',
+            'activation_state' => 'active',
+            'is_active' => false,
+        ]);
+
+        app(\App\Modules\WhatsApp\Services\ConnectionService::class)->update($connection, [
+            'activation_state' => 'active',
+        ]);
+
+        $this->assertDatabaseHas('whatsapp_connections', [
+            'id' => $connection->id,
+            'activation_state' => 'active',
+            'is_active' => true,
         ]);
     }
 
