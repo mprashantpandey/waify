@@ -18,6 +18,7 @@ use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
 use App\Modules\WhatsApp\Policies\WhatsAppConnectionPolicy;
 use App\Services\PlatformSettingsService;
+use Illuminate\Filesystem\Filesystem;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Mail\Events\MessageSent;
 use Illuminate\Notifications\Events\NotificationFailed;
@@ -48,6 +49,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // Laravel 12 base bindings no longer expose "files" by default,
+        // but several console commands and package internals still resolve it.
+        if (!$this->app->bound('files')) {
+            $this->app->singleton('files', fn () => new Filesystem());
+        }
+
         // Register BillingProviderManager as singleton
         $this->app->singleton(\App\Core\Billing\BillingProviderManager::class, function ($app) {
             return new \App\Core\Billing\BillingProviderManager();
