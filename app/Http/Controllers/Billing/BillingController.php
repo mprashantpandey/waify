@@ -909,10 +909,10 @@ class BillingController extends Controller
     {
         $settingsService = app(PlatformSettingsService::class);
         $freeTierLimit = (int) $settingsService->get('whatsapp.meta_billing.free_tier_limit', 1000);
-        $accountCountry = $account?->billing_country_code;
-        $accountCurrency = $account?->billing_currency;
-        $resolvedPricing = $this->metaPricingResolver->resolve(now(), $accountCountry);
-        $currency = strtoupper((string) ($accountCurrency ?: ($resolvedPricing['currency'] ?? $settingsService->get('payment.default_currency', 'INR'))));
+        $accountCountry = MetaPricingResolver::DEFAULT_COUNTRY_CODE;
+        $accountCurrency = MetaPricingResolver::DEFAULT_CURRENCY;
+        $resolvedPricing = $this->metaPricingResolver->resolve(now(), MetaPricingResolver::DEFAULT_COUNTRY_CODE);
+        $currency = MetaPricingResolver::DEFAULT_CURRENCY;
         $pricePerConversationMinor = $resolvedPricing['rates'] ?? [];
 
         $freeUsed = (int) ($usage->meta_conversations_free_used ?? 0);

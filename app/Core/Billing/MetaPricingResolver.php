@@ -8,11 +8,14 @@ use Carbon\CarbonInterface;
 
 class MetaPricingResolver
 {
+    public const DEFAULT_COUNTRY_CODE = 'IN';
+    public const DEFAULT_CURRENCY = 'INR';
+
     public function resolve(?CarbonInterface $at = null, ?string $countryCode = null): array
     {
         $timestamp = ($at ?? now())->copy();
-        $country = strtoupper(trim((string) ($countryCode ?: PlatformSetting::get('whatsapp.meta_billing.default_country_code', 'IN'))));
-        $currency = strtoupper((string) PlatformSetting::get('payment.default_currency', 'INR'));
+        $country = self::DEFAULT_COUNTRY_CODE;
+        $currency = self::DEFAULT_CURRENCY;
 
         $version = MetaPricingVersion::query()
             ->where('provider', 'meta_whatsapp')
