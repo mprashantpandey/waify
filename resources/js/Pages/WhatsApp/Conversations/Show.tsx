@@ -1678,7 +1678,7 @@ export default function ConversationsShow({
                 )}
             >
                 {/* Header */}
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 bg-[#075E54] text-white">
+                <div className="sticky top-0 z-20 flex flex-shrink-0 flex-col gap-3 border-b border-[#054c44] bg-[#075E54] px-4 py-3 text-white shadow-sm sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3 min-w-0 w-full">
                         {!isEmbedded && (
                             <Link
@@ -2135,7 +2135,7 @@ export default function ConversationsShow({
                 </div>
 
                 {/* Composer - sticky on mobile so it stays visible when keyboard or panels open */}
-                <div className="relative flex-shrink-0 border-t border-gray-200 dark:border-gray-800 bg-[#f0f2f5] dark:bg-gray-900 p-3 sticky bottom-0">
+                <div className="sticky bottom-0 z-20 flex-shrink-0 border-t border-gray-200 bg-[#f0f2f5] p-3 shadow-[0_-8px_24px_rgba(17,27,33,0.08)] dark:border-gray-800 dark:bg-gray-900">
                     <div className="space-y-3">
                         <div className="relative">
                             <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1 -mx-1 px-1">
