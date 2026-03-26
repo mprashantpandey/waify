@@ -179,6 +179,7 @@ class ConversationController extends Controller
             'conversations' => $conversations,
             'connections' => $connections,
             'agents' => $agents,
+            'selected_conversation_id' => $request->filled('conversation') ? (int) $request->input('conversation') : null,
             'filters' => [
                 'search' => $request->input('search', ''),
                 'assignee' => $request->input('assignee', 'all'),
@@ -454,6 +455,7 @@ class ConversationController extends Controller
                 'auto_assign_strategy' => $account->auto_assign_strategy ?? 'round_robin',
             ],
             'ai_available' => $aiAvailable,
+            'embedded' => $request->boolean('embedded'),
         ]);
     }
 

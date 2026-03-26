@@ -117,6 +117,7 @@ export default function ConversationsIndex({
     connections,
     agents: initialAgents = [],
     filters: initialFilters = { search: '' },
+    selected_conversation_id: initialSelectedConversationId = null,
 }: {
     account: any;
     conversations: {
@@ -127,6 +128,7 @@ export default function ConversationsIndex({
     connections?: Array<{ id: number; name: string }>;
     agents?: Agent[];
     filters?: { search?: string; assignee?: string; status?: string; connection_id?: string | number };
+    selected_conversation_id?: number | null;
 }) {
     const { subscribe, connected } = useRealtime();
     const { addToast } = useToast();
@@ -165,6 +167,7 @@ export default function ConversationsIndex({
         new Map(normalizeConversationList(initialConversations?.data).map((c) => [c.id, c.assigned_to ?? null]))
     );
     const [assignmentSaving, setAssignmentSaving] = useState<Record<number, number | null>>({});
+    const [selectedConversationId, setSelectedConversationId] = useState<number | null>(initialSelectedConversationId);
 
     const playNotificationSound = useCallback(() => {
         if (!soundEnabled) return;
@@ -337,6 +340,36 @@ export default function ConversationsIndex({
     useEffect(() => {
         setConversations(normalizeConversationList(initialConversations?.data));
     }, [initialConversations]);
+
+    useEffect(() => {
+        setSelectedConversationId(initialSelectedConversationId);
+    }, [initialSelectedConversationId]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        if (window.innerWidth < 1024) return;
+        if (selectedConversationId == null) return;
+        if (conversations.some((conversation) => conversation.id === selectedConversationId)) return;
+        setSelectedConversationId(null);
+        const url = new URL(window.location.href);
+        url.searchParams.delete('conversation');
+        window.history.replaceState({}, '', url.toString());
+    }, [conversations, selectedConversationId]);
+
+    const openConversationInPane = useCallback((conversationId: number) => {
+        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+            router.visit(route('app.whatsapp.conversations.show', { conversation: conversationId }));
+            return;
+        }
+
+        setSelectedConversationId(conversationId);
+
+        if (typeof window !== 'undefined') {
+            const url = new URL(window.location.href);
+            url.searchParams.set('conversation', String(conversationId));
+            window.history.replaceState({}, '', url.toString());
+        }
+    }, []);
 
     // Backend search: debounce and reload with search param
     const lastSearchRef = useRef(initialFilters?.search ?? '');
@@ -811,6 +844,7 @@ export default function ConversationsIndex({
                             ) : (
                                 <div className="divide-y divide-[#e9edef] dark:divide-gray-800">
                                     {filteredConversations.map((conversation) => {
+                                        const isSelected = selectedConversationId === conversation.id;
                                         const pendingAssignment = Object.prototype.hasOwnProperty.call(assignmentSaving, conversation.id)
                                             ? assignmentSaving[conversation.id]
                                             : undefined;
@@ -822,11 +856,17 @@ export default function ConversationsIndex({
                                         return (
                                             <div
                                                 key={conversation.id}
-                                                className="group flex flex-col gap-2 px-3 py-3 transition-colors hover:bg-[#f5f6f6] dark:hover:bg-gray-800/60 sm:flex-row sm:items-start"
+                                                className={cn(
+                                                    'group flex flex-col gap-2 px-3 py-3 transition-colors sm:flex-row sm:items-start',
+                                                    isSelected
+                                                        ? 'bg-[#f0f2f5] dark:bg-gray-800/80'
+                                                        : 'hover:bg-[#f5f6f6] dark:hover:bg-gray-800/60'
+                                                )}
                                             >
-                                                <Link
-                                                    href={route('app.whatsapp.conversations.show', { conversation: conversation.id })}
-                                                    className="flex min-w-0 flex-1 items-start gap-3"
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openConversationInPane(conversation.id)}
+                                                    className="flex min-w-0 flex-1 items-start gap-3 text-left"
                                                 >
                                                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#00a884] text-sm font-semibold text-white">
                                                         {conversation.contact.name?.charAt(0).toUpperCase() || conversation.contact.wa_id.charAt(0)}
@@ -890,7 +930,7 @@ export default function ConversationsIndex({
                                                             )}
                                                         </div>
                                                     </div>
-                                                </Link>
+                                                </button>
                                                 {agents.length > 0 && (
                                                     <div
                                                         className="w-full sm:w-auto sm:shrink-0 sm:pt-0.5"
@@ -964,7 +1004,7 @@ export default function ConversationsIndex({
                     </section>
 
                     <section
-                        className="hidden lg:flex lg:items-center lg:justify-center dark:bg-gray-950/40"
+                        className="hidden min-h-0 lg:flex dark:bg-gray-950/40"
                         style={{
                             backgroundColor: '#efeae2',
                             backgroundImage:
@@ -973,25 +1013,26 @@ export default function ConversationsIndex({
                             backgroundSize: '24px 24px',
                         }}
                     >
-                        <div className="mx-auto max-w-md px-8 py-10 text-center">
-                            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/90 shadow-sm dark:bg-gray-900">
-                                <MessageSquare className="h-8 w-8 text-[#00a884]" />
-                            </div>
-                            <h2 className="text-xl font-semibold text-[#111b21] dark:text-gray-100">Choose a chat</h2>
-                            <p className="mt-2 text-sm text-[#54656f] dark:text-gray-400">
-                                Pick a conversation from the left to read messages, reply, and manage assignments.
-                            </p>
-                            <div className="mt-6 space-y-3 text-left">
-                                <div className="rounded-2xl border border-[#d1d7db] bg-white/90 p-4 dark:border-gray-800 dark:bg-gray-900">
-                                    <p className="text-sm font-medium text-[#111b21] dark:text-gray-100">Start with open chats</p>
-                                    <p className="mt-1 text-sm text-[#54656f] dark:text-gray-400">Work through unread conversations first so replies do not get delayed.</p>
+                        {selectedConversationId ? (
+                            <iframe
+                                key={selectedConversationId}
+                                title={`Conversation ${selectedConversationId}`}
+                                src={`${route('app.whatsapp.conversations.show', { conversation: selectedConversationId })}?embedded=1`}
+                                className="h-full w-full border-0 bg-transparent"
+                            />
+                        ) : (
+                            <div className="flex w-full items-center justify-center">
+                                <div className="mx-auto max-w-md px-8 py-10 text-center">
+                                    <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/90 shadow-sm dark:bg-gray-900">
+                                        <MessageSquare className="h-8 w-8 text-[#00a884]" />
+                                    </div>
+                                    <h2 className="text-xl font-semibold text-[#111b21] dark:text-gray-100">Choose a chat</h2>
+                                    <p className="mt-2 text-sm text-[#54656f] dark:text-gray-400">
+                                        Pick a conversation from the left to read messages, reply, and manage assignments.
+                                    </p>
                                 </div>
-                                <div className="rounded-2xl border border-[#d1d7db] bg-white/90 p-4 dark:border-gray-800 dark:bg-gray-900">
-                                    <p className="text-sm font-medium text-[#111b21] dark:text-gray-100">Use filters when the list grows</p>
-                                    <p className="mt-1 text-sm text-[#54656f] dark:text-gray-400">Filter by assignee, status, or number to keep the inbox focused.</p>
-                                </div>
                             </div>
-                        </div>
+                        )}
                     </section>
                 </div>
             </div>

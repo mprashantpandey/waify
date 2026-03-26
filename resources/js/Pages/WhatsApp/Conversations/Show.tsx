@@ -309,6 +309,7 @@ export default function ConversationsShow({
         auto_assign_strategy: 'round_robin',
     },
     ai_available: aiAvailable = false,
+    embedded = false,
 }: {
     account: any;
     conversation: Conversation;
@@ -324,6 +325,7 @@ export default function ConversationsShow({
         auto_assign_strategy: string;
     };
     ai_available?: boolean;
+    embedded?: boolean;
 }) {
     const pageProps = usePage().props as any;
     const resolvedConversation: Conversation | null = initialConversation ?? pageProps?.conversation ?? null;
@@ -348,6 +350,7 @@ export default function ConversationsShow({
     const initialTotalMessages = Number(total_messages ?? pageProps?.total_messages ?? 0);
     const resolvedAiAvailable = Boolean(aiAvailable ?? pageProps?.ai_available ?? false);
     const platformAiEnabled = asBool(pageProps?.ai?.enabled ?? false);
+    const isEmbedded = Boolean(embedded ?? pageProps?.embedded ?? false);
 
     if (!resolvedConversation) {
         return (
@@ -1665,21 +1668,28 @@ export default function ConversationsShow({
     const hasComposerPanels =
         showComposerTools || showLocation || showQuickReplies || showTemplates || showLists || showButtons;
 
-    return (
-        <AppShell>
+    const content = (
+        <>
             <Head title={`${conversation.contact.name || conversation.contact.wa_id} - Inbox`} />
-            <div className="flex flex-col h-[calc(100vh-8rem)] lg:h-[calc(100vh-6rem)] rounded-3xl overflow-hidden border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-xl">
+            <div
+                className={cn(
+                    'flex flex-col overflow-hidden border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900',
+                    isEmbedded ? 'h-full rounded-none border-0 shadow-none' : 'h-[calc(100vh-8rem)] rounded-3xl shadow-xl lg:h-[calc(100vh-6rem)]'
+                )}
+            >
                 {/* Header */}
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 bg-[#075E54] text-white">
                     <div className="flex items-center gap-3 min-w-0 w-full">
-                        <Link
-                            href={route('app.whatsapp.conversations.index', { })}
-                            className="inline-flex items-center text-sm font-medium text-white/90 hover:text-white transition-colors"
-                            aria-label="Back to conversations"
-                        >
-                            <ArrowLeft className="h-4 w-4 mr-1" />
-                            <span className="hidden sm:inline">Back</span>
-                        </Link>
+                        {!isEmbedded && (
+                            <Link
+                                href={route('app.whatsapp.conversations.index', { })}
+                                className="inline-flex items-center text-sm font-medium text-white/90 hover:text-white transition-colors"
+                                aria-label="Back to conversations"
+                            >
+                                <ArrowLeft className="h-4 w-4 mr-1" />
+                                <span className="hidden sm:inline">Back</span>
+                            </Link>
+                        )}
                         <div className="h-10 w-10 rounded-full bg-[#25D366] flex items-center justify-center text-white font-bold text-lg shadow-lg flex-shrink-0">
                             {conversation.contact.name?.charAt(0).toUpperCase() || conversation.contact.wa_id.charAt(0)}
                         </div>
@@ -2918,6 +2928,8 @@ export default function ConversationsShow({
                     )}
                 </div>
             </Modal>
-        </AppShell>
+        </>
     );
+
+    return isEmbedded ? content : <AppShell>{content}</AppShell>;
 }
