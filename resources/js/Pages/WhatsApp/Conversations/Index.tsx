@@ -916,6 +916,11 @@ export default function ConversationsIndex({
                                             : conversation;
                                         const assigneeMeta = getAssigneeMeta(displayConversation);
                                         const windowCountdown = formatWindowCountdown(displayConversation);
+                                        const activityEventType = conversation.activity?.event_type ?? null;
+                                        const showActivitySummary = Boolean(
+                                            conversation.activity?.description &&
+                                                !['assigned', 'transferred', 'unassigned', 'auto_assigned'].includes(activityEventType ?? '')
+                                        );
                                         return (
                                             <div
                                                 key={conversation.id}
@@ -955,15 +960,15 @@ export default function ConversationsIndex({
                                                                 {conversation.last_message_preview || 'No messages yet'}
                                                             </span>
                                                         </div>
-                                                        {conversation.activity?.description && (
-                                                            <div className="mt-1 flex max-w-full flex-wrap items-center gap-1 rounded-md bg-[#f0f2f5] px-2 py-1 text-[10px] text-[#54656f] dark:bg-gray-900/70 dark:text-gray-300">
+                                                        {showActivitySummary && (
+                                                            <div className="mt-1 hidden max-w-full flex-wrap items-center gap-1 rounded-md bg-[#f0f2f5] px-2 py-1 text-[10px] text-[#54656f] dark:bg-gray-900/70 dark:text-gray-300 sm:flex">
                                                                 {(() => {
                                                                     const meta = activityMeta(conversation.activity?.event_type);
                                                                     const Icon = meta.Icon;
                                                                     return <Icon className={`h-3 w-3 shrink-0 ${meta.className}`} />;
                                                                 })()}
-                                                                <span className="line-clamp-1 font-medium">{conversation.activity.description}</span>
-                                                                {conversation.activity.created_at && (
+                                                                <span className="line-clamp-1 font-medium">{conversation.activity?.description}</span>
+                                                                {conversation.activity?.created_at && (
                                                                     <span className="shrink-0 text-gray-400">
                                                                         · {formatRelativeTime(conversation.activity.created_at)}
                                                                     </span>
@@ -979,11 +984,11 @@ export default function ConversationsIndex({
                                                                     {windowCountdown}
                                                                 </span>
                                                             )}
-                                                            <div className="flex items-center gap-1 text-[11px] text-[#667781]">
+                                                            <div className="hidden items-center gap-1 text-[11px] text-[#667781] sm:flex">
                                                                 <Phone className="h-3 w-3" />
                                                                 {conversation.connection.name}
                                                             </div>
-                                                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${assigneeMeta.className}`}>
+                                                            <span className={`hidden items-center rounded-full px-2 py-0.5 text-[10px] font-medium sm:inline-flex ${assigneeMeta.className}`}>
                                                                 {assigneeMeta.label}
                                                             </span>
                                                             {assigningId === conversation.id && (
