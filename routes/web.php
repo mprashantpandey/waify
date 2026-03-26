@@ -218,6 +218,9 @@ Route::middleware(['auth', 'account.resolve', 'account.active', 'account.subscri
     if (file_exists(__DIR__.'/../app/Modules/Developer/routes/web.php')) {
         require __DIR__.'/../app/Modules/Developer/routes/web.php';
     }
+    if (file_exists(__DIR__.'/../app/Modules/Ecommerce/routes/web.php')) {
+        require __DIR__.'/../app/Modules/Ecommerce/routes/web.php';
+    }
 
     // Team management
     Route::prefix('/team')->name('team.')->group(function () {

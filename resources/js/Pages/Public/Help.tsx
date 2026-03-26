@@ -86,8 +86,8 @@ export default function Help() {
                 <PublicPageHero
                     eyebrow="Help Center"
                     icon={<Sparkles className="h-4 w-4" />}
-                    title="How can we help you?"
-                    description="Find setup guides, billing help, and operational best practices for WhatsApp messaging."
+                    title="Find answers fast"
+                    description="Explore setup guides, billing help, and operational best practices for WhatsApp messaging."
                 >
                     <div className="max-w-2xl">
                         <div className="relative">
@@ -102,6 +102,9 @@ export default function Help() {
                         </div>
                     </div>
                 </PublicPageHero>
+                <div className="mb-10 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/70 p-5 text-sm text-gray-600 dark:text-gray-300">
+                    Tip: Search by product area like <span className="font-semibold text-gray-900 dark:text-gray-100">templates</span>, <span className="font-semibold text-gray-900 dark:text-gray-100">chatbots</span>, or <span className="font-semibold text-gray-900 dark:text-gray-100">billing</span> to narrow results quickly.
+                </div>
 
                 {/* Quick Links */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">

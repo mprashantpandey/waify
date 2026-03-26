@@ -61,25 +61,29 @@
 
     /* Nav link with active state (for public nav when on same path) */
     .nav-link {
-        @apply px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 transition-colors rounded-lg;
+        @apply px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 transition-all rounded-lg inline-flex items-center gap-1.5;
     }
     .nav-link-active {
         color: var(--brand-primary);
         background-color: var(--brand-primary-soft);
+        box-shadow: inset 0 0 0 1px rgb(59 130 246 / 0.15);
     }
 
     .nav-link:hover {
         color: var(--brand-primary);
+        background-color: rgb(59 130 246 / 0.08);
     }
 
     .dark .nav-link-active {
         color: var(--brand-primary);
         background-color: var(--brand-primary-soft-dark);
     }
+
 }
 
 @layer utilities {
     .text-balance {
         text-wrap: balance;
     }
+
 }

@@ -61,9 +61,15 @@ export default function FAQs({ faqs: initialFaqs }: { faqs: FAQ[] }) {
                 <PublicPageHero
                     eyebrow="FAQs"
                     icon={<HelpCircle className="h-4 w-4" />}
-                    title="Frequently Asked Questions"
+                    title="Frequently asked questions"
                     description={`Find quick answers about ${platformName}, setup, billing, plans, and support.`}
                 />
+
+                <div className="mb-8 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/70 p-4">
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                        Looking for exact billing or setup guidance? Check <a className="text-blue-600 dark:text-blue-400 font-medium hover:underline" href={route('help')}>Help Center</a> or reach out via <a className="text-blue-600 dark:text-blue-400 font-medium hover:underline" href={route('contact')}>Contact</a>.
+                    </p>
+                </div>
 
                 {/* FAQs */}
                 <div className="space-y-4 mb-12">

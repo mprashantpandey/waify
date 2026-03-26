@@ -3,15 +3,15 @@ import { PropsWithChildren, useEffect } from 'react';
 import { BrandingWrapper } from '@/Components/Branding/BrandingWrapper';
 import { getDarkLogoUrl, getPlatformName, getLogoUrl, getFooterText } from '@/lib/branding';
 import { 
+    House,
     HelpCircle, 
-    FileText, 
-    Shield, 
     Mail, 
     Info, 
     CreditCard,
     MessageSquare,
     Menu,
-    X
+    X,
+    ArrowRight
 } from 'lucide-react';
 import { useState } from 'react';
 import Button from '@/Components/UI/Button';
@@ -26,6 +26,7 @@ export default function PublicLayout({ children }: PropsWithChildren) {
     const darkLogoUrl = getDarkLogoUrl(branding);
     const footerText = getFooterText(branding);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+    const [currentHash, setCurrentHash] = useState('');
     const currentPath = (page as any).url?.split('?')[0] || '';
     const canLogin = (window as any).route?.has?.('login') ?? true;
     const canRegister = (window as any).route?.has?.('register') ?? true;
@@ -34,6 +35,7 @@ export default function PublicLayout({ children }: PropsWithChildren) {
     const cookiePolicyUrl = compliance?.cookie_policy_url || route('cookie-policy');
 
     const navigation = [
+        { name: 'Home', href: route('landing'), icon: House },
         { name: 'Pricing', href: route('pricing'), icon: CreditCard },
         { name: 'Features', href: route('landing') + '#features', icon: MessageSquare },
         { name: 'Help', href: route('help'), icon: HelpCircle },
@@ -68,11 +70,24 @@ export default function PublicLayout({ children }: PropsWithChildren) {
         setMobileMenuOpen(false);
     }, [currentPath]);
 
+    useEffect(() => {
+        const updateHash = () => setCurrentHash(window.location.hash || '');
+        updateHash();
+        window.addEventListener('hashchange', updateHash);
+
+        return () => {
+            window.removeEventListener('hashchange', updateHash);
+        };
+    }, [currentPath]);
+
     return (
         <BrandingWrapper>
-            <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 flex flex-col">
+            <div className="min-h-screen bg-gradient-to-b from-gray-50 via-white to-gray-100 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 flex flex-col">
+                <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-center text-xs font-medium text-blue-50">
+                    Official Meta WhatsApp Cloud partner for growing teams
+                </div>
                 {/* Navigation */}
-                <nav className="border-b border-gray-200/80 dark:border-gray-800 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md sticky top-0 z-50 shadow-sm">
+                <nav className="border-b border-gray-200/80 dark:border-gray-800 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md sticky top-0 z-50 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div className="flex justify-between items-center h-16">
                             <div className="flex items-center">
@@ -96,26 +111,34 @@ export default function PublicLayout({ children }: PropsWithChildren) {
                             </div>
 
                             {/* Desktop Navigation */}
-                            <div className="hidden md:flex items-center gap-1">
+                            <div className="hidden md:flex items-center gap-1 rounded-full border border-gray-200/80 dark:border-gray-800 px-1 py-1 bg-white/85 dark:bg-gray-900/80 shadow-sm">
                                 {navigation.map((item) => {
                                     try {
                                         const hrefPath = (() => {
                                             const u = item.href.startsWith('http') ? new URL(item.href) : new URL(item.href, 'http://localhost');
                                             return u.pathname || '/';
                                         })();
-                                        const isActive = currentPath === hrefPath || (hrefPath !== '/' && currentPath.startsWith(hrefPath));
+                                        const hrefHash = (() => {
+                                            const u = item.href.startsWith('http') ? new URL(item.href) : new URL(item.href, 'http://localhost');
+                                            return u.hash || '';
+                                        })();
+                                        const isActive = hrefHash
+                                            ? currentPath === hrefPath && currentHash === hrefHash
+                                            : currentPath === hrefPath && currentHash !== '#features';
                                         return (
                                             <Link
                                                 key={item.name}
                                                 href={item.href}
                                                 className={`nav-link ${isActive ? 'nav-link-active' : ''}`}
                                             >
+                                                {item.icon ? <item.icon className="h-4 w-4" /> : null}
                                                 {item.name}
                                             </Link>
                                         );
                                     } catch {
                                         return (
                                             <Link key={item.name} href={item.href} className="nav-link">
+                                                {item.icon ? <item.icon className="h-4 w-4" /> : null}
                                                 {item.name}
                                             </Link>
                                         );
@@ -134,7 +157,10 @@ export default function PublicLayout({ children }: PropsWithChildren) {
                                         )}
                                         {canRegister && (
                                             <Link href={route('register')}>
-                                                <Button size="sm">Get Started</Button>
+                                                <Button size="sm">
+                                                    Get Started
+                                                    <ArrowRight className="h-4 w-4 ml-1" />
+                                                </Button>
                                             </Link>
                                         )}
                                     </>
@@ -176,7 +202,13 @@ export default function PublicLayout({ children }: PropsWithChildren) {
                                             const u = item.href.startsWith('http') ? new URL(item.href) : new URL(item.href, 'http://localhost');
                                             return u.pathname || '/';
                                         })();
-                                        const isActive = currentPath === hrefPath || (hrefPath !== '/' && currentPath.startsWith(hrefPath));
+                                        const hrefHash = (() => {
+                                            const u = item.href.startsWith('http') ? new URL(item.href) : new URL(item.href, 'http://localhost');
+                                            return u.hash || '';
+                                        })();
+                                        const isActive = hrefHash
+                                            ? currentPath === hrefPath && currentHash === hrefHash
+                                            : currentPath === hrefPath && currentHash !== '#features';
                                         return (
                                             <Link
                                                 key={item.name}
@@ -184,7 +216,10 @@ export default function PublicLayout({ children }: PropsWithChildren) {
                                                 className={`block px-3 py-2.5 text-base font-medium rounded-lg ${isActive ? 'nav-link-active' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
                                                 onClick={() => setMobileMenuOpen(false)}
                                             >
-                                                {item.name}
+                                                <span className="inline-flex items-center gap-2">
+                                                    {item.icon ? <item.icon className="h-4 w-4" /> : null}
+                                                    {item.name}
+                                                </span>
                                             </Link>
                                         );
                                     } catch {
@@ -195,7 +230,10 @@ export default function PublicLayout({ children }: PropsWithChildren) {
                                                 className="block px-3 py-2.5 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
                                                 onClick={() => setMobileMenuOpen(false)}
                                             >
-                                                {item.name}
+                                                <span className="inline-flex items-center gap-2">
+                                                    {item.icon ? <item.icon className="h-4 w-4" /> : null}
+                                                    {item.name}
+                                                </span>
                                             </Link>
                                         );
                                     }
@@ -233,8 +271,24 @@ export default function PublicLayout({ children }: PropsWithChildren) {
                 </main>
 
                 {/* Footer */}
-                <footer className="bg-gray-900 text-gray-400 border-t border-gray-800">
+                <footer className="bg-gray-950 text-gray-400 border-t border-gray-800">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
+                        <div className="mb-10 rounded-2xl border border-gray-800 bg-gradient-to-r from-gray-900 to-gray-900/70 p-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                            <div>
+                                <p className="text-sm uppercase tracking-wider text-gray-500">Start in minutes</p>
+                                <h3 className="text-xl font-semibold text-white">Launch your WhatsApp operations stack today</h3>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                {canRegister && (
+                                    <Link href={route('register')}>
+                                        <Button size="sm">Create Free Account</Button>
+                                    </Link>
+                                )}
+                                <Link href={route('pricing')}>
+                                    <Button variant="secondary" size="sm">View Pricing</Button>
+                                </Link>
+                            </div>
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
                             {/* Brand */}
                             <div className="col-span-1 md:col-span-1">

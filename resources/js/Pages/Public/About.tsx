@@ -42,8 +42,8 @@ export default function About() {
                 <PublicPageHero
                     eyebrow="About"
                     icon={<Sparkles className="h-4 w-4" />}
-                    title="Built for modern WhatsApp operations"
-                    description="We build workflow, automation, and billing infrastructure for businesses that run customer communication on WhatsApp at scale."
+                    title="Built for high-performance WhatsApp operations"
+                    description="We design workflow, automation, and billing infrastructure for teams that run customer communication on WhatsApp at scale."
                 />
 
                 {/* Story Section */}
@@ -54,7 +54,7 @@ export default function About() {
                         </h2>
                         <div className="prose prose-lg dark:prose-invert max-w-none">
                             <p className="text-gray-700 dark:text-gray-300 mb-4 text-lg leading-relaxed">
-                                Zyptos was born from a simple observation: businesses were struggling to scale their WhatsApp communication. 
+                                Zyptos was born from a simple observation: businesses were struggling to scale their WhatsApp communication.
                                 While WhatsApp is one of the most popular messaging platforms globally, managing it at scale required 
                                 complex integrations, custom development, and significant technical expertise.
                             </p>
@@ -69,6 +69,17 @@ export default function About() {
                                 for business communication, and we're building the platform to make that happen.
                             </p>
                         </div>
+                    </div>
+                </div>
+
+                <div className="mb-16 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-6">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">What we optimize for</h3>
+                        <p className="text-sm text-gray-700 dark:text-gray-300">Fast setup, predictable delivery, and clear visibility across conversations, automation, and spend.</p>
+                    </div>
+                    <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 p-6">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">How we work with customers</h3>
+                        <p className="text-sm text-gray-700 dark:text-gray-300">Product-led onboarding, support-first operations, and continuous iteration from real customer feedback.</p>
                     </div>
                 </div>
 

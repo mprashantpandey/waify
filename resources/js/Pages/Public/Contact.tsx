@@ -47,9 +47,24 @@ export default function Contact() {
                 <PublicPageHero
                     eyebrow="Contact"
                     icon={<MessageSquare className="h-4 w-4" />}
-                    title="Get in Touch"
-                    description="Have a question about setup, pricing, or Meta onboarding? Send us a message and our team will reply as soon as possible."
+                    title="Talk to our team"
+                    description="Questions about setup, pricing, or Meta onboarding? Share a few details and we will get back quickly."
                 />
+
+                <div className="mb-10 grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/70 p-4">
+                        <p className="text-xs uppercase tracking-wider text-blue-600 dark:text-blue-400">Typical response</p>
+                        <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">&lt; 1 business day</p>
+                    </div>
+                    <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/70 p-4">
+                        <p className="text-xs uppercase tracking-wider text-purple-600 dark:text-purple-400">Best for</p>
+                        <p className="mt-2 text-sm font-medium text-gray-800 dark:text-gray-200">Onboarding, integrations, and plan guidance</p>
+                    </div>
+                    <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/70 p-4">
+                        <p className="text-xs uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Coverage</p>
+                        <p className="mt-2 text-sm font-medium text-gray-800 dark:text-gray-200">Support for startup, growth, and enterprise teams</p>
+                    </div>
+                </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Contact Form */}

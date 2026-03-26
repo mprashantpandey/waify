@@ -90,6 +90,13 @@ class ModuleSeeder extends Seeder
                 'is_core' => false,
                 'is_enabled' => true,
             ],
+            [
+                'key' => 'ecommerce',
+                'name' => 'WhatsApp Commerce',
+                'description' => 'Product catalog and order capture workflows for WhatsApp',
+                'is_core' => false,
+                'is_enabled' => true,
+            ],
         ];
 
         foreach ($modules as $module) {
