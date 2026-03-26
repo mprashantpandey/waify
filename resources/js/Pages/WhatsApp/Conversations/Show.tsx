@@ -898,6 +898,16 @@ export default function ConversationsShow({
         }
     }, [addToast, conversation.id, selectedTemplate, templateVariables, account.slug, templateSending]);
 
+    const scrollMessagesToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+        const container = messagesContainerRef.current;
+        if (!container) return;
+
+        container.scrollTo({
+            top: container.scrollHeight,
+            behavior,
+        });
+    }, []);
+
     // Auto-scroll detection - only scroll if user is near bottom
     const checkScrollPosition = useCallback(() => {
         const container = messagesContainerRef.current;
@@ -922,10 +932,10 @@ export default function ConversationsShow({
     useEffect(() => {
         if (shouldAutoScroll && messages.length > 0) {
             setTimeout(() => {
-                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                scrollMessagesToBottom('smooth');
             }, 100);
         }
-    }, [messages, shouldAutoScroll]);
+    }, [messages, scrollMessagesToBottom, shouldAutoScroll]);
 
     const recoverHistory = useCallback(async () => {
         if (!account?.id || !conversation?.id) return;
