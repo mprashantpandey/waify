@@ -2213,43 +2213,6 @@ export default function ConversationsShow({
                 <div className="sticky bottom-0 z-20 flex-shrink-0 border-t border-gray-200 bg-[#f0f2f5] p-3 shadow-[0_-8px_24px_rgba(17,27,33,0.08)] dark:border-gray-800 dark:bg-gray-900">
                     <div className="space-y-3">
                         <div className="relative">
-                            <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pb-1 -mx-1 px-1">
-                            <button
-                                type="button"
-                                onClick={() => setShowEmojiBar((prev) => !prev)}
-                                className="shrink-0 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                            >
-                                <Smile className="h-3.5 w-3.5" />
-                                Emoji
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={!isCustomerCareWindowOpen}
-                                className="shrink-0 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                            >
-                                <Paperclip className="h-3.5 w-3.5" />
-                                Add file
-                            </button>
-                            <button
-                                type="button"
-                                data-template-section
-                                onClick={() => setShowTemplates((prev) => !prev)}
-                                className="shrink-0 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                                aria-label="Send template message"
-                            >
-                                <FileText className="h-3.5 w-3.5" />
-                                Template
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setShowComposerTools((prev) => !prev)}
-                                disabled={!isCustomerCareWindowOpen}
-                                className="shrink-0 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 shadow-sm hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                            >
-                                <Plus className="h-3.5 w-3.5" />
-                                More ways to reply
-                            </button>
                             <input
                                 ref={fileInputRef}
                                 type="file"
@@ -2258,9 +2221,8 @@ export default function ConversationsShow({
                                 className="hidden"
                                 onChange={handleAttachmentChange}
                             />
-                            </div>
                             {showEmojiBar && (
-                                <div className="absolute bottom-full left-0 mb-3 z-20 flex flex-wrap items-center gap-2 rounded-2xl border border-gray-200 bg-white/95 p-3 text-lg shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                                <div className="absolute bottom-full left-0 mb-3 z-20 flex max-w-[28rem] flex-wrap items-center gap-2 rounded-2xl border border-gray-200 bg-white/95 p-3 text-lg shadow-lg dark:border-gray-700 dark:bg-gray-800">
                                     <div className="w-full">
                                         <TextInput
                                             value={emojiSearch}
@@ -2844,7 +2806,38 @@ export default function ConversationsShow({
                             </div>
                         )}
 
-                        <form onSubmit={submit} className="flex items-center gap-3">
+                        <form onSubmit={submit} className="flex items-center gap-2">
+                            <div className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-1.5 py-1 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowEmojiBar((prev) => !prev)}
+                                    className="inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                                    aria-label="Emoji"
+                                    title="Emoji"
+                                >
+                                    <Smile className="h-4 w-4" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={!isCustomerCareWindowOpen}
+                                    className="inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-700"
+                                    aria-label="Add file"
+                                    title="Add file"
+                                >
+                                    <Paperclip className="h-4 w-4" />
+                                </button>
+                                <button
+                                    type="button"
+                                    data-template-section
+                                    onClick={() => setShowTemplates((prev) => !prev)}
+                                    className="inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                                    aria-label="Template"
+                                    title="Template"
+                                >
+                                    <FileText className="h-4 w-4" />
+                                </button>
+                            </div>
                             <TextInput
                                 value={data.message}
                                 onChange={(e) => setData('message', e.target.value)}
