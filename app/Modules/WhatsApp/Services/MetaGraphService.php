@@ -3,6 +3,7 @@
 namespace App\Modules\WhatsApp\Services;
 
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -295,6 +296,7 @@ class MetaGraphService
             'description' => $profile['description'] ?? null,
             'email' => $profile['email'] ?? null,
             'vertical' => $profile['vertical'] ?? null,
+            'profile_picture_handle' => $profile['profile_picture_handle'] ?? null,
             'websites' => !empty($profile['websites']) ? array_values(array_filter((array) $profile['websites'])) : null,
         ], static fn ($value) => $value !== null && $value !== '');
 
@@ -312,6 +314,83 @@ class MetaGraphService
         }
 
         return $data;
+    }
+
+
+    public function uploadWhatsAppBusinessProfilePicture(string $phoneNumberId, string $accessToken, UploadedFile $file): string
+    {
+        $appId = config('whatsapp.meta.app_id');
+        if (!$appId) {
+            throw new \RuntimeException('Meta app ID is missing for profile image upload.');
+        }
+
+        $content = file_get_contents($file->getRealPath());
+        if ($content === false || $content === '') {
+            throw new \RuntimeException('Profile image could not be read for upload.');
+        }
+
+        $mimeType = $file->getMimeType() ?: 'image/jpeg';
+        $allowed = ['image/jpeg', 'image/jpg', 'image/png'];
+        if (!in_array(strtolower($mimeType), $allowed, true)) {
+            throw new \RuntimeException('Profile image must be a JPG or PNG file.');
+        }
+
+        $extension = strtolower($file->getClientOriginalExtension() ?: ($mimeType === 'image/png' ? 'png' : 'jpg'));
+        $fileName = 'whatsapp_profile_' . substr(md5($phoneNumberId . '|' . $file->getClientOriginalName()), 0, 12) . '.' . $extension;
+        $fileLength = strlen($content);
+        $version = $this->apiVersion;
+
+        $tokens = array_values(array_unique(array_filter([
+            $accessToken,
+            config('whatsapp.meta.system_user_token'),
+        ])));
+
+        $lastError = null;
+
+        foreach ($tokens as $token) {
+            $sessionResponse = Http::withToken($token)
+                ->post("{$this->baseUrl}/{$version}/{$appId}/uploads?" . http_build_query([
+                    'file_name' => $fileName,
+                    'file_length' => $fileLength,
+                    'file_type' => $mimeType,
+                ]));
+
+            $sessionData = $sessionResponse->json();
+            $sessionId = $sessionData['id'] ?? null;
+            if (!$sessionResponse->successful() || !$sessionId || !str_starts_with((string) $sessionId, 'upload:')) {
+                $lastError = $sessionData['error']['message'] ?? 'Meta upload session could not be created for the profile image.';
+                Log::channel('whatsapp')->warning('WhatsApp profile image upload session failed', [
+                    'phone_number_id' => $phoneNumberId,
+                    'status' => $sessionResponse->status(),
+                    'token_source' => $token === $accessToken ? 'connection' : 'system_user',
+                    'error' => $sessionData['error'] ?? $sessionData,
+                ]);
+                continue;
+            }
+
+            $uploadResponse = Http::withHeaders([
+                'Authorization' => 'OAuth ' . $token,
+                'file_offset' => '0',
+            ])->withBody($content, 'application/octet-stream')
+                ->timeout(60)
+                ->post("{$this->baseUrl}/{$version}/{$sessionId}");
+
+            $uploadData = $uploadResponse->json();
+            $handle = $uploadData['h'] ?? null;
+            if ($uploadResponse->successful() && $handle) {
+                return $handle;
+            }
+
+            $lastError = $uploadData['error']['message'] ?? 'Meta could not accept the profile image.';
+            Log::channel('whatsapp')->warning('WhatsApp profile image upload failed', [
+                'phone_number_id' => $phoneNumberId,
+                'status' => $uploadResponse->status(),
+                'token_source' => $token === $accessToken ? 'connection' : 'system_user',
+                'error' => $uploadData['error'] ?? $uploadData,
+            ]);
+        }
+
+        throw new \RuntimeException($lastError ?? 'Profile image upload failed.');
     }
 
 

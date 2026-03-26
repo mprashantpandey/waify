@@ -12,6 +12,7 @@ use App\Modules\WhatsApp\Models\WhatsAppWebhookEvent;
 use App\Modules\WhatsApp\Services\ConnectionHealthSyncService;
 use App\Modules\WhatsApp\Services\MetaGraphService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Mockery;
 use Tests\TestCase;
 
@@ -188,7 +189,7 @@ class ConnectionTest extends TestCase
                 'address' => 'Noida',
                 'email' => 'hello@example.com',
                 'websites' => ['https://example.com'],
-                'vertical' => 'Professional Services',
+                'vertical' => 'PROF_SERVICES',
                 'profile_picture_url' => 'https://example.com/logo.png',
             ]);
         $this->instance(MetaGraphService::class, $meta);
@@ -203,7 +204,7 @@ class ConnectionTest extends TestCase
             ->component('WhatsApp/Connections/Profile')
             ->where('connection.business_profile.about', 'Open today until 8 PM')
             ->where('connection.business_profile.website', 'https://example.com')
-            ->where('connection.business_profile.vertical', 'Professional Services')
+            ->where('connection.business_profile.vertical', 'PROF_SERVICES')
         );
     }
 
@@ -224,7 +225,7 @@ class ConnectionTest extends TestCase
                 'description' => 'Updated support desk',
                 'address' => 'Noida',
                 'email' => 'hello@example.com',
-                'vertical' => 'Professional Services',
+                'vertical' => 'PROF_SERVICES',
                 'websites' => ['https://example.com'],
             ])
             ->andReturn(['success' => true]);
@@ -240,7 +241,7 @@ class ConnectionTest extends TestCase
                 'profile_address' => 'Noida',
                 'profile_email' => 'hello@example.com',
                 'profile_website' => 'https://example.com',
-                'profile_vertical' => 'Professional Services',
+                'profile_vertical' => 'PROF_SERVICES',
             ]);
 
         $response->assertRedirect();
@@ -248,6 +249,73 @@ class ConnectionTest extends TestCase
         $connection->refresh();
         $this->assertSame('Open today until 8 PM', data_get($connection->token_metadata, 'business_profile_cache.about'));
         $this->assertSame('https://example.com', data_get($connection->token_metadata, 'business_profile_cache.website'));
+    }
+
+
+    public function test_owner_can_update_whatsapp_business_profile_with_image_and_category_mapping(): void
+    {
+        $connection = WhatsAppConnection::factory()->create([
+            'account_id' => $this->account->id,
+            'name' => 'Original Name',
+        ]);
+        $connection->access_token = 'stored-token';
+        $connection->save();
+
+        $file = UploadedFile::fake()->image('profile.png', 256, 256);
+
+        $meta = Mockery::mock(MetaGraphService::class);
+        $meta->shouldReceive('uploadWhatsAppBusinessProfilePicture')
+            ->once()
+            ->withArgs(function ($phoneNumberId, $token, $uploadedFile) use ($connection) {
+                return $phoneNumberId === $connection->phone_number_id
+                    && $token === 'stored-token'
+                    && $uploadedFile instanceof UploadedFile;
+            })
+            ->andReturn('profile-handle');
+        $meta->shouldReceive('updateWhatsAppBusinessProfile')
+            ->once()
+            ->with($connection->phone_number_id, 'stored-token', [
+                'about' => 'Open today until 8 PM',
+                'description' => 'Updated support desk',
+                'address' => 'Noida',
+                'email' => 'hello@example.com',
+                'vertical' => 'PROF_SERVICES',
+                'websites' => ['https://example.com'],
+                'profile_picture_handle' => 'profile-handle',
+            ])
+            ->andReturn(['success' => true]);
+        $meta->shouldReceive('getWhatsAppBusinessProfile')
+            ->once()
+            ->with($connection->phone_number_id, 'stored-token')
+            ->andReturn([
+                'about' => 'Open today until 8 PM',
+                'description' => 'Updated support desk',
+                'address' => 'Noida',
+                'email' => 'hello@example.com',
+                'websites' => ['https://example.com'],
+                'vertical' => 'PROF_SERVICES',
+                'profile_picture_url' => 'https://example.com/updated.png',
+            ]);
+        $this->instance(MetaGraphService::class, $meta);
+
+        $response = $this->actingAs($this->user)
+            ->put(route('app.whatsapp.connections.profile.update', [
+                'account' => $this->account->slug,
+                'connection' => $connection->id,
+            ]), [
+                'profile_about' => 'Open today until 8 PM',
+                'profile_description' => 'Updated support desk',
+                'profile_address' => 'Noida',
+                'profile_email' => 'hello@example.com',
+                'profile_website' => 'https://example.com',
+                'profile_vertical' => 'PROF_SERVICES',
+                'profile_image' => $file,
+            ]);
+
+        $response->assertRedirect();
+        $connection->refresh();
+        $this->assertSame('PROF_SERVICES', data_get($connection->token_metadata, 'business_profile_cache.vertical'));
+        $this->assertSame('https://example.com/updated.png', data_get($connection->token_metadata, 'business_profile_cache.profile_picture_url'));
     }
 
     public function test_connection_profile_page_uses_cached_profile_when_meta_fetch_fails(): void
@@ -262,7 +330,7 @@ class ConnectionTest extends TestCase
                     'address' => 'Noida',
                     'email' => 'cached@example.com',
                     'website' => 'https://example.com',
-                    'vertical' => 'Professional Services',
+                    'vertical' => 'PROF_SERVICES',
                     'profile_picture_url' => 'https://example.com/logo.png',
                 ],
             ],

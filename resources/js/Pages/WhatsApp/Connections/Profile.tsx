@@ -1,6 +1,6 @@
 import { Head, Link, useForm } from '@inertiajs/react';
-import { FormEventHandler } from 'react';
-import { ArrowLeft, Globe, Mail, MapPin, MessageCircleMore, Phone } from 'lucide-react';
+import { FormEventHandler, useMemo, useState } from 'react';
+import { ArrowLeft, Camera, Globe, Mail, MapPin, MessageCircleMore, Phone } from 'lucide-react';
 import AppShell from '@/Layouts/AppShell';
 import { Alert } from '@/Components/UI/Alert';
 import Button from '@/Components/UI/Button';
@@ -17,6 +17,7 @@ interface BusinessProfile {
     email: string;
     website: string;
     vertical: string;
+    vertical_label?: string;
     profile_picture_url?: string | null;
 }
 
@@ -30,22 +31,45 @@ interface Connection {
     business_profile_error?: string | null;
 }
 
-export default function ConnectionProfileEdit({ connection }: { connection: Connection }) {
-    const { data, setData, put, processing, errors } = useForm({
+interface VerticalOption {
+    value: string;
+    label: string;
+}
+
+export default function ConnectionProfileEdit({ connection, verticalOptions }: { connection: Connection; verticalOptions: VerticalOption[] }) {
+    const { data, setData, put, processing, errors } = useForm<{
+        profile_about: string;
+        profile_description: string;
+        profile_address: string;
+        profile_email: string;
+        profile_website: string;
+        profile_vertical: string;
+        profile_image: File | null;
+    }>({
         profile_about: connection.business_profile?.about || '',
         profile_description: connection.business_profile?.description || '',
         profile_address: connection.business_profile?.address || '',
         profile_email: connection.business_profile?.email || '',
         profile_website: connection.business_profile?.website || '',
         profile_vertical: connection.business_profile?.vertical || '',
+        profile_image: null,
     });
+    const [localImagePreview, setLocalImagePreview] = useState<string | null>(null);
 
     const submit: FormEventHandler = (event) => {
         event.preventDefault();
         put(route('app.whatsapp.connections.profile.update', {
             connection: connection.slug ?? connection.id,
-        }));
+        }), {
+            forceFormData: true,
+        });
     };
+
+    const selectedVerticalLabel = useMemo(() => {
+        return verticalOptions.find((option) => option.value === data.profile_vertical)?.label || 'Not set';
+    }, [data.profile_vertical, verticalOptions]);
+
+    const previewImage = localImagePreview || connection.business_profile?.profile_picture_url || null;
 
     return (
         <AppShell>
@@ -71,7 +95,7 @@ export default function ConnectionProfileEdit({ connection }: { connection: Conn
                     </div>
                 </div>
 
-                <div className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
+                <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
                     <Card>
                         <CardHeader>
                             <CardTitle>Profile details</CardTitle>
@@ -86,6 +110,39 @@ export default function ConnectionProfileEdit({ connection }: { connection: Conn
                                 ) : null}
 
                                 <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="md:col-span-2">
+                                        <InputLabel htmlFor="profile_image" value="Profile photo" />
+                                        <label className="mt-1 flex cursor-pointer items-center gap-4 rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-4 transition hover:border-[#00a884] hover:bg-white dark:border-gray-700 dark:bg-gray-900/60 dark:hover:border-[#00a884] dark:hover:bg-gray-900">
+                                            <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-[#dcf8c6] text-xl font-semibold text-[#075e54]">
+                                                {previewImage ? (
+                                                    <img src={previewImage} alt={connection.name} className="h-full w-full object-cover" />
+                                                ) : (
+                                                    connection.name.charAt(0).toUpperCase()
+                                                )}
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="font-medium text-gray-900 dark:text-gray-100">Upload profile image</p>
+                                                <p className="text-sm text-gray-600 dark:text-gray-400">JPG or PNG, up to 5 MB.</p>
+                                            </div>
+                                            <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm dark:bg-gray-800 dark:text-gray-200">
+                                                <Camera className="h-4 w-4" />
+                                                Choose file
+                                            </div>
+                                            <input
+                                                id="profile_image"
+                                                type="file"
+                                                accept="image/png,image/jpeg,image/jpg"
+                                                className="hidden"
+                                                onChange={(event) => {
+                                                    const file = event.target.files?.[0] || null;
+                                                    setData('profile_image', file);
+                                                    setLocalImagePreview(file ? URL.createObjectURL(file) : null);
+                                                }}
+                                            />
+                                        </label>
+                                        <InputError message={errors.profile_image} className="mt-2" />
+                                    </div>
+
                                     <div className="md:col-span-2">
                                         <InputLabel htmlFor="profile_about" value="About line" />
                                         <TextInput
@@ -137,13 +194,17 @@ export default function ConnectionProfileEdit({ connection }: { connection: Conn
 
                                     <div>
                                         <InputLabel htmlFor="profile_vertical" value="Business category" />
-                                        <TextInput
+                                        <select
                                             id="profile_vertical"
                                             value={data.profile_vertical}
                                             onChange={(event) => setData('profile_vertical', event.target.value)}
-                                            className="mt-1 block w-full"
-                                            placeholder="Professional Services"
-                                        />
+                                            className="mt-1 block w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm focus:border-[#00a884] focus:outline-none focus:ring-2 focus:ring-[#00a884]/20 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                                        >
+                                            <option value="">Choose a category</option>
+                                            {verticalOptions.map((option) => (
+                                                <option key={option.value} value={option.value}>{option.label}</option>
+                                            ))}
+                                        </select>
                                         <InputError message={errors.profile_vertical} className="mt-2" />
                                     </div>
 
@@ -173,52 +234,56 @@ export default function ConnectionProfileEdit({ connection }: { connection: Conn
                     </Card>
 
                     <div className="space-y-6">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Profile preview</CardTitle>
-                                <CardDescription>
-                                    A simple preview of the details customers can see in WhatsApp.
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent className="space-y-3 text-sm">
-                                <div className="flex items-start justify-between gap-4 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/60">
-                                    <div>
-                                        <p className="font-medium text-gray-900 dark:text-gray-100">{connection.name}</p>
-                                        <p className="mt-1 text-gray-600 dark:text-gray-400">{connection.business_phone || 'Business number not available yet'}</p>
+                        <Card className="overflow-hidden border border-[#d1d7db] bg-[#efeae2] shadow-sm dark:border-gray-800 dark:bg-[#0b141a]">
+                            <div className="border-b border-[#d1d7db] bg-[#f0f2f5] px-5 py-4 dark:border-gray-800 dark:bg-[#202c33]">
+                                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">WhatsApp profile preview</p>
+                            </div>
+                            <CardContent className="space-y-4 p-5">
+                                <div className="rounded-3xl bg-white p-5 shadow-sm dark:bg-[#111b21]">
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-[#dcf8c6] text-2xl font-semibold text-[#075e54]">
+                                            {previewImage ? (
+                                                <img src={previewImage} alt={connection.name} className="h-full w-full object-cover" />
+                                            ) : (
+                                                connection.name.charAt(0).toUpperCase()
+                                            )}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <p className="truncate text-xl font-semibold text-gray-900 dark:text-gray-100">{connection.name}</p>
+                                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{selectedVerticalLabel}</p>
+                                            <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">{connection.business_phone || 'Business number not available yet'}</p>
+                                        </div>
                                     </div>
-                                    {connection.business_profile?.profile_picture_url ? (
-                                        <img
-                                            src={connection.business_profile.profile_picture_url}
-                                            alt={connection.name}
-                                            className="h-12 w-12 rounded-full border border-gray-200 object-cover dark:border-gray-700"
-                                        />
-                                    ) : null}
-                                </div>
 
-                                <div className="flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/60">
-                                    <MessageCircleMore className="mt-0.5 h-4 w-4 text-gray-500" />
-                                    <div>
-                                        <p className="font-medium text-gray-900 dark:text-gray-100">{data.profile_about || 'No about line yet'}</p>
-                                        <p className="mt-1 text-gray-600 dark:text-gray-400">{data.profile_description || 'Add a short description so customers know what this number is for.'}</p>
+                                    <div className="mt-5 rounded-2xl bg-[#f7f5f3] p-4 dark:bg-[#202c33]">
+                                        <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">About</p>
+                                        <p className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100">{data.profile_about || 'No about line yet'}</p>
                                     </div>
-                                </div>
 
-                                <div className="grid gap-3">
-                                    <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/60">
-                                        <Phone className="h-4 w-4 text-gray-500" />
-                                        <span className="text-gray-900 dark:text-gray-100">{connection.business_phone || 'No number available'}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/60">
-                                        <Mail className="h-4 w-4 text-gray-500" />
-                                        <span className="text-gray-900 dark:text-gray-100">{data.profile_email || 'No email added'}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/60">
-                                        <Globe className="h-4 w-4 text-gray-500" />
-                                        <span className="text-gray-900 dark:text-gray-100">{data.profile_website || 'No website added'}</span>
-                                    </div>
-                                    <div className="flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/60">
-                                        <MapPin className="mt-0.5 h-4 w-4 text-gray-500" />
-                                        <span className="text-gray-900 dark:text-gray-100">{data.profile_address || 'No address added'}</span>
+                                    <div className="mt-4 space-y-3 text-sm">
+                                        <div className="flex items-start gap-3 rounded-2xl bg-[#f7f5f3] p-4 dark:bg-[#202c33]">
+                                            <MessageCircleMore className="mt-0.5 h-4 w-4 text-gray-500" />
+                                            <div>
+                                                <p className="font-medium text-gray-900 dark:text-gray-100">Description</p>
+                                                <p className="mt-1 text-gray-600 dark:text-gray-400">{data.profile_description || 'Add a short description so customers know what this number is for.'}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-start gap-3 rounded-2xl bg-[#f7f5f3] p-4 dark:bg-[#202c33]">
+                                            <Phone className="mt-0.5 h-4 w-4 text-gray-500" />
+                                            <span className="text-gray-900 dark:text-gray-100">{connection.business_phone || 'No number available'}</span>
+                                        </div>
+                                        <div className="flex items-start gap-3 rounded-2xl bg-[#f7f5f3] p-4 dark:bg-[#202c33]">
+                                            <Mail className="mt-0.5 h-4 w-4 text-gray-500" />
+                                            <span className="text-gray-900 dark:text-gray-100">{data.profile_email || 'No email added'}</span>
+                                        </div>
+                                        <div className="flex items-start gap-3 rounded-2xl bg-[#f7f5f3] p-4 dark:bg-[#202c33]">
+                                            <Globe className="mt-0.5 h-4 w-4 text-gray-500" />
+                                            <span className="text-gray-900 dark:text-gray-100">{data.profile_website || 'No website added'}</span>
+                                        </div>
+                                        <div className="flex items-start gap-3 rounded-2xl bg-[#f7f5f3] p-4 dark:bg-[#202c33]">
+                                            <MapPin className="mt-0.5 h-4 w-4 text-gray-500" />
+                                            <span className="text-gray-900 dark:text-gray-100">{data.profile_address || 'No address added'}</span>
+                                        </div>
                                     </div>
                                 </div>
                             </CardContent>

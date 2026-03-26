@@ -15,6 +15,7 @@ use App\Modules\WhatsApp\Services\EmbeddedSignupEventService;
 use App\Modules\WhatsApp\Services\MetaGraphService;
 use App\Modules\WhatsApp\Services\TechProviderProvisioningService;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Http;
@@ -25,6 +26,31 @@ use Inertia\Response;
 
 class ConnectionController extends Controller
 {
+    protected const WHATSAPP_PROFILE_VERTICALS = [
+        'OTHER' => 'Other',
+        'AUTO' => 'Automotive',
+        'BEAUTY' => 'Beauty, Spa, and Salon',
+        'APPAREL' => 'Clothing and Apparel',
+        'EDU' => 'Education',
+        'ENTERTAIN' => 'Arts and Entertainment',
+        'EVENT_PLAN' => 'Event Planning and Service',
+        'FINANCE' => 'Finance and Banking',
+        'GROCERY' => 'Food and Grocery',
+        'GOVT' => 'Public Service',
+        'HOTEL' => 'Hotel and Lodging',
+        'HEALTH' => 'Medical and Health',
+        'NONPROFIT' => 'Non-profit',
+        'PROF_SERVICES' => 'Professional Services',
+        'RETAIL' => 'Shopping and Retail',
+        'TRAVEL' => 'Travel and Transportation',
+        'RESTAURANT' => 'Restaurant',
+        'ALCOHOL' => 'Alcohol',
+        'ONLINE_GAMBLING' => 'Online Gambling',
+        'PHYSICAL_GAMBLING' => 'Physical Gambling',
+        'OTC_DRUGS' => 'OTC Drugs',
+        'MATRIMONY_SERVICE' => 'Matrimony Service',
+    ];
+
     public function __construct(
         protected ConnectionService $connectionService,
         protected EntitlementService $entitlementService,
@@ -898,6 +924,7 @@ class ConnectionController extends Controller
                 'business_profile' => $businessProfile['profile'],
                 'business_profile_error' => $businessProfile['error'],
             ],
+            'verticalOptions' => $this->businessProfileVerticalOptions(),
         ]);
     }
 
@@ -1000,7 +1027,8 @@ class ConnectionController extends Controller
             'profile_address' => 'nullable|string|max:256',
             'profile_email' => 'nullable|email|max:255',
             'profile_website' => 'nullable|url|max:255',
-            'profile_vertical' => 'nullable|string|max:100',
+            'profile_vertical' => 'nullable|string|in:' . implode(',', array_keys(self::WHATSAPP_PROFILE_VERTICALS)),
+            'profile_image' => 'nullable|image|mimes:jpeg,jpg,png|max:5120',
         ]);
 
         try {
@@ -1257,6 +1285,7 @@ class ConnectionController extends Controller
             'profile_email',
             'profile_website',
             'profile_vertical',
+            'profile_image',
         ];
 
         $profileProvided = collect($profileFields)->contains(fn (string $field) => array_key_exists($field, $validated));
@@ -1274,17 +1303,33 @@ class ConnectionController extends Controller
             'description' => trim((string) ($validated['profile_description'] ?? '')),
             'address' => trim((string) ($validated['profile_address'] ?? '')),
             'email' => trim((string) ($validated['profile_email'] ?? '')),
-            'vertical' => trim((string) ($validated['profile_vertical'] ?? '')),
+            'vertical' => $this->normalizeBusinessProfileVertical($validated['profile_vertical'] ?? null),
             'websites' => array_values(array_filter([
                 trim((string) ($validated['profile_website'] ?? '')),
             ])),
         ];
 
+        if (($validated['profile_image'] ?? null) instanceof UploadedFile) {
+            $profilePayload['profile_picture_handle'] = $this->metaGraphService->uploadWhatsAppBusinessProfilePicture(
+                $connection->phone_number_id,
+                $connection->access_token,
+                $validated['profile_image']
+            );
+        }
+
         $this->metaGraphService->updateWhatsAppBusinessProfile($connection->phone_number_id, $connection->access_token, $profilePayload);
-        $this->storeBusinessProfileCache($connection, $this->normalizeBusinessProfile([
-            ...($this->getCachedBusinessProfile($connection) ?? []),
-            ...$profilePayload,
-        ]));
+
+        try {
+            $liveProfile = $this->normalizeBusinessProfile(
+                $this->metaGraphService->getWhatsAppBusinessProfile($connection->phone_number_id, $connection->access_token)
+            );
+            $this->storeBusinessProfileCache($connection, $liveProfile);
+        } catch (\Throwable) {
+            $this->storeBusinessProfileCache($connection, $this->normalizeBusinessProfile([
+                ...($this->getCachedBusinessProfile($connection) ?? []),
+                ...$profilePayload,
+            ]));
+        }
 
         foreach ($profileFields as $field) {
             unset($validated[$field]);
@@ -1293,15 +1338,62 @@ class ConnectionController extends Controller
 
     protected function normalizeBusinessProfile(array $profile): array
     {
+        $vertical = $this->normalizeBusinessProfileVertical($profile['vertical'] ?? null);
+
         return [
             'about' => (string) ($profile['about'] ?? ''),
             'description' => (string) ($profile['description'] ?? ''),
             'address' => (string) ($profile['address'] ?? ''),
             'email' => (string) ($profile['email'] ?? ''),
             'website' => (string) (($profile['website'] ?? $profile['websites'][0] ?? '') ?: ''),
-            'vertical' => (string) ($profile['vertical'] ?? ''),
+            'vertical' => $vertical,
+            'vertical_label' => $vertical !== '' ? (self::WHATSAPP_PROFILE_VERTICALS[$vertical] ?? $vertical) : '',
             'profile_picture_url' => $profile['profile_picture_url'] ?? null,
         ];
+    }
+
+    protected function businessProfileVerticalOptions(): array
+    {
+        return collect(self::WHATSAPP_PROFILE_VERTICALS)
+            ->map(fn (string $label, string $value) => ['value' => $value, 'label' => $label])
+            ->values()
+            ->all();
+    }
+
+    protected function normalizeBusinessProfileVertical(mixed $value): string
+    {
+        $raw = trim((string) ($value ?? ''));
+        if ($raw === '') {
+            return '';
+        }
+
+        $upper = strtoupper(str_replace([' ', '/', '&', ',', '-'], ['_', '_', '_', '', '_'], $raw));
+        $aliases = [
+            'PROFESSIONAL_SERVICES' => 'PROF_SERVICES',
+            'IT_SOFTWARE' => 'PROF_SERVICES',
+            'IT___SOFTWARE' => 'PROF_SERVICES',
+            'SHOPPING_AND_RETAIL' => 'RETAIL',
+            'FOOD_AND_GROCERY' => 'GROCERY',
+            'MEDICAL_AND_HEALTH' => 'HEALTH',
+            'ARTS_AND_ENTERTAINMENT' => 'ENTERTAIN',
+            'EVENT_PLANNING_AND_SERVICE' => 'EVENT_PLAN',
+            'FINANCE_AND_BANKING' => 'FINANCE',
+            'HOTEL_AND_LODGING' => 'HOTEL',
+            'PUBLIC_SERVICE' => 'GOVT',
+            'CLOTHING_AND_APPAREL' => 'APPAREL',
+            'BEAUTY_SPA_AND_SALON' => 'BEAUTY',
+            'TRAVEL_AND_TRANSPORTATION' => 'TRAVEL',
+        ];
+
+        $normalized = $aliases[$upper] ?? $upper;
+
+        if (array_key_exists($normalized, self::WHATSAPP_PROFILE_VERTICALS)) {
+            return $normalized;
+        }
+
+        $byLabel = array_change_key_case(array_flip(self::WHATSAPP_PROFILE_VERTICALS), CASE_UPPER);
+
+        return $byLabel[strtoupper($raw)] ?? '';
     }
 
     protected function getCachedBusinessProfile(WhatsAppConnection $connection): ?array
