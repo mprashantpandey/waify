@@ -1,10 +1,11 @@
 <?php
 
+use Illuminate\Filesystem\Filesystem;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 
-return Application::configure(basePath: dirname(__DIR__))
+$app = Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
         api: __DIR__.'/../routes/api.php',
@@ -150,3 +151,10 @@ return Application::configure(basePath: dirname(__DIR__))
             return null; // Let Laravel handle other exceptions
         });
     })->create();
+
+// Ensure legacy "files" binding exists for console/bootstrap consumers.
+if (! $app->bound('files')) {
+    $app->singleton('files', fn () => new Filesystem());
+}
+
+return $app;
