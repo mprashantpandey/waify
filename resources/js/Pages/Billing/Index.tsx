@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Com
 import { Badge } from '@/Components/UI/Badge';
 import Button from '@/Components/UI/Button';
 import { Progress } from '@/Components/UI/Progress';
-import { CreditCard, TrendingUp, Users, MessageSquare, FileText, Zap, AlertCircle, Clock, CheckCircle, ArrowRight } from 'lucide-react';
+import { Users, MessageSquare, FileText, Zap, AlertCircle, Clock, ArrowRight } from 'lucide-react';
 import { useNotifications } from '@/hooks/useNotifications';
 import { Head } from '@inertiajs/react';
 import { Alert } from '@/Components/UI/Alert';
@@ -134,12 +134,6 @@ export default function BillingIndex({
         return Math.min((used / limit) * 100, 100);
     };
 
-    const getUsageColor = (percentage: number) => {
-        if (percentage >= 90) return 'bg-red-600';
-        if (percentage >= 75) return 'bg-yellow-600';
-        return 'bg-blue-600';
-    };
-
     const getTrialDaysRemaining = (trialEndsAt: string | null) => {
         if (!trialEndsAt) return null;
         const now = new Date();
@@ -260,10 +254,10 @@ export default function BillingIndex({
         const variant = percentage >= 90 ? 'danger' : percentage >= 75 ? 'warning' : 'default';
 
         return (
-            <div className="p-5 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 space-y-3">
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 space-y-3">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-500 rounded-lg">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600">
                             {icon}
                         </div>
                         <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{label}</span>
@@ -294,32 +288,11 @@ export default function BillingIndex({
     return (
         <AppShell>
             <Head title="Billing Overview" />
-            <div className="space-y-8">
-                <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
-                        Billing Overview
-                    </h1>
-                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                        Manage your subscription and view usage
-                    </p>
+            <div className="space-y-6">
+                <div className="space-y-1">
+                    <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 sm:text-3xl">Billing</h1>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Plan, payments, and usage in one place.</p>
                 </div>
-
-                <Card className="border-0 shadow-sm">
-                    <CardContent className="grid gap-4 p-5 md:grid-cols-3">
-                        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900">
-                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Plan status</p>
-                            <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">See if your account is active, trialing, due for renewal, or canceled.</p>
-                        </div>
-                        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900">
-                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Quick recovery</p>
-                            <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">If billing needs action, renew, resume, and invoice links appear here first.</p>
-                        </div>
-                        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900">
-                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Usage</p>
-                            <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">Track message, template, AI, and wallet usage without opening multiple pages.</p>
-                        </div>
-                    </CardContent>
-                </Card>
 
                 {/* Status Banners */}
                 {subscription?.status === 'past_due' && (
@@ -443,16 +416,13 @@ export default function BillingIndex({
                 )}
 
                 {/* Current Plan Card */}
-                <Card className="border-0 shadow-lg">
-                    <CardHeader className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20">
+                <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
+                    <CardHeader className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <div className="p-2 bg-blue-500 rounded-xl">
-                                    <CreditCard className="h-5 w-5 text-white" />
-                                </div>
                                 <div>
-                                    <CardTitle className="text-xl font-bold">Current Plan</CardTitle>
-                                    <CardDescription>Your active subscription details</CardDescription>
+                                    <CardTitle className="text-lg font-semibold">Current plan</CardTitle>
+                                    <CardDescription>What you are on right now.</CardDescription>
                                 </div>
                             </div>
                             {subscription && getStatusBadge(subscription.status)}
@@ -461,31 +431,24 @@ export default function BillingIndex({
                     <CardContent className="p-6">
                         {plan ? (
                             <div className="space-y-6">
-                                <div>
-                                    <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-1">
-                                        {plan.name}
-                                    </h3>
-                                </div>
-                                <div className="flex items-center gap-6">
-                                    <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl flex-1">
-                                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Monthly</p>
-                                        <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                                            {formatPrice(plan.price_monthly, plan.currency)}
-                                        </p>
+                                <div className="grid gap-3 md:grid-cols-3">
+                                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
+                                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Plan</p>
+                                        <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">{plan.name}</p>
                                     </div>
-                                    {plan.price_yearly && (
-                                        <div className="p-4 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl flex-1">
-                                            <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Yearly</p>
-                                            <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                                                {formatPrice(plan.price_yearly, plan.currency)}
-                                            </p>
-                                        </div>
-                                    )}
+                                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
+                                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Monthly</p>
+                                        <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">{formatPrice(plan.price_monthly, plan.currency)}</p>
+                                    </div>
+                                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
+                                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Yearly</p>
+                                        <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">{plan.price_yearly ? formatPrice(plan.price_yearly, plan.currency) : 'Not set'}</p>
+                                    </div>
                                 </div>
 
                                 {/* Trial Banner */}
                                 {subscription?.status === 'trialing' && trialDays !== null && (
-                                    <div className="p-4 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl border border-blue-200 dark:border-blue-800">
+                                    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
                                         <div className="flex items-center gap-3">
                                             <Clock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                                             <div>
@@ -501,7 +464,7 @@ export default function BillingIndex({
                                 )}
 
                                 {subscription?.cancel_at_period_end && (
-                                    <div className="p-4 bg-gradient-to-r from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 rounded-xl border border-yellow-200 dark:border-yellow-800">
+                                    <div className="rounded-2xl border border-yellow-200 bg-yellow-50 p-4 dark:border-yellow-800 dark:bg-yellow-900/20">
                                         <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium">
                                             Subscription will be canceled on{' '}
                                             {subscription.current_period_end
@@ -514,7 +477,7 @@ export default function BillingIndex({
                                     {subscription?.status === 'past_due' && (
                                         canRenewNow ? (
                                             <Button
-                                                className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-lg shadow-amber-500/40 rounded-xl"
+                                                className="rounded-xl"
                                                 onClick={handleRenewNow}
                                                 disabled={renewing}
                                             >
@@ -522,7 +485,7 @@ export default function BillingIndex({
                                             </Button>
                                         ) : (
                                             <Link href={route('app.billing.plans', {})}>
-                                                <Button className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-lg shadow-amber-500/40 rounded-xl">
+                                                <Button className="rounded-xl">
                                                     {isOwner ? 'Renew Now' : 'View Billing Recovery'}
                                                 </Button>
                                             </Link>
@@ -550,7 +513,7 @@ export default function BillingIndex({
                                         </Link>
                                     )}
                                     <Link href={route('app.billing.plans', {})}>
-                                        <Button className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50 rounded-xl">
+                                        <Button className="rounded-xl">
                                             {isOwner ? 'Review Plans' : 'View Plans'}
                                         </Button>
                                     </Link>
@@ -590,12 +553,12 @@ export default function BillingIndex({
                     </CardContent>
                 </Card>
 
-                <Card className="border-0 shadow-lg">
-                    <CardHeader className="bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900">
+                <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
+                    <CardHeader className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <CardTitle className="text-xl font-bold">Invoices & Transactions</CardTitle>
-                                <CardDescription>Latest billing activity with quick access</CardDescription>
+                                <CardTitle className="text-lg font-semibold">Recent payments</CardTitle>
+                                <CardDescription>Open invoices and transactions from here.</CardDescription>
                             </div>
                             <div className="flex flex-wrap items-center gap-2">
                                 <Link href={route('app.billing.history', {})}>
@@ -653,18 +616,11 @@ export default function BillingIndex({
                 </Card>
 
                 {/* Usage Meters */}
-                <Card className="border-0 shadow-lg">
-                    <CardHeader className="bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl">
-                                    <TrendingUp className="h-5 w-5 text-white" />
-                                </div>
-                                <div>
-                                    <CardTitle className="text-xl font-bold">Current Usage (This Month)</CardTitle>
-                                    <CardDescription>Track your usage against plan limits</CardDescription>
-                                </div>
-                            </div>
+                <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
+                    <CardHeader className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+                        <div>
+                            <CardTitle className="text-lg font-semibold">Usage this month</CardTitle>
+                            <CardDescription>See your main limits at a glance.</CardDescription>
                         </div>
                     </CardHeader>
                     <CardContent className="p-6 space-y-4">
@@ -694,7 +650,7 @@ export default function BillingIndex({
                             plan?.limits.agents,
                             current_agents_count
                         )}
-                        <div className="p-5 bg-gradient-to-r from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 rounded-xl border border-emerald-200 dark:border-emerald-800 space-y-3">
+                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-900/20 space-y-3">
                             <div className="flex items-center justify-between">
                                 <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Meta Conversation Billing (Estimate)</span>
                                 <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
