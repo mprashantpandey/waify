@@ -36,11 +36,11 @@ class RazorpayWebhookController extends Controller
 
         $data = $request->json()->all();
         $event = $data['event'] ?? null;
-        if ($event === 'payment.captured' || $event === 'order.paid') {
-            $orderId = $data['payload']['order']['entity']['id'] ?? $data['payload']['payment']['entity']['order_id'] ?? null;
-            $paymentId = $data['payload']['payment']['entity']['id'] ?? null;
-            $deliveryId = $request->header('X-Razorpay-Event-Id') ?? null;
+        $orderId = $data['payload']['order']['entity']['id'] ?? $data['payload']['payment']['entity']['order_id'] ?? null;
+        $paymentId = $data['payload']['payment']['entity']['id'] ?? null;
+        $deliveryId = $request->header('X-Razorpay-Event-Id') ?? null;
 
+        if ($event && ($deliveryId || $orderId || $paymentId)) {
             $idempotencyKey = 'razorpay_webhook:' . ($deliveryId ?: ($event ?? '') . ':' . ($orderId ?? '') . ':' . ($paymentId ?? ''));
             if (!Cache::add($idempotencyKey, true, now()->addDays(7))) {
                 Log::channel('stack')->info('Skipping duplicate Razorpay webhook event', [

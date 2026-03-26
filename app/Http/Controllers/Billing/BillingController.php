@@ -447,20 +447,7 @@ class BillingController extends Controller
                 $paymentOrder->status === 'paid' &&
                 (string) $paymentOrder->provider_payment_id === (string) $validated['payment_id']
             ) {
-                $plan = Plan::find($paymentOrder->plan_id);
-                if ($plan) {
-                    $this->subscriptionService->changePlan(
-                        $account,
-                        $plan,
-                        $request->user(),
-                        'razorpay',
-                        [
-                            'payment_id' => $validated['payment_id'],
-                            'order_id' => $validated['order_id'],
-                            'paid_at' => $paymentOrder->paid_at ?? now(),
-                        ]
-                    );
-                }
+                // Duplicate confirmation callback for the same settled payment should be a no-op.
                 return;
             }
 
@@ -591,6 +578,8 @@ class BillingController extends Controller
             ->limit(50)
             ->get()
             ->map(function (PaymentOrder $order) {
+                $metadata = is_array($order->metadata) ? $order->metadata : [];
+
                 return [
                     'id' => $order->id,
                     'invoice_no' => sprintf('INV-%06d', $order->id),
@@ -603,6 +592,7 @@ class BillingController extends Controller
                     'plan' => $order->plan ? [
                         'id' => $order->plan->id,
                         'name' => $order->plan->name] : null,
+                    'failure_reason' => $metadata['failure_reason'] ?? $metadata['error_description'] ?? null,
                     'created_at' => $order->created_at->toIso8601String(),
                     'paid_at' => $order->paid_at?->toIso8601String(),
                     'failed_at' => $order->failed_at?->toIso8601String()];
