@@ -29,6 +29,9 @@ interface Connection {
     quiet_hours_start?: string | null;
     quiet_hours_end?: string | null;
     quiet_hours_timezone?: string | null;
+    business_profile?: {
+        profile_picture_url?: string | null;
+    } | null;
 }
 
 function formatProvisioningStep(step?: string | null): string {
@@ -115,11 +118,20 @@ export default function ConnectionsEdit({
                     </Link>
 
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div>
+                        <div className="flex items-center gap-4">
+                            {connection.business_profile?.profile_picture_url ? (
+                                <img
+                                    src={connection.business_profile.profile_picture_url}
+                                    alt={connection.name}
+                                    className="h-14 w-14 rounded-full border border-gray-200 object-cover dark:border-gray-700"
+                                />
+                            ) : null}
+                            <div>
                             <h1 className="text-3xl font-semibold text-gray-900 dark:text-gray-100">{connection.name}</h1>
                             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                                 Review the number and keep the name clear for your team.
                             </p>
+                            </div>
                         </div>
 
                         <div className="flex gap-3">

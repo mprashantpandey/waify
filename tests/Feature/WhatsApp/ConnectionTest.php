@@ -287,7 +287,7 @@ class ConnectionTest extends TestCase
             ->component('WhatsApp/Connections/Profile')
             ->where('connection.business_profile.about', 'Cached about')
             ->where('connection.business_profile.website', 'https://example.com')
-            ->where('connection.business_profile_error', 'Showing the last saved WhatsApp profile details. Live refresh is unavailable right now.')
+            ->where('connection.business_profile_error', 'Showing your last saved WhatsApp profile details. WhatsApp is not returning a live refresh right now.')
         );
     }
 

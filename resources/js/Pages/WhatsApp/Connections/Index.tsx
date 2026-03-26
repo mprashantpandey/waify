@@ -20,6 +20,9 @@ interface Connection {
     provisioning_last_error?: string | null;
     activation_state?: string | null;
     created_at: string;
+    business_profile?: {
+        profile_picture_url?: string | null;
+    } | null;
 }
 
 function formatProvisioningStep(step?: string | null): string {
@@ -201,12 +204,21 @@ export default function ConnectionsIndex({
                                 <Card key={connection.id} className="border-gray-200 shadow-sm dark:border-gray-800">
                                     <CardHeader className="space-y-4">
                                         <div className="flex items-start justify-between gap-3">
-                                            <div>
-                                                <CardTitle className="text-lg text-gray-900 dark:text-gray-100">{connection.name}</CardTitle>
-                                                <CardDescription className="mt-1 flex items-center gap-2 text-sm">
-                                                    <Phone className="h-3.5 w-3.5" />
-                                                    {connection.business_phone || 'Number added'}
-                                                </CardDescription>
+                                            <div className="flex items-start gap-3">
+                                                {connection.business_profile?.profile_picture_url ? (
+                                                    <img
+                                                        src={connection.business_profile.profile_picture_url}
+                                                        alt={connection.name}
+                                                        className="h-12 w-12 rounded-full border border-gray-200 object-cover dark:border-gray-700"
+                                                    />
+                                                ) : null}
+                                                <div>
+                                                    <CardTitle className="text-lg text-gray-900 dark:text-gray-100">{connection.name}</CardTitle>
+                                                    <CardDescription className="mt-1 flex items-center gap-2 text-sm">
+                                                        <Phone className="h-3.5 w-3.5" />
+                                                        {connection.business_phone || 'Number added'}
+                                                    </CardDescription>
+                                                </div>
                                             </div>
                                             <Badge variant={formatSetupTone(connection)}>{setupLabel}</Badge>
                                         </div>

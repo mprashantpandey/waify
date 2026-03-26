@@ -52,6 +52,7 @@ class ConnectionController extends Controller
             ->map(function ($connection) use ($staleCutoff, $staleAfterHours) {
                 $lastSyncedAt = $connection->health_last_synced_at;
                 $isStale = !$lastSyncedAt || $lastSyncedAt->lt($staleCutoff);
+                $cachedProfile = $this->getCachedBusinessProfile($connection);
 
                 return [
                     'id' => $connection->id,
@@ -84,6 +85,7 @@ class ConnectionController extends Controller
                     'provisioning_last_error' => $connection->provisioning_last_error,
                     'provisioning_completed_at' => $connection->provisioning_completed_at?->toIso8601String(),
                     'provisioning_context' => $connection->provisioning_context,
+                    'business_profile' => $cachedProfile,
                     'webhook_mode' => 'central',
                     'webhook_url' => $this->connectionService->getWebhookUrl($connection),
                     'created_at' => $connection->created_at->toIso8601String()];
@@ -847,6 +849,7 @@ class ConnectionController extends Controller
                 'quiet_hours_start' => $connection->quiet_hours_start,
                 'quiet_hours_end' => $connection->quiet_hours_end,
                 'quiet_hours_timezone' => $connection->quiet_hours_timezone,
+                'business_profile' => $this->getCachedBusinessProfile($connection),
             ],
             'embeddedSignupEvents' => WhatsAppEmbeddedSignupEvent::query()
                 ->where('account_id', $account->id)
@@ -1234,13 +1237,13 @@ class ConnectionController extends Controller
             if ($cachedProfile !== null) {
                 return [
                     'profile' => $cachedProfile,
-                    'error' => 'Showing the last saved WhatsApp profile details. Live refresh is unavailable right now.',
+                    'error' => 'Showing your last saved WhatsApp profile details. WhatsApp is not returning a live refresh right now.',
                 ];
             }
 
             return [
                 'profile' => $empty,
-                'error' => 'Live profile details are unavailable right now. You can still update the profile below.',
+                'error' => 'WhatsApp is not returning profile details right now. You can still update the profile below.',
             ];
         }
     }
