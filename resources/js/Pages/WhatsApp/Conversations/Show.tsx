@@ -6,7 +6,7 @@ import Modal from '@/Components/Modal';
 import TextInput from '@/Components/TextInput';
 import { Textarea } from '@/Components/UI/Textarea';
 import { Badge } from '@/Components/UI/Badge';
-import { ArrowLeft, Send, Check, CheckCheck, Clock, Menu, Phone, Wifi, WifiOff, X, Smile, Paperclip, Image as ImageIcon, MapPin, FileText, Zap, List, Square, Plus, Sparkles, ThumbsUp, ThumbsDown, Info } from 'lucide-react';
+import { ArrowLeft, Send, Check, CheckCheck, Clock, Menu, Phone, Wifi, WifiOff, X, Smile, Paperclip, Image as ImageIcon, MapPin, FileText, Zap, List, Square, Plus, Sparkles, ThumbsUp, ThumbsDown, Info, Crosshair, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRealtime } from '@/Providers/RealtimeProvider';
 import { MessageSkeleton } from '@/Components/UI/Skeleton';
@@ -29,6 +29,50 @@ interface Message {
     delivered_at: string | null;
     read_at: string | null;
 }
+
+type ParsedLocation = {
+    latitude: number;
+    longitude: number;
+};
+
+const parseLocationValue = (value: string): ParsedLocation | null => {
+    const input = value.trim();
+    if (!input) return null;
+
+    const directMatch = input.match(/(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/);
+    if (directMatch) {
+        const latitude = Number(directMatch[1]);
+        const longitude = Number(directMatch[2]);
+        if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+            return { latitude, longitude };
+        }
+    }
+
+    try {
+        const url = new URL(input);
+        const q = url.searchParams.get('q') || url.searchParams.get('query') || url.searchParams.get('ll');
+        if (q) {
+            const queryMatch = q.match(/(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/);
+            if (queryMatch) {
+                return { latitude: Number(queryMatch[1]), longitude: Number(queryMatch[2]) };
+            }
+        }
+
+        const atMatch = url.href.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+        if (atMatch) {
+            return { latitude: Number(atMatch[1]), longitude: Number(atMatch[2]) };
+        }
+
+        const dataMatch = url.href.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/);
+        if (dataMatch) {
+            return { latitude: Number(dataMatch[1]), longitude: Number(dataMatch[2]) };
+        }
+    } catch {}
+
+    return null;
+};
+
+const buildGoogleMapsUrl = (value: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(value.trim() || 'India')}`;
 
 interface Conversation {
     id: number;
@@ -418,7 +462,7 @@ export default function ConversationsShow({
     const [buttonHeaderText, setButtonHeaderText] = useState('');
     const [buttonFooterText, setButtonFooterText] = useState('');
     const [attachments, setAttachments] = useState<File[]>([]);
-    const [locationInput, setLocationInput] = useState({ label: '', lat: '', lng: '' });
+    const [locationInput, setLocationInput] = useState({ label: '', query: '' });
     const [selectedTemplate, setSelectedTemplate] = useState<TemplateItem | null>(null);
     const [templateVariables, setTemplateVariables] = useState<string[]>([]);
     const [templateSending, setTemplateSending] = useState(false);
@@ -748,15 +792,36 @@ export default function ConversationsShow({
         setInteractiveButtons(buttons);
     };
 
+    const parsedLocation = useMemo(() => parseLocationValue(locationInput.query), [locationInput.query]);
+
+    const useCurrentLocation = useCallback(() => {
+        if (typeof navigator === 'undefined' || !navigator.geolocation) {
+            addToast({ title: 'Location unavailable', description: 'Your browser could not access current location.', variant: 'warning' });
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const latitude = position.coords.latitude.toFixed(6);
+                const longitude = position.coords.longitude.toFixed(6);
+                setLocationInput((prev) => ({ ...prev, query: `${latitude}, ${longitude}` }));
+            },
+            () => {
+                addToast({ title: 'Location unavailable', description: 'Allow location access and try again.', variant: 'warning' });
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    }, [addToast]);
+
     const sendLocation = useCallback(async () => {
         if (locationSending) return;
         if (!isCustomerCareWindowOpen) {
             notifyClosedCustomerCareWindow();
             return;
         }
-        const { label, lat, lng } = locationInput;
-        if (!lat || !lng) {
-            addToast({ title: 'Location needed', description: 'Add latitude and longitude.', variant: 'warning' });
+        const { label } = locationInput;
+        if (!parsedLocation) {
+            addToast({ title: 'Location needed', description: 'Paste a Google Maps link or coordinates.', variant: 'warning' });
             return;
         }
 
@@ -766,8 +831,8 @@ export default function ConversationsShow({
                 route('app.whatsapp.conversations.send-location', {
                     conversation: conversation.id}),
                 {
-                    latitude: Number(lat),
-                    longitude: Number(lng),
+                    latitude: parsedLocation.latitude,
+                    longitude: parsedLocation.longitude,
                     name: label || null,
                     address: null,
                     client_request_id: createClientRequestId('location'),
@@ -778,7 +843,7 @@ export default function ConversationsShow({
             const isDuplicate = typeof message === 'string' && message.toLowerCase().includes('duplicate');
             addToast({ title: isDuplicate ? 'Duplicate ignored' : 'Location accepted', description: message, variant: isDuplicate ? 'info' : 'success' });
             setShowLocation(false);
-            setLocationInput({ label: '', lat: '', lng: '' });
+            setLocationInput({ label: '', query: '' });
         } catch (error: any) {
             addToast({
                 title: 'Failed to send location',
@@ -787,7 +852,7 @@ export default function ConversationsShow({
         } finally {
             setLocationSending(false);
         }
-    }, [addToast, conversation.id, locationInput, account.slug, locationSending, isCustomerCareWindowOpen, notifyClosedCustomerCareWindow]);
+    }, [addToast, conversation.id, locationInput, parsedLocation, account.slug, locationSending, isCustomerCareWindowOpen, notifyClosedCustomerCareWindow]);
 
     const sendAttachments = useCallback(async (caption?: string) => {
         if (attachmentsSending) return;
@@ -2303,34 +2368,57 @@ export default function ConversationsShow({
 
                         {showLocation && (
                             <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-                                <div className="grid gap-3 sm:grid-cols-3">
+                                <div className="grid gap-3">
                                     <TextInput
                                         value={locationInput.label}
                                         onChange={(e) => setLocationInput((prev) => ({ ...prev, label: e.target.value }))}
-                                        placeholder="Label (optional)"
+                                        placeholder="Place name (optional)"
                                         disabled={locationSending || !isCustomerCareWindowOpen}
                                         className="rounded-xl"
                                     />
                                     <TextInput
-                                        value={locationInput.lat}
-                                        onChange={(e) => setLocationInput((prev) => ({ ...prev, lat: e.target.value }))}
-                                        placeholder="Latitude"
+                                        value={locationInput.query}
+                                        onChange={(e) => setLocationInput((prev) => ({ ...prev, query: e.target.value }))}
+                                        placeholder="Paste Google Maps link or lat,lng"
                                         disabled={locationSending || !isCustomerCareWindowOpen}
                                         className="rounded-xl"
                                     />
-                                    <TextInput
-                                        value={locationInput.lng}
-                                        onChange={(e) => setLocationInput((prev) => ({ ...prev, lng: e.target.value }))}
-                                        placeholder="Longitude"
-                                        disabled={locationSending || !isCustomerCareWindowOpen}
-                                        className="rounded-xl"
-                                    />
+                                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                                        <button
+                                            type="button"
+                                            onClick={useCurrentLocation}
+                                            disabled={locationSending || !isCustomerCareWindowOpen}
+                                            className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1.5 text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+                                        >
+                                            <Crosshair className="h-3.5 w-3.5" />
+                                            Use current location
+                                        </button>
+                                        <a
+                                            href={buildGoogleMapsUrl(locationInput.label || locationInput.query || conversation.contact.name || '')}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1.5 text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+                                        >
+                                            <ExternalLink className="h-3.5 w-3.5" />
+                                            Open Google Maps
+                                        </a>
+                                    </div>
+                                    <div className={cn(
+                                        'rounded-xl px-3 py-2 text-xs',
+                                        parsedLocation
+                                            ? 'border border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-700/40 dark:bg-emerald-500/10 dark:text-emerald-200'
+                                            : 'border border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-700/40 dark:bg-amber-500/10 dark:text-amber-200'
+                                    )}>
+                                        {parsedLocation
+                                            ? `Ready to send: ${parsedLocation.latitude.toFixed(6)}, ${parsedLocation.longitude.toFixed(6)}`
+                                            : 'Paste a Google Maps share link or coordinates to send this location.'}
+                                    </div>
                                 </div>
                                 <div className="mt-3 flex justify-end gap-2">
                                     <Button type="button" variant="secondary" onClick={() => setShowLocation(false)} disabled={locationSending}>
                                         Cancel
                                     </Button>
-                                    <Button type="button" onClick={sendLocation} disabled={locationSending || !isCustomerCareWindowOpen} className="bg-[#25D366] hover:bg-[#1DAA57] text-white">
+                                    <Button type="button" onClick={sendLocation} disabled={locationSending || !isCustomerCareWindowOpen || !parsedLocation} className="bg-[#25D366] hover:bg-[#1DAA57] text-white">
                                         {locationSending ? 'Sending...' : 'Send Location'}
                                     </Button>
                                 </div>
