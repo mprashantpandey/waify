@@ -671,8 +671,8 @@ export default function ConversationsIndex({
     return (
         <AppShell>
             <Head title="Inbox" />
-            <div className="min-h-[calc(100vh-8rem)] lg:min-h-[calc(100vh-6rem)]">
-                <div className="grid min-h-full overflow-hidden rounded-[28px] border border-[#d1d7db] bg-[#f0f2f5] shadow-sm lg:grid-cols-[400px_1fr] dark:border-gray-800 dark:bg-gray-900">
+            <div className="h-[calc(100vh-8rem)] overflow-hidden lg:h-[calc(100vh-6rem)]">
+                <div className="grid h-full overflow-hidden rounded-[28px] border border-[#d1d7db] bg-[#f0f2f5] shadow-sm lg:grid-cols-[400px_minmax(0,1fr)] dark:border-gray-800 dark:bg-gray-900">
                     <section className="flex min-h-0 flex-col border-r border-[#d1d7db] bg-white dark:border-gray-800 dark:bg-gray-900">
                         <div className="border-b border-[#d1d7db] bg-[#f0f2f5] px-4 py-3 dark:border-gray-800 dark:bg-gray-900">
                             <div className="flex items-start justify-between gap-3">
@@ -1004,7 +1004,7 @@ export default function ConversationsIndex({
                     </section>
 
                     <section
-                        className="hidden min-h-0 lg:flex dark:bg-gray-950/40"
+                        className="hidden min-h-0 min-w-0 lg:flex dark:bg-gray-950/40"
                         style={{
                             backgroundColor: '#efeae2',
                             backgroundImage:
@@ -1018,7 +1018,7 @@ export default function ConversationsIndex({
                                 key={selectedConversationId}
                                 title={`Conversation ${selectedConversationId}`}
                                 src={`${route('app.whatsapp.conversations.show', { conversation: selectedConversationId })}?embedded=1`}
-                                className="h-full w-full border-0 bg-transparent"
+                                className="block h-full w-full border-0 bg-transparent"
                             />
                         ) : (
                             <div className="flex w-full items-center justify-center">
