@@ -223,6 +223,50 @@ class ConnectionTest extends TestCase
 
         $response->assertRedirect();
         $this->assertDatabaseHas('whatsapp_connections', ['id' => $connection->id]);
+        $connection->refresh();
+        $this->assertSame('Open today until 8 PM', data_get($connection->token_metadata, 'business_profile_cache.about'));
+        $this->assertSame('https://example.com', data_get($connection->token_metadata, 'business_profile_cache.website'));
+    }
+
+    public function test_connection_profile_page_uses_cached_profile_when_meta_fetch_fails(): void
+    {
+        $connection = WhatsAppConnection::factory()->create([
+            'account_id' => $this->account->id,
+            'name' => 'Support Number',
+            'token_metadata' => [
+                'business_profile_cache' => [
+                    'about' => 'Cached about',
+                    'description' => 'Cached description',
+                    'address' => 'Noida',
+                    'email' => 'cached@example.com',
+                    'website' => 'https://example.com',
+                    'vertical' => 'Professional Services',
+                    'profile_picture_url' => 'https://example.com/logo.png',
+                ],
+            ],
+        ]);
+        $connection->access_token = 'stored-token';
+        $connection->save();
+
+        $meta = Mockery::mock(MetaGraphService::class);
+        $meta->shouldReceive('getWhatsAppBusinessProfile')
+            ->once()
+            ->with($connection->phone_number_id, 'stored-token')
+            ->andThrow(new \RuntimeException('(#131000) Something went wrong'));
+        $this->instance(MetaGraphService::class, $meta);
+
+        $response = $this->actingAs($this->user)
+            ->get(route('app.whatsapp.connections.profile.edit', [
+                'account' => $this->account->slug,
+                'connection' => $connection->id,
+            ]));
+
+        $response->assertInertia(fn ($page) => $page
+            ->component('WhatsApp/Connections/Profile')
+            ->where('connection.business_profile.about', 'Cached about')
+            ->where('connection.business_profile.website', 'https://example.com')
+            ->where('connection.business_profile_error', 'Showing the last saved WhatsApp profile details. Live refresh is unavailable right now.')
+        );
     }
 
     public function test_embedded_signup_reuses_existing_connection_for_same_assets(): void

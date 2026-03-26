@@ -1213,18 +1213,14 @@ class ConnectionController extends Controller
         }
 
         try {
-            $profile = $this->metaGraphService->getWhatsAppBusinessProfile($connection->phone_number_id, $connection->access_token);
+            $profile = $this->normalizeBusinessProfile(
+                $this->metaGraphService->getWhatsAppBusinessProfile($connection->phone_number_id, $connection->access_token)
+            );
+
+            $this->storeBusinessProfileCache($connection, $profile);
 
             return [
-                'profile' => [
-                    'about' => (string) ($profile['about'] ?? ''),
-                    'description' => (string) ($profile['description'] ?? ''),
-                    'address' => (string) ($profile['address'] ?? ''),
-                    'email' => (string) ($profile['email'] ?? ''),
-                    'website' => (string) (($profile['websites'][0] ?? '') ?: ''),
-                    'vertical' => (string) ($profile['vertical'] ?? ''),
-                    'profile_picture_url' => $profile['profile_picture_url'] ?? null,
-                ],
+                'profile' => $profile,
                 'error' => null,
             ];
         } catch (\Throwable $e) {
@@ -1234,7 +1230,18 @@ class ConnectionController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            return ['profile' => $empty, 'error' => 'Could not load the current WhatsApp profile details right now.'];
+            $cachedProfile = $this->getCachedBusinessProfile($connection);
+            if ($cachedProfile !== null) {
+                return [
+                    'profile' => $cachedProfile,
+                    'error' => 'Showing the last saved WhatsApp profile details. Live refresh is unavailable right now.',
+                ];
+            }
+
+            return [
+                'profile' => $empty,
+                'error' => 'Live profile details are unavailable right now. You can still update the profile below.',
+            ];
         }
     }
 
@@ -1271,9 +1278,50 @@ class ConnectionController extends Controller
         ];
 
         $this->metaGraphService->updateWhatsAppBusinessProfile($connection->phone_number_id, $connection->access_token, $profilePayload);
+        $this->storeBusinessProfileCache($connection, $this->normalizeBusinessProfile([
+            ...($this->getCachedBusinessProfile($connection) ?? []),
+            ...$profilePayload,
+        ]));
 
         foreach ($profileFields as $field) {
             unset($validated[$field]);
         }
+    }
+
+    protected function normalizeBusinessProfile(array $profile): array
+    {
+        return [
+            'about' => (string) ($profile['about'] ?? ''),
+            'description' => (string) ($profile['description'] ?? ''),
+            'address' => (string) ($profile['address'] ?? ''),
+            'email' => (string) ($profile['email'] ?? ''),
+            'website' => (string) (($profile['website'] ?? $profile['websites'][0] ?? '') ?: ''),
+            'vertical' => (string) ($profile['vertical'] ?? ''),
+            'profile_picture_url' => $profile['profile_picture_url'] ?? null,
+        ];
+    }
+
+    protected function getCachedBusinessProfile(WhatsAppConnection $connection): ?array
+    {
+        $cached = $connection->token_metadata['business_profile_cache'] ?? null;
+
+        if (!is_array($cached)) {
+            return null;
+        }
+
+        return $this->normalizeBusinessProfile($cached);
+    }
+
+    protected function storeBusinessProfileCache(WhatsAppConnection $connection, array $profile): void
+    {
+        $metadata = $connection->token_metadata ?? [];
+        $metadata['business_profile_cache'] = [
+            ...$profile,
+            'cached_at' => now()->toIso8601String(),
+        ];
+
+        $connection->forceFill([
+            'token_metadata' => $metadata,
+        ])->save();
     }
 }
