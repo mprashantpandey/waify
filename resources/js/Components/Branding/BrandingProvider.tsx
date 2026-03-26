@@ -7,6 +7,31 @@ const getFaviconType = (url: string) => {
     return 'image/png';
 };
 
+const clamp = (value: number, min = 0, max = 255) => Math.min(max, Math.max(min, value));
+
+const hexToRgb = (hex: string) => {
+    const normalized = hex.replace('#', '');
+    if (normalized.length !== 6) return null;
+    const value = parseInt(normalized, 16);
+    if (Number.isNaN(value)) return null;
+
+    return {
+        r: (value >> 16) & 255,
+        g: (value >> 8) & 255,
+        b: value & 255,
+    };
+};
+
+const rgbToHex = (r: number, g: number, b: number) =>
+    `#${[r, g, b].map((channel) => clamp(channel).toString(16).padStart(2, '0')).join('')}`;
+
+const shiftColor = (hex: string, amount: number) => {
+    const rgb = hexToRgb(hex);
+    if (!rgb) return hex;
+
+    return rgbToHex(rgb.r + amount, rgb.g + amount, rgb.b + amount);
+};
+
 interface BrandingData {
     platform_name?: string;
     logo_url?: string | null;
@@ -75,12 +100,17 @@ export function BrandingProvider({
         // Apply CSS variables for branding colors
         if (branding.primary_color) {
             document.documentElement.style.setProperty('--brand-primary', branding.primary_color);
+            document.documentElement.style.setProperty('--brand-primary-dark', shiftColor(branding.primary_color, -18));
+            document.documentElement.style.setProperty('--brand-primary-soft', shiftColor(branding.primary_color, 210));
+            document.documentElement.style.setProperty('--brand-primary-soft-dark', shiftColor(branding.primary_color, -120));
         }
         if (branding.secondary_color) {
             document.documentElement.style.setProperty('--brand-secondary', branding.secondary_color);
+            document.documentElement.style.setProperty('--brand-secondary-dark', shiftColor(branding.secondary_color, -18));
+            document.documentElement.style.setProperty('--brand-secondary-soft', shiftColor(branding.secondary_color, 210));
+            document.documentElement.style.setProperty('--brand-secondary-soft-dark', shiftColor(branding.secondary_color, -120));
         }
     }, [branding]);
 
     return <>{children}</>;
 }
-

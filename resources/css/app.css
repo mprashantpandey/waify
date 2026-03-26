@@ -8,6 +8,14 @@
         --color-primary-dark: 37 99 235;
         --color-accent: 168 85 247;   /* purple-500 */
         --color-accent-dark: 126 34 206;
+        --brand-primary: #3B82F6;
+        --brand-primary-dark: #2563EB;
+        --brand-primary-soft: #DBEAFE;
+        --brand-primary-soft-dark: #1E3A8A;
+        --brand-secondary: #8B5CF6;
+        --brand-secondary-dark: #7C3AED;
+        --brand-secondary-soft: #EDE9FE;
+        --brand-secondary-soft-dark: #4C1D95;
         --font-sans: 'Figtree', ui-sans-serif, system-ui, sans-serif;
         --radius-card: 1rem;
         --radius-button: 0.5rem;
@@ -27,7 +35,9 @@
 
     /* Focus visible for accessibility (keyboard nav) */
     :focus-visible {
-        @apply outline-none ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-gray-900;
+        outline: none;
+        box-shadow: 0 0 0 2px var(--brand-primary);
+        @apply ring-offset-2 dark:ring-offset-gray-900;
     }
 }
 
@@ -51,10 +61,20 @@
 
     /* Nav link with active state (for public nav when on same path) */
     .nav-link {
-        @apply px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors rounded-lg;
+        @apply px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 transition-colors rounded-lg;
     }
     .nav-link-active {
-        @apply text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20;
+        color: var(--brand-primary);
+        background-color: var(--brand-primary-soft);
+    }
+
+    .nav-link:hover {
+        color: var(--brand-primary);
+    }
+
+    .dark .nav-link-active {
+        color: var(--brand-primary);
+        background-color: var(--brand-primary-soft-dark);
     }
 }
 

@@ -1,7 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import { PropsWithChildren, useEffect } from 'react';
 import { BrandingWrapper } from '@/Components/Branding/BrandingWrapper';
-import { getPlatformName, getLogoUrl, getFooterText } from '@/lib/branding';
+import { getDarkLogoUrl, getPlatformName, getLogoUrl, getFooterText } from '@/lib/branding';
 import { 
     HelpCircle, 
     FileText, 
@@ -23,6 +23,7 @@ export default function PublicLayout({ children }: PropsWithChildren) {
     const { branding, auth, accounts, compliance } = page.props as any;
     const platformName = getPlatformName(branding);
     const logoUrl = getLogoUrl(branding);
+    const darkLogoUrl = getDarkLogoUrl(branding);
     const footerText = getFooterText(branding);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const currentPath = (page as any).url?.split('?')[0] || '';
@@ -77,7 +78,10 @@ export default function PublicLayout({ children }: PropsWithChildren) {
                             <div className="flex items-center">
                                 <Link href={route('landing')} className="flex items-center space-x-3">
                                     {logoUrl ? (
-                                        <img src={logoUrl} alt={platformName} className="h-10 w-auto" />
+                                        <>
+                                            <img src={logoUrl} alt={platformName} className={`h-10 w-auto ${darkLogoUrl ? 'dark:hidden' : ''}`} />
+                                            {darkLogoUrl ? <img src={darkLogoUrl} alt={platformName} className="hidden h-10 w-auto dark:block" /> : null}
+                                        </>
                                     ) : (
                                         <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 shadow-md">
                                             <span className="text-lg font-bold text-white">{platformName.charAt(0)}</span>
@@ -236,7 +240,10 @@ export default function PublicLayout({ children }: PropsWithChildren) {
                             <div className="col-span-1 md:col-span-1">
                                 <Link href={route('landing')} className="inline-flex items-center gap-2 mb-4 group">
                                     {logoUrl ? (
-                                        <img src={logoUrl} alt={platformName} className="h-9 w-auto" />
+                                        <>
+                                            <img src={logoUrl} alt={platformName} className={`h-9 w-auto ${darkLogoUrl ? 'dark:hidden' : ''}`} />
+                                            {darkLogoUrl ? <img src={darkLogoUrl} alt={platformName} className="hidden h-9 w-auto dark:block" /> : null}
+                                        </>
                                     ) : (
                                         <div className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/30 transition-shadow">
                                             <span className="text-sm font-bold text-white">{platformName.charAt(0)}</span>

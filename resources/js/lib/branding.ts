@@ -6,6 +6,7 @@
 export interface BrandingProps {
     platform_name?: string | null;
     logo_url?: string | null;
+    dark_logo_url?: string | null;
     favicon_url?: string | null;
     primary_color?: string | null;
     secondary_color?: string | null;
@@ -30,6 +31,10 @@ export function getPlatformName(branding: BrandingProps | undefined | null): str
  */
 export function getLogoUrl(branding: BrandingProps | undefined | null): string | null {
     return branding?.logo_url?.trim() || null;
+}
+
+export function getDarkLogoUrl(branding: BrandingProps | undefined | null): string | null {
+    return branding?.dark_logo_url?.trim() || null;
 }
 
 /**

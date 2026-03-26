@@ -1,7 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import { PropsWithChildren } from 'react';
 import { BrandingWrapper } from '@/Components/Branding/BrandingWrapper';
-import { getPlatformName, getLogoUrl } from '@/lib/branding';
+import { getDarkLogoUrl, getPlatformName, getLogoUrl } from '@/lib/branding';
 
 type GuestLayoutProps = PropsWithChildren<{
     maxWidthClass?: string;
@@ -11,6 +11,7 @@ export default function Guest({ children, maxWidthClass = 'max-w-md' }: GuestLay
     const { branding } = usePage().props as any;
     const platformName = getPlatformName(branding);
     const logoUrl = getLogoUrl(branding);
+    const darkLogoUrl = getDarkLogoUrl(branding);
 
     return (
         <BrandingWrapper>
@@ -19,7 +20,10 @@ export default function Guest({ children, maxWidthClass = 'max-w-md' }: GuestLay
                     <div className="text-center mb-8">
                         <Link href="/" className="inline-block">
                             {logoUrl ? (
-                                <img src={logoUrl} alt={platformName} className="h-16 w-auto mx-auto mb-4" />
+                                <>
+                                    <img src={logoUrl} alt={platformName} className={`h-16 w-auto mx-auto mb-4 ${darkLogoUrl ? 'dark:hidden' : ''}`} />
+                                    {darkLogoUrl ? <img src={darkLogoUrl} alt={platformName} className="hidden h-16 w-auto mx-auto mb-4 dark:block" /> : null}
+                                </>
                             ) : (
                                 <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 mb-4 shadow-lg">
                                     <span className="text-2xl font-bold text-white">{platformName.charAt(0)}</span>

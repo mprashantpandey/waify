@@ -190,6 +190,8 @@ class PlatformSettingsController extends Controller
             'platform_name' => $get('branding.platform_name', config('app.name', 'Waify')),
             'logo_path' => $get('branding.logo_path'),
             'logo_url' => $brandingService->getLogoUrl(),
+            'dark_logo_path' => $get('branding.dark_logo_path'),
+            'dark_logo_url' => $brandingService->getDarkLogoUrl(),
             'favicon_path' => $get('branding.favicon_path'),
             'favicon_url' => $brandingService->getFaviconUrl(),
             'primary_color' => $get('branding.primary_color', '#3B82F6'),
@@ -450,18 +452,24 @@ class PlatformSettingsController extends Controller
             'campaigns.failed_jobs_threshold' => 'nullable|integer|min:1|max:10000',
             'campaigns.failed_jobs_window_minutes' => 'nullable|integer|min:5|max:1440',
             'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
-            'favicon' => 'nullable|image|mimes:ico,png|max:512']);
+            'dark_logo' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
+            'favicon' => 'nullable|image|mimes:ico,png,svg|max:512']);
 
         // Handle logo upload
         if ($request->hasFile('logo')) {
             $brandingService = app(\App\Services\BrandingService::class);
-            $path = $brandingService->uploadLogo($request->file('logo'));
+            $brandingService->uploadLogo($request->file('logo'));
+        }
+
+        if ($request->hasFile('dark_logo')) {
+            $brandingService = app(\App\Services\BrandingService::class);
+            $brandingService->uploadDarkLogo($request->file('dark_logo'));
         }
 
         // Handle favicon upload
         if ($request->hasFile('favicon')) {
             $brandingService = app(\App\Services\BrandingService::class);
-            $path = $brandingService->uploadFavicon($request->file('favicon'));
+            $brandingService->uploadFavicon($request->file('favicon'));
         }
 
         // Update all settings groups

@@ -41,6 +41,17 @@ class BrandingService
         return Storage::url($logoPath);
     }
 
+    public function getDarkLogoUrl(): ?string
+    {
+        $logoPath = $this->settingsService->get('branding.dark_logo_path');
+
+        if (!$logoPath) {
+            return null;
+        }
+
+        return Storage::url($logoPath);
+    }
+
     /**
      * Get favicon URL.
      */
@@ -85,6 +96,7 @@ class BrandingService
         return [
             'platform_name' => $this->getPlatformName(),
             'logo_url' => $this->getLogoUrl(),
+            'dark_logo_url' => $this->getDarkLogoUrl(),
             'favicon_url' => $this->getFaviconUrl(),
             'primary_color' => $this->getPrimaryColor(),
             'secondary_color' => $this->getSecondaryColor(),
@@ -104,6 +116,13 @@ class BrandingService
         return $path;
     }
 
+    public function uploadDarkLogo(\Illuminate\Http\UploadedFile $file): string
+    {
+        $path = $file->store('branding', 'public');
+        PlatformSetting::set('branding.dark_logo_path', $path, 'string', 'branding');
+        return $path;
+    }
+
     /**
      * Upload favicon.
      */
@@ -114,4 +133,3 @@ class BrandingService
         return $path;
     }
 }
-

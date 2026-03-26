@@ -10,7 +10,7 @@ interface BrandingTabProps {
 }
 
 export default function BrandingTab({ data, setData, errors }: BrandingTabProps) {
-    const handleFileChange = (field: 'logo' | 'favicon', e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = (field: 'logo' | 'dark_logo' | 'favicon', e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
             setData(field, file);
@@ -63,6 +63,28 @@ export default function BrandingTab({ data, setData, errors }: BrandingTabProps)
                     </div>
 
                     <div>
+                        <Label htmlFor="dark_logo">Dark Mode Logo</Label>
+                        {data.branding?.dark_logo_url && (
+                            <div className="mb-2 rounded-xl bg-gray-950 p-4">
+                                <img
+                                    src={data.branding.dark_logo_url}
+                                    alt="Current dark mode logo"
+                                    className="h-12 w-auto mb-2"
+                                />
+                            </div>
+                        )}
+                        <Input
+                            id="dark_logo"
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleFileChange('dark_logo', e)}
+                        />
+                        <p className="text-sm text-gray-500 mt-1">
+                            Used in dark mode headers, sidebar, and public pages. If left empty, the normal logo is reused.
+                        </p>
+                    </div>
+
+                    <div>
                         <Label htmlFor="favicon">Favicon</Label>
                         {data.branding?.favicon_url && (
                             <div className="mb-2">
@@ -76,11 +98,11 @@ export default function BrandingTab({ data, setData, errors }: BrandingTabProps)
                         <Input
                             id="favicon"
                             type="file"
-                            accept="image/x-icon,image/png"
+                            accept="image/x-icon,image/png,image/svg+xml"
                             onChange={(e) => handleFileChange('favicon', e)}
                         />
                         <p className="text-sm text-gray-500 mt-1">
-                            Recommended: ICO or PNG, 32x32px, max 512KB.
+                            Recommended: SVG, ICO, or PNG, 32x32px, max 512KB.
                         </p>
                     </div>
 
@@ -105,6 +127,9 @@ export default function BrandingTab({ data, setData, errors }: BrandingTabProps)
                             {errors?.['branding.primary_color'] && (
                                 <p className="text-sm text-red-600 mt-1">{errors['branding.primary_color']}</p>
                             )}
+                            <p className="mt-1 text-xs text-gray-500">
+                                Applies to primary buttons, active navigation, focus states, and account highlights.
+                            </p>
                         </div>
 
                         <div>
@@ -127,6 +152,28 @@ export default function BrandingTab({ data, setData, errors }: BrandingTabProps)
                             {errors?.['branding.secondary_color'] && (
                                 <p className="text-sm text-red-600 mt-1">{errors['branding.secondary_color']}</p>
                             )}
+                            <p className="mt-1 text-xs text-gray-500">
+                                Applies to supporting accents and soft highlight surfaces.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900/60">
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Brand preview</p>
+                        <div className="mt-3 flex flex-wrap items-center gap-3">
+                            <button
+                                type="button"
+                                className="rounded-lg px-4 py-2 text-sm font-medium text-white"
+                                style={{ backgroundColor: data.branding?.primary_color || '#3B82F6' }}
+                            >
+                                Primary action
+                            </button>
+                            <span
+                                className="inline-flex items-center rounded-full px-3 py-1 text-sm font-medium text-white"
+                                style={{ backgroundColor: data.branding?.secondary_color || '#8B5CF6' }}
+                            >
+                                Secondary accent
+                            </span>
                         </div>
                     </div>
                 </CardContent>
@@ -198,4 +245,3 @@ export default function BrandingTab({ data, setData, errors }: BrandingTabProps)
         </div>
     );
 }
-

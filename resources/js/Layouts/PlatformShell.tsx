@@ -23,7 +23,7 @@ import {
     AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getPlatformName, getLogoUrl } from '@/lib/branding';
+import { getDarkLogoUrl, getPlatformName, getLogoUrl } from '@/lib/branding';
 
 interface PlatformShellProps {
     children: ReactNode;
@@ -40,6 +40,7 @@ export default function PlatformShell({ children, auth }: PlatformShellProps) {
     const { branding, ziggy } = usePage().props as any;
     const platformName = getPlatformName(branding);
     const logoUrl = getLogoUrl(branding);
+    const darkLogoUrl = getDarkLogoUrl(branding);
     const currentRoute = window.location.pathname;
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -137,7 +138,10 @@ export default function PlatformShell({ children, auth }: PlatformShellProps) {
             {/* Logo */}
             <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200 dark:border-gray-800">
                 {logoUrl ? (
-                    <img src={logoUrl} alt={platformName} className="h-8 w-auto" />
+                    <>
+                        <img src={logoUrl} alt={platformName} className={`h-8 w-auto ${darkLogoUrl ? 'dark:hidden' : ''}`} />
+                        {darkLogoUrl ? <img src={darkLogoUrl} alt={platformName} className="hidden h-8 w-auto dark:block" /> : null}
+                    </>
                 ) : (
                     <div className="flex items-center gap-2">
                         <Shield className="h-6 w-6 text-blue-600 dark:text-blue-400" />
@@ -168,7 +172,7 @@ export default function PlatformShell({ children, auth }: PlatformShellProps) {
                                     className={cn(
                                         'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                                         isActive
-                                            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                                            ? 'bg-[color:var(--brand-primary-soft)] text-[color:var(--brand-primary)] dark:bg-[color:var(--brand-primary-soft-dark)] dark:text-[color:var(--brand-primary)]'
                                             : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
                                     )}
                                 >

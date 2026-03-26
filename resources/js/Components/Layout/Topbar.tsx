@@ -62,7 +62,7 @@ export function Topbar({ user, onMenuClick }: TopbarProps) {
                                 onClick={() => setShowAccountMenu(!showAccountMenu)}
                                 className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
                             >
-                                <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                                <div className="h-2 w-2 rounded-full bg-[color:var(--brand-primary)]"></div>
                                 <span className="max-w-[180px] truncate">{account?.name ?? 'Switch Account'}</span>
                             </button>
                             {showAccountMenu && (
@@ -81,7 +81,7 @@ export function Topbar({ user, onMenuClick }: TopbarProps) {
                                                 }}
                                                 className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
                                             >
-                                                <div className="h-2 w-2 rounded-full bg-emerald-500"></div>
+                                                <div className="h-2 w-2 rounded-full bg-[color:var(--brand-primary)]"></div>
                                                 <span className="flex-1 truncate">{acct.name}</span>
                                                 {account?.id === acct.id && <Badge variant="success" className="px-2 py-0.5 text-xs">Current</Badge>}
                                             </button>
@@ -118,7 +118,7 @@ export function Topbar({ user, onMenuClick }: TopbarProps) {
                                 onClick={() => setShowUserMenu(!showUserMenu)}
                                 className="flex items-center gap-2 rounded-xl border border-transparent px-1.5 py-1.5 transition-colors hover:border-gray-200 hover:bg-gray-100 dark:hover:border-gray-700 dark:hover:bg-gray-800"
                             >
-                                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
+                                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[color:var(--brand-primary)] text-sm font-semibold text-white">
                                     {user.name.charAt(0).toUpperCase()}
                                 </div>
                             </button>
@@ -128,7 +128,7 @@ export function Topbar({ user, onMenuClick }: TopbarProps) {
                                     <div className="absolute right-0 top-full z-20 mt-2 w-64 rounded-2xl border border-gray-200 bg-white py-2 shadow-xl dark:border-gray-700 dark:bg-gray-800">
                                         <div className="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
                                             <div className="flex items-center gap-3">
-                                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
+                                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--brand-primary)] text-sm font-semibold text-white">
                                                     {user.name.charAt(0).toUpperCase()}
                                                 </div>
                                                 <div className="min-w-0 flex-1">
