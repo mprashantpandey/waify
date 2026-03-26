@@ -41,6 +41,7 @@ class OnboardingController extends Controller
                     'price_yearly' => $plan->price_yearly,
                     'currency' => $defaultCurrency,
                     'trial_days' => $plan->trial_days ?? 0,
+                    'trial_available' => false,
                     'limits' => $plan->limits ?? [],
                     'modules' => $plan->modules ?? [],
                 ];

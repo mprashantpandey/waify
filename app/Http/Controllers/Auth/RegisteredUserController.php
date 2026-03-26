@@ -58,7 +58,9 @@ class RegisteredUserController extends Controller
                 'name' => $selectedPlan->name,
                 'description' => $selectedPlan->description,
                 'price_monthly' => $selectedPlan->price_monthly,
-                'trial_days' => $selectedPlan->trial_days ?? 0] : null,
+                'trial_days' => $selectedPlan->trial_days ?? 0,
+                'trial_available' => ((int) ($selectedPlan->trial_days ?? 0) > 0),
+            ] : null,
             'invite' => $invite]);
     }
 

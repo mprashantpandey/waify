@@ -26,16 +26,8 @@ class SubscriptionService
      */
     public function startTrial(Account $account, Plan $plan, ?User $actor = null, ?string $providerKey = null): Subscription
     {
-        if ($plan->trial_days <= 0) {
-            throw new \InvalidArgumentException('Plan does not support trials.');
-        }
-
-        $hasPriorTrial = BillingEvent::where('account_id', $account->id)
-            ->where('type', 'trial_started')
-            ->exists();
-
-        if ($hasPriorTrial) {
-            throw new \InvalidArgumentException('Trial has already been used for this account.');
+        if (!$this->accountCanUseTrial($account, $plan)) {
+            throw new \InvalidArgumentException('Trial is not available for this account.');
         }
 
         $provider = $providerKey ? $this->providerManager->get($providerKey) : $this->providerManager->getDefault();
@@ -54,6 +46,103 @@ class SubscriptionService
             'provider' => $provider->getName()], $actor);
 
         return $subscription;
+    }
+
+    public function accountCanUseTrial(Account $account, ?Plan $plan = null): bool
+    {
+        if ($plan && (int) ($plan->trial_days ?? 0) <= 0) {
+            return false;
+        }
+
+        $subscription = $account->subscription;
+        if ($subscription && $subscription->status !== 'trialing') {
+            return false;
+        }
+
+        $hasPriorTrial = BillingEvent::where('account_id', $account->id)
+            ->where('type', 'trial_started')
+            ->exists();
+
+        if ($hasPriorTrial) {
+            return false;
+        }
+
+        $hasNonTrialHistory = BillingEvent::where('account_id', $account->id)
+            ->whereIn('type', [
+                'plan_changed',
+                'payment_recorded',
+                'payment_failed',
+                'subscription_canceled',
+                'subscription_resumed',
+            ])
+            ->exists();
+
+        return !$hasNonTrialHistory;
+    }
+
+    public function getPlanChangeWarnings(Account $account, Plan $newPlan, ?Plan $oldPlan = null): array
+    {
+        $oldPlan = $oldPlan ?: $this->planResolver->getAccountPlan($account);
+
+        if (!$oldPlan || (int) $oldPlan->id === (int) $newPlan->id) {
+            return [];
+        }
+
+        $targetLimits = $newPlan->limits ?? [];
+        if (!$targetLimits) {
+            return [];
+        }
+
+        $usage = $this->usageService->getCurrentUsage($account);
+        $warnings = [];
+
+        $limitChecks = [
+            'messages_monthly' => [
+                'current' => (int) ($usage->messages_sent ?? 0),
+                'message' => 'Current message usage exceeds target plan limit.',
+            ],
+            'template_sends_monthly' => [
+                'current' => (int) ($usage->template_sends ?? 0),
+                'message' => 'Current template usage exceeds target plan limit.',
+            ],
+            'ai_credits_monthly' => [
+                'current' => (int) ($usage->ai_credits_used ?? 0),
+                'message' => 'Current AI credit usage exceeds target plan limit.',
+            ],
+        ];
+
+        foreach ($limitChecks as $limitKey => $config) {
+            $limit = $targetLimits[$limitKey] ?? null;
+            if ($limit === null || (int) $limit === -1) {
+                continue;
+            }
+
+            if ($config['current'] > (int) $limit) {
+                $warnings[] = $config['message'];
+            }
+        }
+
+        $agentsLimit = $targetLimits['agents'] ?? null;
+        if ($agentsLimit !== null && (int) $agentsLimit !== -1) {
+            $activeAgents = AccountUser::where('account_id', $account->id)
+                ->whereIn('role', ['admin', 'member'])
+                ->count();
+            if ($activeAgents > (int) $agentsLimit) {
+                $warnings[] = 'Team size exceeds target plan limit.';
+            }
+        }
+
+        $connectionsLimit = $targetLimits['whatsapp_connections'] ?? null;
+        if ($connectionsLimit !== null && (int) $connectionsLimit !== -1) {
+            $activeConnections = WhatsAppConnection::where('account_id', $account->id)
+                ->where('is_active', true)
+                ->count();
+            if ($activeConnections > (int) $connectionsLimit) {
+                $warnings[] = 'Active connections exceed target plan limit.';
+            }
+        }
+
+        return array_values(array_unique($warnings));
     }
 
     /**
@@ -357,58 +446,11 @@ class SubscriptionService
 
     protected function assertPlanChangeAllowed(Account $account, Plan $newPlan, ?Plan $oldPlan): void
     {
-        if (!$oldPlan || (int) $oldPlan->id === (int) $newPlan->id) {
-            return;
-        }
-
-        $targetLimits = $newPlan->limits ?? [];
-        if (!$targetLimits) {
-            return;
-        }
-
-        $usage = $this->usageService->getCurrentUsage($account);
-        $violations = [];
-
-        $limitChecks = [
-            'messages_monthly' => (int) ($usage->messages_sent ?? 0),
-            'template_sends_monthly' => (int) ($usage->template_sends ?? 0),
-            'ai_credits_monthly' => (int) ($usage->ai_credits_used ?? 0),
-        ];
-
-        foreach ($limitChecks as $limitKey => $currentValue) {
-            $limit = $targetLimits[$limitKey] ?? null;
-            if ($limit === null || (int) $limit === -1) {
-                continue;
-            }
-
-            if ($currentValue > (int) $limit) {
-                $violations[] = "{$limitKey}: {$currentValue} > {$limit}";
-            }
-        }
-
-        $agentsLimit = $targetLimits['agents'] ?? null;
-        if ($agentsLimit !== null && (int) $agentsLimit !== -1) {
-            $activeAgents = AccountUser::where('account_id', $account->id)
-                ->whereIn('role', ['admin', 'member'])
-                ->count();
-            if ($activeAgents > (int) $agentsLimit) {
-                $violations[] = "agents: {$activeAgents} > {$agentsLimit}";
-            }
-        }
-
-        $connectionsLimit = $targetLimits['whatsapp_connections'] ?? null;
-        if ($connectionsLimit !== null && (int) $connectionsLimit !== -1) {
-            $activeConnections = WhatsAppConnection::where('account_id', $account->id)
-                ->where('is_active', true)
-                ->count();
-            if ($activeConnections > (int) $connectionsLimit) {
-                $violations[] = "whatsapp_connections: {$activeConnections} > {$connectionsLimit}";
-            }
-        }
+        $violations = $this->getPlanChangeWarnings($account, $newPlan, $oldPlan);
 
         if (!empty($violations)) {
             throw new \InvalidArgumentException(
-                'Cannot switch to this plan because your account currently exceeds one or more limits: '.implode('; ', $violations)
+                'Cannot switch to this plan because your account currently exceeds one or more limits: '.implode(' ', $violations)
             );
         }
     }

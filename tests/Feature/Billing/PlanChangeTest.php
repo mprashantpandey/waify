@@ -109,4 +109,33 @@ class PlanChangeTest extends TestCase
         $account->refresh();
         $this->assertEquals(Plan::where('key', 'starter')->value('id'), $account->subscription->plan_id);
     }
+
+    public function test_downgrade_is_allowed_when_current_usage_equals_target_plan_limits(): void
+    {
+        $account = $this->createAccountWithPlan('starter');
+        $this->actingAsAccountOwner($account);
+
+        \App\Modules\WhatsApp\Models\WhatsAppConnection::factory()->create([
+            'account_id' => $account->id,
+            'is_active' => true,
+        ]);
+
+        $member = \App\Models\User::factory()->create();
+        $account->users()->attach($member->id, ['role' => 'member']);
+
+        $this->setUsage($account, now()->format('Y-m'), 500, 0, 0);
+
+        $freePlan = Plan::where('key', 'free')->firstOrFail();
+
+        $response = $this->post(route('app.billing.switch-plan', [
+            'account' => $account->slug,
+            'plan' => $freePlan->id,
+        ]));
+
+        $response->assertRedirect(route('app.billing.plans'));
+        $response->assertSessionMissing('error');
+
+        $account->refresh();
+        $this->assertEquals($freePlan->id, $account->subscription->plan_id);
+    }
 }

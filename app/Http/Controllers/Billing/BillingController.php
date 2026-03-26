@@ -141,12 +141,6 @@ class BillingController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
         $currentPlan = $this->planResolver->getAccountPlan($account);
-        $currentUsage = $this->usageService->getCurrentUsage($account);
-        $currentLimits = $this->planResolver->getEffectiveLimits($account);
-        $currentConnectionsCount = \App\Modules\WhatsApp\Models\WhatsAppConnection::where('account_id', $account->id)
-            ->where('is_active', true)
-            ->count();
-        $currentAgentsCount = $account->users()->count();
 
         // Get default currency from platform settings
         $settingsService = app(PlatformSettingsService::class);
@@ -156,41 +150,9 @@ class BillingController extends Controller
             ->where('is_active', true)
             ->orderBy('sort_order')
             ->get()
-            ->map(function ($plan) use ($currentPlan, $currentUsage, $currentLimits, $defaultCurrency, $currentConnectionsCount, $currentAgentsCount) {
+            ->map(function ($plan) use ($account, $currentPlan, $defaultCurrency) {
                 $planLimits = $plan->limits ?? [];
-                $warnings = [];
-
-                // Check if downgrade would exceed limits
-                if ($currentPlan && $currentPlan->id !== $plan->id) {
-                    foreach ($planLimits as $key => $limit) {
-                        if ($limit !== -1 && isset($currentLimits[$key])) {
-                            $currentLimit = $currentLimits[$key];
-                            if ($currentLimit === -1 || $limit < $currentLimit) {
-                                $currentValue = match ($key) {
-                                    'messages_monthly' => $currentUsage->messages_sent,
-                                    'template_sends_monthly' => $currentUsage->template_sends,
-                                    'ai_credits_monthly' => $currentUsage->ai_credits_used,
-                                    default => 0,
-                                };
-                                if ($currentValue > $limit) {
-                                    $warnings[] = "Your current {$key} usage ({$currentValue}) exceeds the {$plan->name} plan limit ({$limit}).";
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (isset($planLimits['whatsapp_connections']) && $planLimits['whatsapp_connections'] !== -1) {
-                    if ($currentConnectionsCount > (int) $planLimits['whatsapp_connections']) {
-                        $warnings[] = "Your active connections ({$currentConnectionsCount}) exceed this plan limit ({$planLimits['whatsapp_connections']}).";
-                    }
-                }
-
-                if (isset($planLimits['agents']) && $planLimits['agents'] !== -1) {
-                    if ($currentAgentsCount > (int) $planLimits['agents']) {
-                        $warnings[] = "Your team size ({$currentAgentsCount}) exceeds this plan limit ({$planLimits['agents']}).";
-                    }
-                }
+                $warnings = $this->subscriptionService->getPlanChangeWarnings($account, $plan, $currentPlan);
 
                 return [
                     'id' => $plan->id,
@@ -201,6 +163,7 @@ class BillingController extends Controller
                     'price_yearly' => $plan->price_yearly,
                     'currency' => $defaultCurrency, // Use platform default currency
                     'trial_days' => $plan->trial_days,
+                    'trial_available' => $this->subscriptionService->accountCanUseTrial($account, $plan),
                     'limits' => $planLimits,
                     'modules' => $plan->modules ?? [],
                     'is_current' => $currentPlan && $currentPlan->id === $plan->id,

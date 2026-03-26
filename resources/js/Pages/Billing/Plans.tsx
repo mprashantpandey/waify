@@ -26,6 +26,7 @@ interface Plan {
     price_yearly: number | null;
     currency: string;
     trial_days: number;
+    trial_available?: boolean;
     limits: Record<string, number>;
     modules: string[];
     is_current: boolean;
@@ -561,7 +562,7 @@ export default function BillingPlans({
                                         )}
                                     </div>
 
-                                    {plan.trial_days > 0 && (
+                                    {plan.trial_available && plan.trial_days > 0 && (
                                         <div className="rounded-lg bg-blue-50 p-2 text-center text-xs font-medium text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
                                             {plan.trial_days}-day free trial
                                         </div>

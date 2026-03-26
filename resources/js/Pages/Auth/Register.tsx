@@ -14,6 +14,7 @@ interface SelectedPlan {
     description: string;
     price_monthly: number;
     trial_days: number;
+    trial_available?: boolean;
 }
 
 interface InviteInfo {
@@ -24,6 +25,7 @@ interface InviteInfo {
 }
 
 export default function Register({ selectedPlan, invite }: { selectedPlan?: SelectedPlan | null; invite?: InviteInfo | null }) {
+    const hasTrial = Boolean(selectedPlan && selectedPlan.trial_available && selectedPlan.trial_days > 0);
     const { data, setData, post, processing, errors, reset } = useForm({
         name: '',
         email: invite?.email || '',
@@ -57,14 +59,16 @@ export default function Register({ selectedPlan, invite }: { selectedPlan?: Sele
                     {invite?.account_name
                         ? `Join ${invite.account_name}`
                         : selectedPlan
-                            ? `Start Your ${selectedPlan.trial_days > 0 ? selectedPlan.trial_days + '-Day ' : ''}Trial`
+                            ? hasTrial
+                                ? `Start Your ${selectedPlan.trial_days}-Day Trial`
+                                : 'Create your account'
                             : 'Create your account'}
                 </h2>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
                     {invite?.account_name
                         ? `You've been invited as a ${invite.role || 'member'}. Create your account to join the team.`
                         : selectedPlan 
-                            ? `Get started with ${selectedPlan.name} plan. ${selectedPlan.trial_days > 0 ? 'No credit card required!' : ''}`
+                            ? `Get started with ${selectedPlan.name} plan. ${hasTrial ? 'No credit card required!' : ''}`
                             : 'Get started with your free account today'
                     }
                 </p>
@@ -79,7 +83,7 @@ export default function Register({ selectedPlan, invite }: { selectedPlan?: Sele
                                 <h3 className="font-semibold text-gray-900 dark:text-gray-100">
                                     {selectedPlan.name} Plan
                                 </h3>
-                                {selectedPlan.trial_days > 0 && (
+                                {hasTrial && (
                                     <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold rounded-full">
                                         <Star className="h-3 w-3" />
                                         {selectedPlan.trial_days}-Day Trial
@@ -91,7 +95,7 @@ export default function Register({ selectedPlan, invite }: { selectedPlan?: Sele
                             </p>
                             <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mt-1">
                                 {formatPrice(selectedPlan.price_monthly)}/month
-                                {selectedPlan.trial_days > 0 && (
+                                {hasTrial && (
                                     <span className="text-green-600 dark:text-green-400 ml-2">
                                         • Free for {selectedPlan.trial_days} days
                                     </span>
@@ -210,7 +214,7 @@ export default function Register({ selectedPlan, invite }: { selectedPlan?: Sele
                 >
                     {processing ? 'Creating account...' : (
                         <>
-                            {(selectedPlan?.trial_days ?? 0) > 0 ? (
+                            {hasTrial ? (
                                 <>
                                     Start Free Trial
                                     <Sparkles className="h-4 w-4 ml-2" />
