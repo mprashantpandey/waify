@@ -1,5 +1,12 @@
 import { useEffect } from 'react';
 
+const getFaviconType = (url: string) => {
+    const lower = url.toLowerCase();
+    if (lower.endsWith('.svg')) return 'image/svg+xml';
+    if (lower.endsWith('.ico')) return 'image/x-icon';
+    return 'image/png';
+};
+
 interface BrandingData {
     platform_name?: string;
     logo_url?: string | null;
@@ -60,7 +67,7 @@ export function BrandingProvider({
             // Add new favicon
             const link = document.createElement('link');
             link.rel = 'icon';
-            link.type = branding.favicon_url.endsWith('.ico') ? 'image/x-icon' : 'image/png';
+            link.type = getFaviconType(branding.favicon_url);
             link.href = branding.favicon_url;
             document.getElementsByTagName('head')[0].appendChild(link);
         }

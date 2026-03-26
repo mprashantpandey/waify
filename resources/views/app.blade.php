@@ -8,11 +8,14 @@
         @php
             $brandingService = app(\App\Services\BrandingService::class);
             $platformName = $brandingService->getPlatformName() ?: config('app.name', 'Laravel');
+            $faviconUrl = $brandingService->getFaviconUrl() ?: '/favicon.ico';
+            $faviconType = str_ends_with(strtolower((string) $faviconUrl), '.svg')
+                ? 'image/svg+xml'
+                : (str_ends_with(strtolower((string) $faviconUrl), '.ico') ? 'image/x-icon' : 'image/png');
         @endphp
         <title inertia>{{ $platformName }}</title>
 
-        <!-- Favicon (will be overridden by BrandingProvider if custom favicon is set) -->
-        <link rel="icon" type="image/x-icon" href="/favicon.ico">
+        <link rel="icon" type="{{ $faviconType }}" href="{{ $faviconUrl }}">
         <link rel="manifest" href="/manifest.json">
 
         <!-- Fonts -->

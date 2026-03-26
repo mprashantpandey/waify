@@ -2,6 +2,13 @@ import { useEffect } from 'react';
 import { usePage } from '@inertiajs/react';
 import { getPlatformName } from '@/lib/branding';
 
+const getFaviconType = (url: string) => {
+    const lower = url.toLowerCase();
+    if (lower.endsWith('.svg')) return 'image/svg+xml';
+    if (lower.endsWith('.ico')) return 'image/x-icon';
+    return 'image/png';
+};
+
 /**
  * BrandingWrapper Component
  *
@@ -42,7 +49,7 @@ export function BrandingWrapper({ children }: { children: React.ReactNode }) {
             // Add new favicon
             const link = document.createElement('link');
             link.rel = 'icon';
-            link.type = branding.favicon_url.endsWith('.ico') ? 'image/x-icon' : 'image/png';
+            link.type = getFaviconType(branding.favicon_url);
             link.href = branding.favicon_url;
             document.getElementsByTagName('head')[0].appendChild(link);
         }
