@@ -1,18 +1,7 @@
 import PublicLayout from '@/Layouts/PublicLayout';
 import { Head, Link } from '@inertiajs/react';
-import { 
-    BookOpen, 
-    Video, 
-    MessageSquare, 
-    FileText, 
-    Search,
-    HelpCircle,
-    ArrowRight,
-    ExternalLink,
-    Sparkles
-} from 'lucide-react';
-import Button from '@/Components/UI/Button';
-import { useState } from 'react';
+import { BookOpen, CreditCard, HelpCircle, MessageSquare, Search, Workflow } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import PublicPageHero from '@/Components/Public/PublicPageHero';
 
 export default function Help() {
@@ -20,180 +9,109 @@ export default function Help() {
 
     const helpCategories = [
         {
-            title: 'Getting Started',
+            title: 'Getting started',
             icon: BookOpen,
-            description: 'Learn the basics and get up and running quickly',
-            articles: [
-                'Creating your first account',
-                'Connecting WhatsApp Business Account',
-                'Setting up your first template',
-                'Sending your first message',
-            ]},
+            description: 'Create an account, connect your first number, and understand the setup flow.',
+            articles: ['Create your workspace', 'Connect a WhatsApp number', 'Finish embedded signup', 'Prepare your inbox'],
+        },
         {
-            title: 'Templates & Messages',
-            icon: FileText,
-            description: 'Manage templates and send messages effectively',
-            articles: [
-                'Creating message templates',
-                'Template approval process',
-                'Sending template messages',
-                'Message delivery tracking',
-            ]},
-        {
-            title: 'Chatbots & Automation',
+            title: 'Templates and messaging',
             icon: MessageSquare,
-            description: 'Build and manage automated conversations',
-            articles: [
-                'Creating your first chatbot',
-                'Setting up flow nodes',
-                'Configuring triggers',
-                'Testing chatbots',
-            ]},
+            description: 'Keep template creation, syncing, sending, and delivery workflows clear for your team.',
+            articles: ['Create and approve templates', 'Fix template media issues', 'Understand reply windows', 'Use template sends safely'],
+        },
         {
-            title: 'Billing & Plans',
-            icon: FileText,
-            description: 'Manage your subscription and billing',
-            articles: [
-                'Understanding pricing plans',
-                'Upgrading or downgrading',
-                'Payment methods',
-                'Billing history',
-            ]},
+            title: 'Automation and AI',
+            icon: Workflow,
+            description: 'Set up chatbot replies, AI auto-replies, knowledge-base answers, and human handoff rules.',
+            articles: ['Build a first chatbot path', 'Enable AI auto-replies', 'Add knowledge items', 'Control handoff to humans'],
+        },
+        {
+            title: 'Billing and plans',
+            icon: CreditCard,
+            description: 'Understand plan limits, wallet usage, Meta pricing, and plan changes.',
+            articles: ['Choose a plan', 'Read usage properly', 'Handle downgrade checks', 'Review invoices and transactions'],
+        },
     ];
 
-    const quickLinks = [
-        { title: 'FAQs', href: route('faqs'), icon: HelpCircle },
-        { title: 'Video Tutorials', href: '#', icon: Video },
-        { title: 'Contact Support', href: route('contact'), icon: MessageSquare },
-    ];
     const normalizedQuery = searchQuery.trim().toLowerCase();
-    const filteredCategories = helpCategories
-        .map((category) => ({
-            ...category,
-            articles: category.articles.filter((article) => (
-                normalizedQuery === '' ||
-                category.title.toLowerCase().includes(normalizedQuery) ||
-                category.description.toLowerCase().includes(normalizedQuery) ||
-                article.toLowerCase().includes(normalizedQuery)
-            )),
-        }))
-        .filter((category) => normalizedQuery === '' || category.articles.length > 0 || category.title.toLowerCase().includes(normalizedQuery));
+    const filteredCategories = useMemo(
+        () =>
+            helpCategories
+                .map((category) => ({
+                    ...category,
+                    articles: category.articles.filter((article) =>
+                        normalizedQuery === '' ||
+                        category.title.toLowerCase().includes(normalizedQuery) ||
+                        category.description.toLowerCase().includes(normalizedQuery) ||
+                        article.toLowerCase().includes(normalizedQuery),
+                    ),
+                }))
+                .filter(
+                    (category) =>
+                        normalizedQuery === '' ||
+                        category.title.toLowerCase().includes(normalizedQuery) ||
+                        category.description.toLowerCase().includes(normalizedQuery) ||
+                        category.articles.length > 0,
+                ),
+        [normalizedQuery],
+    );
 
     return (
         <PublicLayout>
             <Head title="Help Center" />
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+            <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
                 <PublicPageHero
-                    eyebrow="Help Center"
-                    icon={<Sparkles className="h-4 w-4" />}
-                    title="How can we help you?"
-                    description="Find setup guides, billing help, and operational best practices for WhatsApp messaging."
+                    eyebrow="Help center"
+                    icon={<HelpCircle className="h-4 w-4" />}
+                    title="Find the answer before the issue turns into an ops problem."
+                    description="Browse practical help for setup, templates, inbox work, automation, and billing."
                 >
-                    <div className="max-w-2xl">
-                        <div className="relative">
-                            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                            <input
-                                type="text"
-                                placeholder="Search for help articles..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-12 pr-4 py-4 border-2 border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-lg transition-all"
-                            />
-                        </div>
+                    <div className="relative max-w-2xl">
+                        <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                        <input
+                            type="text"
+                            placeholder="Search help topics"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="h-14 w-full rounded-full border border-black/10 bg-[#fbfaf6] pl-12 pr-4 text-slate-900 shadow-sm focus:border-emerald-600 focus:ring-emerald-600"
+                        />
                     </div>
                 </PublicPageHero>
 
-                {/* Quick Links */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-                    {quickLinks.map((link) => (
-                        <Link
-                            key={link.title}
-                            href={link.href}
-                            className="bg-white dark:bg-gray-800 rounded-xl p-6 border-2 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-xl transition-all group"
-                        >
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-4">
-                                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 p-3 rounded-lg group-hover:from-blue-100 group-hover:to-purple-100 dark:group-hover:from-blue-900/30 dark:group-hover:to-purple-900/30 transition-all">
-                                        <link.icon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                                    </div>
-                                    <div>
-                                        <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                                            {link.title}
-                                        </h3>
-                                    </div>
-                                </div>
-                                <ArrowRight className="h-5 w-5 text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" />
-                            </div>
-                        </Link>
-                    ))}
-                </div>
-
-                {/* Help Categories */}
-                <div className="mb-12">
-                    <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">
-                        Browse by Category
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {filteredCategories.map((category) => {
-                            const Icon = category.icon;
-                            return (
-                                <div
-                                    key={category.title}
-                                    className="bg-white dark:bg-gray-800 rounded-xl p-6 border-2 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-xl transition-all"
-                                >
-                                    <div className="flex items-start space-x-4 mb-4">
-                                        <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 p-3 rounded-lg">
-                                            <Icon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                                        </div>
-                                        <div className="flex-1">
-                                            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                                                {category.title}
-                                            </h3>
-                                            <p className="text-gray-600 dark:text-gray-400 text-sm">
-                                                {category.description}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <ul className="space-y-2">
-                                        {category.articles.map((article, index) => (
-                                            <li key={index}>
-                                                <a
-                                                    href="#"
-                                                    className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline flex items-center transition-colors"
-                                                >
-                                                    {article}
-                                                    <ExternalLink className="h-3 w-3 ml-1" />
-                                                </a>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            );
-                        })}
-                    </div>
-                    {normalizedQuery !== '' && filteredCategories.length === 0 && (
-                        <div className="mt-6 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-6 text-sm text-gray-600 dark:text-gray-400">
-                            No help content matched <span className="font-medium text-gray-900 dark:text-gray-100">&quot;{searchQuery}&quot;</span>. Try a broader keyword or use Contact Support.
+                <div className="grid gap-6 lg:grid-cols-[0.8fr,1.2fr]">
+                    <section className="rounded-[2rem] border border-black/10 bg-[#0f172a] p-6 text-white shadow-[0_32px_120px_-48px_rgba(15,23,42,0.85)] sm:p-8">
+                        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-200">Quick paths</p>
+                        <div className="mt-5 grid gap-3">
+                            <Link href={route('faqs')} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm font-medium text-slate-100">Open FAQs</Link>
+                            <Link href={route('pricing')} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm font-medium text-slate-100">See plans and limits</Link>
+                            <Link href={route('contact')} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm font-medium text-slate-100">Contact support</Link>
                         </div>
-                    )}
+                    </section>
+
+                    <section className="grid gap-4 md:grid-cols-2">
+                        {filteredCategories.map((category) => (
+                            <div key={category.title} className="rounded-[1.75rem] border border-black/10 bg-white p-6 shadow-[0_24px_80px_-56px_rgba(15,23,42,0.55)]">
+                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                                    <category.icon className="h-6 w-6" />
+                                </div>
+                                <h2 className="mt-5 text-xl font-semibold text-slate-950">{category.title}</h2>
+                                <p className="mt-3 text-sm leading-7 text-slate-600">{category.description}</p>
+                                <ul className="mt-5 space-y-2 text-sm text-slate-700">
+                                    {category.articles.map((article) => (
+                                        <li key={article} className="rounded-2xl bg-[#fbfaf6] px-4 py-3">{article}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        ))}
+                    </section>
                 </div>
 
-                {/* Contact Support CTA */}
-                <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-2xl p-8 text-center text-white shadow-xl relative overflow-hidden">
-                    <div className="absolute inset-0 bg-black/10"></div>
-                    <div className="relative z-10">
-                        <h2 className="text-3xl font-bold mb-4">Still need help?</h2>
-                        <p className="text-blue-100 mb-6 max-w-2xl mx-auto">
-                            Our support team is here to help you. Get in touch and we'll respond as soon as possible.
-                        </p>
-                        <Link href={route('contact')}>
-                            <Button variant="secondary" size="lg" className="bg-white text-blue-600 hover:bg-gray-100 shadow-lg">
-                                Contact Support
-                                <ArrowRight className="h-5 w-5 ml-2" />
-                            </Button>
-                        </Link>
+                {normalizedQuery !== '' && filteredCategories.length === 0 ? (
+                    <div className="mt-6 rounded-[1.75rem] border border-dashed border-black/15 bg-white px-6 py-8 text-sm text-slate-600">
+                        No results matched <span className="font-semibold text-slate-950">“{searchQuery}”</span>. Try a broader keyword or use the contact page.
                     </div>
-                </div>
+                ) : null}
             </div>
         </PublicLayout>
     );

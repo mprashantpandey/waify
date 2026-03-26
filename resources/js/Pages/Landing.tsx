@@ -1,23 +1,14 @@
 import { Head, Link, usePage } from '@inertiajs/react';
 import { getPlatformName } from '@/lib/branding';
-import { useEffect, useState } from 'react';
-import { 
-    MessageSquare, 
-    Users, 
-    FileText, 
-    Send, 
-    Inbox, 
-    Zap, 
-    CheckCircle2,
+import { useEffect, useMemo, useState } from 'react';
+import {
     ArrowRight,
-    TrendingUp,
-    Shield,
-    Globe,
+    CheckCircle2,
+    CreditCard,
+    Inbox,
+    MessageSquare,
     Sparkles,
-    BadgeCheck,
-    Rocket,
-    Gem,
-    Target
+    Workflow,
 } from 'lucide-react';
 import Button from '@/Components/UI/Button';
 import axios from 'axios';
@@ -35,7 +26,8 @@ interface Stats {
 export default function Landing({
     stats: initialStats,
     canLogin,
-    canRegister}: {
+    canRegister,
+}: {
     stats: Stats;
     canLogin: boolean;
     canRegister: boolean;
@@ -43,302 +35,181 @@ export default function Landing({
     const { branding } = usePage().props as any;
     const platformName = getPlatformName(branding);
     const [stats, setStats] = useState<Stats>(initialStats);
-    const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
-        // Poll for real-time stats every 5 seconds
         const interval = setInterval(async () => {
             try {
-                setIsLoading(true);
                 const response = await axios.get(route('api.stats'));
                 setStats(response.data.stats);
-            } catch (error) {
-                const status = (error as any)?.response?.status;
-                if (status !== 403) {
+            } catch (error: any) {
+                if (error?.response?.status !== 403) {
                     console.error('Failed to fetch stats:', error);
                 }
-            } finally {
-                setIsLoading(false);
             }
-        }, 5000);
+        }, 15000);
 
         return () => clearInterval(interval);
     }, []);
 
-    const StatCard = ({ icon: Icon, label, value, trend }: { icon: any; label: string; value: number; trend?: string }) => (
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 card-hover">
-            <div className="flex items-center justify-between">
-                <div>
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{label}</p>
-                    <p className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-400 dark:to-purple-400 bg-clip-text text-transparent mt-2">{value.toLocaleString()}</p>
-                    {trend && (
-                        <p className="text-xs text-green-600 dark:text-green-400 mt-1 flex items-center font-semibold">
-                            <TrendingUp className="h-3 w-3 mr-1" />
-                            {trend}
-                        </p>
-                    )}
-                </div>
-                <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 p-3 rounded-lg">
-                    <Icon className="h-8 w-8 text-blue-600 dark:text-blue-400" />
-                </div>
-            </div>
-        </div>
+    const statBlocks = useMemo(
+        () => [
+            { label: 'Active accounts', value: stats.accounts.toLocaleString() },
+            { label: 'Live numbers', value: stats.active_connections.toLocaleString() },
+            { label: 'Templates managed', value: stats.templates.toLocaleString() },
+            { label: 'Messages sent', value: stats.messages_sent.toLocaleString() },
+        ],
+        [stats],
     );
+
+    const platformCards = [
+        {
+            icon: MessageSquare,
+            title: 'Official WhatsApp setup',
+            description: 'Connect business numbers with Embedded Signup, central webhooks, templates, and profile controls from one place.',
+        },
+        {
+            icon: Inbox,
+            title: 'Shared inbox for teams',
+            description: 'Run assignments, reply windows, notes, tags, and handoffs without losing context between operators.',
+        },
+        {
+            icon: Workflow,
+            title: 'Automation that stays usable',
+            description: 'Mix chatbots, AI replies, templates, and human takeover rules without building a fragile stack.',
+        },
+        {
+            icon: CreditCard,
+            title: 'Billing that matches usage',
+            description: 'Track plan limits, wallet balance, Meta pricing, and growth without forcing teams into finance workflows.',
+        },
+    ];
+
+    const outcomes = [
+        'Launch a number without manual webhook setup',
+        'Run support, sales, and broadcast work from one workspace',
+        'Keep human and AI ownership visible in every conversation',
+        'Track templates, profile settings, and billing in one product',
+    ];
 
     return (
         <PublicLayout>
-            <Head title={`${platformName} | WhatsApp Cloud Platform`} />
+            <Head title={`${platformName} | WhatsApp operations platform`} />
 
-            {/* Hero Section */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-                <div className="text-center">
-                    <div className="flex flex-wrap items-center justify-center gap-3 mb-6">
-                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-full">
-                            <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                            <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-                                No Credit Card Required • Start Free Trial
-                            </span>
+            <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
+                <section className="grid gap-8 lg:grid-cols-[1.1fr,0.9fr] lg:items-end">
+                    <div className="rounded-[2rem] border border-black/10 bg-white/80 p-6 shadow-[0_24px_80px_-48px_rgba(15,23,42,0.5)] backdrop-blur sm:p-8 lg:p-10">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-emerald-900/10 bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-emerald-800">
+                            <Sparkles className="h-3.5 w-3.5" />
+                            Official Meta tech provider
                         </div>
-                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border-2 border-emerald-500/50 dark:border-emerald-400/50 rounded-full shadow-sm">
-                            <BadgeCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                            <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
-                                Official Meta Tech Provider
-                            </span>
-                        </div>
-                    </div>
-                    <h1 className="text-5xl md:text-7xl font-bold text-gray-900 dark:text-gray-100 mb-6 gradient-text leading-tight">
-                        WhatsApp Cloud Platform
-                        <br />
-                        <span className="gradient-text-accent">
-                            Built for Scale
-                        </span>
-                    </h1>
-                    <p className="text-xl md:text-2xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto mb-8 leading-relaxed">
-                        As an official Meta Tech Provider, we help you connect Meta WhatsApp Cloud API, manage templates, run chatbots, automate messages,
-                        and scale your customer communication with enterprise-grade features.
-                    </p>
-                    <div className="flex items-center justify-center gap-4 flex-wrap">
-                        {canRegister && (
-                            <>
+                        <h1 className="mt-5 max-w-4xl text-5xl font-semibold tracking-tight text-slate-950 sm:text-6xl lg:text-7xl">
+                            WhatsApp operations without the usual admin mess.
+                        </h1>
+                        <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">
+                            {platformName} gives teams one clean system for onboarding, inbox work, templates, automation, AI replies, and billing. It is built for companies that want WhatsApp to run like an operating channel, not a side project.
+                        </p>
+                        <div className="mt-8 flex flex-wrap items-center gap-3">
+                            {canRegister ? (
                                 <Link href={route('register')}>
-                                    <Button size="lg" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-xl shadow-blue-500/50 text-lg px-8 py-6">
-                                        Start Free Trial
-                                        <ArrowRight className="h-5 w-5 ml-2" />
+                                    <Button size="lg" className="rounded-full bg-[#0f766e] px-6 hover:bg-[#115e59]">
+                                        Start free
+                                        <ArrowRight className="ml-2 h-4 w-4" />
                                     </Button>
                                 </Link>
-                                <Link href={route('pricing')}>
-                                    <Button size="lg" variant="secondary" className="border-2 text-lg px-8 py-6 hover:bg-gray-50 dark:hover:bg-gray-800">
-                                        View Pricing
-                                    </Button>
+                            ) : null}
+                            <Link href={route('pricing')}>
+                                <Button size="lg" variant="ghost" className="rounded-full border border-black/10 bg-white px-6">
+                                    View pricing
+                                </Button>
+                            </Link>
+                            {canLogin ? (
+                                <Link href={route('login')} className="text-sm font-medium text-slate-600 hover:text-slate-950">
+                                    Already using {platformName}? Sign in.
                                 </Link>
-                            </>
-                        )}
-                        <a href="#features" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 font-medium text-lg">
-                            Learn More ↓
-                        </a>
-                    </div>
-                </div>
-            </div>
-
-            {/* Real-time Stats */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-                <div className="text-center mb-12">
-                    <h2 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-2 gradient-text">
-                        Platform Activity
-                    </h2>
-                    <p className="text-gray-600 dark:text-gray-400 text-lg">Real-time statistics from our platform</p>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <StatCard
-                        icon={Users}
-                        label="Active Accounts"
-                        value={stats.accounts}
-                        trend="Live"
-                    />
-                    <StatCard
-                        icon={Zap}
-                        label="WhatsApp Connections"
-                        value={stats.active_connections}
-                        trend="Active"
-                    />
-                    <StatCard
-                        icon={FileText}
-                        label="Approved Templates"
-                        value={stats.templates}
-                    />
-                    <StatCard
-                        icon={Send}
-                        label="Messages Sent"
-                        value={stats.messages_sent}
-                        trend="Today"
-                    />
-                    <StatCard
-                        icon={Inbox}
-                        label="Messages Received"
-                        value={stats.messages_received}
-                        trend="Today"
-                    />
-                    <StatCard
-                        icon={MessageSquare}
-                        label="Active Conversations"
-                        value={stats.conversations}
-                        trend="Open"
-                    />
-                </div>
-                {isLoading && (
-                    <div className="text-center mt-4">
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Updating stats...</p>
-                    </div>
-                )}
-            </div>
-
-            {/* Features Section */}
-            <div id="features" className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 py-20">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="text-center mb-16">
-                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-full mb-6">
-                            <Zap className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                            <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-                                Powerful Features
-                            </span>
+                            ) : null}
                         </div>
-                        <h2 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-gray-100 mb-4 gradient-text">
-                            Everything You Need
+                    </div>
+
+                    <div className="rounded-[2rem] border border-black/10 bg-[#0f172a] p-6 text-white shadow-[0_32px_120px_-48px_rgba(15,23,42,0.85)] sm:p-8">
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            {statBlocks.map((item) => (
+                                <div key={item.label} className="rounded-3xl border border-white/10 bg-white/5 p-5">
+                                    <p className="text-sm text-slate-300">{item.label}</p>
+                                    <p className="mt-3 text-3xl font-semibold">{item.value}</p>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="mt-6 rounded-3xl border border-emerald-400/15 bg-emerald-400/10 p-5">
+                            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-200">Why teams switch</p>
+                            <ul className="mt-4 space-y-3 text-sm text-slate-200">
+                                {outcomes.map((item) => (
+                                    <li key={item} className="flex items-start gap-3">
+                                        <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />
+                                        <span>{item}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="platform" className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    {platformCards.map((card) => (
+                        <div key={card.title} className="rounded-[1.75rem] border border-black/10 bg-white p-6 shadow-[0_24px_80px_-56px_rgba(15,23,42,0.55)]">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                                <card.icon className="h-6 w-6" />
+                            </div>
+                            <h2 className="mt-5 text-xl font-semibold text-slate-950">{card.title}</h2>
+                            <p className="mt-3 text-sm leading-7 text-slate-600">{card.description}</p>
+                        </div>
+                    ))}
+                </section>
+
+                <section className="mt-16 grid gap-8 lg:grid-cols-[0.9fr,1.1fr] lg:items-start">
+                    <div className="rounded-[2rem] border border-black/10 bg-white p-6 shadow-[0_24px_80px_-52px_rgba(15,23,42,0.45)] sm:p-8">
+                        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-800">Built for daily operations</p>
+                        <h2 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+                            Run WhatsApp like a proper revenue and support system.
                         </h2>
-                        <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-                            Powerful features to manage your WhatsApp communication at scale
+                        <p className="mt-4 text-base leading-8 text-slate-600">
+                            The product is designed around the work teams actually do: connect numbers, manage the inbox, keep templates usable, automate repeat questions, and make billing understandable to operators and owners.
                         </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                        <FeatureCard
-                            icon={MessageSquare}
-                            title="WhatsApp Cloud API"
-                            description="Connect and manage Meta WhatsApp Cloud API with encrypted credentials and webhook management."
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <MarketingStep
+                            number="01"
+                            title="Connect your number"
+                            description="Use Embedded Signup, sync the WhatsApp profile, and centralize webhook flow without per-number setup work."
                         />
-                        <FeatureCard
-                            icon={FileText}
-                            title="Template Management"
-                            description="Sync, manage, and send WhatsApp message templates with variable substitution and approval tracking."
+                        <MarketingStep
+                            number="02"
+                            title="Bring templates under control"
+                            description="Create, review, sync, send, and repair templates from the same system your team already uses."
                         />
-                        <FeatureCard
-                            icon={Inbox}
-                            title="Team Inbox"
-                            description="Collaborative inbox for managing conversations with assignment, tags, and internal notes."
+                        <MarketingStep
+                            number="03"
+                            title="Handle conversations faster"
+                            description="Give your team one inbox with ownership status, reply windows, notes, and clean handoffs between people, AI, and bots."
                         />
-                        <FeatureCard
-                            icon={Zap}
-                            title="Chatbots & Automation"
-                            description="Build powerful chatbots with flow nodes, triggers, and automated responses."
-                        />
-                        <FeatureCard
-                            icon={Globe}
-                            title="AI Integration"
-                            description="AI-powered auto-replies, variable auto-fill, sentiment analysis, and smart routing."
-                        />
-                        <FeatureCard
-                            icon={Shield}
-                            title="Enterprise Security"
-                            description="Account isolation, role-based access, encrypted tokens, and audit logs."
+                        <MarketingStep
+                            number="04"
+                            title="Scale without hiding costs"
+                            description="Keep plan limits, wallet balance, and Meta message pricing visible so growth does not turn into a billing surprise."
                         />
                     </div>
-                </div>
+                </section>
             </div>
-
-            {/* Trial Benefits Section */}
-            <div className="bg-gradient-to-br from-green-50 via-blue-50 to-purple-50 dark:from-green-900/20 dark:via-blue-900/20 dark:to-purple-900/20 py-16 border-t border-gray-200 dark:border-gray-800">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="text-center mb-12">
-                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 rounded-full shadow-md mb-4">
-                            <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
-                            <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                                Start Free Trial • No Credit Card Required
-                            </span>
-                        </div>
-                        <h2 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-4 gradient-text">
-                            Why Choose {platformName}?
-                        </h2>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 text-center card-hover">
-                            <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white mb-4">
-                                <Rocket className="h-7 w-7" />
-                            </div>
-                            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">Quick Setup</h3>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                                Get started in minutes with our guided setup wizard
-                            </p>
-                        </div>
-                        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 text-center card-hover">
-                            <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 text-white mb-4">
-                                <Gem className="h-7 w-7" />
-                            </div>
-                            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">Full Access</h3>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                                Try all features during your free trial period
-                            </p>
-                        </div>
-                        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 text-center card-hover">
-                            <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white mb-4">
-                                <Target className="h-7 w-7" />
-                            </div>
-                            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">Cancel Anytime</h3>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                                No commitments, cancel your subscription anytime
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* CTA Section */}
-            <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 py-20 relative overflow-hidden">
-                <div className="absolute inset-0 bg-black/10" aria-hidden="true" />
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.08)_100%)]" aria-hidden="true" />
-                <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
-                    <h2 className="text-4xl md:text-5xl font-bold text-white mb-4 text-balance">
-                        Ready to Transform Your Business Communication?
-                    </h2>
-                    <p className="text-xl text-blue-100 mb-8">
-                        As an official Meta Tech Provider, we help thousands of businesses scale their WhatsApp communication.
-                        <br />
-                        <span className="font-semibold text-white/95">Start your free trial today — no credit card required.</span>
-                    </p>
-                    <div className="flex items-center justify-center gap-4 flex-wrap">
-                        {canRegister && (
-                            <>
-                                <Link href={route('register')}>
-                                    <Button size="lg" variant="secondary" className="bg-white text-blue-600 hover:bg-gray-100 shadow-xl">
-                                        Start Free Trial
-                                        <ArrowRight className="h-5 w-5 ml-2" />
-                                    </Button>
-                                </Link>
-                                <Link href={route('pricing')}>
-                                    <Button size="lg" variant="secondary" className="bg-transparent border-2 border-white text-white hover:bg-white/10">
-                                        View Pricing Plans
-                                    </Button>
-                                </Link>
-                            </>
-                        )}
-                    </div>
-                    <p className="text-sm text-blue-100 mt-6">
-                        ✓ 14-day free trial • ✓ No credit card required • ✓ Cancel anytime
-                    </p>
-                </div>
-            </div>
-
         </PublicLayout>
     );
 }
 
-function FeatureCard({ icon: Icon, title, description }: { icon: any; title: string; description: string }) {
+function MarketingStep({ number, title, description }: { number: string; title: string; description: string }) {
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 card-hover">
-            <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 w-12 h-12 rounded-xl flex items-center justify-center mb-4">
-                <Icon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">{title}</h3>
-            <p className="text-gray-600 dark:text-gray-400 leading-relaxed">{description}</p>
+        <div className="rounded-[1.75rem] border border-black/10 bg-white p-6 shadow-[0_24px_80px_-56px_rgba(15,23,42,0.55)]">
+            <div className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-400">{number}</div>
+            <h3 className="mt-4 text-xl font-semibold text-slate-950">{title}</h3>
+            <p className="mt-3 text-sm leading-7 text-slate-600">{description}</p>
         </div>
     );
 }
