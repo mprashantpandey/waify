@@ -920,7 +920,7 @@ export default function ConversationsIndex({
                                             <div
                                                 key={conversation.id}
                                                 className={cn(
-                                                    'group flex flex-col gap-2 px-3 py-3 transition-colors sm:flex-row sm:items-start',
+                                                    'group flex items-start gap-2 px-3 py-3 transition-colors',
                                                     isSelected
                                                         ? 'bg-[#f0f2f5] dark:bg-gray-800/80'
                                                         : 'hover:bg-[#f5f6f6] dark:hover:bg-gray-800/60'
@@ -962,7 +962,7 @@ export default function ConversationsIndex({
                                                                     const Icon = meta.Icon;
                                                                     return <Icon className={`h-3 w-3 shrink-0 ${meta.className}`} />;
                                                                 })()}
-                                                                <span className="font-medium">{conversation.activity.description}</span>
+                                                                <span className="line-clamp-1 font-medium">{conversation.activity.description}</span>
                                                                 {conversation.activity.created_at && (
                                                                     <span className="shrink-0 text-gray-400">
                                                                         · {formatRelativeTime(conversation.activity.created_at)}
@@ -996,7 +996,7 @@ export default function ConversationsIndex({
                                                 </button>
                                                 {agents.length > 0 && (
                                                     <div
-                                                        className="w-full sm:w-auto sm:shrink-0 sm:pt-0.5"
+                                                        className="w-[112px] shrink-0 pt-0.5"
                                                         onClick={(e) => e.preventDefault()}
                                                         onMouseDown={(e) => e.stopPropagation()}
                                                     >
@@ -1046,7 +1046,7 @@ export default function ConversationsIndex({
                                                                     }
                                                                 );
                                                             }}
-                                                            className="w-full rounded-lg border-[#d1d7db] bg-white px-2 py-1.5 text-[11px] focus:border-[#00a884] focus:ring-[#00a884] dark:border-gray-600 dark:bg-gray-800 sm:w-auto sm:max-w-[132px] truncate"
+                                                            className="w-full rounded-full border-[#d1d7db] bg-white px-2 py-1.5 text-[11px] focus:border-[#00a884] focus:ring-[#00a884] dark:border-gray-600 dark:bg-gray-800 truncate"
                                                             title="Assign to"
                                                         >
                                                             <option value="">Unassigned</option>
