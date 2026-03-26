@@ -1,16 +1,14 @@
-import { Link, router } from '@inertiajs/react';
-import { usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import axios from 'axios';
 import { useState } from 'react';
 import AppShell from '@/Layouts/AppShell';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Components/UI/Card';
 import { Badge } from '@/Components/UI/Badge';
 import Button from '@/Components/UI/Button';
 import { Progress } from '@/Components/UI/Progress';
-import { Users, MessageSquare, FileText, Zap, AlertCircle, Clock, ArrowRight } from 'lucide-react';
-import { useNotifications } from '@/hooks/useNotifications';
-import { Head } from '@inertiajs/react';
 import { Alert } from '@/Components/UI/Alert';
+import { AlertCircle, ArrowRight, Clock, FileText, MessageSquare, WalletCards, Users, Zap } from 'lucide-react';
+import { useNotifications } from '@/hooks/useNotifications';
 
 interface Subscription {
     status: string;
@@ -72,6 +70,103 @@ interface RecentPayment {
     status: string;
     plan_name: string | null;
     created_at: string;
+    failure_reason?: string | null;
+}
+
+function formatPrice(price: number | null, currency: string) {
+    if (price === null) return 'Custom';
+    if (price === 0) return 'Free';
+
+    return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency,
+        minimumFractionDigits: 0,
+    }).format(price / 100);
+}
+
+function getStatusBadge(status: string) {
+    const statusMap: Record<string, { variant: 'success' | 'warning' | 'danger' | 'default'; label: string }> = {
+        trialing: { variant: 'default', label: 'Trial' },
+        active: { variant: 'success', label: 'Active' },
+        past_due: { variant: 'warning', label: 'Past due' },
+        canceled: { variant: 'danger', label: 'Canceled' },
+    };
+
+    const config = statusMap[status] || { variant: 'default' as const, label: status };
+    return <Badge variant={config.variant} className="px-3 py-1">{config.label}</Badge>;
+}
+
+function getTrialDaysRemaining(trialEndsAt: string | null) {
+    if (!trialEndsAt) return null;
+
+    const now = new Date();
+    const end = new Date(trialEndsAt);
+    const diffTime = end.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : 0;
+}
+
+function getUsagePercentage(used: number, limit: number | undefined) {
+    if (!limit || limit === -1 || limit === 9999 || limit === 9999999) return 0;
+    return Math.min((used / limit) * 100, 100);
+}
+
+function isUnlimitedLimit(limit: number | undefined) {
+    return limit === -1 || limit === 9999 || limit === 9999999;
+}
+
+function UsageRow({
+    label,
+    icon,
+    used,
+    limit,
+    helper,
+}: {
+    label: string;
+    icon: React.ReactNode;
+    used: number;
+    limit: number | undefined;
+    helper?: string;
+}) {
+    if (limit === undefined) return null;
+
+    const unlimited = isUnlimitedLimit(limit);
+    const percent = unlimited ? 0 : getUsagePercentage(used, limit);
+    const remaining = unlimited ? null : Math.max((limit ?? 0) - used, 0);
+    return (
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                        {icon}
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{label}</p>
+                        {helper ? <p className="text-xs text-gray-500 dark:text-gray-400">{helper}</p> : null}
+                    </div>
+                </div>
+                <div className="text-right">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        {used.toLocaleString()} / {unlimited ? 'Unlimited' : limit?.toLocaleString()}
+                    </p>
+                    {!unlimited ? (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{remaining?.toLocaleString()} left</p>
+                    ) : (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">No cap</p>
+                    )}
+                </div>
+            </div>
+            {!unlimited ? (
+                <div className="mt-3 space-y-2">
+                    <Progress value={percent} className="h-2.5" />
+                    <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                        <span>{Math.round(percent)}% used</span>
+                        {percent >= 90 ? <span className="font-medium text-red-600 dark:text-red-400">Close to limit</span> : null}
+                    </div>
+                </div>
+            ) : null}
+        </div>
+    );
 }
 
 export default function BillingIndex({
@@ -81,13 +176,13 @@ export default function BillingIndex({
     usage,
     meta_billing,
     wallet,
-    recent_payments = [],
     latest_paid_payment = null,
     latest_failed_payment = null,
     current_connections_count,
     current_agents_count,
     razorpay_enabled = false,
-    razorpay_key_id = null}: {
+    razorpay_key_id = null,
+}: {
     account: Account;
     subscription: Subscription | null;
     plan: Plan | null;
@@ -108,52 +203,15 @@ export default function BillingIndex({
     const isOwner = Number(account.owner_id) === Number(auth?.user?.id);
     const razorpayEnabled = razorpay_enabled && Boolean(razorpay_key_id);
 
-    const getStatusBadge = (status: string) => {
-        const statusMap: Record<string, { variant: 'success' | 'warning' | 'danger' | 'default'; label: string }> = {
-            trialing: { variant: 'default', label: 'Trial' },
-            active: { variant: 'success', label: 'Active' },
-            past_due: { variant: 'warning', label: 'Past Due' },
-            canceled: { variant: 'danger', label: 'Canceled' }};
-
-        const config = statusMap[status] || { variant: 'default' as const, label: status };
-        return <Badge variant={config.variant} className="px-3 py-1">{config.label}</Badge>;
-    };
-
-    const formatPrice = (price: number | null, currency: string) => {
-        if (price === null) return 'Custom';
-        if (price === 0) return 'Free';
-        const major = price / 100;
-        return new Intl.NumberFormat('en-IN', {
-            style: 'currency',
-            currency: currency,
-            minimumFractionDigits: 0}).format(major);
-    };
-
-    const getUsagePercentage = (used: number, limit: number | undefined) => {
-        if (!limit || limit === -1 || limit === 9999 || limit === 9999999) return 0;
-        return Math.min((used / limit) * 100, 100);
-    };
-
-    const getTrialDaysRemaining = (trialEndsAt: string | null) => {
-        if (!trialEndsAt) return null;
-        const now = new Date();
-        const end = new Date(trialEndsAt);
-        const diffTime = end.getTime() - now.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays > 0 ? diffDays : 0;
-    };
-
     const trialDays = subscription ? getTrialDaysRemaining(subscription.trial_ends_at) : null;
     const estimatedMetaCost = (meta_billing?.estimated_cost_minor ?? usage.meta_estimated_cost_minor ?? 0) / 100;
     const walletBalance = (wallet?.balance_minor ?? 0) / 100;
-    const latestPaidPayment = latest_paid_payment;
-    const latestFailedPayment = latest_failed_payment;
     const canRenewNow = Boolean(
         isOwner
             && subscription?.status === 'past_due'
             && plan
             && (plan.price_monthly ?? 0) > 0
-            && razorpayEnabled
+            && razorpayEnabled,
     );
     const renewalUnavailableReason = !isOwner
         ? 'Only the account owner can renew this subscription.'
@@ -167,29 +225,30 @@ export default function BillingIndex({
     const canResumeSubscription = Boolean(
         isOwner
         && subscription
-        && (subscription.cancel_at_period_end || subscription.status === 'canceled')
+        && (subscription.cancel_at_period_end || subscription.status === 'canceled'),
     );
 
-    const loadRazorpay = () =>
-        new Promise<void>((resolve, reject) => {
-            if (typeof window !== 'undefined' && (window as any).Razorpay) {
-                resolve();
-                return;
-            }
-            const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
-            if (existingScript) {
-                existingScript.addEventListener('load', () => resolve());
-                existingScript.addEventListener('error', () => reject(new Error('Failed to load Razorpay script')));
-                return;
-            }
-            const script = document.createElement('script');
-            script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-            script.async = true;
-            script.crossOrigin = 'anonymous';
-            script.onload = () => resolve();
-            script.onerror = () => reject(new Error('Failed to load Razorpay script'));
-            document.head.appendChild(script);
-        });
+    const loadRazorpay = () => new Promise<void>((resolve, reject) => {
+        if (typeof window !== 'undefined' && (window as any).Razorpay) {
+            resolve();
+            return;
+        }
+
+        const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+        if (existingScript) {
+            existingScript.addEventListener('load', () => resolve());
+            existingScript.addEventListener('error', () => reject(new Error('Failed to load Razorpay script')));
+            return;
+        }
+
+        const script = document.createElement('script');
+        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        script.async = true;
+        script.crossOrigin = 'anonymous';
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error('Failed to load Razorpay script'));
+        document.head.appendChild(script);
+    });
 
     const handleRenewNow = async () => {
         if (!plan || !canRenewNow) return;
@@ -204,8 +263,7 @@ export default function BillingIndex({
         setRenewing(true);
         try {
             await loadRazorpay();
-            const orderUrl = route('app.billing.razorpay.order', { plan: plan.key });
-            const orderResponse = await axios.post(orderUrl, {}, {
+            const orderResponse = await axios.post(route('app.billing.razorpay.order', { plan: plan.key }), {}, {
                 headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'application/json' },
             });
             const { order_id, amount, currency, key_id } = orderResponse.data || {};
@@ -226,7 +284,7 @@ export default function BillingIndex({
                         payment_id: response.razorpay_payment_id,
                         signature: response.razorpay_signature,
                     });
-                    router.reload({ only: ['subscription', 'plan', 'recent_payments', 'flash'] });
+                    router.reload({ only: ['subscription', 'plan', 'latest_paid_payment', 'latest_failed_payment', 'flash'] });
                 },
                 modal: {
                     ondismiss: () => setRenewing(false),
@@ -240,140 +298,51 @@ export default function BillingIndex({
         }
     };
 
-    const renderUsageMeter = (
-        label: string,
-        icon: any,
-        used: number,
-        limit: number | undefined,
-        currentCount?: number
-    ) => {
-        if (limit === undefined) return null;
-
-        const isUnlimited = limit === -1 || limit === 9999 || limit === 9999999;
-        const percentage = isUnlimited ? 0 : getUsagePercentage(used, limit);
-        const variant = percentage >= 90 ? 'danger' : percentage >= 75 ? 'warning' : 'default';
-
-        return (
-            <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 space-y-3">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600">
-                            {icon}
-                        </div>
-                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{label}</span>
-                    </div>
-                    <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
-                        {used.toLocaleString()} / {isUnlimited ? '∞' : limit.toLocaleString()}
-                        {currentCount !== undefined && (
-                            <span className="ml-1 text-xs text-gray-500 font-normal">
-                                ({currentCount} active)
-                            </span>
-                        )}
-                    </span>
-                </div>
-                {!isUnlimited && (
-                    <>
-                        <Progress value={percentage} variant={variant} className="h-2.5" />
-                        {percentage >= 90 && (
-                            <p className="text-xs text-red-600 dark:text-red-400 font-medium">
-                                Near limit. <Link href={route('app.billing.plans', {})} className="underline hover:no-underline">Upgrade</Link>
-                            </p>
-                        )}
-                    </>
-                )}
-            </div>
-        );
-    };
-
     return (
         <AppShell>
-            <Head title="Billing Overview" />
+            <Head title="Billing" />
             <div className="space-y-6">
-                <div className="space-y-1">
-                    <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 sm:text-3xl">Billing</h1>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Plan, payments, and usage in one place.</p>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Billing</h1>
+                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Current plan, usage, and payment actions.</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        <Link href={route('app.billing.plans', {})}>
+                            <Button className="rounded-xl">Review plans</Button>
+                        </Link>
+                        <Link href={route('app.billing.usage', {})}>
+                            <Button variant="secondary" className="rounded-xl">Detailed usage</Button>
+                        </Link>
+                    </div>
                 </div>
 
-                {/* Status Banners */}
                 {subscription?.status === 'past_due' && (
                     <Alert variant="warning" className="border-yellow-200 dark:border-yellow-800">
                         <AlertCircle className="h-5 w-5" />
                         <div className="flex-1">
-                            <h3 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-1">
-                                Subscription Payment Required
-                            </h3>
-                            <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-3">
-                                Your current billing cycle has ended and renewal payment is pending.
-                            </p>
-                            {subscription.last_error && (
-                                <p className="text-xs text-yellow-600 dark:text-yellow-400 italic mb-3">
-                                    {subscription.last_error}
-                                </p>
-                            )}
-                            <p className="text-xs text-yellow-700 dark:text-yellow-300 mb-3">
-                                Renew now to restore full access immediately and prevent workflow interruption.
-                            </p>
-                            <div className="flex flex-col sm:flex-row gap-2">
+                            <h3 className="mb-1 font-semibold text-yellow-800 dark:text-yellow-200">Renewal payment pending</h3>
+                            <p className="mb-3 text-sm text-yellow-700 dark:text-yellow-300">Your current billing cycle has ended and payment is still pending.</p>
+                            {subscription.last_error ? (
+                                <p className="mb-3 text-xs italic text-yellow-700 dark:text-yellow-300">{subscription.last_error}</p>
+                            ) : null}
+                            <div className="flex flex-col gap-2 sm:flex-row">
                                 {canRenewNow ? (
-                                    <Button variant="secondary" size="sm" className="rounded-xl w-full sm:w-auto" onClick={handleRenewNow} disabled={renewing}>
-                                        {renewing ? 'Opening Checkout...' : 'Renew Now'}
+                                    <Button variant="secondary" size="sm" className="w-full rounded-xl sm:w-auto" onClick={handleRenewNow} disabled={renewing}>
+                                        {renewing ? 'Opening checkout...' : 'Renew now'}
                                     </Button>
                                 ) : (
-                                    <Link href={route('app.billing.index', {})}>
-                                        <Button variant="secondary" size="sm" className="rounded-xl w-full sm:w-auto">
-                                            {isOwner ? 'Open Billing Recovery' : 'View Billing Recovery'}
-                                        </Button>
+                                    <Link href={route('app.billing.plans', {})}>
+                                        <Button variant="secondary" size="sm" className="w-full rounded-xl sm:w-auto">Review plans</Button>
                                     </Link>
                                 )}
-                                {latestPaidPayment && (
-                                    <Link href={route('app.billing.history.show', { paymentOrder: latestPaidPayment.id })}>
-                                        <Button variant="secondary" size="sm" className="rounded-xl w-full sm:w-auto">
-                                            View Latest Invoice
-                                        </Button>
+                                {latest_failed_payment ? (
+                                    <Link href={route('app.billing.history.show', { paymentOrder: latest_failed_payment.id })}>
+                                        <Button variant="secondary" size="sm" className="w-full rounded-xl sm:w-auto">Review failed invoice</Button>
                                     </Link>
-                                )}
-                                <Link href={route('app.billing.transactions', {})}>
-                                    <Button variant="secondary" size="sm" className="rounded-xl w-full sm:w-auto">
-                                        Open Transactions
-                                    </Button>
-                                </Link>
+                                ) : null}
                             </div>
-                            {renewalUnavailableReason && (
-                                <p className="mt-2 text-xs text-yellow-700 dark:text-yellow-300">
-                                    {renewalUnavailableReason}
-                                </p>
-                            )}
-                        </div>
-                    </Alert>
-                )}
-
-                {latestFailedPayment && subscription?.status === 'past_due' && (
-                    <Alert variant="error" className="border-red-200 dark:border-red-800">
-                        <AlertCircle className="h-5 w-5" />
-                        <div className="flex-1">
-                            <h3 className="font-semibold text-red-800 dark:text-red-200 mb-1">
-                                Last Payment Attempt Failed
-                            </h3>
-                            <p className="text-sm text-red-700 dark:text-red-300 mb-3">
-                                Invoice <span className="font-semibold">{latestFailedPayment.invoice_no}</span> is marked <span className="font-semibold">{String(latestFailedPayment.status).replace('_', ' ')}</span>. Review details and retry renewal.
-                            </p>
-                            <div className="flex flex-col sm:flex-row gap-2">
-                                <Link href={route('app.billing.history.show', { paymentOrder: latestFailedPayment.id })}>
-                                    <Button variant="secondary" size="sm" className="rounded-xl w-full sm:w-auto">
-                                        Review Failed Invoice
-                                    </Button>
-                                </Link>
-                                <Link href={route('app.billing.transactions', {})}>
-                                    <Button variant="secondary" size="sm" className="rounded-xl w-full sm:w-auto">
-                                        Open Transactions
-                                    </Button>
-                                </Link>
-                                {canRenewNow && (
-                                    <Button size="sm" className="rounded-xl w-full sm:w-auto" onClick={handleRenewNow} disabled={renewing}>
-                                        {renewing ? 'Opening Checkout...' : 'Retry Renewal'}
-                                    </Button>
-                                )}
-                            </div>
+                            {renewalUnavailableReason ? <p className="mt-2 text-xs text-yellow-700 dark:text-yellow-300">{renewalUnavailableReason}</p> : null}
                         </div>
                     </Alert>
                 )}
@@ -382,312 +351,254 @@ export default function BillingIndex({
                     <Alert variant="error" className="border-red-200 dark:border-red-800">
                         <AlertCircle className="h-5 w-5" />
                         <div className="flex-1">
-                            <h3 className="font-semibold text-red-800 dark:text-red-200 mb-1">
-                                Subscription Canceled
-                            </h3>
-                            <p className="text-sm text-red-700 dark:text-red-300 mb-3">
-                                Your subscription was canceled on {subscription.canceled_at ? new Date(subscription.canceled_at).toLocaleDateString() : 'a previous date'}. 
-                                You can reactivate it or choose a new plan.
+                            <h3 className="mb-1 font-semibold text-red-800 dark:text-red-200">Subscription canceled</h3>
+                            <p className="mb-3 text-sm text-red-700 dark:text-red-300">
+                                Your subscription was canceled on {subscription.canceled_at ? new Date(subscription.canceled_at).toLocaleDateString() : 'a previous date'}.
                             </p>
                             <div className="flex flex-col gap-2 sm:flex-row">
-                                {canResumeSubscription && (
-                                    <Button
-                                        variant="secondary"
-                                        size="sm"
-                                        className="rounded-xl"
-                                        onClick={() => router.post(route('app.billing.resume', {}))}
-                                    >
-                                        Resume Subscription
+                                {canResumeSubscription ? (
+                                    <Button variant="secondary" size="sm" className="rounded-xl" onClick={() => router.post(route('app.billing.resume', {}))}>
+                                        Resume subscription
                                     </Button>
-                                )}
+                                ) : null}
                                 <Link href={route('app.billing.plans', {})}>
-                                    <Button variant="secondary" size="sm" className="rounded-xl">
-                                        {isOwner ? 'Choose Another Plan' : 'View Plans'}
-                                    </Button>
+                                    <Button variant="secondary" size="sm" className="rounded-xl">View plans</Button>
                                 </Link>
                             </div>
-                            {!isOwner && (
-                                <p className="mt-2 text-xs text-red-700 dark:text-red-300">
-                                    Only the account owner can reactivate or replace the canceled plan.
-                                </p>
-                            )}
                         </div>
                     </Alert>
                 )}
 
-                {/* Current Plan Card */}
-                <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
-                    <CardHeader className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
+                <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+                    <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
+                        <CardHeader className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+                            <div className="flex items-start justify-between gap-4">
                                 <div>
                                     <CardTitle className="text-lg font-semibold">Current plan</CardTitle>
-                                    <CardDescription>What you are on right now.</CardDescription>
+                                    <CardDescription>Plan status, renewal, and wallet balance.</CardDescription>
                                 </div>
+                                {subscription ? getStatusBadge(subscription.status) : null}
                             </div>
-                            {subscription && getStatusBadge(subscription.status)}
-                        </div>
-                    </CardHeader>
-                    <CardContent className="p-6">
-                        {plan ? (
-                            <div className="space-y-6">
-                                <div className="grid gap-3 md:grid-cols-3">
-                                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
-                                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Plan</p>
-                                        <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">{plan.name}</p>
-                                    </div>
-                                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
-                                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Monthly</p>
-                                        <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">{formatPrice(plan.price_monthly, plan.currency)}</p>
-                                    </div>
-                                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
-                                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Yearly</p>
-                                        <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">{plan.price_yearly ? formatPrice(plan.price_yearly, plan.currency) : 'Not set'}</p>
-                                    </div>
-                                </div>
-
-                                {/* Trial Banner */}
-                                {subscription?.status === 'trialing' && trialDays !== null && (
-                                    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
-                                        <div className="flex items-center gap-3">
-                                            <Clock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                                            <div>
-                                                <p className="font-semibold text-blue-800 dark:text-blue-200">
-                                                    {trialDays} {trialDays === 1 ? 'day' : 'days'} left in trial
-                                                </p>
-                                                <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-                                                    Trial ends on {subscription.trial_ends_at ? new Date(subscription.trial_ends_at).toLocaleDateString() : 'soon'}
-                                                </p>
-                                            </div>
+                        </CardHeader>
+                        <CardContent className="space-y-5 p-6">
+                            {plan ? (
+                                <>
+                                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
+                                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Plan</p>
+                                            <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">{plan.name}</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
+                                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Monthly price</p>
+                                            <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">{formatPrice(plan.price_monthly, plan.currency)}</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
+                                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Next renewal</p>
+                                            <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">
+                                                {subscription?.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString() : 'Not scheduled'}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
+                                            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Wallet balance</p>
+                                            <p className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">
+                                                {new Intl.NumberFormat('en-IN', { style: 'currency', currency: wallet?.currency || 'INR' }).format(walletBalance)}
+                                            </p>
                                         </div>
                                     </div>
-                                )}
 
-                                {subscription?.cancel_at_period_end && (
-                                    <div className="rounded-2xl border border-yellow-200 bg-yellow-50 p-4 dark:border-yellow-800 dark:bg-yellow-900/20">
-                                        <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium">
-                                            Subscription will be canceled on{' '}
-                                            {subscription.current_period_end
-                                                ? new Date(subscription.current_period_end).toLocaleDateString()
-                                                : 'period end'}
+                                    {subscription?.status === 'trialing' && trialDays !== null ? (
+                                        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
+                                            <div className="flex items-start gap-3">
+                                                <Clock className="mt-0.5 h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                                <div>
+                                                    <p className="font-semibold text-blue-800 dark:text-blue-200">{trialDays} {trialDays === 1 ? 'day' : 'days'} left in trial</p>
+                                                    <p className="mt-1 text-sm text-blue-700 dark:text-blue-300">Trial ends on {subscription.trial_ends_at ? new Date(subscription.trial_ends_at).toLocaleDateString() : 'soon'}.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : null}
+
+                                    {subscription?.cancel_at_period_end ? (
+                                        <div className="rounded-2xl border border-yellow-200 bg-yellow-50 p-4 dark:border-yellow-800 dark:bg-yellow-900/20">
+                                            <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                                                This subscription will end on {subscription.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString() : 'period end'}.
+                                            </p>
+                                        </div>
+                                    ) : null}
+
+                                    <div className="flex flex-wrap gap-2 pt-1">
+                                        {subscription?.status === 'past_due' && canRenewNow ? (
+                                            <Button className="rounded-xl" onClick={handleRenewNow} disabled={renewing}>
+                                                {renewing ? 'Opening checkout...' : 'Renew now'}
+                                            </Button>
+                                        ) : null}
+                                        {isOwner && subscription && subscription.status === 'active' && !subscription.cancel_at_period_end ? (
+                                            <Button
+                                                variant="secondary"
+                                                className="rounded-xl"
+                                                onClick={async () => {
+                                                    const confirmed = await confirm({
+                                                        title: 'Cancel Subscription',
+                                                        message: 'Are you sure you want to cancel your subscription?',
+                                                        variant: 'warning',
+                                                    });
+                                                    if (confirmed) {
+                                                        router.post(route('app.billing.cancel', {}));
+                                                    }
+                                                }}
+                                            >
+                                                Cancel subscription
+                                            </Button>
+                                        ) : null}
+                                        {canResumeSubscription ? (
+                                            <Button variant="success" className="rounded-xl" onClick={() => router.post(route('app.billing.resume', {}))}>
+                                                Resume subscription
+                                            </Button>
+                                        ) : null}
+                                    </div>
+                                </>
+                            ) : (
+                                <p className="text-sm text-gray-500 dark:text-gray-400">No plan is assigned yet.</p>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
+                        <CardHeader className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+                            <div>
+                                <CardTitle className="text-lg font-semibold">Billing links</CardTitle>
+                                <CardDescription>Open the detailed pages when you need invoices, transactions, or deeper usage.</CardDescription>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="space-y-3 p-6">
+                            <Link href={route('app.billing.usage', {})} className="block rounded-2xl border border-gray-200 bg-white p-4 transition hover:border-blue-300 hover:shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Detailed usage</p>
+                                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Monthly history, blocked events, Meta category breakdown, and cost drivers.</p>
+                                <span className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-blue-600 dark:text-blue-400">Open usage <ArrowRight className="h-4 w-4" /></span>
+                            </Link>
+                            <Link href={route('app.billing.history', {})} className="block rounded-2xl border border-gray-200 bg-white p-4 transition hover:border-blue-300 hover:shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Invoices</p>
+                                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">View invoices and payment history on the dedicated page.</p>
+                                <span className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-blue-600 dark:text-blue-400">Open invoices <ArrowRight className="h-4 w-4" /></span>
+                            </Link>
+                            <Link href={route('app.billing.transactions', {})} className="block rounded-2xl border border-gray-200 bg-white p-4 transition hover:border-blue-300 hover:shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Transactions</p>
+                                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Payments, wallet credits, and manual adjustments in one place.</p>
+                                <span className="mt-3 inline-flex items-center gap-2 text-sm font-medium text-blue-600 dark:text-blue-400">Open transactions <ArrowRight className="h-4 w-4" /></span>
+                            </Link>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
+                    <CardHeader className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+                        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <CardTitle className="text-lg font-semibold">Usage this month</CardTitle>
+                                <CardDescription>Track plan limits clearly before they become a problem.</CardDescription>
+                            </div>
+                            <Link href={route('app.billing.usage', {})} className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400">
+                                View full usage
+                            </Link>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4 p-6">
+                        <div className="grid gap-4 xl:grid-cols-2">
+                            <UsageRow
+                                label="Messages sent"
+                                icon={<MessageSquare className="h-4 w-4" />}
+                                used={usage.messages_sent}
+                                limit={plan?.limits.messages_monthly}
+                            />
+                            <UsageRow
+                                label="Template sends"
+                                icon={<FileText className="h-4 w-4" />}
+                                used={usage.template_sends}
+                                limit={plan?.limits.template_sends_monthly}
+                            />
+                            <UsageRow
+                                label="WhatsApp connections"
+                                icon={<Zap className="h-4 w-4" />}
+                                used={current_connections_count || 0}
+                                limit={plan?.limits.whatsapp_connections}
+                                helper={`${current_connections_count || 0} active now`}
+                            />
+                            <UsageRow
+                                label="Team members"
+                                icon={<Users className="h-4 w-4" />}
+                                used={current_agents_count || 0}
+                                limit={plan?.limits.agents}
+                                helper={`${current_agents_count || 0} active now`}
+                            />
+                        </div>
+
+                        <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+                            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                                        <WalletCards className="h-4 w-4" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Meta conversation charges</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">Estimated from current month usage.</p>
+                                    </div>
+                                </div>
+                                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                                    <div className="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">Estimated cost</p>
+                                        <p className="mt-1 text-base font-semibold text-gray-900 dark:text-gray-100">
+                                            {new Intl.NumberFormat('en-IN', { style: 'currency', currency: meta_billing?.currency || 'INR', minimumFractionDigits: 2 }).format(estimatedMetaCost)}
                                         </p>
                                     </div>
-                                )}
-                                <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-                                    {subscription?.status === 'past_due' && (
-                                        canRenewNow ? (
-                                            <Button
-                                                className="rounded-xl"
-                                                onClick={handleRenewNow}
-                                                disabled={renewing}
-                                            >
-                                                {renewing ? 'Opening Checkout...' : 'Renew Now'}
-                                            </Button>
-                                        ) : (
-                                            <Link href={route('app.billing.plans', {})}>
-                                                <Button className="rounded-xl">
-                                                    {isOwner ? 'Renew Now' : 'View Billing Recovery'}
-                                                </Button>
-                                            </Link>
-                                        )
+                                    <div className="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">Free tier used</p>
+                                        <p className="mt-1 text-base font-semibold text-gray-900 dark:text-gray-100">
+                                            {(meta_billing?.free_tier_used ?? usage.meta_conversations_free_used ?? 0).toLocaleString()} / {(meta_billing?.free_tier_limit ?? 1000).toLocaleString()}
+                                        </p>
+                                    </div>
+                                    <div className="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">Paid conversations</p>
+                                        <p className="mt-1 text-base font-semibold text-gray-900 dark:text-gray-100">{(usage.meta_conversations_paid ?? 0).toLocaleString()}</p>
+                                    </div>
+                                </div>
+                                <p className="mt-3 text-xs text-gray-600 dark:text-gray-400">
+                                    {meta_billing?.note ?? 'Meta charges are separate from your app plan. These values are estimates based on usage data.'}
+                                </p>
+                            </div>
+
+                            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950 space-y-4">
+                                <div>
+                                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Recent billing status</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">Quick summary. Open invoices for full history.</p>
+                                </div>
+                                <div className="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">Latest paid invoice</p>
+                                    {latest_paid_payment ? (
+                                        <>
+                                            <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">{latest_paid_payment.invoice_no}</p>
+                                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                {formatPrice(latest_paid_payment.amount, latest_paid_payment.currency)} · {new Date(latest_paid_payment.created_at).toLocaleDateString()}
+                                            </p>
+                                        </>
+                                    ) : (
+                                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">No paid invoice yet.</p>
                                     )}
-                                    {latestFailedPayment && (
-                                        <Link href={route('app.billing.history.show', { paymentOrder: latestFailedPayment.id })}>
-                                            <Button variant="secondary" className="rounded-xl">
-                                                Review Failed Payment
-                                            </Button>
-                                        </Link>
-                                    )}
-                                    {!isOwner && (subscription?.status === 'past_due' || subscription?.status === 'canceled') && (
-                                        <Link href={route('app.billing.history', {})}>
-                                            <Button variant="secondary" className="rounded-xl">
-                                                View Billing Details
-                                            </Button>
-                                        </Link>
-                                    )}
-                                    {latestPaidPayment && (
-                                        <Link href={route('app.billing.history.download', { paymentOrder: latestPaidPayment.id })}>
-                                            <Button variant="secondary" className="rounded-xl">
-                                                Download Latest Invoice
-                                            </Button>
-                                        </Link>
-                                    )}
-                                    <Link href={route('app.billing.plans', {})}>
-                                        <Button className="rounded-xl">
-                                            {isOwner ? 'Review Plans' : 'View Plans'}
-                                        </Button>
-                                    </Link>
-                                    {isOwner && subscription && subscription.status === 'active' && !subscription.cancel_at_period_end && (
-                                        <Button
-                                            variant="secondary"
-                                            onClick={async () => {
-                                                const confirmed = await confirm({
-                                                    title: 'Cancel Subscription',
-                                                    message: 'Are you sure you want to cancel your subscription?',
-                                                    variant: 'warning'});
-                                                if (confirmed) {
-                                                    router.post(route('app.billing.cancel', {}));
-                                                }
-                                            }}
-                                            className="rounded-xl"
-                                        >
-                                            Cancel Subscription
-                                        </Button>
-                                    )}
-                                    {canResumeSubscription && (
-                                        <Button
-                                            variant="success"
-                                            onClick={() => {
-                                                router.post(route('app.billing.resume', {}));
-                                            }}
-                                            className="rounded-xl"
-                                        >
-                                            Resume Subscription
-                                        </Button>
+                                </div>
+                                <div className="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">Latest failed payment</p>
+                                    {latest_failed_payment ? (
+                                        <>
+                                            <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">{latest_failed_payment.invoice_no}</p>
+                                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                {new Date(latest_failed_payment.created_at).toLocaleDateString()}
+                                                {latest_failed_payment.failure_reason ? ` · ${latest_failed_payment.failure_reason}` : ''}
+                                            </p>
+                                        </>
+                                    ) : (
+                                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">No failed payment to review.</p>
                                     )}
                                 </div>
                             </div>
-                        ) : (
-                            <p className="text-gray-500 dark:text-gray-400">No plan assigned</p>
-                        )}
-                    </CardContent>
-                </Card>
-
-                <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
-                    <CardHeader className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                                <CardTitle className="text-lg font-semibold">Recent payments</CardTitle>
-                                <CardDescription>Open invoices and transactions from here.</CardDescription>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                                <Link href={route('app.billing.history', {})}>
-                                    <Button variant="secondary" size="sm" className="rounded-xl w-full sm:w-auto">Invoices</Button>
-                                </Link>
-                                <Link href={route('app.billing.transactions', {})}>
-                                    <Button variant="secondary" size="sm" className="rounded-xl w-full sm:w-auto">Transactions</Button>
-                                </Link>
-                            </div>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
-                                <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Invoice</th>
-                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Plan</th>
-                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
-                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
-                                        <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-gray-900">
-                                    {recent_payments.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={6} className="px-6 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                                                No invoice records yet.
-                                            </td>
-                                        </tr>
-                                    ) : recent_payments.map((payment) => (
-                                        <tr key={payment.id}>
-                                            <td className="px-6 py-4 text-xs font-mono text-gray-700 dark:text-gray-300">{payment.invoice_no}</td>
-                                            <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">{payment.plan_name || '—'}</td>
-                                            <td className="px-6 py-4 text-sm font-semibold text-gray-900 dark:text-gray-100">{formatPrice(payment.amount, payment.currency)}</td>
-                                            <td className="px-6 py-4 text-sm">{getStatusBadge(payment.status)}</td>
-                                            <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">{new Date(payment.created_at).toLocaleString()}</td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <Link href={route('app.billing.history.show', { paymentOrder: payment.id })}>
-                                                        <Button size="sm" variant="secondary" className="rounded-lg">View</Button>
-                                                    </Link>
-                                                    <a href={route('app.billing.history.download', { paymentOrder: payment.id })}>
-                                                        <Button size="sm" variant="secondary" className="rounded-lg">Download</Button>
-                                                    </a>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Usage Meters */}
-                <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
-                    <CardHeader className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-                        <div>
-                            <CardTitle className="text-lg font-semibold">Usage this month</CardTitle>
-                            <CardDescription>See your main limits at a glance.</CardDescription>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="p-6 space-y-4">
-                        {renderUsageMeter(
-                            'Messages Sent',
-                            <MessageSquare className="h-4 w-4 text-white" />,
-                            usage.messages_sent,
-                            plan?.limits.messages_monthly
-                        )}
-                        {renderUsageMeter(
-                            'Template Sends',
-                            <FileText className="h-4 w-4 text-white" />,
-                            usage.template_sends,
-                            plan?.limits.template_sends_monthly
-                        )}
-                        {renderUsageMeter(
-                            'WhatsApp Connections',
-                            <Zap className="h-4 w-4 text-white" />,
-                            current_connections_count || 0,
-                            plan?.limits.whatsapp_connections,
-                            current_connections_count
-                        )}
-                        {renderUsageMeter(
-                            'Agents',
-                            <Users className="h-4 w-4 text-white" />,
-                            current_agents_count || 0,
-                            plan?.limits.agents,
-                            current_agents_count
-                        )}
-                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-900/20 space-y-3">
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Meta Conversation Billing (Estimate)</span>
-                                <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
-                                    {new Intl.NumberFormat('en-IN', { style: 'currency', currency: meta_billing?.currency || 'INR', minimumFractionDigits: 2 }).format(estimatedMetaCost)}
-                                </span>
-                            </div>
-                            <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
-                                <p>Free tier used: {(meta_billing?.free_tier_used ?? usage.meta_conversations_free_used ?? 0).toLocaleString()} / {(meta_billing?.free_tier_limit ?? 1000).toLocaleString()}</p>
-                                <p>Paid billable messages: {(usage.meta_conversations_paid ?? 0).toLocaleString()}</p>
-                                <p>{meta_billing?.note ?? 'Meta charges are separate from your app plan. These values are usage estimates based on webhook data.'}</p>
-                            </div>
-                        </div>
-                        <div className="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-4">
-                            <Link
-                                href={route('app.billing.usage', {})}
-                                className="inline-flex items-center gap-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
-                            >
-                                View detailed usage
-                                <ArrowRight className="h-4 w-4" />
-                            </Link>
-                            <Link
-                                href={route('app.billing.history', { })}
-                                className="inline-flex items-center gap-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
-                            >
-                                View payment history
-                                <ArrowRight className="h-4 w-4" />
-                            </Link>
-                            <Link
-                                href={route('app.billing.transactions', {})}
-                                className="inline-flex items-center gap-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
-                            >
-                                View transactions & wallet
-                                <ArrowRight className="h-4 w-4" />
-                            </Link>
-                            <span className="inline-flex items-center text-sm text-gray-600 dark:text-gray-400">
-                                Wallet: {new Intl.NumberFormat('en-IN', { style: 'currency', currency: wallet?.currency || 'INR' }).format(walletBalance)}
-                            </span>
                         </div>
                     </CardContent>
                 </Card>
