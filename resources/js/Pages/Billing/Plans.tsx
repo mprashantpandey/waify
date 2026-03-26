@@ -355,7 +355,7 @@ export default function BillingPlans({
     return (
         <AppShell>
             <Head title="Available Plans" />
-            <div className="space-y-8">
+            <div className="space-y-6">
                 {!isOwner && (
                     <Alert variant="warning" className="border-yellow-200 dark:border-yellow-800">
                         <Lock className="h-5 w-5" />
@@ -364,12 +364,20 @@ export default function BillingPlans({
                             <p className="mt-1 text-sm text-yellow-700 dark:text-yellow-300">
                                 You can review plans here. Only the account owner can renew, resume, upgrade, downgrade, or complete checkout.
                             </p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                <Link href={route('app.billing.index', {})}>
+                                    <Button variant="secondary" size="sm">View Billing Recovery</Button>
+                                </Link>
+                                <Link href={route('app.billing.transactions', {})}>
+                                    <Button variant="secondary" size="sm">Open Transactions</Button>
+                                </Link>
+                            </div>
                         </div>
                     </Alert>
                 )}
 
                 {hasNoPlan && (
-                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-6">
+                    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5 dark:border-blue-800 dark:bg-blue-900/20">
                         <div className="flex items-start gap-4">
                             <div className="p-2 bg-blue-500 rounded-lg">
                                 <AlertTriangle className="h-6 w-6 text-white" />
@@ -396,15 +404,15 @@ export default function BillingPlans({
                             ← Back to Billing
                         </Link>
                     )}
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                            <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
-                                {hasNoPlan ? 'Select Your Plan' : 'Available Plans'}
+                            <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 sm:text-3xl">
+                                {hasNoPlan ? 'Choose a plan' : 'Plans'}
                             </h1>
-                            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
                                 {hasNoPlan 
-                                    ? 'Choose a plan to get started with the platform' 
-                                    : 'Choose the plan that fits your needs'}
+                                    ? 'Choose a plan to start using the platform.' 
+                                    : 'Compare plans and switch when needed.'}
                             </p>
                         </div>
                         <div className="flex gap-2">
@@ -435,14 +443,13 @@ export default function BillingPlans({
                         {plans.map((plan) => (
                             <Card
                                 key={plan.key}
-                                className={`border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden ${
+                                className={`border border-gray-200 shadow-sm transition-all overflow-hidden dark:border-gray-800 ${
                                     plan.is_current ? 'ring-2 ring-blue-500 dark:ring-blue-400 shadow-blue-500/20' : ''
                                 }`}
                             >
                                 <CardHeader className={`pb-4 ${
                                     plan.is_current 
-                                        ? 'bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20' 
-                                        : 'bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900'
+                                        ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-white dark:bg-gray-900'
                                 }`}>
                                     <div className="flex items-start justify-between mb-2">
                                         <div className="flex-1">
@@ -477,7 +484,7 @@ export default function BillingPlans({
                                     </div>
 
                                     {plan.warnings.length > 0 && (
-                                        <div className="p-3 bg-gradient-to-r from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 rounded-xl border border-yellow-200 dark:border-yellow-800">
+                                        <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-3 dark:border-yellow-800 dark:bg-yellow-900/20">
                                             <div className="flex items-start gap-2">
                                                 <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
                                                 <div className="text-xs text-yellow-800 dark:text-yellow-200">
@@ -574,8 +581,7 @@ export default function BillingPlans({
                                                     variant={plan.is_current ? 'secondary' : 'primary'}
                                                     className={`w-full rounded-xl ${
                                                         !plan.is_current
-                                                            ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50'
-                                                            : ''
+                                                            ? '' : ''
                                                     }`}
                                                     disabled={disabled}
                                                     onClick={() => {
@@ -591,7 +597,7 @@ export default function BillingPlans({
                                                     }}
                                                 >
                                                     {!isOwner
-                                                        ? 'Owner Only'
+                                                        ? 'View Only'
                                                         : canPayCurrent
                                                         ? 'Pay to Renew'
                                                         : plan.is_current
@@ -617,11 +623,11 @@ export default function BillingPlans({
                         ))}
                     </div>
                 ) : (
-                    <Card className="border-0 shadow-lg">
+                    <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
                         <CardContent className="p-0">
                             <div className="overflow-x-auto">
                                 <table className="w-full">
-                                    <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border-b border-gray-200 dark:border-gray-700">
+                                    <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
                                         <tr>
                                             <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                                 Feature
@@ -630,7 +636,7 @@ export default function BillingPlans({
                                                 <th
                                                     key={plan.key}
                                                     className={`px-6 py-4 text-center ${
-                                                        plan.is_current ? 'bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20' : ''
+                                                        plan.is_current ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                                                     }`}
                                                 >
                                                     <div className="font-bold text-gray-900 dark:text-gray-100">{plan.name}</div>
@@ -656,7 +662,7 @@ export default function BillingPlans({
                                                 <td
                                                     key={plan.key}
                                                     className={`px-6 py-4 text-center text-sm font-medium ${
-                                                        plan.is_current ? 'bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20' : ''
+                                                        plan.is_current ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                                                     }`}
                                                 >
                                                     {formatLimit(plan.limits.messages_monthly)}
@@ -671,7 +677,7 @@ export default function BillingPlans({
                                                 <td
                                                     key={plan.key}
                                                     className={`px-6 py-4 text-center text-sm font-medium ${
-                                                        plan.is_current ? 'bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20' : ''
+                                                        plan.is_current ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                                                     }`}
                                                 >
                                                     {formatLimit(plan.limits.template_sends_monthly)}
@@ -686,7 +692,7 @@ export default function BillingPlans({
                                                 <td
                                                     key={plan.key}
                                                     className={`px-6 py-4 text-center text-sm font-medium ${
-                                                        plan.is_current ? 'bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20' : ''
+                                                        plan.is_current ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                                                     }`}
                                                 >
                                                     {formatLimit(plan.limits.whatsapp_connections)}
@@ -701,7 +707,7 @@ export default function BillingPlans({
                                                 <td
                                                     key={plan.key}
                                                     className={`px-6 py-4 text-center text-sm font-medium ${
-                                                        plan.is_current ? 'bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20' : ''
+                                                        plan.is_current ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                                                     }`}
                                                 >
                                                     {formatLimit(plan.limits.agents)}
@@ -724,7 +730,7 @@ export default function BillingPlans({
                                                     <td
                                                         key={plan.key}
                                                         className={`px-6 py-4 text-center ${
-                                                            plan.is_current ? 'bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20' : ''
+                                                            plan.is_current ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                                                         }`}
                                                     >
                                                         {plan.modules.includes(module) ? (

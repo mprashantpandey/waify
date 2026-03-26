@@ -151,34 +151,34 @@ export default function BillingTransactions({
         <AppShell>
             <Head title="Transactions" />
             <div className="space-y-6">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                         <Link href={route('app.billing.index')} className="text-sm text-gray-500 hover:text-gray-700">
                             ← Back to Billing
                         </Link>
-                        <h1 className="mt-2 text-2xl font-bold text-gray-900 dark:text-gray-100">Transactions</h1>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Payment and wallet activity (success + failed)</p>
+                        <h1 className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">Transactions</h1>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Payments and wallet activity.</p>
                     </div>
-                    <div className="text-right">
+                    <div className="text-left sm:text-right">
                         <p className="text-xs text-gray-500 dark:text-gray-400">Wallet Balance</p>
                         <p className="text-xl font-semibold text-gray-900 dark:text-gray-100">{formatMoney(wallet.balance_minor, wallet.currency)}</p>
                     </div>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-3">
-                    <Card>
+                    <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
                         <CardContent className="pt-5">
                             <p className="text-xs text-gray-500">Total</p>
                             <p className="text-2xl font-semibold">{groupedCounts.total}</p>
                         </CardContent>
                     </Card>
-                    <Card>
+                    <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
                         <CardContent className="pt-5">
                             <p className="text-xs text-gray-500">Success</p>
                             <p className="text-2xl font-semibold text-emerald-600">{groupedCounts.success}</p>
                         </CardContent>
                     </Card>
-                    <Card>
+                    <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
                         <CardContent className="pt-5">
                             <p className="text-xs text-gray-500">Failed</p>
                             <p className="text-2xl font-semibold text-red-600">{groupedCounts.failed}</p>
@@ -206,9 +206,9 @@ export default function BillingTransactions({
                     </Alert>
                 )}
 
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Wallet Top-up</CardTitle>
+                <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
+                    <CardHeader className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+                        <CardTitle className="text-lg font-semibold">Wallet top-up</CardTitle>
                         <CardDescription>
                             {isOwner
                                 ? 'Add wallet credits (if enabled by platform admin)'
@@ -244,9 +244,9 @@ export default function BillingTransactions({
                     </CardContent>
                 </Card>
 
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Transaction History</CardTitle>
+                <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
+                    <CardHeader className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+                        <CardTitle className="text-lg font-semibold">Transaction history</CardTitle>
                     </CardHeader>
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
@@ -302,9 +302,9 @@ export default function BillingTransactions({
                 </Card>
 
                 {selectedTx && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Transaction Details</CardTitle>
+                    <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
+                        <CardHeader className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+                            <CardTitle className="text-lg font-semibold">Transaction details</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-2 text-sm">
                             <p><span className="text-gray-500">Type:</span> {selectedTx.type}</p>

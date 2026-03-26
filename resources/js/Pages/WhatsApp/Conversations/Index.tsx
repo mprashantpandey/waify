@@ -2,7 +2,7 @@ import { Link, usePage, router } from '@inertiajs/react';
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import AppShell from '@/Layouts/AppShell';
 import { Badge } from '@/Components/UI/Badge';
-import { MessageSquare, Search, X, Phone, Wifi, WifiOff, Plus, UserPlus, UserMinus, Flag, RefreshCw, Activity } from 'lucide-react';
+import { MessageSquare, Search, X, Phone, Wifi, WifiOff, Plus, UserPlus, UserMinus, Flag, RefreshCw, Activity, SlidersHorizontal } from 'lucide-react';
 import { useRealtime } from '@/Providers/RealtimeProvider';
 import { ConversationSkeleton } from '@/Components/UI/Skeleton';
 import { EmptyState } from '@/Components/UI/EmptyState';
@@ -168,6 +168,7 @@ export default function ConversationsIndex({
     );
     const [assignmentSaving, setAssignmentSaving] = useState<Record<number, number | null>>({});
     const [selectedConversationId, setSelectedConversationId] = useState<number | null>(initialSelectedConversationId);
+    const [showMobileFilters, setShowMobileFilters] = useState(false);
     const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
     const playNotificationSound = useCallback(() => {
@@ -737,55 +738,84 @@ export default function ConversationsIndex({
                                     className="rounded-lg border-transparent bg-[#f0f2f5] pl-9 shadow-none focus:border-[#00a884] focus:ring-[#00a884] dark:bg-gray-800"
                                 />
                             </div>
-                            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                <select
-                                    value={statusFilter}
-                                    onChange={(e) => setStatusFilter(e.target.value)}
-                                    className="w-full rounded-lg border-[#d1d7db] bg-white px-3 py-2 text-xs shadow-none focus:border-[#00a884] focus:ring-[#00a884] dark:border-gray-700 dark:bg-gray-800"
-                                >
-                                    <option value="all">All</option>
-                                    <option value="open">Open</option>
-                                    <option value="pending">Pending</option>
-                                    <option value="closed">Closed</option>
-                                </select>
-                                {connections && connections.length > 0 && (
+                            <div className="mt-3">
+                                <div className="flex items-center justify-between gap-2 sm:hidden">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowMobileFilters((prev) => !prev)}
+                                        className="inline-flex items-center gap-2 rounded-lg border border-[#d1d7db] bg-white px-3 py-2 text-xs font-medium text-[#54656f] dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                    >
+                                        <SlidersHorizontal className="h-3.5 w-3.5" />
+                                        Filters
+                                    </button>
+                                    {(searchQuery || statusFilter !== 'all' || connectionFilter !== 'all' || assigneeFilter !== 'all') && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setSearchQuery('');
+                                                setStatusFilter('all');
+                                                setConnectionFilter('all');
+                                                setAssigneeFilter('all');
+                                            }}
+                                            className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-900 dark:hover:text-gray-100"
+                                            aria-label="Clear filters"
+                                        >
+                                            <X className="h-3.5 w-3.5" />
+                                            Clear
+                                        </button>
+                                    )}
+                                </div>
+                                <div className={cn('mt-3 grid grid-cols-1 gap-2 sm:mt-0 sm:grid-cols-2', !showMobileFilters && 'hidden sm:grid')}>
                                     <select
-                                        value={connectionFilter}
-                                        onChange={(e) => setConnectionFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                                        value={statusFilter}
+                                        onChange={(e) => setStatusFilter(e.target.value)}
                                         className="w-full rounded-lg border-[#d1d7db] bg-white px-3 py-2 text-xs shadow-none focus:border-[#00a884] focus:ring-[#00a884] dark:border-gray-700 dark:bg-gray-800"
                                     >
-                                        <option value="all">All numbers</option>
-                                        {connections.map((conn) => (
-                                            <option key={conn.id} value={conn.id}>
-                                                {conn.name}
-                                            </option>
-                                        ))}
+                                        <option value="all">All</option>
+                                        <option value="open">Open</option>
+                                        <option value="pending">Pending</option>
+                                        <option value="closed">Closed</option>
                                     </select>
-                                )}
-                                <select
-                                    value={assigneeFilter}
-                                    onChange={(e) => setAssigneeFilter(e.target.value as 'all' | 'me' | 'unassigned')}
-                                    className="w-full rounded-lg border-[#d1d7db] bg-white px-3 py-2 text-xs shadow-none focus:border-[#00a884] focus:ring-[#00a884] dark:border-gray-700 dark:bg-gray-800"
-                                >
-                                    <option value="all">All assignees</option>
-                                    <option value="me">Assigned to me</option>
-                                    <option value="unassigned">Unassigned</option>
-                                </select>
-                                {(searchQuery || statusFilter !== 'all' || connectionFilter !== 'all' || assigneeFilter !== 'all') && (
-                                    <button
-                                        onClick={() => {
-                                            setSearchQuery('');
-                                            setStatusFilter('all');
-                                            setConnectionFilter('all');
-                                            setAssigneeFilter('all');
-                                        }}
-                                        className="inline-flex items-center justify-end gap-1 text-xs text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 sm:col-span-2"
-                                        aria-label="Clear filters"
+                                    {connections && connections.length > 0 && (
+                                        <select
+                                            value={connectionFilter}
+                                            onChange={(e) => setConnectionFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                                            className="w-full rounded-lg border-[#d1d7db] bg-white px-3 py-2 text-xs shadow-none focus:border-[#00a884] focus:ring-[#00a884] dark:border-gray-700 dark:bg-gray-800"
+                                        >
+                                            <option value="all">All numbers</option>
+                                            {connections.map((conn) => (
+                                                <option key={conn.id} value={conn.id}>
+                                                    {conn.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    )}
+                                    <select
+                                        value={assigneeFilter}
+                                        onChange={(e) => setAssigneeFilter(e.target.value as 'all' | 'me' | 'unassigned')}
+                                        className="w-full rounded-lg border-[#d1d7db] bg-white px-3 py-2 text-xs shadow-none focus:border-[#00a884] focus:ring-[#00a884] dark:border-gray-700 dark:bg-gray-800"
                                     >
-                                        <X className="h-3.5 w-3.5" />
-                                        Clear
-                                    </button>
-                                )}
+                                        <option value="all">All assignees</option>
+                                        <option value="me">Assigned to me</option>
+                                        <option value="unassigned">Unassigned</option>
+                                    </select>
+                                    {(searchQuery || statusFilter !== 'all' || connectionFilter !== 'all' || assigneeFilter !== 'all') && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setSearchQuery('');
+                                                setStatusFilter('all');
+                                                setConnectionFilter('all');
+                                                setAssigneeFilter('all');
+                                            }}
+                                            className="hidden items-center justify-end gap-1 text-xs text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 sm:inline-flex sm:col-span-2"
+                                            aria-label="Clear filters"
+                                        >
+                                            <X className="h-3.5 w-3.5" />
+                                            Clear
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                             {syncDegraded && (
                                 <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">

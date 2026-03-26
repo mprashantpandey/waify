@@ -55,7 +55,7 @@ export default function BillingHistory({
     return (
         <AppShell>
             <Head title="Payment History" />
-            <div className="space-y-8">
+            <div className="space-y-6">
                 <div>
                     <Link
                         href={route('app.billing.index', {})}
@@ -63,11 +63,11 @@ export default function BillingHistory({
                     >
                         ← Back to Billing
                     </Link>
-                    <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
-                        Payment History
+                    <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 sm:text-3xl">
+                        Payment history
                     </h1>
-                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                        Recent payment orders and recovery state
+                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                        Invoices, payment results, and next steps.
                     </p>
                 </div>
 
@@ -83,10 +83,10 @@ export default function BillingHistory({
                     </Alert>
                 )}
 
-                <Card className="border-0 shadow-lg">
-                    <CardHeader className="bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900">
-                        <CardTitle className="text-xl font-bold">Recent Payments</CardTitle>
-                        <CardDescription>Last 50 payment orders</CardDescription>
+                <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
+                    <CardHeader className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+                        <CardTitle className="text-lg font-semibold">Recent payments</CardTitle>
+                        <CardDescription>Last 50 payment orders.</CardDescription>
                     </CardHeader>
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
