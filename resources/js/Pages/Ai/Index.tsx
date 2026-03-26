@@ -1,17 +1,16 @@
-import { useState } from 'react';
-import { useForm } from '@inertiajs/react';
+import { useMemo, useState } from 'react';
+import { Head, useForm } from '@inertiajs/react';
 import AppShell from '@/Layouts/AppShell';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
-import { Label } from '@/Components/UI/Label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Components/UI/Card';
 import { Switch } from '@/Components/UI/Switch';
 import Button from '@/Components/UI/Button';
 import TextInput from '@/Components/TextInput';
 import { Textarea } from '@/Components/UI/Textarea';
-import { Head } from '@inertiajs/react';
-import { Sparkles, Plus, Trash2, BarChart3, CheckCircle2 } from 'lucide-react';
-import { Transition } from '@headlessui/react';
+import { Alert } from '@/Components/UI/Alert';
+import { Badge } from '@/Components/UI/Badge';
 import InputError from '@/Components/InputError';
 import { useNotifications } from '@/hooks/useNotifications';
+import { Bot, CheckCircle2, ChevronDown, ChevronUp, MessageSquareText, Plus, Sparkles, Trash2, Wand2 } from 'lucide-react';
 
 interface PromptRow {
     purpose: string;
@@ -51,48 +50,66 @@ export default function AiIndex({
     usage: UsageStats;
 }) {
     const { toast } = useNotifications();
+    const [showAdvanced, setShowAdvanced] = useState(false);
 
     const { data, setData, post, transform, processing, errors, recentlySuccessful } = useForm({
         ai_suggestions_enabled,
         ai_prompts: Array.isArray(ai_prompts) && ai_prompts.length > 0 ? ai_prompts : [],
     });
 
+    const conversationPrompts = useMemo(
+        () => data.ai_prompts.filter((row) => row.purpose === 'conversation_suggest'),
+        [data.ai_prompts],
+    );
+
     const addPrompt = () => {
-        const next = [
+        setShowAdvanced(true);
+        setData('ai_prompts', [
             ...data.ai_prompts,
-            { purpose: `custom_${Date.now()}`, label: '', prompt: '', scope: 'all' as const, enabled: true } as PromptRow,
-        ];
-        setData('ai_prompts', next);
+            { purpose: 'conversation_suggest', label: '', prompt: '', scope: 'all' as const, enabled: true },
+        ]);
     };
 
     const addFromLibrary = (libraryPrompt: PromptRow) => {
-        const scope: PromptRow['scope'] = libraryPrompt.scope ?? 'all';
-        const next = [
+        const alreadyExists = data.ai_prompts.some(
+            (row) => row.purpose === libraryPrompt.purpose && row.label === libraryPrompt.label && row.prompt === libraryPrompt.prompt,
+        );
+
+        if (alreadyExists) {
+            toast.info('Already added', 'This reply style is already in your AI setup.');
+            return;
+        }
+
+        setData('ai_prompts', [
             ...data.ai_prompts,
             {
                 purpose: libraryPrompt.purpose,
                 label: libraryPrompt.label,
                 prompt: libraryPrompt.prompt,
-                scope,
+                scope: libraryPrompt.scope ?? 'all',
                 enabled: true,
-            } as PromptRow,
-        ];
-        setData('ai_prompts', next);
-        toast.success('Prompt added from library');
+            },
+        ]);
+        toast.success('Reply style added');
     };
 
     const updatePrompt = (index: number, field: keyof PromptRow, value: PromptRow[keyof PromptRow]) => {
-        const next = data.ai_prompts.map((p, i) => (i === index ? { ...p, [field]: value } : p));
-        setData('ai_prompts', next);
+        setData(
+            'ai_prompts',
+            data.ai_prompts.map((row, rowIndex) => (rowIndex === index ? { ...row, [field]: value } : row)),
+        );
     };
 
     const removePrompt = (index: number) => {
-        const next = data.ai_prompts.filter((_, i) => i !== index);
-        setData('ai_prompts', next);
+        setData(
+            'ai_prompts',
+            data.ai_prompts.filter((_, rowIndex) => rowIndex !== index),
+        );
     };
 
-    const submit = (e: React.FormEvent) => {
-        e.preventDefault();
+    const submit = (event: React.FormEvent) => {
+        event.preventDefault();
+
         const cleaned = data.ai_prompts
             .map((row) => ({
                 purpose: (row.purpose || '').trim(),
@@ -105,226 +122,279 @@ export default function AiIndex({
 
         const hasIncomplete = cleaned.some((row) => !row.purpose || !row.label || !row.prompt);
         if (hasIncomplete) {
-            toast.warning('Incomplete prompt rows', 'Fill purpose/label/prompt or remove incomplete rows.');
+            toast.warning('Incomplete instructions', 'Finish each custom instruction or remove the empty row.');
             return;
         }
 
-        setData('ai_prompts', cleaned);
         transform(() => ({
             ai_suggestions_enabled: data.ai_suggestions_enabled,
             ai_prompts: cleaned,
         }));
-        post(route('app.ai.settings'), {
-            preserveScroll: true,
-        });
+
+        post(route('app.ai.settings'), { preserveScroll: true });
     };
 
     const featureLabels: Record<string, string> = {
-        conversation_suggest: 'Conversation reply suggestions',
+        conversation_suggest: 'Reply suggestions',
         support_reply: 'Support assistant',
     };
+
+    const platformStatus = platform_ai_enabled ? 'Ready' : 'Unavailable';
+    const toggleLabel = data.ai_suggestions_enabled ? 'On' : 'Off';
 
     return (
         <AppShell>
             <Head title="AI Assistant" />
-            <div className="space-y-8">
-                <div>
-                    <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent flex items-center gap-3">
-                        <Sparkles className="h-8 w-8 text-amber-500" />
-                        AI Assistant
-                    </h1>
-                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                        Enable AI features, manage prompts for different purposes, and view usage.
-                    </p>
+
+            <div className="space-y-6">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                    <div>
+                        <h1 className="flex items-center gap-3 text-3xl font-semibold text-gray-900 dark:text-gray-100">
+                            <Sparkles className="h-7 w-7 text-[#00a884]" />
+                            AI Assistant
+                        </h1>
+                        <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
+                            Keep AI simple: turn it on for chat replies, pick a reply style, and save any custom instructions your team needs.
+                        </p>
+                    </div>
+                    <div className="flex gap-2">
+                        <Badge variant={platform_ai_enabled ? 'success' : 'secondary'}>{platformStatus}</Badge>
+                        <Badge variant="secondary">Provider: {platform_ai_provider}</Badge>
+                    </div>
                 </div>
 
                 <form onSubmit={submit} className="space-y-6">
-                    {!platform_ai_enabled && (
-                        <Card className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20">
-                            <CardContent className="p-4 text-sm text-amber-800 dark:text-amber-200">
-                                AI is currently disabled in platform settings. Your personal prompts are saved, but AI suggestions will stay unavailable until a super admin enables AI.
+                    {!platform_ai_enabled ? (
+                        <Alert variant="warning">
+                            AI is turned off at the platform level. You can still prepare your settings here, but suggestions will stay unavailable until AI is enabled for the platform.
+                        </Alert>
+                    ) : null}
+
+                    <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Reply suggestions</CardTitle>
+                                <CardDescription>
+                                    Show an AI helper in WhatsApp conversations so your team can draft replies faster.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-5">
+                                <div className="flex items-center justify-between rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900/50">
+                                    <div>
+                                        <p className="font-medium text-gray-900 dark:text-gray-100">Use AI in chats</p>
+                                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                                            Adds a suggest action in the conversation composer.
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <Badge variant={data.ai_suggestions_enabled ? 'success' : 'secondary'}>{toggleLabel}</Badge>
+                                        <Switch
+                                            checked={data.ai_suggestions_enabled}
+                                            onCheckedChange={(checked) => setData('ai_suggestions_enabled', checked)}
+                                            disabled={!platform_ai_enabled}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid gap-3 md:grid-cols-3">
+                                    <div className="rounded-2xl border border-gray-200 p-4 dark:border-gray-800">
+                                        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-[#e7f7f2] text-[#007f67] dark:bg-[#0f2f28] dark:text-[#4dd4b7]">
+                                            <Bot className="h-5 w-5" />
+                                        </div>
+                                        <p className="font-medium text-gray-900 dark:text-gray-100">1. Turn it on</p>
+                                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Enable AI suggestions for your own conversation view.</p>
+                                    </div>
+                                    <div className="rounded-2xl border border-gray-200 p-4 dark:border-gray-800">
+                                        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-[#e7f7f2] text-[#007f67] dark:bg-[#0f2f28] dark:text-[#4dd4b7]">
+                                            <Wand2 className="h-5 w-5" />
+                                        </div>
+                                        <p className="font-medium text-gray-900 dark:text-gray-100">2. Pick a style</p>
+                                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Use a ready-made reply style or create your own.</p>
+                                    </div>
+                                    <div className="rounded-2xl border border-gray-200 p-4 dark:border-gray-800">
+                                        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-[#e7f7f2] text-[#007f67] dark:bg-[#0f2f28] dark:text-[#4dd4b7]">
+                                            <MessageSquareText className="h-5 w-5" />
+                                        </div>
+                                        <p className="font-medium text-gray-900 dark:text-gray-100">3. Use in chat</p>
+                                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Open Inbox and tap the suggest action inside a conversation.</p>
+                                    </div>
+                                </div>
                             </CardContent>
                         </Card>
-                    )}
 
-                    <Card className="border-0 shadow-lg">
-                        <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20">
-                            <CardTitle className="text-lg font-bold">Conversation AI</CardTitle>
-                            <CardDescription>
-                                Show an AI suggest button in WhatsApp chats to get reply suggestions (requires AI module on your plan).
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <Label className="text-sm font-semibold">AI suggestions in conversations</Label>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                        When enabled, you’ll see a suggest button in chat to generate reply ideas.
-                                    </p>
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Usage</CardTitle>
+                                <CardDescription>Track how much your team used AI this month.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900/50">
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">This month</p>
+                                    <p className="mt-2 text-3xl font-semibold text-gray-900 dark:text-gray-100">{usage?.this_month ?? 0}</p>
+                                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Total AI requests in this account.</p>
                                 </div>
-                                <Switch
-                                    checked={data.ai_suggestions_enabled}
-                                    onCheckedChange={(checked) => setData('ai_suggestions_enabled', checked)}
-                                    disabled={!platform_ai_enabled}
-                                />
-                            </div>
-                        </CardContent>
-                    </Card>
 
-                    <Card className="border-0 shadow-lg">
-                        <CardHeader className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20">
-                            <CardTitle className="text-lg font-bold">Your prompts</CardTitle>
-                            <CardDescription>
-                                Each prompt has a <strong>purpose</strong> (where it is used), a <strong>label</strong>, and <strong>prompt text</strong>. Purpose determines when this instruction is applied: <code className="text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">conversation_suggest</code> = WhatsApp chat reply suggestions; <code className="text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">support_reply</code> = Support ticket / live chat assistant.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="p-6 space-y-4">
-                            {Array.isArray(purpose_options) && purpose_options.length > 0 && (
-                                <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-800/50 text-sm text-gray-600 dark:text-gray-400">
-                                    <p className="font-medium text-gray-700 dark:text-gray-300 mb-2">Purpose = where the prompt is used</p>
-                                    <ul className="space-y-1">
-                                        {purpose_options.map((opt) => (
-                                            <li key={opt.value}>
-                                                <span className="font-mono text-xs text-indigo-600 dark:text-indigo-400">{opt.value}</span>
-                                                {' — '}
-                                                {opt.description}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-                            {data.ai_prompts.map((row, index) => {
-                                const purposeInfo = Array.isArray(purpose_options) ? purpose_options.find((o) => o.value === row.purpose) : null;
-                                return (
-                                <div
-                                    key={index}
-                                    className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-3 bg-white dark:bg-gray-800/50"
-                                >
-                                    <div className="flex items-center justify-between gap-2">
-                                        <div className="flex-1 max-w-[220px] space-y-1">
-                                            <TextInput
-                                                placeholder="Purpose (e.g. conversation_suggest)"
-                                                value={row.purpose}
-                                                onChange={(e) => updatePrompt(index, 'purpose', e.target.value)}
-                                                className="w-full"
-                                            />
-                                            {purposeInfo && (
-                                                <p className="text-xs text-gray-500 dark:text-gray-400">{purposeInfo.description}</p>
-                                            )}
+                                <div className="space-y-2">
+                                    {Object.keys(usage?.by_feature ?? {}).length > 0 ? (
+                                        Object.entries(usage.by_feature).map(([feature, count]) => (
+                                            <div key={feature} className="flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3 dark:border-gray-800">
+                                                <span className="text-sm text-gray-600 dark:text-gray-400">{featureLabels[feature] ?? feature}</span>
+                                                <span className="font-medium text-gray-900 dark:text-gray-100">{count}</span>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="rounded-xl border border-dashed border-gray-300 px-4 py-6 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                                            No AI usage yet this month.
                                         </div>
-                                        <TextInput
-                                            placeholder="Label"
-                                            value={row.label}
-                                            onChange={(e) => updatePrompt(index, 'label', e.target.value)}
-                                            className="flex-1 max-w-[180px]"
-                                        />
-                                        <select
-                                            value={row.scope || 'all'}
-                                            onChange={(e) => updatePrompt(index, 'scope', e.target.value)}
-                                            className="rounded-lg border-gray-300 text-sm dark:bg-gray-800 dark:border-gray-700"
-                                        >
-                                            <option value="all">All roles</option>
-                                            <option value="owner">Owner</option>
-                                            <option value="admin">Admin</option>
-                                            <option value="member">Member</option>
-                                        </select>
-                                        <Switch
-                                            checked={row.enabled !== false}
-                                            onCheckedChange={(checked) => updatePrompt(index, 'enabled', checked)}
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => removePrompt(index)}
-                                            className="p-2 text-gray-400 hover:text-red-600 rounded-lg"
-                                            aria-label="Remove prompt"
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </button>
-                                    </div>
-                                    <Textarea
-                                        placeholder="Prompt text for this purpose..."
-                                        value={row.prompt}
-                                        onChange={(e) => updatePrompt(index, 'prompt', e.target.value)}
-                                        rows={2}
-                                        className="w-full text-sm"
-                                    />
+                                    )}
                                 </div>
-                            );
-                            })}
-                            <Button type="button" variant="secondary" onClick={addPrompt} className="gap-2">
-                                <Plus className="h-4 w-4" />
-                                Add prompt
-                            </Button>
-                            {Array.isArray(prompt_library) && prompt_library.length > 0 && (
-                                <div className="space-y-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-700 p-3">
-                                    <p className="text-xs font-medium text-gray-600 dark:text-gray-300">Prompt library (purpose = where it’s used)</p>
-                                    <div className="flex flex-wrap gap-2">
-                                        {prompt_library.map((preset, idx) => (
-                                            <button
-                                                key={`${preset.purpose}-${idx}`}
-                                                type="button"
-                                                className="rounded-full border border-gray-300 dark:border-gray-700 px-3 py-1 text-xs hover:bg-gray-100 dark:hover:bg-gray-800"
-                                                onClick={() => addFromLibrary(preset)}
-                                                title={(preset as { purpose_description?: string }).purpose_description ?? preset.purpose}
-                                            >
-                                                {preset.label}
-                                                {(preset as { purpose_description?: string }).purpose_description && (
-                                                    <span className="ml-1 text-gray-500 dark:text-gray-400">· {(preset as { purpose_description?: string }).purpose_description}</span>
-                                                )}
-                                            </button>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Reply styles</CardTitle>
+                            <CardDescription>
+                                Start with a ready-made instruction. These are used for conversation reply suggestions.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                            <div className="grid gap-3 lg:grid-cols-2">
+                                {prompt_library.map((preset, index) => (
+                                    <div key={`${preset.purpose}-${index}`} className="rounded-2xl border border-gray-200 p-4 dark:border-gray-800">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <p className="font-medium text-gray-900 dark:text-gray-100">{preset.label}</p>
+                                                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                                                    {(preset as { purpose_description?: string }).purpose_description ?? 'Conversation reply suggestions'}
+                                                </p>
+                                            </div>
+                                            <Button type="button" variant="secondary" onClick={() => addFromLibrary(preset)}>
+                                                Use
+                                            </Button>
+                                        </div>
+                                        <p className="mt-3 text-sm text-gray-700 dark:text-gray-300">{preset.prompt}</p>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {conversationPrompts.length > 0 ? (
+                                <div className="rounded-2xl border border-[#cfeee6] bg-[#f4fbf8] p-4 dark:border-[#17493e] dark:bg-[#0e201b]">
+                                    <div className="flex items-center gap-2 text-sm font-medium text-[#0a6b57] dark:text-[#6ce0c1]">
+                                        <CheckCircle2 className="h-4 w-4" />
+                                        Active reply styles
+                                    </div>
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        {conversationPrompts.filter((row) => row.enabled !== false).map((row, index) => (
+                                            <Badge key={`${row.label}-${index}`} variant="secondary">{row.label}</Badge>
                                         ))}
                                     </div>
                                 </div>
-                            )}
-                            <InputError message={errors?.ai_prompts} className="mt-2" />
+                            ) : null}
                         </CardContent>
                     </Card>
 
-                    <Card className="border-0 shadow-lg">
-                        <CardHeader className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20">
-                            <div className="flex items-center gap-2">
-                                <BarChart3 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                                <CardTitle className="text-lg font-bold">Usage & stats</CardTitle>
+                    <Card>
+                        <CardHeader>
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <CardTitle>Advanced instructions</CardTitle>
+                                    <CardDescription>
+                                        Add custom instructions only if your team needs something more specific.
+                                    </CardDescription>
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={() => setShowAdvanced((value) => !value)}
+                                    className="gap-2"
+                                >
+                                    {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                    {showAdvanced ? 'Hide' : 'Show'}
+                                </Button>
                             </div>
-                            <CardDescription>
-                                AI requests this month for your account.
-                            </CardDescription>
                         </CardHeader>
-                        <CardContent className="p-6">
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-                                    {usage?.this_month ?? 0}
-                                </span>
-                                <span className="text-sm text-gray-500 dark:text-gray-400">requests this month</span>
-                            </div>
-                            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                Active provider: <span className="font-medium">{platform_ai_provider}</span>
-                            </p>
-                            {usage?.by_feature && Object.keys(usage.by_feature).length > 0 && (
-                                <ul className="mt-4 space-y-2">
-                                    {Object.entries(usage.by_feature).map(([feature, count]) => (
-                                        <li key={feature} className="flex justify-between text-sm">
-                                            <span className="text-gray-600 dark:text-gray-400">
-                                                {featureLabels[feature] ?? feature}
-                                            </span>
-                                            <span className="font-medium text-gray-900 dark:text-gray-100">{count}</span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </CardContent>
+                        {showAdvanced ? (
+                            <CardContent className="space-y-4">
+                                {Array.isArray(purpose_options) && purpose_options.length > 0 ? (
+                                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-900/50 dark:text-gray-400">
+                                        <p className="font-medium text-gray-900 dark:text-gray-100">Where each instruction is used</p>
+                                        <div className="mt-2 space-y-1">
+                                            {purpose_options.map((option) => (
+                                                <div key={option.value}>
+                                                    <span className="font-mono text-xs text-[#007f67] dark:text-[#6ce0c1]">{option.value}</span>
+                                                    <span> — {option.description}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : null}
+
+                                {data.ai_prompts.map((row, index) => (
+                                    <div key={index} className="rounded-2xl border border-gray-200 p-4 dark:border-gray-800">
+                                        <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_180px_auto_auto]">
+                                            <TextInput
+                                                placeholder="Purpose"
+                                                value={row.purpose}
+                                                onChange={(event) => updatePrompt(index, 'purpose', event.target.value)}
+                                            />
+                                            <TextInput
+                                                placeholder="Label"
+                                                value={row.label}
+                                                onChange={(event) => updatePrompt(index, 'label', event.target.value)}
+                                            />
+                                            <select
+                                                value={row.scope || 'all'}
+                                                onChange={(event) => updatePrompt(index, 'scope', event.target.value)}
+                                                className="rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                                            >
+                                                <option value="all">All roles</option>
+                                                <option value="owner">Owner</option>
+                                                <option value="admin">Admin</option>
+                                                <option value="member">Member</option>
+                                            </select>
+                                            <div className="flex items-center justify-center">
+                                                <Switch
+                                                    checked={row.enabled !== false}
+                                                    onCheckedChange={(checked) => updatePrompt(index, 'enabled', checked)}
+                                                />
+                                            </div>
+                                            <Button type="button" variant="ghost" onClick={() => removePrompt(index)} className="px-3">
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                        <Textarea
+                                            placeholder="Prompt text"
+                                            value={row.prompt}
+                                            onChange={(event) => updatePrompt(index, 'prompt', event.target.value)}
+                                            rows={3}
+                                            className="mt-3 w-full text-sm"
+                                        />
+                                    </div>
+                                ))}
+
+                                <div className="flex items-center justify-between gap-3">
+                                    <Button type="button" variant="secondary" onClick={addPrompt} className="gap-2">
+                                        <Plus className="h-4 w-4" />
+                                        Add instruction
+                                    </Button>
+                                    <InputError message={errors?.ai_prompts} className="mt-0" />
+                                </div>
+                            </CardContent>
+                        ) : null}
                     </Card>
 
                     <div className="flex items-center justify-end gap-4">
-                        <Button type="submit" disabled={processing} className="bg-indigo-600 hover:bg-indigo-700 text-white">
-                            {processing ? 'Saving...' : 'Save settings'}
+                        <Button type="submit" disabled={processing}>
+                            {processing ? 'Saving...' : 'Save AI settings'}
                         </Button>
-                        <Transition show={recentlySuccessful} enter="transition ease-out" enterFrom="opacity-0" leave="transition ease-in" leaveTo="opacity-0">
+                        {recentlySuccessful ? (
                             <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
                                 <CheckCircle2 className="h-4 w-4" />
                                 Saved
                             </div>
-                        </Transition>
+                        ) : null}
                     </div>
                 </form>
             </div>
