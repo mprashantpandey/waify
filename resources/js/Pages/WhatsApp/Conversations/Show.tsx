@@ -60,6 +60,11 @@ interface TemplateItem {
     header_type?: string | null;
     header_text: string | null;
     header_media_url?: string | null;
+    header_media_status?: {
+        state: 'ready' | 'missing' | 'reupload_required' | 'not_required';
+        label: string;
+        description?: string | null;
+    } | null;
     footer_text: string | null;
     buttons: any[];
     variable_count: number;
@@ -2371,9 +2376,19 @@ export default function ConversationsShow({
                                         <div className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-200">
                                             Fill template variables
                                         </div>
-                                        {['IMAGE', 'VIDEO', 'DOCUMENT'].includes((selectedTemplate.header_type || '').toUpperCase()) && (
-                                            <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700/40 dark:bg-amber-500/10 dark:text-amber-200">
-                                                Header media required ({(selectedTemplate.header_type || '').toUpperCase()}). If delivery fails, replace the header media on the template and try again.
+                                        {['IMAGE', 'VIDEO', 'DOCUMENT'].includes((selectedTemplate.header_type || '').toUpperCase()) && selectedTemplate.header_media_status && (
+                                            <div
+                                                className={cn(
+                                                    'mb-3 rounded-lg border px-3 py-2 text-xs',
+                                                    selectedTemplate.header_media_status.state === 'ready'
+                                                        ? 'border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-700/40 dark:bg-emerald-500/10 dark:text-emerald-200'
+                                                        : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-700/40 dark:bg-amber-500/10 dark:text-amber-200'
+                                                )}
+                                            >
+                                                <div className="font-semibold">{selectedTemplate.header_media_status.label}</div>
+                                                {selectedTemplate.header_media_status.description && (
+                                                    <div className="mt-1">{selectedTemplate.header_media_status.description}</div>
+                                                )}
                                             </div>
                                         )}
                                         {templateVariables.length === 0 && (
