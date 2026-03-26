@@ -43,6 +43,16 @@ export const NAVIGATION_META: Record<string, NavigationMeta> = {
             { label: 'Back to Connections', route: 'app.whatsapp.connections.index' },
         ],
     },
+    'app.whatsapp.connections.profile.edit': {
+        title: 'WhatsApp Profile',
+        section: 'Messaging',
+        description: 'Update the business details customers see on WhatsApp for this connected number.',
+        keywords: ['whatsapp profile', 'business details', 'about', 'website'],
+        tips: ['Keep the about line short.', 'Use the same support email customers already know.', 'Preview details before saving.'],
+        quickActions: [
+            { label: 'Back to Connection', route: 'app.whatsapp.connections.index' },
+        ],
+    },
     'app.whatsapp.conversations.index': {
         title: 'Inbox',
         section: 'Messaging',
@@ -191,6 +201,7 @@ export const PAGE_META: Record<string, NavigationMeta> = {
     'WhatsApp/Connections/Index': NAVIGATION_META['app.whatsapp.connections.index'],
     'WhatsApp/Connections/Create': NAVIGATION_META['app.whatsapp.connections.create'],
     'WhatsApp/Connections/Edit': NAVIGATION_META['app.whatsapp.connections.index'],
+    'WhatsApp/Connections/Profile': NAVIGATION_META['app.whatsapp.connections.profile.edit'],
     'WhatsApp/Connections/EmbeddedWizard': NAVIGATION_META['app.whatsapp.connections.create'],
     'WhatsApp/Connections/HealthCheck': NAVIGATION_META['app.whatsapp.connections.index'],
     'WhatsApp/Connections/WebhookDiagnostics': NAVIGATION_META['app.whatsapp.connections.index'],

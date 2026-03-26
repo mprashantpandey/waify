@@ -30,6 +30,7 @@ Route::middleware(['module.entitled:whatsapp.cloud'])->group(function () {
     Route::post('/connections/embedded', [ConnectionController::class, 'storeEmbedded'])->name('whatsapp.connections.store-embedded');
     Route::post('/connections/embedded/telemetry', [ConnectionController::class, 'embeddedTelemetry'])->name('whatsapp.connections.embedded-telemetry');
     Route::get('/connections/{connection}/edit', [ConnectionController::class, 'edit'])->name('whatsapp.connections.edit');
+    Route::get('/connections/{connection}/profile', [ConnectionController::class, 'editProfile'])->name('whatsapp.connections.profile.edit');
     Route::middleware('support.access')->group(function () {
         Route::get('/connections/{connection}/health', [ConnectionController::class, 'showHealth'])->name('whatsapp.connections.health');
         Route::get('/connections/{connection}/health/api', [ConnectionHealthController::class, 'check'])->name('whatsapp.connections.health.api');
@@ -38,6 +39,7 @@ Route::middleware(['module.entitled:whatsapp.cloud'])->group(function () {
         Route::post('/connections/{connection}/webhook-diagnostics/{eventId}/reprocess', [WebhookDiagnosticsController::class, 'reprocess'])->name('whatsapp.connections.webhook-diagnostics.reprocess');
     });
     Route::put('/connections/{connection}', [ConnectionController::class, 'update'])->name('whatsapp.connections.update');
+    Route::put('/connections/{connection}/profile', [ConnectionController::class, 'updateProfile'])->name('whatsapp.connections.profile.update');
     Route::post('/connections/{connection}/webhook/test', [ConnectionController::class, 'testWebhook'])->name('whatsapp.connections.webhook.test');
 
     // Conversations (static path before {conversation} so "by-contact" is not matched as conversation id)

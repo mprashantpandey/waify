@@ -147,7 +147,7 @@ class ConnectionTest extends TestCase
         ]);
     }
 
-    public function test_connection_edit_loads_whatsapp_business_profile(): void
+    public function test_connection_profile_page_loads_whatsapp_business_profile(): void
     {
         $connection = WhatsAppConnection::factory()->create([
             'account_id' => $this->account->id,
@@ -172,13 +172,13 @@ class ConnectionTest extends TestCase
         $this->instance(MetaGraphService::class, $meta);
 
         $response = $this->actingAs($this->user)
-            ->get(route('app.whatsapp.connections.edit', [
+            ->get(route('app.whatsapp.connections.profile.edit', [
                 'account' => $this->account->slug,
                 'connection' => $connection->id,
             ]));
 
         $response->assertInertia(fn ($page) => $page
-            ->component('WhatsApp/Connections/Edit')
+            ->component('WhatsApp/Connections/Profile')
             ->where('connection.business_profile.about', 'Open today until 8 PM')
             ->where('connection.business_profile.website', 'https://example.com')
             ->where('connection.business_profile.vertical', 'Professional Services')
@@ -209,12 +209,10 @@ class ConnectionTest extends TestCase
         $this->instance(MetaGraphService::class, $meta);
 
         $response = $this->actingAs($this->user)
-            ->put(route('app.whatsapp.connections.update', [
+            ->put(route('app.whatsapp.connections.profile.update', [
                 'account' => $this->account->slug,
                 'connection' => $connection->id,
             ]), [
-                'name' => 'Updated Name',
-                'phone_number_id' => $connection->phone_number_id,
                 'profile_about' => 'Open today until 8 PM',
                 'profile_description' => 'Updated support desk',
                 'profile_address' => 'Noida',
@@ -224,10 +222,7 @@ class ConnectionTest extends TestCase
             ]);
 
         $response->assertRedirect();
-        $this->assertDatabaseHas('whatsapp_connections', [
-            'id' => $connection->id,
-            'name' => 'Updated Name',
-        ]);
+        $this->assertDatabaseHas('whatsapp_connections', ['id' => $connection->id]);
     }
 
     public function test_embedded_signup_reuses_existing_connection_for_same_assets(): void

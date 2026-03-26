@@ -805,7 +805,6 @@ class ConnectionController extends Controller
         $staleAfterHours = (int) config('whatsapp.connection.health_stale_after_hours', 24);
         $staleCutoff = now()->subHours(max(1, $staleAfterHours));
         $metadataStale = !$connection->health_last_synced_at || $connection->health_last_synced_at->lt($staleCutoff);
-        $businessProfile = $this->loadBusinessProfile($connection);
 
         Gate::authorize('update', $connection);
 
@@ -848,8 +847,6 @@ class ConnectionController extends Controller
                 'quiet_hours_start' => $connection->quiet_hours_start,
                 'quiet_hours_end' => $connection->quiet_hours_end,
                 'quiet_hours_timezone' => $connection->quiet_hours_timezone,
-                'business_profile' => $businessProfile['profile'],
-                'business_profile_error' => $businessProfile['error'],
             ],
             'embeddedSignupEvents' => WhatsAppEmbeddedSignupEvent::query()
                 ->where('account_id', $account->id)
@@ -875,6 +872,29 @@ class ConnectionController extends Controller
                     'phone_number_id' => $event->phone_number_id,
                     'created_at' => $event->created_at?->toIso8601String(),
                 ]),
+        ]);
+    }
+
+    public function editProfile(Request $request, $connection): Response
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+        $connection = $this->resolveConnection($connection, $account);
+
+        Gate::authorize('update', $connection);
+
+        $businessProfile = $this->loadBusinessProfile($connection);
+
+        return Inertia::render('WhatsApp/Connections/Profile', [
+            'account' => $account,
+            'connection' => [
+                'id' => $connection->id,
+                'slug' => $connection->slug ?? (string) $connection->id,
+                'name' => $connection->name,
+                'business_phone' => $connection->business_phone,
+                'phone_number_id' => $connection->phone_number_id,
+                'business_profile' => $businessProfile['profile'],
+                'business_profile_error' => $businessProfile['error'],
+            ],
         ]);
     }
 
@@ -951,6 +971,27 @@ class ConnectionController extends Controller
             'quiet_hours_start' => ['nullable', 'regex:/^\d{2}:\d{2}$/'],
             'quiet_hours_end' => ['nullable', 'regex:/^\d{2}:\d{2}$/'],
             'quiet_hours_timezone' => 'nullable|timezone',
+        ]);
+
+        try {
+            $this->connectionService->update($connection, $validated);
+        } catch (\RuntimeException $e) {
+            return redirect()->back()->withInput()->withErrors([
+                'connection' => $e->getMessage(),
+            ]);
+        }
+
+        return redirect()->route('app.whatsapp.connections.index')->with('success', 'Connection updated successfully.');
+    }
+
+    public function updateProfile(Request $request, $connection)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+        $connection = $this->resolveConnection($connection, $account);
+
+        Gate::authorize('update', $connection);
+
+        $validated = $request->validate([
             'profile_about' => 'nullable|string|max:140',
             'profile_description' => 'nullable|string|max:512',
             'profile_address' => 'nullable|string|max:256',
@@ -961,14 +1002,15 @@ class ConnectionController extends Controller
 
         try {
             $this->syncBusinessProfile($connection, $validated);
-            $this->connectionService->update($connection, $validated);
         } catch (\RuntimeException $e) {
             return redirect()->back()->withInput()->withErrors([
                 'connection' => $e->getMessage(),
             ]);
         }
 
-        return redirect()->route('app.whatsapp.connections.index')->with('success', 'Connection updated successfully.');
+        return redirect()
+            ->route('app.whatsapp.connections.profile.edit', ['connection' => $connection->slug ?? $connection->id])
+            ->with('success', 'WhatsApp profile updated successfully.');
     }
 
     /**
