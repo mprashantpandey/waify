@@ -22,7 +22,13 @@ class Account extends Model
         'disabled_reason',
         'disabled_at',
         'auto_assign_enabled',
-        'auto_assign_strategy'];
+        'auto_assign_strategy',
+        'ai_auto_reply_enabled',
+        'ai_auto_reply_mode',
+        'ai_auto_reply_prompt',
+        'ai_auto_reply_handoff_message',
+        'ai_auto_reply_handoff_keywords',
+        'ai_auto_reply_stop_when_assigned'];
 
     /**
      * Get the owner of the account.
@@ -66,6 +72,12 @@ class Account extends Model
         return $this->hasMany(AccountAddon::class)->where('status', 'active');
     }
 
+
+    public function aiKnowledgeItems(): HasMany
+    {
+        return $this->hasMany(AiKnowledgeItem::class)->orderBy('sort_order')->orderBy('id');
+    }
+
     /**
      * Get account usage records.
      */
@@ -94,7 +106,10 @@ class Account extends Model
             'billing_country_code' => 'string',
             'billing_currency' => 'string',
             'phone_verification_required' => 'boolean',
-            'auto_assign_enabled' => 'boolean'];
+            'auto_assign_enabled' => 'boolean',
+            'ai_auto_reply_enabled' => 'boolean',
+            'ai_auto_reply_handoff_keywords' => 'array',
+            'ai_auto_reply_stop_when_assigned' => 'boolean'];
     }
 
     /**

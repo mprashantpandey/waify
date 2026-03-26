@@ -462,6 +462,10 @@ class WebhookProcessor
                 // worker to listen to multiple queues and reintroduce onQueue().
                 \App\Modules\Chatbots\Jobs\ProcessInboundMessageForBots::dispatch($message->id, $conversation->id);
             }
+
+            if ($message->direction === 'inbound' && module_enabled($account, 'ai')) {
+                \App\Modules\AI\Jobs\ProcessInboundMessageForAiAutoReply::dispatch($message->id);
+            }
         } finally {
             $messageLock->release();
         }

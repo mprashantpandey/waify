@@ -14,11 +14,13 @@ class ConversationAssistantService
     public function suggestReply(
         WhatsAppConversation $conversation,
         int $lastMessagesLimit = 25,
-        ?string $customInstruction = null
+        ?string $customInstruction = null,
+        ?string $systemPromptOverride = null,
+        ?string $replyInstructionOverride = null
     ): string
     {
         $provider = AiProviderFactory::fromPlatformSettings();
-        $systemPrompt = \App\Models\PlatformSetting::get('ai.system_prompt', $this->defaultSystemPrompt());
+        $systemPrompt = $systemPromptOverride ?: \App\Models\PlatformSetting::get('ai.system_prompt', $this->defaultSystemPrompt());
         $systemPrompt = $this->applyCustomInstruction($systemPrompt, $customInstruction);
         $temperature = (float) \App\Models\PlatformSetting::get('ai.temperature', 0.3);
         $maxTokens = (int) \App\Models\PlatformSetting::get('ai.max_tokens', 250);
@@ -34,7 +36,7 @@ class ConversationAssistantService
             ->values();
 
         $conversationText = $this->formatMessagesForPrompt($messages);
-        $userPrompt = $this->buildUserPrompt($contactName, $conversationText);
+        $userPrompt = $this->buildUserPrompt($contactName, $conversationText, $replyInstructionOverride);
 
         return $provider->generate($systemPrompt, $userPrompt, $temperature, $maxTokens);
     }
@@ -76,12 +78,17 @@ class ConversationAssistantService
         };
     }
 
-    protected function buildUserPrompt(string $contactName, string $conversationText): string
+    protected function buildUserPrompt(string $contactName, string $conversationText, ?string $replyInstructionOverride = null): string
     {
-        if ($conversationText === '') {
-            return "WhatsApp chat with {$contactName}. No messages yet. Suggest a brief, friendly opening message to start the conversation.";
+        $replyInstruction = trim((string) $replyInstructionOverride);
+        if ($replyInstruction === '') {
+            $replyInstruction = "Suggest a short, helpful reply as the agent (1-3 sentences). Keep it conversational and on-topic. Do not include greetings like 'Hi' at the start if the conversation is already ongoing.";
         }
-        return "WhatsApp chat with {$contactName}.\n\nRecent messages:\n{$conversationText}\n\nSuggest a short, helpful reply as the agent (1-3 sentences). Keep it conversational and on-topic. Do not include greetings like 'Hi' at the start if the conversation is already ongoing.";
+
+        if ($conversationText === '') {
+            return "WhatsApp chat with {$contactName}. No messages yet. {$replyInstruction}";
+        }
+        return "WhatsApp chat with {$contactName}.\n\nRecent messages:\n{$conversationText}\n\n{$replyInstruction}";
     }
 
     protected function defaultSystemPrompt(): string
