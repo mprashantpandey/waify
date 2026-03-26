@@ -743,10 +743,15 @@ export default function ConversationsIndex({
                                     <button
                                         type="button"
                                         onClick={() => setShowMobileFilters((prev) => !prev)}
-                                        className="inline-flex items-center gap-2 rounded-lg border border-[#d1d7db] bg-white px-3 py-2 text-xs font-medium text-[#54656f] dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                        className="inline-flex items-center gap-2 rounded-full border border-[#d1d7db] bg-white px-3 py-2 text-xs font-medium text-[#54656f] dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                                     >
                                         <SlidersHorizontal className="h-3.5 w-3.5" />
-                                        Filters
+                                        {showMobileFilters ? 'Hide filters' : 'Filters'}
+                                        {(statusFilter !== 'all' || connectionFilter !== 'all' || assigneeFilter !== 'all') && (
+                                            <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-[#e7f8f0] px-1.5 py-0.5 text-[10px] font-semibold text-[#0a7c5a]">
+                                                {[statusFilter, connectionFilter, assigneeFilter].filter((value) => value !== 'all').length}
+                                            </span>
+                                        )}
                                     </button>
                                     {(searchQuery || statusFilter !== 'all' || connectionFilter !== 'all' || assigneeFilter !== 'all') && (
                                         <button
@@ -765,7 +770,13 @@ export default function ConversationsIndex({
                                         </button>
                                     )}
                                 </div>
-                                <div className={cn('mt-3 grid grid-cols-1 gap-2 sm:mt-0 sm:grid-cols-2', !showMobileFilters && 'hidden sm:grid')}>
+                                <div
+                                    className={cn(
+                                        'mt-3 grid grid-cols-1 gap-2 sm:mt-0 sm:grid-cols-2',
+                                        showMobileFilters && 'rounded-2xl border border-[#dfe5e7] bg-[#f7f8f8] p-2 dark:border-gray-800 dark:bg-gray-900/70',
+                                        !showMobileFilters && 'hidden sm:grid'
+                                    )}
+                                >
                                     <select
                                         value={statusFilter}
                                         onChange={(e) => setStatusFilter(e.target.value)}
@@ -793,7 +804,7 @@ export default function ConversationsIndex({
                                     <select
                                         value={assigneeFilter}
                                         onChange={(e) => setAssigneeFilter(e.target.value as 'all' | 'me' | 'unassigned')}
-                                        className="w-full rounded-lg border-[#d1d7db] bg-white px-3 py-2 text-xs shadow-none focus:border-[#00a884] focus:ring-[#00a884] dark:border-gray-700 dark:bg-gray-800"
+                                        className="w-full rounded-lg border-[#d1d7db] bg-white px-3 py-2 text-xs shadow-none focus:border-[#00a884] focus:ring-[#00a884] dark:border-gray-700 dark:bg-gray-800 sm:col-span-2"
                                     >
                                         <option value="all">All assignees</option>
                                         <option value="me">Assigned to me</option>

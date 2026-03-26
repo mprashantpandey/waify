@@ -354,8 +354,8 @@ export default function BillingPlans({
 
     return (
         <AppShell>
-            <Head title="Available Plans" />
-            <div className="space-y-6">
+            <Head title="Plans" />
+            <div className="space-y-5">
                 {!isOwner && (
                     <Alert variant="warning" className="border-yellow-200 dark:border-yellow-800">
                         <Lock className="h-5 w-5" />
@@ -377,18 +377,15 @@ export default function BillingPlans({
                 )}
 
                 {hasNoPlan && (
-                    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5 dark:border-blue-800 dark:bg-blue-900/20">
-                        <div className="flex items-start gap-4">
-                            <div className="p-2 bg-blue-500 rounded-lg">
-                                <AlertTriangle className="h-6 w-6 text-white" />
-                            </div>
+                    <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-800 dark:bg-blue-900/20">
+                        <div className="flex items-start gap-3">
+                            <AlertTriangle className="mt-0.5 h-5 w-5 text-blue-600 dark:text-blue-300" />
                             <div className="flex-1">
-                                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
-                                    No Plan Selected
+                                <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                    No active plan
                                 </h3>
-                                <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">
-                                    Your account doesn't have an active plan. Please select a plan below to continue using the platform. 
-                                    You can start with our free plan or choose a paid plan.
+                                <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
+                                    Choose a plan below to keep using the platform.
                                 </p>
                             </div>
                         </div>
@@ -415,12 +412,12 @@ export default function BillingPlans({
                                     : 'Compare plans and switch when needed.'}
                             </p>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 self-start sm:self-auto">
                             <Button
                                 variant={viewMode === 'cards' ? 'primary' : 'secondary'}
                                 size="sm"
                                 onClick={() => setViewMode('cards')}
-                                className="rounded-xl"
+                                className="rounded-full"
                             >
                                 <LayoutGrid className="h-4 w-4 mr-2" />
                                 Cards
@@ -429,7 +426,7 @@ export default function BillingPlans({
                                 variant={viewMode === 'table' ? 'primary' : 'secondary'}
                                 size="sm"
                                 onClick={() => setViewMode('table')}
-                                className="rounded-xl"
+                                className="rounded-full"
                             >
                                 <Table2 className="h-4 w-4 mr-2" />
                                 Compare
@@ -439,12 +436,12 @@ export default function BillingPlans({
                 </div>
 
                 {viewMode === 'cards' ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
                         {plans.map((plan) => (
                             <Card
                                 key={plan.key}
-                                className={`border border-gray-200 shadow-sm transition-all overflow-hidden dark:border-gray-800 ${
-                                    plan.is_current ? 'ring-2 ring-blue-500 dark:ring-blue-400 shadow-blue-500/20' : ''
+                                className={`overflow-hidden border border-gray-200 shadow-sm transition-all dark:border-gray-800 ${
+                                    plan.is_current ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''
                                 }`}
                             >
                                 <CardHeader className={`pb-4 ${
@@ -453,7 +450,7 @@ export default function BillingPlans({
                                 }`}>
                                     <div className="flex items-start justify-between mb-2">
                                         <div className="flex-1">
-                                            <CardTitle className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                                            <CardTitle className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                                                 {plan.name}
                                             </CardTitle>
                                             {plan.description && (
@@ -470,9 +467,9 @@ export default function BillingPlans({
                                         )}
                                     </div>
                                 </CardHeader>
-                                <CardContent className="p-6 space-y-5">
+                                <CardContent className="space-y-4 p-5">
                                     <div>
-                                        <div className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-1">
+                                        <div className="mb-1 text-3xl font-semibold text-gray-900 dark:text-gray-100">
                                             {formatPrice(plan.price_monthly, plan.currency)}
                                         </div>
                                         <div className="text-sm text-gray-500 dark:text-gray-400">per month</div>
@@ -496,7 +493,7 @@ export default function BillingPlans({
                                         </div>
                                     )}
 
-                                    <div className="space-y-3">
+                                    <div className="space-y-2.5">
                                         <div className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                             Limits
                                         </div>
@@ -536,7 +533,7 @@ export default function BillingPlans({
                                         </div>
                                     </div>
 
-                                    <div className="space-y-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                                    <div className="space-y-2.5 border-t border-gray-200 pt-3 dark:border-gray-700">
                                         <div className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                             Modules
                                         </div>
@@ -565,7 +562,7 @@ export default function BillingPlans({
                                     </div>
 
                                     {plan.trial_days > 0 && (
-                                        <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-xs text-blue-600 dark:text-blue-400 font-medium text-center">
+                                        <div className="rounded-lg bg-blue-50 p-2 text-center text-xs font-medium text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
                                             {plan.trial_days}-day free trial
                                         </div>
                                     )}
@@ -579,10 +576,7 @@ export default function BillingPlans({
                                             <>
                                                 <Button
                                                     variant={plan.is_current ? 'secondary' : 'primary'}
-                                                    className={`w-full rounded-xl ${
-                                                        !plan.is_current
-                                                            ? '' : ''
-                                                    }`}
+                                                    className="w-full rounded-xl"
                                                     disabled={disabled}
                                                     onClick={() => {
                                                         if (canPayCurrent) {

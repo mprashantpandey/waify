@@ -55,7 +55,7 @@ export default function BillingHistory({
     return (
         <AppShell>
             <Head title="Payment History" />
-            <div className="space-y-6">
+            <div className="space-y-5">
                 <div>
                     <Link
                         href={route('app.billing.index', {})}
@@ -84,8 +84,8 @@ export default function BillingHistory({
                 )}
 
                 <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
-                    <CardHeader className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-                        <CardTitle className="text-lg font-semibold">Recent payments</CardTitle>
+                    <CardHeader className="border-b border-gray-200 bg-white py-4 dark:border-gray-800 dark:bg-gray-900">
+                        <CardTitle className="text-base font-semibold sm:text-lg">Recent payments</CardTitle>
                         <CardDescription>Last 50 payment orders.</CardDescription>
                     </CardHeader>
                     <CardContent className="p-0">

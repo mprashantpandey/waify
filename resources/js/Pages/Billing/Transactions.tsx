@@ -150,7 +150,7 @@ export default function BillingTransactions({
     return (
         <AppShell>
             <Head title="Transactions" />
-            <div className="space-y-6">
+            <div className="space-y-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                         <Link href={route('app.billing.index')} className="text-sm text-gray-500 hover:text-gray-700">
@@ -165,21 +165,21 @@ export default function BillingTransactions({
                     </div>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-3">
                     <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
-                        <CardContent className="pt-5">
+                        <CardContent className="pt-4">
                             <p className="text-xs text-gray-500">Total</p>
                             <p className="text-2xl font-semibold">{groupedCounts.total}</p>
                         </CardContent>
                     </Card>
                     <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
-                        <CardContent className="pt-5">
+                        <CardContent className="pt-4">
                             <p className="text-xs text-gray-500">Success</p>
                             <p className="text-2xl font-semibold text-emerald-600">{groupedCounts.success}</p>
                         </CardContent>
                     </Card>
                     <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
-                        <CardContent className="pt-5">
+                        <CardContent className="pt-4">
                             <p className="text-xs text-gray-500">Failed</p>
                             <p className="text-2xl font-semibold text-red-600">{groupedCounts.failed}</p>
                         </CardContent>
@@ -207,8 +207,8 @@ export default function BillingTransactions({
                 )}
 
                 <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
-                    <CardHeader className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-                        <CardTitle className="text-lg font-semibold">Wallet top-up</CardTitle>
+                    <CardHeader className="border-b border-gray-200 bg-white py-4 dark:border-gray-800 dark:bg-gray-900">
+                        <CardTitle className="text-base font-semibold sm:text-lg">Wallet top-up</CardTitle>
                         <CardDescription>
                             {isOwner
                                 ? 'Add wallet credits (if enabled by platform admin)'
@@ -216,7 +216,7 @@ export default function BillingTransactions({
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <form className="flex flex-wrap items-end gap-3" onSubmit={submitTopup}>
+                        <form className="grid gap-3 sm:grid-cols-[176px_minmax(0,1fr)_auto] sm:items-end" onSubmit={submitTopup}>
                             <div>
                                 <label className="text-xs text-gray-500">Amount ({wallet.currency})</label>
                                 <input
@@ -226,10 +226,10 @@ export default function BillingTransactions({
                                     value={topupAmountMajor}
                                     onChange={(e) => setTopupAmountMajor(e.target.value)}
                                     disabled={!isOwner}
-                                    className="mt-1 w-44 rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900"
+                                    className="mt-1 w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900"
                                 />
                             </div>
-                            <div className="flex-1 min-w-[220px]">
+                            <div className="min-w-0">
                                 <label className="text-xs text-gray-500">Notes</label>
                                 <input
                                     type="text"
@@ -239,14 +239,16 @@ export default function BillingTransactions({
                                     className="mt-1 w-full rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900"
                                 />
                             </div>
-                            <Button type="submit" disabled={!isOwner}>{isOwner ? 'Add Credits' : 'Owner Only'}</Button>
+                            <Button type="submit" disabled={!isOwner} className="w-full sm:w-auto">
+                                {isOwner ? 'Add credits' : 'View only'}
+                            </Button>
                         </form>
                     </CardContent>
                 </Card>
 
                 <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
-                    <CardHeader className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-                        <CardTitle className="text-lg font-semibold">Transaction history</CardTitle>
+                    <CardHeader className="border-b border-gray-200 bg-white py-4 dark:border-gray-800 dark:bg-gray-900">
+                        <CardTitle className="text-base font-semibold sm:text-lg">Transaction history</CardTitle>
                     </CardHeader>
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
@@ -303,8 +305,8 @@ export default function BillingTransactions({
 
                 {selectedTx && (
                     <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
-                        <CardHeader className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-                            <CardTitle className="text-lg font-semibold">Transaction details</CardTitle>
+                        <CardHeader className="border-b border-gray-200 bg-white py-4 dark:border-gray-800 dark:bg-gray-900">
+                            <CardTitle className="text-base font-semibold sm:text-lg">Transaction details</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-2 text-sm">
                             <p><span className="text-gray-500">Type:</span> {selectedTx.type}</p>
