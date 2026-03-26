@@ -14,6 +14,7 @@ use App\Modules\WhatsApp\Events\Inbox\MessageUpdated;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use App\Modules\WhatsApp\Models\WhatsAppConversationAuditEvent;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
+use App\Modules\WhatsApp\Services\ConversationAutomationService;
 use App\Modules\WhatsApp\Services\CustomerCareWindowService;
 use App\Modules\WhatsApp\Services\WhatsAppClient;
 use Illuminate\Support\Facades\Cache;
@@ -25,6 +26,7 @@ class AiAutoReplyService
         protected ConversationAssistantService $conversationAssistant,
         protected AiKnowledgeBaseService $knowledgeBase,
         protected WhatsAppClient $whatsappClient,
+        protected ConversationAutomationService $conversationAutomationService,
         protected CustomerCareWindowService $customerCareWindowService,
         protected EntitlementService $entitlementService,
         protected UsageService $usageService,
@@ -101,6 +103,7 @@ class AiAutoReplyService
                 'message_id' => $outbound->id,
                 'meta_message_id' => $metaMessageId,
             ]);
+            $this->conversationAutomationService->markAiActive($conversation);
 
             event(new MessageUpdated($outbound));
             event(new ConversationUpdated($conversation));

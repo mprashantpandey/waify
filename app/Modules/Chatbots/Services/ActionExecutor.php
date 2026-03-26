@@ -10,6 +10,7 @@ use App\Modules\WhatsApp\Events\Inbox\ConversationUpdated;
 use App\Modules\WhatsApp\Events\Inbox\MessageCreated;
 use App\Modules\WhatsApp\Models\WhatsAppList;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
+use App\Modules\WhatsApp\Services\ConversationAutomationService;
 use App\Modules\WhatsApp\Services\SendPolicyService;
 use App\Modules\WhatsApp\Services\TemplateComposer;
 use App\Modules\WhatsApp\Services\WhatsAppClient;
@@ -25,7 +26,8 @@ class ActionExecutor
         protected TemplateComposer $templateComposer,
         protected SendPolicyService $sendPolicyService,
         protected EntitlementService $entitlementService,
-        protected UsageService $usageService
+        protected UsageService $usageService,
+        protected ConversationAutomationService $conversationAutomationService
     ) {}
 
     /**
@@ -123,6 +125,7 @@ class ActionExecutor
             $context->conversation->update([
                 'last_message_at' => now(),
                 'last_message_preview' => substr($messageText, 0, 100)]);
+            $this->conversationAutomationService->markChatbotActive($context->conversation, 'chatbot_text_sent');
 
             // Broadcast events
             event(new MessageCreated($message));
@@ -202,6 +205,7 @@ class ActionExecutor
             $context->conversation->update([
                 'last_message_at' => now(),
                 'last_message_preview' => substr($message->text_body, 0, 100)]);
+            $this->conversationAutomationService->markChatbotActive($context->conversation, 'chatbot_template_sent');
 
             // Broadcast events
             event(new MessageCreated($message));
@@ -300,6 +304,7 @@ class ActionExecutor
                 'last_message_at' => now(),
                 'last_message_preview' => substr($bodyText, 0, 100),
             ]);
+            $this->conversationAutomationService->markChatbotActive($context->conversation, 'chatbot_buttons_sent');
 
             event(new MessageCreated($message));
             event(new ConversationUpdated($context->conversation));
@@ -391,6 +396,7 @@ class ActionExecutor
                 'last_message_at' => now(),
                 'last_message_preview' => substr((string) $list->name, 0, 100),
             ]);
+            $this->conversationAutomationService->markChatbotActive($context->conversation, 'chatbot_list_sent');
 
             event(new MessageCreated($message));
             event(new ConversationUpdated($context->conversation));
@@ -436,6 +442,7 @@ class ActionExecutor
         }
 
         $context->conversation->update(['assigned_to' => $agentId]);
+        $this->conversationAutomationService->markHumanAssigned($context->conversation, 'chatbot', 'handed_off');
         event(new ConversationUpdated($context->conversation));
 
         return ['success' => true];

@@ -21,6 +21,7 @@ use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use App\Modules\WhatsApp\Models\WhatsAppTemplateSend;
 use App\Modules\WhatsApp\Services\TemplateComposer;
 use App\Modules\WhatsApp\Services\ContactComplianceService;
+use App\Modules\WhatsApp\Services\ConversationAutomationService;
 use App\Modules\WhatsApp\Services\CustomerCareWindowService;
 use App\Modules\WhatsApp\Services\InboxMetricsService;
 use App\Modules\WhatsApp\Services\OutboundMessagePipelineService;
@@ -57,7 +58,8 @@ class ConversationController extends Controller
         protected EntitlementService $entitlementService,
         protected UsageService $usageService,
         protected ConversationAssistantService $conversationAssistant,
-        protected PlanResolver $planResolver
+        protected PlanResolver $planResolver,
+        protected ConversationAutomationService $conversationAutomationService
     ) {
     }
 
@@ -69,7 +71,7 @@ class ConversationController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         // Optimize query: select only needed columns, use eager loading efficiently
-        $conversationSelect = ['id', 'account_id', 'whatsapp_connection_id', 'whatsapp_contact_id', 'status', 'last_message_at', 'last_message_preview'];
+        $conversationSelect = ['id', 'account_id', 'whatsapp_connection_id', 'whatsapp_contact_id', 'status', 'last_message_at', 'last_message_preview', 'metadata'];
         if (Schema::hasColumn('whatsapp_conversations', 'assigned_to')) {
             $conversationSelect[] = 'assigned_to';
         }
@@ -84,6 +86,7 @@ class ConversationController extends Controller
             ->with([
                 'contact:id,account_id,wa_id,name',
                 'connection:id,account_id,name',
+                'assignee:id,name',
                 'latestAuditEvent' => function ($query) {
                     $query->select([
                         'whatsapp_conversation_audit_events.id',
@@ -164,6 +167,7 @@ class ConversationController extends Controller
                         'description' => $latestAudit->description,
                         'created_at' => $latestAudit->created_at?->toIso8601String(),
                     ] : null,
+                    'automation' => $this->conversationAutomationService->present($conversation),
                 ];
             })
         );
@@ -441,6 +445,7 @@ class ConversationController extends Controller
                 'customer_care_window' => $this->formatCustomerCareWindowState($customerCareWindow),
                 'assigned_to' => $assignedTo,
                 'priority' => $priority,
+                'automation' => $this->conversationAutomationService->present($conversation),
             ],
             'messages' => $messages,
             'total_messages' => $totalMessages,
@@ -645,6 +650,14 @@ class ConversationController extends Controller
         }
 
         $conversation->update($updates);
+
+        if (array_key_exists('assigned_to', $validated) && Schema::hasColumn('whatsapp_conversations', 'assigned_to')) {
+            if (!empty($validated['assigned_to'])) {
+                $this->conversationAutomationService->markHumanAssigned($conversation, 'human');
+            } else {
+                $this->conversationAutomationService->clearHumanAssignment($conversation);
+            }
+        }
 
         foreach ($auditPayloads as $payload) {
             $audit = WhatsAppConversationAuditEvent::create([
@@ -2045,6 +2058,8 @@ class ConversationController extends Controller
 
     protected function touchContactAfterOutbound(WhatsAppConversation $conversation): void
     {
+        $this->conversationAutomationService->markHumanReply($conversation);
+
         if (!$conversation->relationLoaded('contact')) {
             $conversation->load('contact');
         }

@@ -38,7 +38,8 @@ class WebhookProcessor
         protected NotificationDispatchService $notificationDispatchService,
         protected ConnectionHealthSyncService $connectionHealthSyncService,
         protected TemplateLifecycleService $templateLifecycleService,
-        protected ContactComplianceService $contactComplianceService
+        protected ContactComplianceService $contactComplianceService,
+        protected ConversationAutomationService $conversationAutomationService
     ) {
     }
 
@@ -943,6 +944,7 @@ class WebhookProcessor
         $conversation->update([
             'assigned_to' => $assigneeId,
         ]);
+        $this->conversationAutomationService->markHumanAssigned($conversation, 'auto_assign');
 
         $assigneeName = \App\Models\User::find($assigneeId)?->name ?? 'Unknown';
         $description = "Assigned to {$assigneeName} (auto-assign)";

@@ -27,6 +27,7 @@ use Inertia\Response;
 class ConnectionController extends Controller
 {
     protected const WHATSAPP_PROFILE_VERTICALS = [
+        'UNDEFINED' => 'Unspecified',
         'OTHER' => 'Other',
         'AUTO' => 'Automotive',
         'BEAUTY' => 'Beauty, Spa, and Salon',
@@ -44,6 +45,7 @@ class ConnectionController extends Controller
         'RETAIL' => 'Shopping and Retail',
         'TRAVEL' => 'Travel and Transportation',
         'RESTAURANT' => 'Restaurant',
+        'NOT_A_BIZ' => 'Not a business',
         'ALCOHOL' => 'Alcohol',
         'ONLINE_GAMBLING' => 'Online Gambling',
         'PHYSICAL_GAMBLING' => 'Physical Gambling',
@@ -1027,6 +1029,7 @@ class ConnectionController extends Controller
             'profile_address' => 'nullable|string|max:256',
             'profile_email' => 'nullable|email|max:255',
             'profile_website' => 'nullable|url|max:255',
+            'profile_website_secondary' => 'nullable|url|max:255',
             'profile_vertical' => 'nullable|string|in:' . implode(',', array_keys(self::WHATSAPP_PROFILE_VERTICALS)),
             'profile_image' => 'nullable|image|mimes:jpeg,jpg,png|max:5120',
         ]);
@@ -1284,6 +1287,7 @@ class ConnectionController extends Controller
             'profile_address',
             'profile_email',
             'profile_website',
+            'profile_website_secondary',
             'profile_vertical',
             'profile_image',
         ];
@@ -1306,6 +1310,7 @@ class ConnectionController extends Controller
             'vertical' => $this->normalizeBusinessProfileVertical($validated['profile_vertical'] ?? null),
             'websites' => array_values(array_filter([
                 trim((string) ($validated['profile_website'] ?? '')),
+                trim((string) ($validated['profile_website_secondary'] ?? '')),
             ])),
         ];
 
@@ -1346,6 +1351,7 @@ class ConnectionController extends Controller
             'address' => (string) ($profile['address'] ?? ''),
             'email' => (string) ($profile['email'] ?? ''),
             'website' => (string) (($profile['website'] ?? $profile['websites'][0] ?? '') ?: ''),
+            'website_secondary' => (string) (($profile['websites'][1] ?? '') ?: ''),
             'vertical' => $vertical,
             'vertical_label' => $vertical !== '' ? (self::WHATSAPP_PROFILE_VERTICALS[$vertical] ?? $vertical) : '',
             'profile_picture_url' => $profile['profile_picture_url'] ?? null,
@@ -1372,6 +1378,8 @@ class ConnectionController extends Controller
             'PROFESSIONAL_SERVICES' => 'PROF_SERVICES',
             'IT_SOFTWARE' => 'PROF_SERVICES',
             'IT___SOFTWARE' => 'PROF_SERVICES',
+            'IT' => 'PROF_SERVICES',
+            'SOFTWARE' => 'PROF_SERVICES',
             'SHOPPING_AND_RETAIL' => 'RETAIL',
             'FOOD_AND_GROCERY' => 'GROCERY',
             'MEDICAL_AND_HEALTH' => 'HEALTH',

@@ -3,6 +3,7 @@
 namespace App\Modules\WhatsApp\Models;
 
 use App\Models\Account;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -55,6 +56,11 @@ class WhatsAppConversation extends Model
     public function contact(): BelongsTo
     {
         return $this->belongsTo(WhatsAppContact::class, 'whatsapp_contact_id');
+    }
+
+    public function assignee(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_to');
     }
 
     /**

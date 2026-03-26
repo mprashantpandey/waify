@@ -52,6 +52,16 @@ interface Conversation {
         description?: string | null;
         created_at?: string | null;
     } | null;
+    automation?: {
+        actor: 'ai' | 'chatbot' | 'human';
+        state: 'active' | 'handed_off' | 'stopped';
+        label: string;
+        description?: string | null;
+        tone?: 'ai' | 'chatbot' | 'human' | null;
+        assignment_source?: 'human' | 'chatbot' | 'auto_assign' | 'ai' | null;
+        last_event_type?: string | null;
+        last_event_at?: string | null;
+    } | null;
 }
 
 const normalizeConversation = (value: any): Conversation | null => {
@@ -99,6 +109,18 @@ const normalizeConversation = (value: any): Conversation | null => {
                   event_type: value.activity.event_type ?? null,
                   description: value.activity.description ?? null,
                   created_at: value.activity.created_at ?? null,
+              }
+            : null,
+        automation: value.automation
+            ? {
+                  actor: value.automation.actor,
+                  state: value.automation.state,
+                  label: value.automation.label,
+                  description: value.automation.description ?? null,
+                  tone: value.automation.tone ?? null,
+                  assignment_source: value.automation.assignment_source ?? null,
+                  last_event_type: value.automation.last_event_type ?? null,
+                  last_event_at: value.automation.last_event_at ?? null,
               }
             : null,
     };
@@ -691,6 +713,26 @@ export default function ConversationsIndex({
         };
     };
 
+    const automationMeta = (conversation: Conversation) => {
+        const tone = conversation.automation?.tone ?? null;
+        if (tone === 'ai') {
+            return {
+                className: 'bg-violet-50 text-violet-700 dark:bg-violet-900/20 dark:text-violet-300',
+                shortLabel: 'AI',
+            };
+        }
+        if (tone === 'chatbot') {
+            return {
+                className: 'bg-teal-50 text-teal-700 dark:bg-teal-900/20 dark:text-teal-300',
+                shortLabel: 'Bot',
+            };
+        }
+        return {
+            className: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300',
+            shortLabel: 'Human',
+        };
+    };
+
     return (
         <AppShell>
             <Head title="Inbox" />
@@ -915,6 +957,8 @@ export default function ConversationsIndex({
                                             ? { ...conversation, assigned_to: pendingAssignment }
                                             : conversation;
                                         const assigneeMeta = getAssigneeMeta(displayConversation);
+                                        const automation = displayConversation.automation;
+                                        const automationUi = automation ? automationMeta(displayConversation) : null;
                                         const windowCountdown = formatWindowCountdown(displayConversation);
                                         const activityEventType = conversation.activity?.event_type ?? null;
                                         const showActivitySummary = Boolean(
@@ -988,9 +1032,22 @@ export default function ConversationsIndex({
                                                                 <Phone className="h-3 w-3" />
                                                                 {conversation.connection.name}
                                                             </div>
-                                                            <span className={`hidden items-center rounded-full px-2 py-0.5 text-[10px] font-medium sm:inline-flex ${assigneeMeta.className}`}>
-                                                                {assigneeMeta.label}
-                                                            </span>
+                                                            {automation && automationUi && (
+                                                                <span
+                                                                    className={cn(
+                                                                        'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium',
+                                                                        automationUi.className
+                                                                    )}
+                                                                    title={automation.description ?? automation.label}
+                                                                >
+                                                                    {automationUi.shortLabel}: {automation.label}
+                                                                </span>
+                                                            )}
+                                                            {!automation && (
+                                                                <span className={`hidden items-center rounded-full px-2 py-0.5 text-[10px] font-medium sm:inline-flex ${assigneeMeta.className}`}>
+                                                                    {assigneeMeta.label}
+                                                                </span>
+                                                            )}
                                                             {assigningId === conversation.id && (
                                                                 <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
                                                                     Saving assignment...

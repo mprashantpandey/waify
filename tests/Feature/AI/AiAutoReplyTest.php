@@ -199,6 +199,7 @@ class AiAutoReplyTest extends TestCase
         $usage = app(UsageService::class)->getCurrentUsage($this->account);
         $this->assertSame(1, (int) $usage->ai_credits_used);
         $this->assertSame(1, (int) $usage->messages_sent);
+        $this->assertSame('ai', data_get($conversation->fresh()->metadata, 'automation.current_actor'));
     }
 
     public function test_ai_auto_reply_service_skips_assigned_conversations(): void

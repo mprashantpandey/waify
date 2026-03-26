@@ -1,0 +1,843 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Zyptos System Feature and Flow Reference</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --panel: #ffffff;
+      --panel-2: #f8fbff;
+      --line: #d7e2ef;
+      --text: #0f172a;
+      --muted: #475569;
+      --blue: #1d4ed8;
+      --green-bg: #dcfce7;
+      --green-tx: #166534;
+      --amber-bg: #fef3c7;
+      --amber-tx: #92400e;
+      --red-bg: #fee2e2;
+      --red-tx: #991b1b;
+      --blue-bg: #dbeafe;
+      --blue-tx: #1d4ed8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #eef4fb 0%, #f8fbff 100%);
+      color: var(--text);
+      font: 14px/1.55 "Inter", "Segoe UI", Arial, sans-serif;
+    }
+    .wrap {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 28px 16px 48px;
+    }
+    h1, h2, h3, h4 { margin: 0 0 10px; }
+    h1 { font-size: 30px; }
+    h2 {
+      margin-top: 28px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+      font-size: 22px;
+    }
+    h3 { margin-top: 18px; font-size: 17px; }
+    h4 { margin-top: 12px; font-size: 14px; }
+    p { margin: 0 0 10px; color: var(--muted); }
+    ul, ol { margin: 8px 0 10px 20px; padding: 0; }
+    li { margin: 4px 0; color: var(--muted); }
+    code {
+      background: #eef4fb;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 1px 6px;
+      font-size: 12px;
+    }
+    .hero, .card, table {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 12px 32px rgba(15, 23, 42, 0.04);
+    }
+    .hero {
+      padding: 18px;
+      margin-bottom: 18px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .card {
+      padding: 14px;
+    }
+    .pill {
+      display: inline-block;
+      margin: 2px 6px 2px 0;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      vertical-align: middle;
+    }
+    .ok { background: var(--green-bg); color: var(--green-tx); }
+    .partial { background: var(--amber-bg); color: var(--amber-tx); }
+    .risk { background: var(--red-bg); color: var(--red-tx); }
+    .info { background: var(--blue-bg); color: var(--blue-tx); }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .section-note {
+      background: var(--panel-2);
+      border: 1px dashed var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      margin: 10px 0 14px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      margin: 10px 0 14px;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      vertical-align: top;
+      text-align: left;
+    }
+    th {
+      background: #f7fbff;
+      font-size: 12px;
+      letter-spacing: .03em;
+      text-transform: uppercase;
+    }
+    tr:last-child td { border-bottom: 0; }
+    .small { font-size: 12px; color: var(--muted); }
+    .toc a {
+      color: var(--blue);
+      text-decoration: none;
+    }
+    .toc li { color: var(--text); }
+    @media (max-width: 1080px) {
+      .grid, .grid-3 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <h1>Zyptos System Feature and Flow Reference</h1>
+      <p>Current-state feature map, role map, and module flow reference for AI agents, support, QA, and engineering. This document describes what the platform currently does, how major flows move through the system, and where the system is strong versus still under hardening.</p>
+      <div class="meta">
+        <div><strong>Platform:</strong> Zyptos multi-tenant WhatsApp Cloud SaaS</div>
+        <div><strong>Audience:</strong> AI agent, product, support, QA, engineering</div>
+        <div><strong>Scope:</strong> current implemented flows, user types, modules, diagnostics, billing, Meta-facing operations</div>
+        <div><strong>Date:</strong> March 25, 2026</div>
+      </div>
+      <div class="meta">
+        <span class="pill ok">Implemented</span>
+        <span class="pill partial">Implemented but still hardening</span>
+        <span class="pill risk">Operational sensitivity / edge-case risk</span>
+        <span class="pill info">Important behavior note</span>
+      </div>
+    </div>
+
+    <div class="card toc">
+      <h2 style="margin-top:0;border-top:0;padding-top:0;">Contents</h2>
+      <ol>
+        <li><a href="#system-model">System Model</a></li>
+        <li><a href="#user-types">User Types and Access Surfaces</a></li>
+        <li><a href="#tenant-modules">Tenant Modules</a></li>
+        <li><a href="#admin-modules">Platform Admin Modules</a></li>
+        <li><a href="#developer-surface">Developer Surface</a></li>
+        <li><a href="#core-flows">Core End-to-End Flows</a></li>
+        <li><a href="#billing-flows">Billing and Subscription Flows</a></li>
+        <li><a href="#diagnostics">Diagnostics, Alerts, and Support Flows</a></li>
+        <li><a href="#state-models">Important State Models</a></li>
+        <li><a href="#known-partials">Known Partial Areas</a></li>
+      </ol>
+    </div>
+
+    <h2 id="system-model">1. System Model</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Core Architecture</h3>
+        <ul>
+          <li>Multi-tenant SaaS with strict account isolation.</li>
+          <li>Tenant owner plus tenant team member model.</li>
+          <li>Platform super admin panel for operations and oversight.</li>
+          <li>WhatsApp Cloud API integration with Embedded Signup and connection management.</li>
+          <li>Queue-backed messaging, campaigns, sync, alerts, and diagnostics flows.</li>
+          <li>Inertia/Laravel application with tenant and admin surfaces sharing a common design system.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Main Business Objects</h3>
+        <ul>
+          <li><strong>Account/Tenant:</strong> the main customer boundary.</li>
+          <li><strong>User:</strong> owner, team member, or platform admin.</li>
+          <li><strong>WhatsApp Connection:</strong> mapped Meta asset set for a tenant.</li>
+          <li><strong>Conversation/Message:</strong> inbox operational objects.</li>
+          <li><strong>Template:</strong> Meta message template with local sync state.</li>
+          <li><strong>Campaign:</strong> queued outbound broadcast workflow.</li>
+          <li><strong>Contact/List/Segment:</strong> audience and consent targeting layer.</li>
+          <li><strong>Subscription/Invoice/Payment/Usage:</strong> billing and access layer.</li>
+          <li><strong>Alert/Diagnostics bundle:</strong> operational observability layer.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 id="user-types">2. User Types and Access Surfaces</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>User Type</th>
+          <th>Main Surface</th>
+          <th>Allowed Actions</th>
+          <th>Important Restrictions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Public visitor</td>
+          <td>Landing, pricing, auth entry points</td>
+          <td>Review plans, create account, log in, contact support</td>
+          <td>No tenant data access</td>
+        </tr>
+        <tr>
+          <td>Tenant owner</td>
+          <td>Tenant app</td>
+          <td>All tenant modules, plan changes, billing recovery, team, connections, templates, campaigns</td>
+          <td>Still blocked by subscription gates where appropriate</td>
+        </tr>
+        <tr>
+          <td>Tenant team member</td>
+          <td>Tenant app</td>
+          <td>Operational modules based on assigned permissions and role</td>
+          <td>Cannot renew, resume, top up, change plans, or perform owner-only billing actions</td>
+        </tr>
+        <tr>
+          <td>Platform super admin</td>
+          <td>Platform panel</td>
+          <td>Plans, pricing snapshots, tenant oversight, health, support, system alerts, impersonation/admin actions</td>
+          <td>Must not cross tenant isolation via normal tenant-scoped actions</td>
+        </tr>
+        <tr>
+          <td>API consumer</td>
+          <td>Developer/API surface</td>
+          <td>Use scoped API keys and tenant outbound webhooks</td>
+          <td>Bound by tenant-scoped key scopes and webhook configuration</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="grid-3">
+      <div class="card">
+        <h3>Tenant Owner Mental Model</h3>
+        <ul>
+          <li>Chooses plan and completes onboarding.</li>
+          <li>Connects WhatsApp assets via Embedded Signup or manual recovery flows.</li>
+          <li>Operates inbox, templates, campaigns, contacts, support, billing.</li>
+          <li>Owns team invites and most tenant settings.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Team Member Mental Model</h3>
+        <ul>
+          <li>Primarily an operator.</li>
+          <li>Works inside inbox and related operational modules.</li>
+          <li>Can review billing state but not execute owner-only billing recovery.</li>
+          <li>Can be assignment target in inbox.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Platform Admin Mental Model</h3>
+        <ul>
+          <li>Runs the platform, not a tenant.</li>
+          <li>Uses health, alerts, pricing, billing, support, and admin diagnostic tooling.</li>
+          <li>Needs high-visibility auditability and recovery controls.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 id="tenant-modules">3. Tenant Modules</h2>
+
+    <h3>3.1 Dashboard</h3>
+    <table>
+      <thead><tr><th>Feature</th><th>Status</th><th>Current Flow</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Tenant summary dashboard</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Shows high-level tenant state, connection/billing/inbox summaries, and recovery prompts where needed.</td>
+          <td>Dashboard reflects access state and billing warnings for blocked or degraded tenants.</td>
+        </tr>
+        <tr>
+          <td>Tenant-level recovery awareness</td>
+          <td><span class="pill partial">Hardening</span></td>
+          <td>Billing state and access gating are visible; recovery CTA consistency has been improved across billing-linked pages.</td>
+          <td>Continue watching for hidden stale messaging on edge billing states.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>3.2 Onboarding</h3>
+    <table>
+      <thead><tr><th>Feature</th><th>Status</th><th>Current Flow</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Signup → plan selection → onboarding</td>
+          <td><span class="pill partial">Hardening</span></td>
+          <td>User creates account, selects plan, enters onboarding, and is guided to become a real tenant.</td>
+          <td>Tenant terminology has replaced most legacy workspace wording.</td>
+        </tr>
+        <tr>
+          <td>Plan/access gating during onboarding</td>
+          <td><span class="pill partial">Hardening</span></td>
+          <td>Subscription state, trial state, expired state, and renewed state affect what the user can do during and after onboarding.</td>
+          <td>This is a sensitive regression area and should stay under test.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>3.3 Connections</h3>
+    <table>
+      <thead><tr><th>Feature</th><th>Status</th><th>Current Flow</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Embedded Signup</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Tenant owner launches Meta Embedded Signup, returns through callback, and connection is created/updated.</td>
+          <td class="small">Redirect URI parity remains critical. Duplicate asset cross-tenant ownership checks are now hardened.</td>
+        </tr>
+        <tr>
+          <td>Manual create/edit connection</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Owner can create or edit connection fields and trigger health sync/recovery actions.</td>
+          <td>Cross-tenant `phone_number_id` / `waba_id` collisions are blocked.</td>
+        </tr>
+        <tr>
+          <td>Connection health metadata</td>
+          <td><span class="pill partial">Hardening</span></td>
+          <td>Connection health, metadata freshness, and sync state are surfaced to tenant and platform views.</td>
+          <td>Fields depend on current Meta API payload availability.</td>
+        </tr>
+        <tr>
+          <td>Sync Now / health recovery</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>User can manually trigger a connection health sync from the connections list.</td>
+          <td>Useful when metadata is stale or onboarding finished partially.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>3.4 Inbox</h3>
+    <table>
+      <thead><tr><th>Feature</th><th>Status</th><th>Current Flow</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Conversation list and detail view</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Operators can browse conversation list, open a thread, view message history, notes, audit events, and assignment state.</td>
+          <td>Mobile and consistency polish have been improved over multiple passes.</td>
+        </tr>
+        <tr>
+          <td>Realtime + stream fallback</td>
+          <td><span class="pill partial">Hardening</span></td>
+          <td>Realtime events update the UI, while stream/poll fallback repairs delayed states.</td>
+          <td>There is explicit degraded-sync messaging and unread repair tooling.</td>
+        </tr>
+        <tr>
+          <td>Unread counters</td>
+          <td><span class="pill partial">Hardening</span></td>
+          <td>Unread counts are pushed in events and can be recalculated through repair endpoints.</td>
+          <td>Counter drift is addressed with repair flows, but remains a regression-sensitive area.</td>
+        </tr>
+        <tr>
+          <td>Assignment handling</td>
+          <td><span class="pill partial">Hardening</span></td>
+          <td>Conversation assignment is optimistic, rollback-safe, and visible in activity/audit areas.</td>
+          <td>Wording is being normalized across list, show page, and toasts.</td>
+        </tr>
+        <tr>
+          <td>Conversation messaging</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Agents can send free-form messages, templates, media, lists, buttons, and other supported message types depending on current send policy state.</td>
+          <td>Send actions are policy-checked before execution.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>3.5 Message Diagnostics in Inbox</h3>
+    <div class="section-note">
+      The inbox supports support-facing diagnostics on outbound messages. Current diagnostics include provider payload retention, message status progression, error visibility, and message-level drill-down. This is already useful for support and is still being tightened for consistency.
+    </div>
+    <ul>
+      <li>Outbound statuses include queued/accepted/sent/delivered/read/failed style rendering depending on the page.</li>
+      <li>Exact provider error payloads are retained when available.</li>
+      <li>Timeline information can include accepted, delivered, and read timestamps.</li>
+      <li>Conversation and template surfaces both use diagnostics concepts, but consistency work is ongoing.</li>
+    </ul>
+
+    <h3>3.6 Templates</h3>
+    <table>
+      <thead><tr><th>Feature</th><th>Status</th><th>Current Flow</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Create/edit/delete templates</td>
+          <td><span class="pill partial">Hardening</span></td>
+          <td>Tenant can create and update templates, including media/header/button configurations, then sync them with Meta.</td>
+          <td>Template naming, header media requirements, and Meta-side edits are sensitive areas.</td>
+        </tr>
+        <tr>
+          <td>Template sync and status mapping</td>
+          <td><span class="pill partial">Hardening</span></td>
+          <td>Local template records map to Meta template state and are updated from sync jobs and webhooks.</td>
+          <td>`approved` and `active` are both treated as sendable where intended.</td>
+        </tr>
+        <tr>
+          <td>Template send test flow</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Tenant can send test template messages, inspect recent sends, and review failure reasons.</td>
+          <td>Recent send cards now expose final status, timeline, payload, and support bundle actions.</td>
+        </tr>
+        <tr>
+          <td>Template diagnostics</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Template list, detail, and send screens show latest failure reason, delivery timeline, Meta message id, and raw payload context where available.</td>
+          <td>Support bundle export/copy pathways exist and are still being polished.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>3.7 Campaigns / Broadcasts</h3>
+    <table>
+      <thead><tr><th>Feature</th><th>Status</th><th>Current Flow</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Campaign creation and dispatch</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Tenant creates campaign using eligible template and audience, then dispatches through queue-backed pipeline.</td>
+          <td>Campaigns are integrated with diagnostics and billing usage reporting.</td>
+        </tr>
+        <tr>
+          <td>Preflight policy checks</td>
+          <td><span class="pill partial">Hardening</span></td>
+          <td>Audience, template eligibility, consent, and plan/access constraints are checked before launch.</td>
+          <td>Policy safety is strong but continues to be hardened.</td>
+        </tr>
+        <tr>
+          <td>Pause/resume and execution safety</td>
+          <td><span class="pill partial">Hardening</span></td>
+          <td>Campaign execution includes failure rollups, status tracking, and dispatch safeguards.</td>
+          <td>Duplicate replay safety is an area that must stay under regression coverage.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>3.8 Contacts, Lists, Segments, Consent</h3>
+    <table>
+      <thead><tr><th>Feature</th><th>Status</th><th>Current Flow</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Contacts CRUD</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Tenant stores contacts and uses them in inbox, campaigns, and segmentation.</td>
+          <td>Foundational audience model is stable.</td>
+        </tr>
+        <tr>
+          <td>Lists and segments</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Tenant groups contacts for campaign targeting and audience management.</td>
+          <td>Supports campaign and audience workflows.</td>
+        </tr>
+        <tr>
+          <td>Consent and suppression</td>
+          <td><span class="pill partial">Hardening</span></td>
+          <td>Consent-related fields and suppression model exist, and campaign/send guardrails use them.</td>
+          <td>Localized opt-out keyword expansion and CSV consent hardening remain active areas.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>3.9 Widgets / Start Conversation Surface</h3>
+    <table>
+      <thead><tr><th>Feature</th><th>Status</th><th>Current Flow</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Customer Start Conversation widget types</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Tenant can create widget-style surfaces such as QR/link/floater-type contact entry points to start WhatsApp conversations.</td>
+          <td>Positioned as widget variants rather than cluttering dashboard with raw QR blocks.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>3.10 Billing</h3>
+    <table>
+      <thead><tr><th>Feature</th><th>Status</th><th>Current Flow</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Billing overview</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Tenant sees current plan, status, renewal state, transaction access, and invoice-related actions.</td>
+          <td>Recovery CTA wording has been heavily normalized.</td>
+        </tr>
+        <tr>
+          <td>Past due / expired / renewal handling</td>
+          <td><span class="pill partial">Hardening</span></td>
+          <td>Past-due and expired states surface recovery paths like renew, resume, update payment, or plans review.</td>
+          <td>Owner-vs-non-owner recovery gating is now explicit in multiple billing pages.</td>
+        </tr>
+        <tr>
+          <td>Invoices and payment details</td>
+          <td><span class="pill partial">Hardening</span></td>
+          <td>Tenant can inspect payment history and payment details with failure reasons and recovery actions.</td>
+          <td>Download/view flows must remain under end-to-end testing.</td>
+        </tr>
+        <tr>
+          <td>Transactions and top-up</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Transaction surface shows payment history and top-up actions, with owner-only gating enforced.</td>
+          <td>Non-owners are explicitly told they can view but not execute billing actions.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>3.11 Support Desk</h3>
+    <table>
+      <thead><tr><th>Feature</th><th>Status</th><th>Current Flow</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Tenant support hub / ticketing</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Tenant can reach support and link into recovery workflows from blocked states.</td>
+          <td>Used as fallback for billing, connection, and diagnostics recovery.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>3.12 Settings and Team</h3>
+    <table>
+      <thead><tr><th>Feature</th><th>Status</th><th>Current Flow</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Team management</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Owner manages team members, assignments, and operational access.</td>
+          <td>Mobile spacing and CTA consistency have been improved.</td>
+        </tr>
+        <tr>
+          <td>Tenant settings</td>
+          <td><span class="pill partial">Hardening</span></td>
+          <td>Profile and settings exist and are usable across screen sizes.</td>
+          <td>Remaining mobile consistency sweeps continue as needed.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="admin-modules">4. Platform Admin Modules</h2>
+    <table>
+      <thead><tr><th>Module</th><th>Status</th><th>Current Flow</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Tenant management</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Admin can inspect tenants, act on plans, billing state, and operational health.</td>
+          <td>Admin impersonation/login-as-user is present.</td>
+        </tr>
+        <tr>
+          <td>Plan management</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Admin defines available plans and billing characteristics.</td>
+          <td>Feeds onboarding and billing recovery flows.</td>
+        </tr>
+        <tr>
+          <td>Pricing snapshot management</td>
+          <td><span class="pill partial">Hardening</span></td>
+          <td>Admin imports Meta pricing tables, currently with CSV/versioning support rather than official JSON feed.</td>
+          <td>Must remain auditable and immutable by version/effective date.</td>
+        </tr>
+        <tr>
+          <td>System health and Meta readiness</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Platform health page includes Meta readiness checks and system health summaries.</td>
+          <td>Used for ops and release validation.</td>
+        </tr>
+        <tr>
+          <td>Alerts center</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Admin sees alert rules and surfaced operational issues such as webhook failures, queue failures, sync issues, and other platform concerns.</td>
+          <td>Tenant-facing alert surfaces also exist where relevant.</td>
+        </tr>
+        <tr>
+          <td>Support and diagnostics</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Admin can troubleshoot tenants, campaigns, messages, connections, and webhook failures using diagnostics surfaces.</td>
+          <td>Diagnostics bundles and replay tools support support workflows.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="developer-surface">5. Developer Surface</h2>
+    <table>
+      <thead><tr><th>Feature</th><th>Status</th><th>Current Flow</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Tenant API keys</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Tenant generates scoped API keys for controlled external integration.</td>
+          <td>Key scopes enforce tenant boundaries.</td>
+        </tr>
+        <tr>
+          <td>Tenant outbound webhooks</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Tenant can define webhook endpoints, choose events, inspect logs, and replay delivery where supported.</td>
+          <td>Supports event signing, retry logging, and delivery visibility.</td>
+        </tr>
+        <tr>
+          <td>Developer docs surface</td>
+          <td><span class="pill ok">Implemented</span></td>
+          <td>Tenant-facing developer area covers keys, scopes, webhook events, and payload guidance.</td>
+          <td>Contract hardening remains an ongoing concern.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="core-flows">6. Core End-to-End Flows</h2>
+
+    <h3>6.1 New Tenant Commercial Flow</h3>
+    <ol>
+      <li>Visitor signs up.</li>
+      <li>User verifies account and enters onboarding.</li>
+      <li>User selects plan or enters billing-relevant onboarding stage.</li>
+      <li>System creates/activates tenant context.</li>
+      <li>User proceeds to app dashboard and setup surfaces.</li>
+      <li>Subscription gating determines what modules are available versus recovery-only views.</li>
+    </ol>
+
+    <h3>6.2 WhatsApp Connection Setup Flow</h3>
+    <ol>
+      <li>Tenant owner opens Connections.</li>
+      <li>Owner starts Embedded Signup or manual connection recovery flow.</li>
+      <li>Meta callback returns to platform.</li>
+      <li>System performs token exchange / connection creation / metadata persistence.</li>
+      <li>Cross-tenant asset ownership is checked.</li>
+      <li>Connection is activated or marked with recoverable sync/setup issues.</li>
+      <li>Owner can manually trigger health sync if needed.</li>
+    </ol>
+
+    <h3>6.3 Inbound Webhook to Inbox Flow</h3>
+    <ol>
+      <li>Meta sends webhook payload.</li>
+      <li>Webhook is validated, stored, and processed through queue-backed handlers.</li>
+      <li>Inbound message creates/updates conversation and message records.</li>
+      <li>Realtime events update inbox list/detail screens.</li>
+      <li>Fallback stream polling repairs delayed or missed client state.</li>
+      <li>Unread counters and activity summaries are recalculated or repaired as needed.</li>
+    </ol>
+
+    <h3>6.4 Agent Reply Flow</h3>
+    <ol>
+      <li>Agent opens conversation.</li>
+      <li>System determines if free-form reply is allowed or template is required.</li>
+      <li>Pre-send validation checks connection state, access state, policy state, and payload validity.</li>
+      <li>Message enters send pipeline.</li>
+      <li>Provider status updates feed back into diagnostics and timeline rendering.</li>
+      <li>If failed, exact error context is retained where available.</li>
+    </ol>
+
+    <h3>6.5 Template Lifecycle Flow</h3>
+    <ol>
+      <li>Tenant creates or edits template locally.</li>
+      <li>Template is submitted/synced to Meta.</li>
+      <li>Local template record maps to remote template id/name/language/state.</li>
+      <li>Webhook and sync jobs update status, rejection reason, and eligibility.</li>
+      <li>Template can be used from inbox, campaigns, or dedicated send test screens if it is sendable.</li>
+      <li>Recent send history provides support diagnostics and failure context.</li>
+    </ol>
+
+    <h3>6.6 Campaign Flow</h3>
+    <ol>
+      <li>Tenant selects template and audience.</li>
+      <li>System performs preflight checks: template eligibility, audience consent, connection state, subscription state.</li>
+      <li>Campaign is queued for dispatch.</li>
+      <li>Per-recipient sends flow through pipeline and status tracking.</li>
+      <li>Failures roll into campaign diagnostics and usage/billing views.</li>
+    </ol>
+
+    <h3>6.7 Billing Recovery Flow</h3>
+    <ol>
+      <li>Subscription becomes past due, expired, canceled grace, or payment-failed.</li>
+      <li>Billing overview and related pages display state-specific recovery CTAs.</li>
+      <li>Owner can renew, resume, update payment, or review plans depending on state.</li>
+      <li>Non-owner can view context but cannot execute owner-only recovery actions.</li>
+      <li>Payment/order callbacks update subscription status and access restoration state.</li>
+    </ol>
+
+    <h2 id="billing-flows">7. Billing and Subscription Flows</h2>
+    <table>
+      <thead><tr><th>State</th><th>Current Meaning</th><th>User Experience</th><th>Access Effect</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Trial active</td>
+          <td>Tenant is inside allowed trial period</td>
+          <td>Normal use with onboarding and billing awareness</td>
+          <td>Paid modules may be available depending on current rules</td>
+        </tr>
+        <tr>
+          <td>Past due</td>
+          <td>Payment recovery required</td>
+          <td>Billing pages show recovery CTAs and failure context</td>
+          <td>Access gating applies outside billing/profile/support-safe paths</td>
+        </tr>
+        <tr>
+          <td>Expired</td>
+          <td>Billing cycle ended without active coverage</td>
+          <td>Renewal-focused recovery</td>
+          <td>Restricted access until successful recovery</td>
+        </tr>
+        <tr>
+          <td>Canceled grace</td>
+          <td>Cancel applied but current period still valid</td>
+          <td>User may still resume before end date</td>
+          <td>Normal use until end date, then restricted</td>
+        </tr>
+        <tr>
+          <td>Renewed</td>
+          <td>Payment succeeded and active period restored</td>
+          <td>Billing pages should reflect settled recovery state</td>
+          <td>Access should be restored</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="section-note">
+      Billing logic has undergone repeated hardening. Current expectation is: historical billing records remain stable, recovery CTAs are owner-aware, payment failures preserve failure reason context, and duplicate callbacks should not re-run commercial state transitions.
+    </div>
+
+    <h2 id="diagnostics">8. Diagnostics, Alerts, and Support Flows</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Diagnostics Surfaces</h3>
+        <ul>
+          <li>Webhook diagnostics and replay</li>
+          <li>Connection health and sync state</li>
+          <li>Message diagnostics in inbox</li>
+          <li>Template diagnostics in list/detail/send pages</li>
+          <li>Campaign failure summaries</li>
+          <li>Billing history and payment detail context</li>
+          <li>Platform system health and Meta readiness</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Alerting Surfaces</h3>
+        <ul>
+          <li>Platform alert center</li>
+          <li>Tenant alert center</li>
+          <li>Webhook failure visibility</li>
+          <li>Queue failure visibility</li>
+          <li>Connection health warnings</li>
+          <li>Billing failure and recovery context</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>Support Bundle Pattern</h3>
+    <ul>
+      <li>Template surfaces now support diagnostics bundle copy/export for failed send context.</li>
+      <li>Bundles include template identity, sync state, last Meta error, latest failed send, timeline, payload, and message identifiers.</li>
+      <li>This pattern is useful for support escalation, debugging, and AI-agent-assisted troubleshooting.</li>
+    </ul>
+
+    <h2 id="state-models">9. Important State Models</h2>
+    <table>
+      <thead><tr><th>Domain</th><th>Typical Current States</th><th>Why It Matters</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Connection</td>
+          <td>active, degraded, stale metadata, sync failed, reconnect needed</td>
+          <td>Determines whether outbound messaging and inbox ops are trustworthy</td>
+        </tr>
+        <tr>
+          <td>Template</td>
+          <td>draft, pending, approved, active, rejected, paused/disabled depending on provider return state</td>
+          <td>Determines whether template can be sent and how it appears in campaigns/inbox</td>
+        </tr>
+        <tr>
+          <td>Outbound message</td>
+          <td>queued, accepted, sent, delivered, read, failed</td>
+          <td>Drives support diagnostics and customer-facing trust</td>
+        </tr>
+        <tr>
+          <td>Campaign</td>
+          <td>draft, queued, running, paused, completed, failed/partial</td>
+          <td>Controls broadcast execution and usage attribution</td>
+        </tr>
+        <tr>
+          <td>Subscription</td>
+          <td>trial, active, past_due, expired, canceled_grace, renewed</td>
+          <td>Controls access gating and recovery UX</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="known-partials">10. Known Partial Areas</h2>
+    <table>
+      <thead><tr><th>Area</th><th>Current State</th><th>Why AI Agent Should Treat It Carefully</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Inbox realtime and unread counters</td>
+          <td><span class="pill partial">Hardening</span></td>
+          <td>System has strong repair/fallback flows, but this remains a high-regression operational area.</td>
+        </tr>
+        <tr>
+          <td>Template sync edge cases</td>
+          <td><span class="pill partial">Hardening</span></td>
+          <td>Meta-side changes, header media requirements, and name conflicts require diagnostics-first debugging.</td>
+        </tr>
+        <tr>
+          <td>Billing recovery edge transitions</td>
+          <td><span class="pill partial">Hardening</span></td>
+          <td>Expired → renewed, failed callback duplicates, and access restoration must be treated as sensitive state transitions.</td>
+        </tr>
+        <tr>
+          <td>Meta API/version-sensitive metadata</td>
+          <td><span class="pill partial">Hardening</span></td>
+          <td>Fields can be nullable or missing depending on API version and webhook payload shape.</td>
+        </tr>
+        <tr>
+          <td>Consent localization and CSV safety</td>
+          <td><span class="pill partial">Hardening</span></td>
+          <td>AI agents should avoid assuming consent defaults; use explicit stored states and suppression flags.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="card">
+      <h2 style="margin-top:0;border-top:0;padding-top:0;">AI-Agent Usage Guidance</h2>
+      <ul>
+        <li>Assume the platform is already broad and operational. Prefer polishing and hardening existing flows over inventing parallel ones.</li>
+        <li>Respect tenant isolation first. Almost every action is tenant-scoped unless explicitly in platform admin context.</li>
+        <li>Treat billing, connection ownership, and outbound send policy as high-risk state domains.</li>
+        <li>When diagnosing failures, first check diagnostics surfaces, payload retention, and latest status reconciliation instead of assuming missing data.</li>
+        <li>When modifying UI, keep owner-vs-non-owner behavior explicit, especially in billing.</li>
+        <li>When modifying inbox behavior, preserve stream fallback and repair mechanics.</li>
+        <li>When modifying template behavior, preserve sendability alignment across inbox, campaigns, and template test flows.</li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>

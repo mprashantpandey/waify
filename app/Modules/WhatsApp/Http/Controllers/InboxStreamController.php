@@ -7,6 +7,7 @@ use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use App\Modules\WhatsApp\Models\WhatsAppConversationNote;
 use App\Modules\WhatsApp\Models\WhatsAppConversationAuditEvent;
+use App\Modules\WhatsApp\Services\ConversationAutomationService;
 use App\Modules\WhatsApp\Services\CustomerCareWindowService;
 use App\Modules\WhatsApp\Services\InboxMetricsService;
 use Illuminate\Http\Request;
@@ -17,7 +18,8 @@ class InboxStreamController extends Controller
 {
     public function __construct(
         protected CustomerCareWindowService $customerCareWindowService,
-        protected InboxMetricsService $inboxMetricsService
+        protected InboxMetricsService $inboxMetricsService,
+        protected ConversationAutomationService $conversationAutomationService
     ) {
     }
 
@@ -57,6 +59,7 @@ class InboxStreamController extends Controller
             ->with([
                 'contact',
                 'connection',
+                'assignee:id,name',
                 'latestAuditEvent' => function ($query) {
                     $query->select([
                         'whatsapp_conversation_audit_events.id',
@@ -111,6 +114,7 @@ class InboxStreamController extends Controller
             ->with([
                 'contact',
                 'connection',
+                'assignee:id,name',
                 'latestAuditEvent' => function ($query) {
                     $query->select([
                         'whatsapp_conversation_audit_events.id',
@@ -356,6 +360,7 @@ class InboxStreamController extends Controller
                 'description' => $latestAudit->description,
                 'created_at' => $latestAudit->created_at?->toIso8601String(),
             ] : null,
+            'automation' => $this->conversationAutomationService->present($conversation),
             'customer_care_window' => $this->formatCustomerCareWindowState(
                 $this->customerCareWindowService->forConversation($conversation)
             ),

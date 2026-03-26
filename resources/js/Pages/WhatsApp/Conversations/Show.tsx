@@ -94,6 +94,16 @@ interface Conversation {
     };
     assigned_to?: number | null;
     priority?: string | null;
+    automation?: {
+        actor: 'ai' | 'chatbot' | 'human';
+        state: 'active' | 'handed_off' | 'stopped';
+        label: string;
+        description?: string | null;
+        tone?: 'ai' | 'chatbot' | 'human' | null;
+        assignment_source?: 'human' | 'chatbot' | 'auto_assign' | 'ai' | null;
+        last_event_type?: string | null;
+        last_event_at?: string | null;
+    } | null;
 }
 
 interface TemplateItem {
@@ -225,6 +235,16 @@ const formatWindowCountdown = (expiresAt: string | null | undefined, nowTick: nu
     const minutes = totalMinutes % 60;
 
     return minutes === 0 ? `Closes in ${hours}h` : `Closes in ${hours}h ${minutes}m`;
+};
+
+const automationToneClasses = (tone?: 'ai' | 'chatbot' | 'human' | null) => {
+    if (tone === 'ai') {
+        return 'border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-900/40 dark:bg-violet-900/20 dark:text-violet-200';
+    }
+    if (tone === 'chatbot') {
+        return 'border-teal-200 bg-teal-50 text-teal-800 dark:border-teal-900/40 dark:bg-teal-900/20 dark:text-teal-200';
+    }
+    return 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-200';
 };
 
 const normalizeMessage = (value: any): Message | null => {
@@ -1126,6 +1146,7 @@ export default function ConversationsShow({
                             data.conversation.customer_care_window ?? prev.customer_care_window,
                         assigned_to: data.conversation.assignee_id ?? prev.assigned_to,
                         priority: data.conversation.priority ?? prev.priority,
+                        automation: data.conversation.automation ?? prev.automation,
                     }));
 
                     if (
@@ -1819,6 +1840,24 @@ export default function ConversationsShow({
                     </div>
                 </div>
 
+                {conversation.automation && (
+                    <div className="border-b border-[#d1d7db] bg-white px-4 py-2 dark:border-gray-800 dark:bg-gray-900">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span
+                                className={cn(
+                                    'inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold',
+                                    automationToneClasses(conversation.automation.tone)
+                                )}
+                            >
+                                {conversation.automation.label}
+                            </span>
+                            {conversation.automation.description && (
+                                <p className="text-xs text-gray-600 dark:text-gray-300">{conversation.automation.description}</p>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 {/* Mobile drawer */}
                 {mobileDrawerOpen && (
                     <>
@@ -1868,6 +1907,22 @@ export default function ConversationsShow({
                                         </Badge>
                                         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{customerCareWindowHelperText}</p>
                                     </div>
+                                    {conversation.automation && (
+                                        <div>
+                                            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Handled by</p>
+                                            <div
+                                                className={cn(
+                                                    'rounded-xl border px-3 py-2 text-sm',
+                                                    automationToneClasses(conversation.automation.tone)
+                                                )}
+                                            >
+                                                <div className="font-semibold">{conversation.automation.label}</div>
+                                                {conversation.automation.description && (
+                                                    <div className="mt-1 text-xs opacity-80">{conversation.automation.description}</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -2032,6 +2087,24 @@ export default function ConversationsShow({
                                 </Badge>
                             </div>
                             <p className="text-xs text-gray-500 dark:text-gray-400">{customerCareWindowHelperText}</p>
+                            {conversation.automation && (
+                                <>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Handled by</span>
+                                        <span
+                                            className={cn(
+                                                'inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold',
+                                                automationToneClasses(conversation.automation.tone)
+                                            )}
+                                        >
+                                            {conversation.automation.label}
+                                        </span>
+                                    </div>
+                                    {conversation.automation.description && (
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">{conversation.automation.description}</p>
+                                    )}
+                                </>
+                            )}
                         </div>
                     </div>
 

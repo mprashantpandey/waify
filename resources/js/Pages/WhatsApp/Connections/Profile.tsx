@@ -16,6 +16,7 @@ interface BusinessProfile {
     address: string;
     email: string;
     website: string;
+    website_secondary?: string;
     vertical: string;
     vertical_label?: string;
     profile_picture_url?: string | null;
@@ -43,6 +44,7 @@ export default function ConnectionProfileEdit({ connection, verticalOptions }: {
         profile_address: string;
         profile_email: string;
         profile_website: string;
+        profile_website_secondary: string;
         profile_vertical: string;
         profile_image: File | null;
     }>({
@@ -51,6 +53,7 @@ export default function ConnectionProfileEdit({ connection, verticalOptions }: {
         profile_address: connection.business_profile?.address || '',
         profile_email: connection.business_profile?.email || '',
         profile_website: connection.business_profile?.website || '',
+        profile_website_secondary: connection.business_profile?.website_secondary || '',
         profile_vertical: connection.business_profile?.vertical || '',
         profile_image: null,
     });
@@ -108,6 +111,8 @@ export default function ConnectionProfileEdit({ connection, verticalOptions }: {
                                 {connection.business_profile_error ? (
                                     <Alert variant="warning">{connection.business_profile_error}</Alert>
                                 ) : null}
+
+                                <Alert>WhatsApp Cloud API business profiles currently support photo, about, description, address, email, up to two websites, and business category. Business hours are not exposed by Meta on this profile endpoint, so they cannot be synced into WhatsApp from Zyptos.</Alert>
 
                                 <div className="grid gap-4 md:grid-cols-2">
                                     <div className="md:col-span-2">
@@ -181,7 +186,7 @@ export default function ConnectionProfileEdit({ connection, verticalOptions }: {
                                     </div>
 
                                     <div>
-                                        <InputLabel htmlFor="profile_website" value="Website" />
+                                        <InputLabel htmlFor="profile_website" value="Primary website" />
                                         <TextInput
                                             id="profile_website"
                                             value={data.profile_website}
@@ -190,6 +195,18 @@ export default function ConnectionProfileEdit({ connection, verticalOptions }: {
                                             placeholder="https://example.com"
                                         />
                                         <InputError message={errors.profile_website} className="mt-2" />
+                                    </div>
+
+                                    <div>
+                                        <InputLabel htmlFor="profile_website_secondary" value="Secondary website" />
+                                        <TextInput
+                                            id="profile_website_secondary"
+                                            value={data.profile_website_secondary}
+                                            onChange={(event) => setData('profile_website_secondary', event.target.value)}
+                                            className="mt-1 block w-full"
+                                            placeholder="https://help.example.com"
+                                        />
+                                        <InputError message={errors.profile_website_secondary} className="mt-2" />
                                     </div>
 
                                     <div>
@@ -278,7 +295,12 @@ export default function ConnectionProfileEdit({ connection, verticalOptions }: {
                                         </div>
                                         <div className="flex items-start gap-3 rounded-2xl bg-[#f7f5f3] p-4 dark:bg-[#202c33]">
                                             <Globe className="mt-0.5 h-4 w-4 text-gray-500" />
-                                            <span className="text-gray-900 dark:text-gray-100">{data.profile_website || 'No website added'}</span>
+                                            <div className="space-y-1">
+                                                <span className="block text-gray-900 dark:text-gray-100">{data.profile_website || 'No primary website added'}</span>
+                                                {data.profile_website_secondary ? (
+                                                    <span className="block text-gray-600 dark:text-gray-400">{data.profile_website_secondary}</span>
+                                                ) : null}
+                                            </div>
                                         </div>
                                         <div className="flex items-start gap-3 rounded-2xl bg-[#f7f5f3] p-4 dark:bg-[#202c33]">
                                             <MapPin className="mt-0.5 h-4 w-4 text-gray-500" />
