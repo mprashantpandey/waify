@@ -1,6 +1,9 @@
 <?php
 
+use App\Modules\WhatsApp\Models\WhatsAppConversation;
+use App\Modules\WhatsApp\Support\WebhookLogSanitizer;
 use Illuminate\Support\Facades\Broadcast;
+use Illuminate\Support\Facades\Log;
 
 /*
 |--------------------------------------------------------------------------
@@ -12,6 +15,14 @@ use Illuminate\Support\Facades\Broadcast;
 | used to check if an authenticated user can listen to the channel.
 |
 */
+
+$broadcastAuthDebug = static function (string $message, array $context = []): void {
+    if (!config('broadcasting.auth_debug', false)) {
+        return;
+    }
+
+    Log::debug($message, $context);
+};
 
 Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
     return (int) $user->id === (int) $id;
@@ -26,67 +37,98 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
 |
 */
 
-// Account inbox channel - for conversation list updates
-Broadcast::channel('account.{accountId}.whatsapp.inbox', function ($user, $accountId) {
+Broadcast::channel('account.{accountId}.whatsapp.inbox', function ($user, $accountId) use ($broadcastAuthDebug) {
     $account = \App\Models\Account::find($accountId);
-    
+
     if (!$account) {
-        \Log::debug('WhatsApp inbox channel auth denied: account not found', ['user_id' => $user->id, 'account_id' => $accountId]);
+        $broadcastAuthDebug('Broadcast channel auth denied', WebhookLogSanitizer::authChannelContext($user->id, "account.{$accountId}.whatsapp.inbox", [
+            'scope' => 'whatsapp_inbox',
+            'reason' => 'account_missing',
+            'account_id' => (int) $accountId,
+        ]));
+
         return false;
     }
-    
-    // Owner always has access; otherwise check account_users pivot
+
     $isOwner = $account->owner_id && (int) $account->owner_id === (int) $user->id;
-    $membership = $account->users()->where('user_id', $user->id)->first();
-    
-    if (!$isOwner && !$membership) {
-        \Log::debug('WhatsApp inbox channel auth denied: not owner or member', ['user_id' => $user->id, 'account_id' => $accountId]);
+    $isMember = $account->users()->where('user_id', $user->id)->exists();
+
+    if (!$isOwner && !$isMember) {
+        $broadcastAuthDebug('Broadcast channel auth denied', WebhookLogSanitizer::authChannelContext($user->id, "account.{$accountId}.whatsapp.inbox", [
+            'scope' => 'whatsapp_inbox',
+            'reason' => 'membership_missing',
+            'account_id' => (int) $accountId,
+        ]));
+
         return false;
     }
-    
-    \Log::debug('WhatsApp inbox channel auth granted', ['user_id' => $user->id, 'account_id' => $accountId, 'via' => $isOwner ? 'owner' : 'member']);
-    // Return minimal user data for presence if needed
+
+    $broadcastAuthDebug('Broadcast channel auth granted', WebhookLogSanitizer::authChannelContext($user->id, "account.{$accountId}.whatsapp.inbox", [
+        'scope' => 'whatsapp_inbox',
+        'account_id' => (int) $accountId,
+        'access' => $isOwner ? 'owner' : 'member',
+    ]));
+
     return [
         'id' => $user->id,
         'name' => $user->name,
     ];
 });
 
-// Conversation thread channel - for message updates within a conversation
-Broadcast::channel('account.{accountId}.whatsapp.conversation.{conversationId}', function ($user, $accountId, $conversationId) {
+Broadcast::channel('account.{accountId}.whatsapp.conversation.{conversationId}', function ($user, $accountId, $conversationId) use ($broadcastAuthDebug) {
     $account = \App\Models\Account::find($accountId);
-    
+
     if (!$account) {
-        \Log::debug('WhatsApp conversation channel auth denied: account not found', ['user_id' => $user->id, 'account_id' => $accountId]);
+        $broadcastAuthDebug('Broadcast channel auth denied', WebhookLogSanitizer::authChannelContext($user->id, "account.{$accountId}.whatsapp.conversation.{$conversationId}", [
+            'scope' => 'whatsapp_conversation',
+            'reason' => 'account_missing',
+            'account_id' => (int) $accountId,
+            'conversation_id' => (int) $conversationId,
+        ]));
+
         return false;
     }
-    
-    // Owner always has access; otherwise check account_users pivot
+
     $isOwner = $account->owner_id && (int) $account->owner_id === (int) $user->id;
-    $membership = $account->users()->where('user_id', $user->id)->first();
-    
-    if (!$isOwner && !$membership) {
-        \Log::debug('WhatsApp conversation channel auth denied: not owner or member', ['user_id' => $user->id, 'account_id' => $accountId]);
+    $isMember = $account->users()->where('user_id', $user->id)->exists();
+
+    if (!$isOwner && !$isMember) {
+        $broadcastAuthDebug('Broadcast channel auth denied', WebhookLogSanitizer::authChannelContext($user->id, "account.{$accountId}.whatsapp.conversation.{$conversationId}", [
+            'scope' => 'whatsapp_conversation',
+            'reason' => 'membership_missing',
+            'account_id' => (int) $accountId,
+            'conversation_id' => (int) $conversationId,
+        ]));
+
         return false;
     }
-    
-    // Verify conversation belongs to this account
-    $conversation = \App\Modules\WhatsApp\Models\WhatsAppConversation::find($conversationId);
-    
+
+    $conversation = WhatsAppConversation::find($conversationId);
+
     if (!$conversation || !account_ids_match($conversation->account_id, $accountId)) {
-        \Log::debug('WhatsApp conversation channel auth denied: conversation not found or wrong account', ['user_id' => $user->id, 'account_id' => $accountId, 'conversation_id' => $conversationId]);
+        $broadcastAuthDebug('Broadcast channel auth denied', WebhookLogSanitizer::authChannelContext($user->id, "account.{$accountId}.whatsapp.conversation.{$conversationId}", [
+            'scope' => 'whatsapp_conversation',
+            'reason' => 'conversation_mismatch',
+            'account_id' => (int) $accountId,
+            'conversation_id' => (int) $conversationId,
+        ]));
+
         return false;
     }
-    
-    \Log::debug('WhatsApp conversation channel auth granted', ['user_id' => $user->id, 'account_id' => $accountId, 'conversation_id' => $conversationId, 'via' => $isOwner ? 'owner' : 'member']);
-    // Return minimal user data
+
+    $broadcastAuthDebug('Broadcast channel auth granted', WebhookLogSanitizer::authChannelContext($user->id, "account.{$accountId}.whatsapp.conversation.{$conversationId}", [
+        'scope' => 'whatsapp_conversation',
+        'account_id' => (int) $accountId,
+        'conversation_id' => (int) $conversationId,
+        'access' => $isOwner ? 'owner' : 'member',
+    ]));
+
     return [
         'id' => $user->id,
         'name' => $user->name,
     ];
 });
 
-// Template status channel - for realtime template approval/rejection updates
 Broadcast::channel('account.{accountId}.whatsapp.templates', function ($user, $accountId) {
     $account = \App\Models\Account::find($accountId);
 

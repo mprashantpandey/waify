@@ -17,6 +17,8 @@ use App\Modules\WhatsApp\Services\WebhookProcessor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Mockery;
 use Tests\TestCase;
 
 class RealtimeTest extends TestCase
@@ -115,6 +117,44 @@ class RealtimeTest extends TestCase
             ]);
 
         $this->assertContains($response->status(), [200, 403]);
+    }
+
+    public function test_broadcast_auth_debug_logging_is_disabled_by_default(): void
+    {
+        Log::spy();
+
+        $response = $this->actingAs($this->user)
+            ->post('/broadcasting/auth', [
+                'socket_id' => 'test-socket-id',
+                'channel_name' => "private-account.{$this->account->id}.whatsapp.inbox",
+            ]);
+
+        $response->assertStatus(200);
+        Log::shouldNotHaveReceived('debug', ['Broadcast auth attempt', Mockery::any()]);
+    }
+
+    public function test_broadcast_auth_debug_logging_uses_minimal_structured_fields(): void
+    {
+        config()->set('broadcasting.auth_debug', true);
+        Log::spy();
+
+        $response = $this->actingAs($this->nonMember)
+            ->post('/broadcasting/auth', [
+                'socket_id' => 'test-socket-id',
+                'channel_name' => "private-account.{$this->account->id}.whatsapp.inbox",
+            ]);
+
+        $this->assertContains($response->status(), [200, 403]);
+
+        Log::shouldHaveReceived('debug')
+            ->with('Broadcast auth attempt', Mockery::on(function (array $context): bool {
+                return isset($context['user_id'], $context['channel'])
+                    && !array_key_exists('channel_patterns', $context)
+                    && !array_key_exists('registered_patterns', $context)
+                    && !array_key_exists('normalized_channel', $context)
+                    && !array_key_exists('channels_count', $context);
+            }));
+
     }
 
     public function test_webhook_broadcasts_message_created(): void

@@ -10,6 +10,8 @@ use App\Modules\WhatsApp\Models\WhatsAppWebhookEvent;
 use App\Modules\WhatsApp\Services\WebhookConnectionResolver;
 use App\Modules\WhatsApp\Services\WebhookEventClassifier;
 use App\Modules\WhatsApp\Services\WebhookProcessor;
+use App\Modules\WhatsApp\Support\WebhookLogSanitizer;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -32,11 +34,9 @@ class WebhookController extends Controller
         try {
             $verifyToken = (string) PlatformSetting::get('whatsapp.webhook_verify_token', config('whatsapp.webhook.verify_token', ''));
 
-            Log::channel('whatsapp')->info('Central webhook verify called', [
-                'ip' => $request->ip(),
-                'path' => $request->path(),
-                'full_url' => $request->fullUrl(),
-            ]);
+            if (config('whatsapp.webhook.debug_logging', false)) {
+                Log::channel('whatsapp')->info('Central webhook verify called', WebhookLogSanitizer::requestContext($request));
+            }
 
             $key = 'webhook-verify-central-'.$request->ip();
             if (RateLimiter::tooManyAttempts($key, 10)) {
@@ -48,13 +48,14 @@ class WebhookController extends Controller
             $token = $this->queryValue($request, 'hub.verify_token', 'hub_verify_token');
             $challenge = $this->queryValue($request, 'hub.challenge', 'hub_challenge');
 
-            Log::channel('whatsapp')->info('Central webhook verification attempt', [
-                'mode' => $mode,
-                'token_received_length' => $token ? strlen($token) : 0,
-                'token_expected_length' => $verifyToken !== '' ? strlen($verifyToken) : 0,
-                'has_challenge' => !empty($challenge),
-                'query_params' => $request->query(),
-            ]);
+            if (config('whatsapp.webhook.debug_logging', false)) {
+                Log::channel('whatsapp')->info('Central webhook verification attempt', WebhookLogSanitizer::verifyAttemptContext(
+                    $request,
+                    $mode,
+                    $challenge,
+                    $verifyToken !== ''
+                ));
+            }
 
             if ($verifyToken === '') {
                 abort(403, 'Central webhook verify token is not configured');
@@ -70,12 +71,10 @@ class WebhookController extends Controller
 
             abort(403, 'Forbidden');
         } catch (\Throwable $e) {
-            Log::channel('whatsapp')->error('Central webhook verification exception', [
+            Log::channel('whatsapp')->error('Central webhook verification exception', WebhookLogSanitizer::exceptionContext($e, [
                 'ip' => $request->ip(),
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ]);
+                'path' => $request->path(),
+            ]));
 
             throw $e;
         }
@@ -126,7 +125,6 @@ class WebhookController extends Controller
         Log::channel('whatsapp')->info('Central webhook received', [
             'correlation_id' => $correlationId,
             'connection_id' => $connection->id,
-            'connection_slug' => $connection->slug,
             'phone_number_id' => $phoneNumberId,
             'waba_id' => $wabaId,
             'entry_count' => $entryCount,
@@ -167,7 +165,11 @@ class WebhookController extends Controller
         $dedupeTtlSeconds = max(30, (int) config('whatsapp.webhook.dedupe_ttl', 300));
         $dedupeKey = "wa:webhook:processed:{$connection->id}:{$idempotencyKey}";
 
-        if (Cache::has($dedupeKey)) {
+        if (!Cache::add($dedupeKey, [
+            'status' => 'processing',
+            'correlation_id' => $correlationId,
+            'claimed_at' => now()->timestamp,
+        ], now()->addSeconds($dedupeTtlSeconds))) {
             return response()->json([
                 'success' => true,
                 'duplicate' => true,
@@ -175,88 +177,109 @@ class WebhookController extends Controller
             ], 200);
         }
 
-        if (!Schema::hasTable('whatsapp_webhook_events')) {
-            try {
-                $this->webhookProcessor->process($payload, $connection, $correlationId);
-                Cache::put($dedupeKey, now()->timestamp, now()->addSeconds($dedupeTtlSeconds));
-
-                return response()->json([
-                    'success' => true,
-                    'queued' => false,
-                    'correlation_id' => $correlationId,
-                ], 200);
-            } catch (\Throwable $e) {
-                Log::channel('whatsapp')->error('Fallback inline central webhook processing failed', [
-                    'connection_id' => $connection->id,
-                    'correlation_id' => $correlationId,
-                    'error' => $e->getMessage(),
-                ]);
-
-                return response()->json([
-                    'success' => false,
-                    'queued' => false,
-                    'correlation_id' => $correlationId,
-                    'error' => 'Processing failed',
-                ], 200);
-            }
-        }
-
-        $classification = $this->webhookEventClassifier->classify($payload);
-        $headersSubset = [
-            'x_hub_signature_256' => $signatureHeader,
-            'x_forwarded_for' => (string) ($request->header('X-Forwarded-For') ?? ''),
-            'x_request_id' => (string) ($request->header('X-Request-Id') ?? ''),
-            'user_agent' => (string) ($request->userAgent() ?? ''),
-            'message_count' => $messageCount,
-            'phone_number_id' => $phoneNumberId,
-            'waba_id' => $wabaId,
-        ];
+        $releaseDedupeKey = true;
 
         try {
-            $event = WhatsAppWebhookEvent::create([
-                'account_id' => $connection->account_id,
-                'tenant_id' => $connection->account_id,
-                'whatsapp_connection_id' => $connection->id,
-                'provider' => 'whatsapp_meta',
-                'event_type' => $classification['event_type'] ?? 'unknown',
-                'object_type' => $classification['object_type'] ?? 'whatsapp_business_account',
-                'idempotency_key' => $idempotencyKey,
-                'correlation_id' => $correlationId,
-                'status' => 'received',
-                'payload' => $payload,
-                'delivery_headers' => $headersSubset,
-                'signature_valid' => is_bool($signatureValid) ? $signatureValid : null,
-                'payload_size' => $payloadSize,
-                'ip' => $request->ip(),
-                'user_agent' => (string) $request->userAgent(),
-            ]);
+            if (!Schema::hasTable('whatsapp_webhook_events')) {
+                try {
+                    $this->webhookProcessor->process($payload, $connection, $correlationId);
+                    Cache::put($dedupeKey, [
+                        'status' => 'processed',
+                        'correlation_id' => $correlationId,
+                        'processed_at' => now()->timestamp,
+                    ], now()->addSeconds($dedupeTtlSeconds));
+                    $releaseDedupeKey = false;
 
-            $connection->update([
-                'webhook_last_received_at' => now(),
-            ]);
-        } catch (\Illuminate\Database\QueryException $e) {
-            if (str_contains(strtolower($e->getMessage()), 'wa_webhook_events_provider_conn_idem_uq')) {
-                Cache::put($dedupeKey, now()->timestamp, now()->addSeconds($dedupeTtlSeconds));
+                    return response()->json([
+                        'success' => true,
+                        'queued' => false,
+                        'correlation_id' => $correlationId,
+                    ], 200);
+                } catch (\Throwable $e) {
+                    Log::channel('whatsapp')->error('Fallback inline central webhook processing failed', [
+                        'connection_id' => $connection->id,
+                        'correlation_id' => $correlationId,
+                        'exception' => $e::class,
+                    ]);
 
-                return response()->json([
-                    'success' => true,
-                    'duplicate' => true,
-                    'correlation_id' => $correlationId,
-                ], 200);
+                    return response()->json([
+                        'success' => false,
+                        'queued' => false,
+                        'correlation_id' => $correlationId,
+                        'error' => 'Processing failed',
+                    ], 200);
+                }
             }
 
-            throw $e;
+            $classification = $this->webhookEventClassifier->classify($payload);
+            $headersSubset = [
+                'x_request_id' => (string) ($request->header('X-Request-Id') ?? ''),
+                'message_count' => $messageCount,
+                'phone_number_id' => $phoneNumberId,
+                'waba_id' => $wabaId,
+            ];
+
+            try {
+                $event = WhatsAppWebhookEvent::create([
+                    'account_id' => $connection->account_id,
+                    'tenant_id' => $connection->account_id,
+                    'whatsapp_connection_id' => $connection->id,
+                    'provider' => 'whatsapp_meta',
+                    'event_type' => $classification['event_type'] ?? 'unknown',
+                    'object_type' => $classification['object_type'] ?? 'whatsapp_business_account',
+                    'idempotency_key' => $idempotencyKey,
+                    'correlation_id' => $correlationId,
+                    'status' => 'received',
+                    'payload' => $payload,
+                    'delivery_headers' => $headersSubset,
+                    'signature_valid' => is_bool($signatureValid) ? $signatureValid : null,
+                    'payload_size' => $payloadSize,
+                    'ip' => $request->ip(),
+                    'user_agent' => (string) $request->userAgent(),
+                ]);
+
+                $connection->update([
+                    'webhook_last_received_at' => now(),
+                ]);
+            } catch (QueryException $e) {
+                if (str_contains(strtolower($e->getMessage()), 'wa_webhook_events_provider_conn_idem_uq')) {
+                    Cache::put($dedupeKey, [
+                        'status' => 'duplicate',
+                        'correlation_id' => $correlationId,
+                        'processed_at' => now()->timestamp,
+                    ], now()->addSeconds($dedupeTtlSeconds));
+                    $releaseDedupeKey = false;
+
+                    return response()->json([
+                        'success' => true,
+                        'duplicate' => true,
+                        'correlation_id' => $correlationId,
+                    ], 200);
+                }
+
+                throw $e;
+            }
+
+            ProcessWebhookEventJob::dispatch($event->id);
+            Cache::put($dedupeKey, [
+                'status' => 'queued',
+                'correlation_id' => $correlationId,
+                'event_id' => $event->id,
+                'queued_at' => now()->timestamp,
+            ], now()->addSeconds($dedupeTtlSeconds));
+            $releaseDedupeKey = false;
+
+            return response()->json([
+                'success' => true,
+                'queued' => true,
+                'event_id' => $event->id,
+                'correlation_id' => $correlationId,
+            ], 200);
+        } finally {
+            if ($releaseDedupeKey) {
+                Cache::forget($dedupeKey);
+            }
         }
-
-        ProcessWebhookEventJob::dispatch($event->id);
-        Cache::put($dedupeKey, now()->timestamp, now()->addSeconds($dedupeTtlSeconds));
-
-        return response()->json([
-            'success' => true,
-            'queued' => true,
-            'event_id' => $event->id,
-            'correlation_id' => $correlationId,
-        ], 200);
     }
 
     protected function queryValue(Request $request, string $dotKey, string $underscoreKey): ?string

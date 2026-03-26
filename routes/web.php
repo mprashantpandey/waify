@@ -269,51 +269,31 @@ Route::middleware('auth')->group(function () {
 // Broadcasting auth - custom route to ensure channels are loaded
 Route::middleware(['web', 'auth'])->post('/broadcasting/auth', function (\Illuminate\Http\Request $request) {
     $user = $request->user();
-    $channelName = $request->input('channel_name');
-    
+    $channelName = (string) $request->input('channel_name', '');
+
     if (!$user) {
         return response()->json(['error' => 'Unauthenticated'], 403);
     }
-    
-    // Ensure channels are loaded - Broadcast::channel() registers them on the default broadcaster
-    // The channels file should be loaded via withBroadcasting() or we need to load it here
-    // Since we disabled withBroadcasting(), we need to load channels manually
+
     static $channelsLoaded = false;
     if (!$channelsLoaded) {
         require __DIR__ . '/../routes/channels.php';
         $channelsLoaded = true;
     }
-    
-    // Get the broadcaster instance - channels are registered on the default connection
-    // Broadcast::channel() registers channels on the broadcaster instance returned by connection()
-    $broadcastManager = app('Illuminate\Broadcasting\BroadcastManager');
-    $broadcaster = $broadcastManager->connection();
-    
-    // Get channels from the broadcaster instance (channels are stored in the broadcaster, not the manager)
-    $channels = $broadcaster->getChannels();
-    $normalizedChannel = method_exists($broadcaster, 'normalizeChannelName') 
-        ? $broadcaster->normalizeChannelName($channelName) 
-        : str_replace('private-', '', $channelName);
-    
-    \Log::debug('Broadcast auth attempt', [
-        'user_id' => $user->id,
-        'channel' => $channelName,
-        'normalized_channel' => $normalizedChannel,
-        'channels_count' => $channels->count(),
-        'channel_patterns' => $channels->keys()->toArray(),
-    ]);
-    
-    // Use Laravel's Broadcast::auth() which handles channel matching
-    // This uses the BroadcastManager which has the channels
+
+    $broadcastDebug = config('broadcasting.auth_debug', false);
+    if ($broadcastDebug) {
+        \Log::debug('Broadcast auth attempt', \App\Modules\WhatsApp\Support\WebhookLogSanitizer::authChannelContext($user->id, $channelName));
+    }
+
     try {
         return \Illuminate\Support\Facades\Broadcast::auth($request);
     } catch (\Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException $e) {
-        \Log::warning('Broadcast auth denied - no matching channel', [
-            'user_id' => $user->id,
-            'channel' => $channelName,
-            'normalized_channel' => $normalizedChannel,
-            'registered_patterns' => $channels->keys()->toArray(),
-        ]);
+        if ($broadcastDebug) {
+            \Log::warning('Broadcast auth denied', \App\Modules\WhatsApp\Support\WebhookLogSanitizer::authChannelContext($user->id, $channelName, [
+                'reason' => 'access_denied',
+            ]));
+        }
         throw $e;
     }
 })->name('broadcasting.auth');

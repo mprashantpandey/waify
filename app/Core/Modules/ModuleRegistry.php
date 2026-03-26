@@ -2,11 +2,24 @@
 
 namespace App\Core\Modules;
 
+use App\Core\Billing\PlanResolver;
+use App\Models\AccountModule;
+use App\Models\Module;
+use App\Services\PlatformSettingsService;
 use Illuminate\Support\Collection;
 
 class ModuleRegistry
 {
     protected array $modules = [];
+
+    public function __construct(iterable $definitions = [])
+    {
+        foreach ($definitions as $definition) {
+            if (is_array($definition)) {
+                $this->register($definition);
+            }
+        }
+    }
 
     /**
      * Register a module.
@@ -14,6 +27,7 @@ class ModuleRegistry
     public function register(array $definition): void
     {
         $this->modules[$definition['key']] = $definition;
+        ksort($this->modules);
     }
 
     /**
@@ -33,80 +47,79 @@ class ModuleRegistry
     }
 
     /**
-     * Get enabled modules for a account.
-     * This checks both account module toggles AND plan entitlements.
+     * Get enabled modules for an account.
      */
     public function getEnabledForAccount($account): Collection
     {
-        // First, get all modules that are enabled at platform level
-        $platformEnabledModules = \App\Models\Module::where('is_enabled', true)
-            ->pluck('key')
-            ->toArray();
+        $state = $this->resolveAccountState($account);
 
-        $settingsService = app(\App\Services\PlatformSettingsService::class);
-        $analyticsEnabled = $settingsService->isFeatureEnabled('analytics');
-
-        // Get modules available on the account's plan
-        $planResolver = app(\App\Core\Billing\PlanResolver::class);
-        $availableModuleKeys = $planResolver->getEffectiveModules($account);
-
-        // Also get account-enabled modules (for core modules that are always available)
-        $accountModuleKeys = \App\Models\AccountModule::where('account_id', $account->id)
-            ->where('enabled', true)
-            ->pluck('module_key')
-            ->toArray();
-
-        // Combine: modules must be:
-        // 1. Enabled at platform level
-        // 2. Either on the plan AND enabled in account, OR core/enabled_by_default AND enabled in account
-        return $this->all()->filter(function ($module) use ($platformEnabledModules, $availableModuleKeys, $accountModuleKeys, $analyticsEnabled) {
-            $moduleKey = $module['key'];
-
-            // First check: module must be enabled at platform level
-            if (!in_array($moduleKey, $platformEnabledModules)) {
-                return false;
-            }
-
-            if ($moduleKey === 'analytics' && !$analyticsEnabled) {
-                return false;
-            }
-
-            $isOnPlan = in_array($moduleKey, $availableModuleKeys);
-            $isEnabledInAccount = in_array($moduleKey, $accountModuleKeys);
-            $isCore = $module['is_core'] ?? false;
-            $enabledByDefault = $module['enabled_by_default'] ?? false;
-
-            // Module is available if:
-            // 1. It's on the plan AND enabled in account, OR
-            // 2. It's core/enabled_by_default AND enabled in account
-            return $isOnPlan || (($isCore || $enabledByDefault) && $isEnabledInAccount);
-        });
+        return $this->all()
+            ->filter(fn (array $module): bool => $this->isEnabledForAccount($module, $state))
+            ->values();
     }
 
     /**
      * Get navigation items for enabled modules.
-     * Only shows navigation for modules that are both on the plan AND enabled in account.
      */
     public function getNavigationForAccount($account): array
     {
-        $enabledModules = $this->getEnabledForAccount($account);
+        return $this->getEnabledForAccount($account)
+            ->flatMap(function (array $module): array {
+                return array_values(array_filter($module['nav'] ?? [], static fn ($navItem) => is_array($navItem)));
+            })
+            ->values()
+            ->all();
+    }
 
-        $navItems = [];
+    protected function isEnabledForAccount(array $module, array $state): bool
+    {
+        $moduleKey = $module['key'];
 
-        foreach ($enabledModules as $module) {
-            if (isset($module['nav']) && is_array($module['nav'])) {
-                foreach ($module['nav'] as $navItem) {
-                    // Only include nav items if the module is enabled at platform level
-                    $moduleKey = $module['key'];
-                    $platformModule = \App\Models\Module::where('key', $moduleKey)->first();
-                    
-                    if ($platformModule && $platformModule->is_enabled) {
-                        $navItems[] = $navItem;
-                    }
-                }
-            }
+        if (!$state['platform_enabled']->has($moduleKey)) {
+            return false;
         }
 
-        return $navItems;
+        if ($moduleKey === 'analytics' && !$state['analytics_enabled']) {
+            return false;
+        }
+
+        $accountOverride = $state['account_enabled']->get($moduleKey);
+        if ($accountOverride === false) {
+            return false;
+        }
+
+        if ($state['plan_enabled']->has($moduleKey)) {
+            return true;
+        }
+
+        return (($module['is_core'] ?? false) || ($module['enabled_by_default'] ?? false)) && $accountOverride !== false;
+    }
+
+    protected function resolveAccountState($account): array
+    {
+        /** @var PlatformSettingsService $settingsService */
+        $settingsService = app(PlatformSettingsService::class);
+        /** @var PlanResolver $planResolver */
+        $planResolver = app(PlanResolver::class);
+
+        $platformEnabled = Module::query()
+            ->where('is_enabled', true)
+            ->pluck('key')
+            ->flip();
+
+        $accountEnabled = AccountModule::query()
+            ->where('account_id', $account->id)
+            ->pluck('enabled', 'module_key')
+            ->map(static fn ($enabled): bool => (bool) $enabled);
+
+        $planEnabled = collect($planResolver->getEffectiveModules($account))
+            ->flip();
+
+        return [
+            'platform_enabled' => $platformEnabled,
+            'account_enabled' => $accountEnabled,
+            'plan_enabled' => $planEnabled,
+            'analytics_enabled' => $settingsService->isFeatureEnabled('analytics'),
+        ];
     }
 }

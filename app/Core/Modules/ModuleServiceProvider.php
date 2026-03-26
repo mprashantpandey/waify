@@ -12,7 +12,7 @@ class ModuleServiceProvider extends ServiceProvider
     public function __construct($app)
     {
         parent::__construct($app);
-        $this->registry = new ModuleRegistry();
+        $this->registry = new ModuleRegistry($this->discoverModuleDefinitions());
     }
 
     /**
@@ -23,8 +23,6 @@ class ModuleServiceProvider extends ServiceProvider
         $this->app->singleton(ModuleRegistry::class, function () {
             return $this->registry;
         });
-
-        $this->loadModules();
     }
 
     /**
@@ -36,29 +34,38 @@ class ModuleServiceProvider extends ServiceProvider
     }
 
     /**
-     * Load all module definitions.
+     * Discover all module definitions deterministically.
      */
-    protected function loadModules(): void
+    protected function discoverModuleDefinitions(): array
     {
         $modulesPath = app_path('Modules');
 
         if (!File::exists($modulesPath)) {
-            return;
+            return [];
         }
 
+        $definitions = [];
         $moduleDirs = File::directories($modulesPath);
+        sort($moduleDirs, SORT_NATURAL | SORT_FLAG_CASE);
 
         foreach ($moduleDirs as $moduleDir) {
-            $moduleFile = $moduleDir . '/module.php';
+            $moduleFile = $moduleDir.'/module.php';
 
-            if (File::exists($moduleFile)) {
-                $definition = require $moduleFile;
-
-                if (is_array($definition) && isset($definition['key'])) {
-                    $this->registry->register($definition);
-                }
+            if (!File::exists($moduleFile)) {
+                continue;
             }
+
+            $definition = require $moduleFile;
+            if (!is_array($definition) || !isset($definition['key'])) {
+                continue;
+            }
+
+            $definitions[$definition['key']] = $definition;
         }
+
+        ksort($definitions);
+
+        return array_values($definitions);
     }
 
     /**
@@ -72,4 +79,3 @@ class ModuleServiceProvider extends ServiceProvider
         // This method can be used for global module routes if needed in the future
     }
 }
-

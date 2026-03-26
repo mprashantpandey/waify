@@ -2,6 +2,7 @@
 
 namespace App\Modules\WhatsApp\Http\Middleware;
 
+use App\Modules\WhatsApp\Support\WebhookLogSanitizer;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -17,7 +18,6 @@ class WebhookSecurity
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // Verify request signature (required when Meta Verified Tech Provider mode is on)
         $appSecret = config('whatsapp.meta.app_secret');
         $signatureHeader = $request->header('X-Hub-Signature-256');
         $requireSignature = config('whatsapp.tech_provider.verified_mode', false);
@@ -25,14 +25,13 @@ class WebhookSecurity
 
         if ($request->isMethod('post')) {
             if ($requireSignature && empty($appSecret)) {
-                Log::channel('whatsapp')->error('Webhook POST rejected: META_VERIFIED_TECH_PROVIDER is on but META_APP_SECRET is not set');
+                Log::channel('whatsapp')->error('Webhook POST rejected: missing Meta app secret in verified mode', WebhookLogSanitizer::requestContext($request));
                 abort(401, 'Webhook signature verification is required');
             }
 
             if (!empty($appSecret)) {
                 if (!$signatureHeader) {
-                    Log::warning('[Meta-WhatsApp-Webhook] POST rejected: missing X-Hub-Signature-256 (app_secret is set)');
-                    Log::channel('whatsapp')->warning('Webhook POST rejected: missing X-Hub-Signature-256 (app_secret is set)');
+                    Log::channel('whatsapp')->warning('Webhook POST rejected: missing signature', WebhookLogSanitizer::requestContext($request));
                     abort(401, 'Missing signature');
                 }
 
@@ -41,23 +40,18 @@ class WebhookSecurity
                 $signatureValid = hash_equals($expected, $signatureHeader);
 
                 if (!$signatureValid) {
-                    Log::warning('[Meta-WhatsApp-Webhook] POST rejected: invalid signature (check META_APP_SECRET matches Meta App Secret)');
-                    Log::channel('whatsapp')->warning('Webhook POST rejected: invalid signature (check META_APP_SECRET matches Meta App Secret)');
+                    Log::channel('whatsapp')->warning('Webhook POST rejected: invalid signature', WebhookLogSanitizer::requestContext($request));
                     abort(401, 'Invalid signature');
                 }
-            } else {
-                $signatureValid = null;
             }
         }
 
-        // Check IP allowlist if configured
         $allowedIpsConfig = config('whatsapp.webhook.allowed_ips', '');
         if (!empty($allowedIpsConfig)) {
-            $allowedIps = array_map('trim', explode(',', $allowedIpsConfig));
+            $allowedIps = array_values(array_filter(array_map('trim', explode(',', $allowedIpsConfig))));
             $requestIp = $request->ip();
-
-            // Check exact match or CIDR notation (IPv4)
             $allowed = false;
+
             foreach ($allowedIps as $allowedIp) {
                 if ($requestIp === $allowedIp) {
                     $allowed = true;
@@ -77,55 +71,48 @@ class WebhookSecurity
             }
 
             if (!$allowed) {
-                Log::channel('whatsapp')->warning('Webhook blocked: IP not in allowlist', [
-                    'ip' => $requestIp,
-                    'allowed_ips' => $allowedIps]);
+                Log::channel('whatsapp')->warning('Webhook blocked: IP not in allowlist', WebhookLogSanitizer::requestContext($request, [
+                    'allowlist_count' => count($allowedIps),
+                ]));
 
                 abort(403, 'Forbidden');
             }
         }
 
-        // Generate correlation ID for request tracking
         $correlationId = uniqid('wh_', true);
         $request->attributes->set('webhook_correlation_id', $correlationId);
         $request->attributes->set('webhook_signature_valid', $signatureValid);
 
-        // Log request (truncated payload) - log early to catch all requests
-        Log::channel('whatsapp')->info('Webhook request received in WebhookSecurity', [
-            'correlation_id' => $correlationId,
-            'ip' => $request->ip(),
-            'method' => $request->method(),
-            'path' => $request->path(),
-            'has_entry' => $request->has('entry'),
-            'query_params' => $request->query(),
-            'user_agent' => substr($request->userAgent() ?? '', 0, 100), // Truncate
-        ]);
+        if (config('whatsapp.webhook.debug_logging', false)) {
+            Log::channel('whatsapp')->info('Webhook request received', WebhookLogSanitizer::requestContext($request, [
+                'correlation_id' => $correlationId,
+                'has_entry' => $request->has('entry'),
+            ]));
+        }
 
         try {
             $response = $next($request);
 
-            Log::channel('whatsapp')->info('Webhook request processed', [
-                'correlation_id' => $correlationId,
-                'status' => $response->getStatusCode()]);
+            if (config('whatsapp.webhook.debug_logging', false)) {
+                Log::channel('whatsapp')->info('Webhook request processed', [
+                    'correlation_id' => $correlationId,
+                    'status' => $response->getStatusCode(),
+                ]);
+            }
 
             return $response;
         } catch (HttpExceptionInterface $e) {
             throw $e;
         } catch (\Throwable $e) {
-            // Log error safely (no stack trace in response)
-            Log::channel('whatsapp')->error('Webhook processing exception', [
+            Log::channel('whatsapp')->error('Webhook processing exception', WebhookLogSanitizer::exceptionContext($e, [
                 'correlation_id' => $correlationId,
-                'error' => $e->getMessage(),
-                'file' => basename($e->getFile()),
-                'line' => $e->getLine(),
-                'trace' => substr($e->getTraceAsString(), 0, 500), // Truncated trace
-            ]);
+            ]));
 
-            // Return generic error (no stack trace)
             return response()->json([
                 'success' => false,
                 'error' => 'Webhook processing failed',
-                'correlation_id' => $correlationId], 500);
+                'correlation_id' => $correlationId,
+            ], 500);
         }
     }
 
@@ -139,10 +126,10 @@ class WebhookSecurity
         if ($ipLong === false || $networkLong === false) {
             return false;
         }
-        // 32-bit safe: use unsigned
         $ipLong = $ipLong & 0xFFFFFFFF;
         $networkLong = $networkLong & 0xFFFFFFFF;
         $mask = $prefixLen === 0 ? 0 : (0xFFFFFFFF << (32 - $prefixLen)) & 0xFFFFFFFF;
+
         return ($ipLong & $mask) === ($networkLong & $mask);
     }
 }

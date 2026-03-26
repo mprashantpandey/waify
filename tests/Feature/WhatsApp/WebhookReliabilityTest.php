@@ -159,6 +159,52 @@ class WebhookReliabilityTest extends TestCase
         );
     }
 
+    public function test_duplicate_payload_only_queues_once(): void
+    {
+        Queue::fake();
+
+        $account = Account::factory()->create();
+        $connection = WhatsAppConnection::factory()->create([
+            'account_id' => $account->id,
+            'phone_number_id' => '150215621517428',
+            'waba_id' => '131698056692862',
+        ]);
+
+        $payload = [
+            'entry' => [[
+                'id' => $connection->waba_id,
+                'changes' => [[
+                    'field' => 'messages',
+                    'value' => [
+                        'metadata' => [
+                            'phone_number_id' => $connection->phone_number_id,
+                        ],
+                        'messages' => [[
+                            'id' => 'wamid.rel.race.1',
+                            'from' => '919999999001',
+                            'type' => 'text',
+                            'text' => ['body' => 'race'],
+                        ]],
+                    ],
+                ]],
+            ]],
+        ];
+
+        $this->postJson(route('webhooks.whatsapp.receive'), $payload)
+            ->assertStatus(200)
+            ->assertJson(['queued' => true]);
+
+        $this->postJson(route('webhooks.whatsapp.receive'), $payload)
+            ->assertStatus(200)
+            ->assertJson(['duplicate' => true]);
+
+        Queue::assertPushed(ProcessWebhookEventJob::class, 1);
+        $this->assertSame(
+            1,
+            WhatsAppWebhookEvent::query()->where('whatsapp_connection_id', $connection->id)->count()
+        );
+    }
+
     public function test_processing_job_marks_event_processed_and_creates_message(): void
     {
         $account = Account::factory()->create();
