@@ -252,22 +252,38 @@ class MetaGraphService
 
     public function getWhatsAppBusinessProfile(string $phoneNumberId, string $accessToken): array
     {
-        $response = $this->graphRequestWithToken($accessToken)
-            ->get("{$this->baseUrl}/{$this->apiVersion}/{$phoneNumberId}/whatsapp_business_profile", [
-                'fields' => 'about,address,description,email,profile_picture_url,websites,vertical',
-            ]);
+        $params = [
+            'messaging_product' => 'whatsapp',
+            'fields' => 'about,address,description,email,profile_picture_url,websites,vertical',
+        ];
 
-        $data = $response->json();
-        if (!$response->successful()) {
+        $tokens = array_values(array_unique(array_filter([
+            $accessToken,
+            config('whatsapp.meta.system_user_token'),
+        ])));
+
+        $lastError = null;
+
+        foreach ($tokens as $token) {
+            $response = $this->graphRequestWithToken($token)
+                ->get("{$this->baseUrl}/{$this->apiVersion}/{$phoneNumberId}/whatsapp_business_profile", $params);
+
+            $data = $response->json();
+            if ($response->successful()) {
+                return $data['data'][0] ?? $data;
+            }
+
+            $lastError = $data['error']['message'] ?? 'Get WhatsApp business profile failed';
+
             Log::channel('whatsapp')->warning('Get WhatsApp business profile failed', [
                 'phone_number_id' => $phoneNumberId,
                 'status' => $response->status(),
+                'token_source' => $token === $accessToken ? 'connection' : 'system_user',
                 'error' => $data['error'] ?? $data,
             ]);
-            throw new \RuntimeException($data['error']['message'] ?? 'Get WhatsApp business profile failed');
         }
 
-        return $data['data'][0] ?? $data;
+        throw new \RuntimeException($lastError ?? 'Get WhatsApp business profile failed');
     }
 
     public function updateWhatsAppBusinessProfile(string $phoneNumberId, string $accessToken, array $profile): array
