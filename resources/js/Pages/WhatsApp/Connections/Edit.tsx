@@ -1,6 +1,6 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
-import { ArrowLeft, CheckCircle2, MessageCircleMore, Phone, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Globe, Mail, MapPin, MessageCircleMore, Phone, XCircle } from 'lucide-react';
 import AppShell from '@/Layouts/AppShell';
 import { Alert } from '@/Components/UI/Alert';
 import { Badge } from '@/Components/UI/Badge';
@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Com
 import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
 import TextInput from '@/Components/TextInput';
+import { Textarea } from '@/Components/UI/Textarea';
 
 interface Connection {
     id: number;
@@ -29,6 +30,18 @@ interface Connection {
     quiet_hours_start?: string | null;
     quiet_hours_end?: string | null;
     quiet_hours_timezone?: string | null;
+    business_profile?: BusinessProfile;
+    business_profile_error?: string | null;
+}
+
+interface BusinessProfile {
+    about: string;
+    description: string;
+    address: string;
+    email: string;
+    website: string;
+    vertical: string;
+    profile_picture_url?: string | null;
 }
 
 function formatProvisioningStep(step?: string | null): string {
@@ -87,6 +100,12 @@ export default function ConnectionsEdit({
         quiet_hours_start: connection.quiet_hours_start || '',
         quiet_hours_end: connection.quiet_hours_end || '',
         quiet_hours_timezone: connection.quiet_hours_timezone || 'UTC',
+        profile_about: connection.business_profile?.about || '',
+        profile_description: connection.business_profile?.description || '',
+        profile_address: connection.business_profile?.address || '',
+        profile_email: connection.business_profile?.email || '',
+        profile_website: connection.business_profile?.website || '',
+        profile_vertical: connection.business_profile?.vertical || '',
     });
 
     const submit: FormEventHandler = (event) => {
@@ -141,7 +160,7 @@ export default function ConnectionsEdit({
                         <CardHeader>
                             <CardTitle>Basic details</CardTitle>
                             <CardDescription>
-                                Keep the connection name clear for your team.
+                                Keep the connection name clear for your team and update the WhatsApp profile customers see.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -162,6 +181,103 @@ export default function ConnectionsEdit({
                                     <InputLabel value="Business number" />
                                     <div className="mt-1 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 dark:border-gray-800 dark:bg-gray-900/60 dark:text-gray-100">
                                         {connection.business_phone || 'Not available yet'}
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4 rounded-2xl border border-gray-200 bg-gray-50/70 p-4 dark:border-gray-800 dark:bg-gray-900/40">
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div>
+                                            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">WhatsApp profile</h2>
+                                            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                                                These details appear on WhatsApp when customers view this business profile.
+                                            </p>
+                                        </div>
+                                        {connection.business_profile?.profile_picture_url ? (
+                                            <img
+                                                src={connection.business_profile.profile_picture_url}
+                                                alt={connection.name}
+                                                className="h-12 w-12 rounded-full border border-gray-200 object-cover dark:border-gray-700"
+                                            />
+                                        ) : null}
+                                    </div>
+
+                                    {connection.business_profile_error ? (
+                                        <Alert variant="warning">{connection.business_profile_error}</Alert>
+                                    ) : null}
+
+                                    <div className="grid gap-4 md:grid-cols-2">
+                                        <div className="md:col-span-2">
+                                            <InputLabel htmlFor="profile_about" value="About line" />
+                                            <TextInput
+                                                id="profile_about"
+                                                value={data.profile_about}
+                                                onChange={(event) => setData('profile_about', event.target.value)}
+                                                className="mt-1 block w-full"
+                                                placeholder="Open today until 8 PM"
+                                            />
+                                            <InputError message={errors.profile_about} className="mt-2" />
+                                        </div>
+
+                                        <div className="md:col-span-2">
+                                            <InputLabel htmlFor="profile_description" value="Description" />
+                                            <Textarea
+                                                id="profile_description"
+                                                value={data.profile_description}
+                                                onChange={(event) => setData('profile_description', event.target.value)}
+                                                className="mt-1 min-h-[110px] w-full"
+                                                placeholder="Tell customers what this business does."
+                                            />
+                                            <InputError message={errors.profile_description} className="mt-2" />
+                                        </div>
+
+                                        <div>
+                                            <InputLabel htmlFor="profile_email" value="Support email" />
+                                            <TextInput
+                                                id="profile_email"
+                                                type="email"
+                                                value={data.profile_email}
+                                                onChange={(event) => setData('profile_email', event.target.value)}
+                                                className="mt-1 block w-full"
+                                                placeholder="support@example.com"
+                                            />
+                                            <InputError message={errors.profile_email} className="mt-2" />
+                                        </div>
+
+                                        <div>
+                                            <InputLabel htmlFor="profile_website" value="Website" />
+                                            <TextInput
+                                                id="profile_website"
+                                                value={data.profile_website}
+                                                onChange={(event) => setData('profile_website', event.target.value)}
+                                                className="mt-1 block w-full"
+                                                placeholder="https://example.com"
+                                            />
+                                            <InputError message={errors.profile_website} className="mt-2" />
+                                        </div>
+
+                                        <div>
+                                            <InputLabel htmlFor="profile_vertical" value="Business category" />
+                                            <TextInput
+                                                id="profile_vertical"
+                                                value={data.profile_vertical}
+                                                onChange={(event) => setData('profile_vertical', event.target.value)}
+                                                className="mt-1 block w-full"
+                                                placeholder="Professional Services"
+                                            />
+                                            <InputError message={errors.profile_vertical} className="mt-2" />
+                                        </div>
+
+                                        <div className="md:col-span-2">
+                                            <InputLabel htmlFor="profile_address" value="Address" />
+                                            <Textarea
+                                                id="profile_address"
+                                                value={data.profile_address}
+                                                onChange={(event) => setData('profile_address', event.target.value)}
+                                                className="mt-1 min-h-[90px] w-full"
+                                                placeholder="Business address customers can use"
+                                            />
+                                            <InputError message={errors.profile_address} className="mt-2" />
+                                        </div>
                                     </div>
                                 </div>
 
@@ -214,6 +330,42 @@ export default function ConnectionsEdit({
                                         </dd>
                                     </div>
                                 </dl>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Profile preview</CardTitle>
+                                <CardDescription>
+                                    A simple summary of the business profile that will be sent to WhatsApp.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-3 text-sm">
+                                <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/60">
+                                    <Phone className="h-4 w-4 text-gray-500" />
+                                    <span className="text-gray-900 dark:text-gray-100">{connection.business_phone || 'Business number not available yet'}</span>
+                                </div>
+                                <div className="flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/60">
+                                    <MessageCircleMore className="mt-0.5 h-4 w-4 text-gray-500" />
+                                    <div>
+                                        <p className="font-medium text-gray-900 dark:text-gray-100">{data.profile_about || 'No about line yet'}</p>
+                                        <p className="mt-1 text-gray-600 dark:text-gray-400">{data.profile_description || 'Add a short description so customers know what this number is for.'}</p>
+                                    </div>
+                                </div>
+                                <div className="grid gap-3">
+                                    <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/60">
+                                        <Mail className="h-4 w-4 text-gray-500" />
+                                        <span className="text-gray-900 dark:text-gray-100">{data.profile_email || 'No email added'}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/60">
+                                        <Globe className="h-4 w-4 text-gray-500" />
+                                        <span className="text-gray-900 dark:text-gray-100">{data.profile_website || 'No website added'}</span>
+                                    </div>
+                                    <div className="flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/60">
+                                        <MapPin className="mt-0.5 h-4 w-4 text-gray-500" />
+                                        <span className="text-gray-900 dark:text-gray-100">{data.profile_address || 'No address added'}</span>
+                                    </div>
+                                </div>
                             </CardContent>
                         </Card>
 

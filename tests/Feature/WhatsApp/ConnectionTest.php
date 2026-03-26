@@ -147,6 +147,89 @@ class ConnectionTest extends TestCase
         ]);
     }
 
+    public function test_connection_edit_loads_whatsapp_business_profile(): void
+    {
+        $connection = WhatsAppConnection::factory()->create([
+            'account_id' => $this->account->id,
+            'name' => 'Support Number',
+        ]);
+        $connection->access_token = 'stored-token';
+        $connection->save();
+
+        $meta = Mockery::mock(MetaGraphService::class);
+        $meta->shouldReceive('getWhatsAppBusinessProfile')
+            ->once()
+            ->with($connection->phone_number_id, 'stored-token')
+            ->andReturn([
+                'about' => 'Open today until 8 PM',
+                'description' => 'Customer support',
+                'address' => 'Noida',
+                'email' => 'hello@example.com',
+                'websites' => ['https://example.com'],
+                'vertical' => 'Professional Services',
+                'profile_picture_url' => 'https://example.com/logo.png',
+            ]);
+        $this->instance(MetaGraphService::class, $meta);
+
+        $response = $this->actingAs($this->user)
+            ->get(route('app.whatsapp.connections.edit', [
+                'account' => $this->account->slug,
+                'connection' => $connection->id,
+            ]));
+
+        $response->assertInertia(fn ($page) => $page
+            ->component('WhatsApp/Connections/Edit')
+            ->where('connection.business_profile.about', 'Open today until 8 PM')
+            ->where('connection.business_profile.website', 'https://example.com')
+            ->where('connection.business_profile.vertical', 'Professional Services')
+        );
+    }
+
+    public function test_owner_can_update_whatsapp_business_profile(): void
+    {
+        $connection = WhatsAppConnection::factory()->create([
+            'account_id' => $this->account->id,
+            'name' => 'Original Name',
+        ]);
+        $connection->access_token = 'stored-token';
+        $connection->save();
+
+        $meta = Mockery::mock(MetaGraphService::class);
+        $meta->shouldReceive('updateWhatsAppBusinessProfile')
+            ->once()
+            ->with($connection->phone_number_id, 'stored-token', [
+                'about' => 'Open today until 8 PM',
+                'description' => 'Updated support desk',
+                'address' => 'Noida',
+                'email' => 'hello@example.com',
+                'vertical' => 'Professional Services',
+                'websites' => ['https://example.com'],
+            ])
+            ->andReturn(['success' => true]);
+        $this->instance(MetaGraphService::class, $meta);
+
+        $response = $this->actingAs($this->user)
+            ->put(route('app.whatsapp.connections.update', [
+                'account' => $this->account->slug,
+                'connection' => $connection->id,
+            ]), [
+                'name' => 'Updated Name',
+                'phone_number_id' => $connection->phone_number_id,
+                'profile_about' => 'Open today until 8 PM',
+                'profile_description' => 'Updated support desk',
+                'profile_address' => 'Noida',
+                'profile_email' => 'hello@example.com',
+                'profile_website' => 'https://example.com',
+                'profile_vertical' => 'Professional Services',
+            ]);
+
+        $response->assertRedirect();
+        $this->assertDatabaseHas('whatsapp_connections', [
+            'id' => $connection->id,
+            'name' => 'Updated Name',
+        ]);
+    }
+
     public function test_embedded_signup_reuses_existing_connection_for_same_assets(): void
     {
         config([

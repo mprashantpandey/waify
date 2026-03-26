@@ -805,6 +805,7 @@ class ConnectionController extends Controller
         $staleAfterHours = (int) config('whatsapp.connection.health_stale_after_hours', 24);
         $staleCutoff = now()->subHours(max(1, $staleAfterHours));
         $metadataStale = !$connection->health_last_synced_at || $connection->health_last_synced_at->lt($staleCutoff);
+        $businessProfile = $this->loadBusinessProfile($connection);
 
         Gate::authorize('update', $connection);
 
@@ -846,7 +847,10 @@ class ConnectionController extends Controller
                 'throughput_cap_per_minute' => $connection->throughput_cap_per_minute,
                 'quiet_hours_start' => $connection->quiet_hours_start,
                 'quiet_hours_end' => $connection->quiet_hours_end,
-                'quiet_hours_timezone' => $connection->quiet_hours_timezone],
+                'quiet_hours_timezone' => $connection->quiet_hours_timezone,
+                'business_profile' => $businessProfile['profile'],
+                'business_profile_error' => $businessProfile['error'],
+            ],
             'embeddedSignupEvents' => WhatsAppEmbeddedSignupEvent::query()
                 ->where('account_id', $account->id)
                 ->where(function ($query) use ($connection) {
@@ -946,9 +950,17 @@ class ConnectionController extends Controller
             'throughput_cap_per_minute' => 'nullable|integer|min:1|max:1000',
             'quiet_hours_start' => ['nullable', 'regex:/^\d{2}:\d{2}$/'],
             'quiet_hours_end' => ['nullable', 'regex:/^\d{2}:\d{2}$/'],
-            'quiet_hours_timezone' => 'nullable|timezone']);
+            'quiet_hours_timezone' => 'nullable|timezone',
+            'profile_about' => 'nullable|string|max:140',
+            'profile_description' => 'nullable|string|max:512',
+            'profile_address' => 'nullable|string|max:256',
+            'profile_email' => 'nullable|email|max:255',
+            'profile_website' => 'nullable|url|max:255',
+            'profile_vertical' => 'nullable|string|max:100',
+        ]);
 
         try {
+            $this->syncBusinessProfile($connection, $validated);
             $this->connectionService->update($connection, $validated);
         } catch (\RuntimeException $e) {
             return redirect()->back()->withInput()->withErrors([
@@ -1140,5 +1152,86 @@ class ConnectionController extends Controller
             'ok' => true,
             'insights' => $insights,
         ]);
+    }
+
+    protected function loadBusinessProfile(WhatsAppConnection $connection): array
+    {
+        $empty = [
+            'about' => '',
+            'description' => '',
+            'address' => '',
+            'email' => '',
+            'website' => '',
+            'vertical' => '',
+            'profile_picture_url' => null,
+        ];
+
+        if (!$connection->phone_number_id || !$connection->access_token) {
+            return ['profile' => $empty, 'error' => null];
+        }
+
+        try {
+            $profile = $this->metaGraphService->getWhatsAppBusinessProfile($connection->phone_number_id, $connection->access_token);
+
+            return [
+                'profile' => [
+                    'about' => (string) ($profile['about'] ?? ''),
+                    'description' => (string) ($profile['description'] ?? ''),
+                    'address' => (string) ($profile['address'] ?? ''),
+                    'email' => (string) ($profile['email'] ?? ''),
+                    'website' => (string) (($profile['websites'][0] ?? '') ?: ''),
+                    'vertical' => (string) ($profile['vertical'] ?? ''),
+                    'profile_picture_url' => $profile['profile_picture_url'] ?? null,
+                ],
+                'error' => null,
+            ];
+        } catch (\Throwable $e) {
+            Log::channel('whatsapp')->warning('Unable to load WhatsApp business profile', [
+                'connection_id' => $connection->id,
+                'phone_number_id' => $connection->phone_number_id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return ['profile' => $empty, 'error' => 'Could not load the current WhatsApp profile details right now.'];
+        }
+    }
+
+    protected function syncBusinessProfile(WhatsAppConnection $connection, array &$validated): void
+    {
+        $profileFields = [
+            'profile_about',
+            'profile_description',
+            'profile_address',
+            'profile_email',
+            'profile_website',
+            'profile_vertical',
+        ];
+
+        $profileProvided = collect($profileFields)->contains(fn (string $field) => array_key_exists($field, $validated));
+
+        if (!$profileProvided) {
+            return;
+        }
+
+        if (!$connection->phone_number_id || !$connection->access_token) {
+            throw new \RuntimeException('This connection is missing WhatsApp credentials required to update the business profile.');
+        }
+
+        $profilePayload = [
+            'about' => trim((string) ($validated['profile_about'] ?? '')),
+            'description' => trim((string) ($validated['profile_description'] ?? '')),
+            'address' => trim((string) ($validated['profile_address'] ?? '')),
+            'email' => trim((string) ($validated['profile_email'] ?? '')),
+            'vertical' => trim((string) ($validated['profile_vertical'] ?? '')),
+            'websites' => array_values(array_filter([
+                trim((string) ($validated['profile_website'] ?? '')),
+            ])),
+        ];
+
+        $this->metaGraphService->updateWhatsAppBusinessProfile($connection->phone_number_id, $connection->access_token, $profilePayload);
+
+        foreach ($profileFields as $field) {
+            unset($validated[$field]);
+        }
     }
 }

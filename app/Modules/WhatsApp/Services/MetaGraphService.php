@@ -249,6 +249,56 @@ class MetaGraphService
         return $data;
     }
 
+
+    public function getWhatsAppBusinessProfile(string $phoneNumberId, string $accessToken): array
+    {
+        $response = $this->graphRequestWithToken($accessToken)
+            ->get("{$this->baseUrl}/{$this->apiVersion}/{$phoneNumberId}/whatsapp_business_profile", [
+                'fields' => 'about,address,description,email,profile_picture_url,websites,vertical',
+            ]);
+
+        $data = $response->json();
+        if (!$response->successful()) {
+            Log::channel('whatsapp')->warning('Get WhatsApp business profile failed', [
+                'phone_number_id' => $phoneNumberId,
+                'status' => $response->status(),
+                'error' => $data['error'] ?? $data,
+            ]);
+            throw new \RuntimeException($data['error']['message'] ?? 'Get WhatsApp business profile failed');
+        }
+
+        return $data['data'][0] ?? $data;
+    }
+
+    public function updateWhatsAppBusinessProfile(string $phoneNumberId, string $accessToken, array $profile): array
+    {
+        $payload = array_filter([
+            'messaging_product' => 'whatsapp',
+            'about' => $profile['about'] ?? null,
+            'address' => $profile['address'] ?? null,
+            'description' => $profile['description'] ?? null,
+            'email' => $profile['email'] ?? null,
+            'vertical' => $profile['vertical'] ?? null,
+            'websites' => !empty($profile['websites']) ? array_values(array_filter((array) $profile['websites'])) : null,
+        ], static fn ($value) => $value !== null && $value !== '');
+
+        $response = $this->graphRequestWithToken($accessToken)
+            ->post("{$this->baseUrl}/{$this->apiVersion}/{$phoneNumberId}/whatsapp_business_profile", $payload);
+
+        $data = $response->json();
+        if (!$response->successful()) {
+            Log::channel('whatsapp')->warning('Update WhatsApp business profile failed', [
+                'phone_number_id' => $phoneNumberId,
+                'status' => $response->status(),
+                'error' => $data['error'] ?? $data,
+            ]);
+            throw new \RuntimeException($data['error']['message'] ?? 'Update WhatsApp business profile failed');
+        }
+
+        return $data;
+    }
+
+
     public function getWabaDetails(string $wabaId, string $accessToken): array
     {
         $response = $this->graphRequestWithToken($accessToken)
