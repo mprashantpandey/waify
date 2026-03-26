@@ -44,7 +44,7 @@ export function Topbar({ user, onMenuClick }: TopbarProps) {
 
     return (
         <header className="sticky top-0 z-20 border-b border-gray-200/70 bg-white/90 backdrop-blur-lg dark:border-gray-800/70 dark:bg-gray-900/90">
-            <div className="mx-auto flex h-16 w-full max-w-[1440px] items-center justify-between gap-4 px-4 lg:px-6 lg:pl-[19rem]">
+            <div className="mx-auto flex h-16 w-full max-w-[1320px] items-center justify-between gap-4 px-4 lg:px-6 lg:pl-[17rem]">
                 <div className="flex min-w-0 flex-1 items-center gap-4">
                     {onMenuClick && (
                         <button
@@ -60,7 +60,7 @@ export function Topbar({ user, onMenuClick }: TopbarProps) {
                         <div className="relative hidden xl:block">
                             <button
                                 onClick={() => setShowAccountMenu(!showAccountMenu)}
-                                className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-800 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
+                                className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800"
                             >
                                 <div className="h-2 w-2 rounded-full bg-green-500"></div>
                                 <span className="max-w-[180px] truncate">{account?.name ?? 'Switch Account'}</span>

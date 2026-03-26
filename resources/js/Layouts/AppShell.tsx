@@ -48,9 +48,9 @@ export default function AppShell({ children }: AppShellProps) {
                     isOpen={sidebarOpen}
                     onClose={() => setSidebarOpen(false)}
                 />
-                <div className="lg:pl-72">
+                <div className="lg:pl-64">
                     <Topbar user={auth?.user} onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
-                    <main className="mx-auto w-full max-w-[1440px] px-4 py-5 lg:px-6 lg:py-6">
+                    <main className="mx-auto w-full max-w-[1320px] px-4 py-4 lg:px-6 lg:py-5">
                         {children}
                     </main>
                 </div>
