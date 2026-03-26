@@ -168,6 +168,7 @@ export default function ConversationsIndex({
     );
     const [assignmentSaving, setAssignmentSaving] = useState<Record<number, number | null>>({});
     const [selectedConversationId, setSelectedConversationId] = useState<number | null>(initialSelectedConversationId);
+    const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
     const playNotificationSound = useCallback(() => {
         if (!soundEnabled) return;
@@ -238,6 +239,27 @@ export default function ConversationsIndex({
 
         return minutes === 0 ? `Closes in ${hours}h` : `Closes in ${hours}h ${minutes}m`;
     }, [timeTick]);
+
+    const syncEmbeddedFrameLayout = useCallback(() => {
+        const frame = iframeRef.current;
+        const doc = frame?.contentDocument;
+        const win = frame?.contentWindow;
+        if (!frame || !doc || !win) return;
+
+        const html = doc.documentElement;
+        const body = doc.body;
+        const appRoot = doc.getElementById('app');
+
+        [html, body, appRoot].forEach((node) => {
+            if (!node) return;
+            (node as HTMLElement).style.height = '100%';
+            (node as HTMLElement).style.minHeight = '100%';
+            (node as HTMLElement).style.overflow = 'hidden';
+            (node as HTMLElement).style.margin = '0';
+        });
+
+        win.scrollTo(0, 0);
+    }, []);
 
     const api = typeof window !== 'undefined' && (window as any).axios ? (window as any).axios : axios;
 
@@ -1016,8 +1038,10 @@ export default function ConversationsIndex({
                         {selectedConversationId ? (
                             <iframe
                                 key={selectedConversationId}
+                                ref={iframeRef}
                                 title={`Conversation ${selectedConversationId}`}
                                 src={`${route('app.whatsapp.conversations.show', { conversation: selectedConversationId })}?embedded=1`}
+                                onLoad={syncEmbeddedFrameLayout}
                                 className="block h-full w-full border-0 bg-transparent"
                             />
                         ) : (

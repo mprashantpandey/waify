@@ -1749,7 +1749,7 @@ export default function ConversationsShow({
             <div
                 className={cn(
                     'flex flex-col overflow-hidden border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900',
-                    isEmbedded ? 'h-screen rounded-none border-0 shadow-none' : 'h-[calc(100vh-8rem)] rounded-3xl shadow-xl lg:h-[calc(100vh-6rem)]'
+                    isEmbedded ? 'h-full min-h-0 rounded-none border-0 shadow-none' : 'h-[calc(100vh-8rem)] rounded-3xl shadow-xl lg:h-[calc(100vh-6rem)]'
                 )}
             >
                 {/* Header */}
