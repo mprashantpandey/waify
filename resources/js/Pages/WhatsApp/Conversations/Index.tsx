@@ -673,7 +673,7 @@ export default function ConversationsIndex({
             <Head title="Inbox" />
             <div className="h-[calc(100vh-8rem)] overflow-hidden lg:h-[calc(100vh-6rem)]">
                 <div className="grid h-full overflow-hidden rounded-[28px] border border-[#d1d7db] bg-[#f0f2f5] shadow-sm lg:grid-cols-[400px_minmax(0,1fr)] dark:border-gray-800 dark:bg-gray-900">
-                    <section className="flex min-h-0 flex-col border-r border-[#d1d7db] bg-white dark:border-gray-800 dark:bg-gray-900">
+                    <section className="flex min-h-0 h-full flex-col overflow-hidden border-r border-[#d1d7db] bg-white dark:border-gray-800 dark:bg-gray-900">
                         <div className="border-b border-[#d1d7db] bg-[#f0f2f5] px-4 py-3 dark:border-gray-800 dark:bg-gray-900">
                             <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
@@ -1004,7 +1004,7 @@ export default function ConversationsIndex({
                     </section>
 
                     <section
-                        className="hidden min-h-0 min-w-0 lg:flex dark:bg-gray-950/40"
+                        className="hidden h-full min-h-0 min-w-0 overflow-hidden lg:sticky lg:top-0 lg:flex dark:bg-gray-950/40"
                         style={{
                             backgroundColor: '#efeae2',
                             backgroundImage:
