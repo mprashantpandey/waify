@@ -1,7 +1,7 @@
 import PublicLayout from '@/Layouts/PublicLayout';
-import { ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
+import { HelpCircle, ChevronDown, ChevronUp, Sparkles, ArrowRight } from 'lucide-react';
 import { useState } from 'react';
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 import { getPlatformName } from '@/lib/branding';
 import PublicPageHero from '@/Components/Public/PublicPageHero';
 
@@ -15,39 +15,41 @@ export default function FAQs({ faqs: initialFaqs }: { faqs: FAQ[] }) {
     const platformName = getPlatformName(branding);
     const [openIndex, setOpenIndex] = useState<number | null>(0);
 
+    // Default FAQs if none are configured (use platform name for consistency)
     const defaultFaqs: FAQ[] = [
         {
             question: `What is ${platformName}?`,
-            answer: `${platformName} is a WhatsApp operations platform for teams that need setup, templates, inbox work, automation, AI replies, and billing to stay in one system.`,
-        },
+            answer: `${platformName} is a WhatsApp Cloud Platform for managing WhatsApp Business communications at scale. We are an official Meta Tech Provider. The platform provides tools for template management, chatbot automation, team collaboration, and more.`},
         {
             question: 'Are you a Meta Tech Provider?',
-            answer: 'Yes. The platform is built around official Meta onboarding and WhatsApp Cloud API workflows.',
-        },
+            answer: 'Yes. We are an official Meta Tech Provider, so you get a trusted, compliant connection to the Meta WhatsApp Cloud API with enterprise-grade support and reliability.'},
         {
             question: 'How do I get started?',
-            answer: 'Create an account, choose a plan, connect your WhatsApp Business number, and start using the inbox, templates, and automation tools from the same workspace.',
-        },
-        {
-            question: 'Can I change plans later?',
-            answer: 'Yes. You can move between plans from billing, subject to usage-based downgrade checks so your current setup does not break.',
-        },
-        {
-            question: 'Is there a free trial?',
-            answer: 'Eligible accounts can start on a trial-enabled plan. Trials are not re-offered once an account has already converted beyond trial.',
-        },
+            answer: 'Getting started is easy! Sign up for a free account, create your account profile, and connect your WhatsApp Business Account. Our onboarding wizard will guide you through the setup process.'},
         {
             question: 'What payment methods do you accept?',
-            answer: 'Payments are processed through Razorpay using supported cards, UPI, and other available methods.',
-        },
+            answer: 'We accept all major credit cards, debit cards, and UPI payments through Razorpay. All payments are processed securely.'},
+        {
+            question: 'Can I change my plan later?',
+            answer: 'Yes! You can upgrade or downgrade your plan at any time from your billing settings. Changes take effect immediately, and we\'ll prorate any charges.'},
+        {
+            question: 'Is there a free trial?',
+            answer: 'Yes, all plans come with a free trial. No credit card required. You can explore all features during the trial period.'},
         {
             question: 'How do I connect my WhatsApp Business Account?',
-            answer: 'Use the Embedded Signup flow in the product. The platform handles the central webhook model and related provisioning steps for you.',
-        },
+            answer: 'You can connect your WhatsApp Business Account through our Embedded Signup wizard or manually by providing your Meta App credentials. We support both methods.'},
         {
-            question: 'Do you support AI replies and chatbots together?',
-            answer: 'Yes. The inbox can show whether a conversation is currently handled by AI, a chatbot, or a human so your team can see ownership clearly.',
-        },
+            question: 'What happens if I exceed my plan limits?',
+            answer: 'If you exceed your plan limits, we\'ll notify you and you can either upgrade your plan or wait until the next billing cycle. Some limits may have overage charges.'},
+        {
+            question: 'Is my data secure?',
+            answer: 'Absolutely. We use industry-standard encryption for data in transit and at rest. All API credentials are encrypted, and we follow strict security practices. See our Privacy Policy for more details.'},
+        {
+            question: 'Do you offer customer support?',
+            answer: 'Yes! We offer email support for all users, and priority support for Pro and Enterprise plans. You can also access our help center and documentation anytime.'},
+        {
+            question: 'Can I cancel my subscription?',
+            answer: 'Yes, you can cancel your subscription at any time from your billing settings. Your subscription will remain active until the end of the current billing period.'},
     ];
 
     const faqs = initialFaqs && initialFaqs.length > 0 ? initialFaqs : defaultFaqs;
@@ -55,49 +57,65 @@ export default function FAQs({ faqs: initialFaqs }: { faqs: FAQ[] }) {
     return (
         <PublicLayout>
             <Head title="FAQs" />
-            <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
                 <PublicPageHero
                     eyebrow="FAQs"
                     icon={<HelpCircle className="h-4 w-4" />}
-                    title="The questions teams ask before they roll WhatsApp out properly."
-                    description={`These answers cover how ${platformName} handles setup, plans, automation, billing, and day-to-day operations.`}
+                    title="Frequently Asked Questions"
+                    description={`Find quick answers about ${platformName}, setup, billing, plans, and support.`}
                 />
 
-                <div className="space-y-4">
+                {/* FAQs */}
+                <div className="space-y-4 mb-12">
                     {faqs.map((faq, index) => {
                         const isOpen = openIndex === index;
                         return (
-                            <div key={faq.question} className="overflow-hidden rounded-[1.75rem] border border-black/10 bg-white shadow-[0_24px_80px_-56px_rgba(15,23,42,0.55)]">
+                            <div
+                                key={index}
+                                className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-sm transition-all overflow-hidden"
+                            >
                                 <button
-                                    type="button"
                                     onClick={() => setOpenIndex(isOpen ? null : index)}
-                                    className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left sm:px-7"
+                                    className="w-full px-6 py-5 flex items-center justify-between text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                                 >
-                                    <span className="text-lg font-semibold text-slate-950">{faq.question}</span>
-                                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#fbfaf6] text-slate-600">
-                                        {isOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                                    <span className="font-semibold text-gray-900 dark:text-gray-100 pr-4 text-lg">
+                                        {faq.question}
                                     </span>
-                                </button>
-                                {isOpen ? (
-                                    <div className="border-t border-black/10 px-6 py-5 text-sm leading-7 text-slate-600 sm:px-7">
-                                        {faq.answer}
+                                    <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg">
+                                        {isOpen ? (
+                                            <ChevronUp className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                                        ) : (
+                                            <ChevronDown className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                                        )}
                                     </div>
-                                ) : null}
+                                </button>
+                                {isOpen && (
+                                    <div className="px-6 pb-5 border-t border-gray-200 dark:border-gray-700 pt-4">
+                                        <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                                            {faq.answer}
+                                        </p>
+                                    </div>
+                                )}
                             </div>
                         );
                     })}
                 </div>
 
-                <div className="mt-8 rounded-[2rem] border border-black/10 bg-[#0f172a] px-6 py-8 text-white shadow-[0_32px_120px_-48px_rgba(15,23,42,0.85)] sm:px-8">
-                    <h2 className="text-2xl font-semibold">Still need a direct answer?</h2>
-                    <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300">
-                        Use the contact page if your question depends on your rollout, billing history, or WhatsApp account setup.
-                    </p>
-                    <div className="mt-6">
-                        <Link href={route('contact')} className="inline-flex items-center rounded-full bg-[#14b8a6] px-5 py-3 text-sm font-semibold text-slate-950">
-                            Contact the team
-                        </Link>
+                {/* Contact CTA */}
+                <div className="bg-gradient-to-r from-blue-50 via-purple-50 to-pink-50 dark:from-blue-900/20 dark:via-purple-900/20 dark:to-pink-900/20 rounded-2xl p-6 sm:p-8 text-center border border-blue-200 dark:border-blue-800">
+                    <div className="inline-flex items-center gap-2 mb-4">
+                        <Sparkles className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                        <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                            Still have questions? We're here to help!
+                        </p>
                     </div>
+                    <a
+                        href={route('contact')}
+                        className="inline-flex items-center text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium transition-colors"
+                    >
+                        Contact Support
+                        <ArrowRight className="h-4 w-4 ml-1" />
+                    </a>
                 </div>
             </div>
         </PublicLayout>

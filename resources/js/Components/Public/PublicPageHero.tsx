@@ -1,5 +1,14 @@
 import { ReactNode } from 'react';
 
+type PublicPageHeroProps = {
+    eyebrow?: string;
+    icon?: ReactNode;
+    title: string;
+    description?: ReactNode;
+    actions?: ReactNode;
+    children?: ReactNode;
+};
+
 export default function PublicPageHero({
     eyebrow,
     icon,
@@ -7,35 +16,28 @@ export default function PublicPageHero({
     description,
     actions,
     children,
-}: {
-    eyebrow?: string;
-    icon?: ReactNode;
-    title: string;
-    description?: ReactNode;
-    actions?: ReactNode;
-    children?: ReactNode;
-}) {
+}: PublicPageHeroProps) {
     return (
-        <section className="relative mb-12 overflow-hidden rounded-[2rem] border border-black/10 bg-white/80 px-6 py-8 shadow-[0_24px_80px_-48px_rgba(15,23,42,0.5)] backdrop-blur sm:px-8 sm:py-10 lg:px-10 lg:py-12">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(20,184,166,0.14),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(180,83,9,0.10),_transparent_34%)]" />
-            <div className="relative">
-                {eyebrow ? (
-                    <div className="inline-flex items-center gap-2 rounded-full border border-emerald-900/10 bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-emerald-800">
+        <div className="relative mb-10 sm:mb-14">
+            <div className="absolute inset-x-0 -top-6 h-44 rounded-3xl bg-gradient-to-r from-blue-100/70 via-indigo-100/60 to-cyan-100/70 blur-3xl dark:from-blue-900/20 dark:via-indigo-900/20 dark:to-cyan-900/20 pointer-events-none" />
+            <div className="relative rounded-2xl border border-white/70 dark:border-gray-800 bg-white/85 dark:bg-gray-900/70 backdrop-blur shadow-sm px-5 py-7 sm:px-8 sm:py-10">
+                {eyebrow && (
+                    <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 px-3 py-1 text-xs font-semibold text-blue-700 dark:text-blue-300">
                         {icon}
                         <span>{eyebrow}</span>
                     </div>
-                ) : null}
-                <h1 className="mt-4 max-w-4xl text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl lg:text-6xl">
+                )}
+                <h1 className="mt-4 text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
                     {title}
                 </h1>
-                {description ? (
-                    <div className="mt-4 max-w-3xl text-base leading-8 text-slate-600 sm:text-lg">
+                {description && (
+                    <div className="mt-3 max-w-3xl text-sm sm:text-base lg:text-lg leading-7 text-gray-600 dark:text-gray-300">
                         {description}
                     </div>
-                ) : null}
-                {actions ? <div className="mt-7 flex flex-wrap items-center gap-3">{actions}</div> : null}
-                {children ? <div className="mt-7">{children}</div> : null}
+                )}
+                {actions && <div className="mt-6 flex flex-wrap items-center gap-3">{actions}</div>}
+                {children && <div className="mt-6">{children}</div>}
             </div>
-        </section>
+        </div>
     );
 }
