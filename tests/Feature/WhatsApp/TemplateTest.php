@@ -13,6 +13,7 @@ use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use App\Modules\WhatsApp\Models\WhatsAppTemplateSend;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -492,6 +493,61 @@ class TemplateTest extends TestCase
 
         $response->assertSessionHasErrors('to_wa_id');
         Http::assertNothingSent();
+    }
+
+    public function test_sending_media_header_template_uses_local_storage_file_without_refetching_public_url(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('whatsapp-templates/header-image.png', 'image-bytes');
+        config()->set('app.url', 'https://zyptos.test');
+
+        $template = WhatsAppTemplate::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_connection_id' => $this->connection->id,
+            'name' => 'image_header_template',
+            'language' => 'en_US',
+            'body_text' => 'Hello',
+            'header_type' => 'IMAGE',
+            'header_media_url' => 'https://zyptos.test/storage/whatsapp-templates/header-image.png',
+            'status' => 'approved',
+            'meta_template_id' => 'meta_header_1',
+            'last_meta_sync_at' => now(),
+            'sync_state' => 'synced',
+        ]);
+
+        Http::fake(function ($request) {
+            if (str_contains($request->url(), '/media')) {
+                return Http::response(['id' => 'media_123'], 200);
+            }
+
+            if (str_contains($request->url(), '/messages')) {
+                return Http::response([
+                    'messages' => [
+                        ['id' => 'wamid.media123'],
+                    ],
+                ], 200);
+            }
+
+            return Http::response(['error' => 'unexpected request'], 500);
+        });
+
+        $response = $this->actingAs($this->user)
+            ->post(route('app.whatsapp.templates.send.store', [
+                'account' => $this->account->slug,
+                'template' => $template->id,
+            ]), [
+                'to_wa_id' => '1234567890',
+                'variables' => [],
+            ]);
+
+        $response->assertSessionHas('success');
+        Http::assertNotSent(fn ($request) => $request->url() === 'https://zyptos.test/storage/whatsapp-templates/header-image.png');
+        $this->assertDatabaseHas('whatsapp_messages', [
+            'account_id' => $this->account->id,
+            'direction' => 'outbound',
+            'type' => 'template',
+            'status' => 'sent',
+        ]);
     }
 
     public function test_active_templates_are_available_in_conversation_template_picker(): void

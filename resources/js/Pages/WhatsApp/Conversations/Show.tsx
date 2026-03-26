@@ -2373,7 +2373,7 @@ export default function ConversationsShow({
                                         </div>
                                         {['IMAGE', 'VIDEO', 'DOCUMENT'].includes((selectedTemplate.header_type || '').toUpperCase()) && (
                                             <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700/40 dark:bg-amber-500/10 dark:text-amber-200">
-                                                Header media required ({(selectedTemplate.header_type || '').toUpperCase()}). Configure it in template edit if delivery fails.
+                                                Header media required ({(selectedTemplate.header_type || '').toUpperCase()}). If delivery fails, replace the header media on the template and try again.
                                             </div>
                                         )}
                                         {templateVariables.length === 0 && (

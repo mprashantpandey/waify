@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class TemplateManagementService
 {
@@ -827,21 +828,12 @@ class TemplateManagementService
             return null;
         }
 
-        $response = Http::timeout(30)->get($mediaUrl);
-        if (!$response->successful()) {
-            throw new \RuntimeException("Could not fetch media: HTTP {$response->status()}");
-        }
-
-        $content = $response->body();
+        ['content' => $content, 'content_type' => $detectedContentType] = $this->fetchHeaderMediaResource($mediaUrl);
         $fileLength = strlen($content);
-        if ($fileLength === 0) {
-            throw new \RuntimeException('Media file is empty');
-        }
-
         $mimeMap = [
-            'IMAGE' => $response->header('Content-Type') ?: 'image/png',
-            'VIDEO' => 'video/mp4',
-            'DOCUMENT' => $response->header('Content-Type') ?: 'application/pdf',
+            'IMAGE' => $detectedContentType ?: 'image/png',
+            'VIDEO' => $detectedContentType ?: 'video/mp4',
+            'DOCUMENT' => $detectedContentType ?: 'application/pdf',
         ];
         $fileType = $mimeMap[$headerType] ?? 'image/png';
         // Meta only accepts: image/jpeg, image/jpg, image/png, video/mp4, application/pdf
@@ -909,17 +901,7 @@ class TemplateManagementService
 
     protected function assertHeaderMediaReachable(string $mediaUrl, string $headerType): void
     {
-        $response = Http::timeout(20)->get($mediaUrl);
-        if (!$response->successful()) {
-            throw new \RuntimeException("Media URL is not reachable (HTTP {$response->status()}).");
-        }
-
-        $content = $response->body();
-        if ($content === '') {
-            throw new \RuntimeException('Media URL returned empty content.');
-        }
-
-        $contentType = strtolower(trim((string) explode(';', (string) $response->header('Content-Type'))[0]));
+        ['content' => $content, 'content_type' => $contentType] = $this->fetchHeaderMediaResource($mediaUrl);
         $allowedTypes = match ($headerType) {
             'IMAGE' => ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'],
             'VIDEO' => ['video/mp4', 'video/quicktime', 'video/3gpp'],
@@ -939,6 +921,56 @@ class TemplateManagementService
         return str_contains($host, 'lookaside.fbsbx.com')
             || str_contains($host, 'scontent.')
             || str_contains($host, 'fbcdn.net');
+    }
+
+    /**
+     * @return array{content:string,content_type:string}
+     */
+    protected function fetchHeaderMediaResource(string $mediaUrl): array
+    {
+        $localRelativePath = $this->resolveLocalStorageRelativePath($mediaUrl);
+        if ($localRelativePath !== null) {
+            if (!Storage::disk('public')->exists($localRelativePath)) {
+                throw new \RuntimeException('Stored media file could not be found.');
+            }
+
+            $content = (string) Storage::disk('public')->get($localRelativePath);
+            if ($content === '') {
+                throw new \RuntimeException('Stored media file is empty.');
+            }
+
+            return [
+                'content' => $content,
+                'content_type' => strtolower((string) (Storage::disk('public')->mimeType($localRelativePath) ?? '')),
+            ];
+        }
+
+        $response = Http::timeout(30)->get($mediaUrl);
+        if (!$response->successful()) {
+            throw new \RuntimeException("Media URL is not reachable (HTTP {$response->status()}).");
+        }
+
+        $content = $response->body();
+        if ($content === '') {
+            throw new \RuntimeException('Media URL returned empty content.');
+        }
+
+        return [
+            'content' => $content,
+            'content_type' => strtolower(trim((string) explode(';', (string) $response->header('Content-Type'))[0])),
+        ];
+    }
+
+    protected function resolveLocalStorageRelativePath(string $mediaUrl): ?string
+    {
+        $appUrl = rtrim((string) config('app.url'), '/');
+        if ($appUrl === '' || !str_starts_with($mediaUrl, $appUrl.'/storage/')) {
+            return null;
+        }
+
+        $relativePath = ltrim(substr($mediaUrl, strlen($appUrl.'/storage/')), '/');
+
+        return $relativePath !== '' ? $relativePath : null;
     }
 
     /**

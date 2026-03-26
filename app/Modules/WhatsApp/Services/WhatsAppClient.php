@@ -8,6 +8,7 @@ use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class WhatsAppClient
 {
@@ -303,17 +304,7 @@ class WhatsAppClient
     protected function uploadMediaFromLink(WhatsAppConnection $connection, string $mediaLink, string $paramType): string
     {
         $version = $connection->api_version ?: config('whatsapp.meta.api_version', 'v21.0');
-        $fetchResponse = $this->metaRequest()->get($mediaLink);
-        if (!$fetchResponse->successful()) {
-            throw new \RuntimeException('Could not download media URL (HTTP '.$fetchResponse->status().')');
-        }
-
-        $contents = $fetchResponse->body();
-        if ($contents === '') {
-            throw new \RuntimeException('Media URL returned empty content');
-        }
-
-        $contentType = strtolower(trim((string) explode(';', (string) $fetchResponse->header('Content-Type'))[0]));
+        ['content' => $contents, 'content_type' => $contentType] = $this->fetchMediaBinary($mediaLink);
         $fallbackMime = match ($paramType) {
             'image' => 'image/jpeg',
             'video' => 'video/mp4',
@@ -346,6 +337,56 @@ class WhatsAppClient
         }
 
         return (string) $uploadData['id'];
+    }
+
+    /**
+     * @return array{content:string,content_type:string}
+     */
+    protected function fetchMediaBinary(string $mediaLink): array
+    {
+        $localRelativePath = $this->resolveLocalStorageRelativePath($mediaLink);
+        if ($localRelativePath !== null) {
+            if (!Storage::disk('public')->exists($localRelativePath)) {
+                throw new \RuntimeException('Stored media file could not be found');
+            }
+
+            $content = (string) Storage::disk('public')->get($localRelativePath);
+            if ($content === '') {
+                throw new \RuntimeException('Stored media file is empty');
+            }
+
+            return [
+                'content' => $content,
+                'content_type' => strtolower((string) (Storage::disk('public')->mimeType($localRelativePath) ?? '')),
+            ];
+        }
+
+        $fetchResponse = $this->metaRequest()->get($mediaLink);
+        if (!$fetchResponse->successful()) {
+            throw new \RuntimeException('Could not download media URL (HTTP '.$fetchResponse->status().')');
+        }
+
+        $content = $fetchResponse->body();
+        if ($content === '') {
+            throw new \RuntimeException('Media URL returned empty content');
+        }
+
+        return [
+            'content' => $content,
+            'content_type' => strtolower(trim((string) explode(';', (string) $fetchResponse->header('Content-Type'))[0])),
+        ];
+    }
+
+    protected function resolveLocalStorageRelativePath(string $mediaLink): ?string
+    {
+        $appUrl = rtrim((string) config('app.url'), '/');
+        if ($appUrl === '' || !str_starts_with($mediaLink, $appUrl.'/storage/')) {
+            return null;
+        }
+
+        $relativePath = ltrim(substr($mediaLink, strlen($appUrl.'/storage/')), '/');
+
+        return $relativePath !== '' ? $relativePath : null;
     }
 
     /**

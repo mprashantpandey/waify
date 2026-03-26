@@ -305,7 +305,7 @@ export default function TemplatesEdit({
                                 Edit Template
                             </h1>
                             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                                Update your WhatsApp message template. A new version will be submitted to Meta for approval.
+                                Replace broken header media here. Changing only header media keeps the same template. Changing the message content creates a new review version.
                             </p>
                         </div>
                         <Button
@@ -347,7 +347,8 @@ export default function TemplatesEdit({
                             <li>Header: Max 60 characters (TEXT) or media URL (IMAGE/VIDEO/DOCUMENT)</li>
                             <li>Footer: Max 60 characters</li>
                             <li>Buttons: Maximum 3 buttons (QUICK_REPLY, URL, or PHONE_NUMBER)</li>
-                            <li>Editing creates a new version that requires Meta approval</li>
+                            <li>Changing only header media keeps the current template</li>
+                            <li>Changing the message content creates a new version that needs approval</li>
                         </ul>
                     </div>
                 </Alert>
