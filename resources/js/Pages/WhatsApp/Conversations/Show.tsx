@@ -466,10 +466,12 @@ export default function ConversationsShow({
     const [aiSuggestLoading, setAiSuggestLoading] = useState(false);
     const [showButtons, setShowButtons] = useState(false);
     const [showLocation, setShowLocation] = useState(false);
+    const [showForms, setShowForms] = useState(false);
     const [textSending, setTextSending] = useState(false);
     const [listSending, setListSending] = useState(false);
     const [buttonsSending, setButtonsSending] = useState(false);
     const [locationSending, setLocationSending] = useState(false);
+    const [flowSending, setFlowSending] = useState(false);
     const [attachmentsSending, setAttachmentsSending] = useState(false);
     const [lastAiSuggestion, setLastAiSuggestion] = useState<string | null>(null);
     const [aiFeedbackSending, setAiFeedbackSending] = useState<null | 'up' | 'down'>(null);
@@ -481,6 +483,14 @@ export default function ConversationsShow({
     const [buttonBodyText, setButtonBodyText] = useState('');
     const [buttonHeaderText, setButtonHeaderText] = useState('');
     const [buttonFooterText, setButtonFooterText] = useState('');
+    const [flowId, setFlowId] = useState('');
+    const [flowToken, setFlowToken] = useState('');
+    const [flowCta, setFlowCta] = useState('Open form');
+    const [flowBodyText, setFlowBodyText] = useState('');
+    const [flowHeaderText, setFlowHeaderText] = useState('');
+    const [flowFooterText, setFlowFooterText] = useState('');
+    const [flowActionScreen, setFlowActionScreen] = useState('');
+    const [flowActionDataJson, setFlowActionDataJson] = useState('');
     const [attachments, setAttachments] = useState<File[]>([]);
     const [locationInput, setLocationInput] = useState({ label: '', query: '' });
     const [selectedTemplate, setSelectedTemplate] = useState<TemplateItem | null>(null);
@@ -873,6 +883,97 @@ export default function ConversationsShow({
             setLocationSending(false);
         }
     }, [addToast, conversation.id, locationInput, parsedLocation, account.slug, locationSending, isCustomerCareWindowOpen, notifyClosedCustomerCareWindow]);
+
+    const sendFlow = useCallback(async () => {
+        if (flowSending) return;
+        if (!isCustomerCareWindowOpen) {
+            notifyClosedCustomerCareWindow();
+            return;
+        }
+        if (!flowId.trim()) {
+            addToast({ title: 'Flow ID needed', description: 'Enter a valid Flow ID.', variant: 'warning' });
+            return;
+        }
+        if (!flowToken.trim()) {
+            addToast({ title: 'Flow token needed', description: 'Enter the flow token.', variant: 'warning' });
+            return;
+        }
+        if (!flowCta.trim()) {
+            addToast({ title: 'CTA needed', description: 'Enter CTA button text.', variant: 'warning' });
+            return;
+        }
+        if (!flowBodyText.trim()) {
+            addToast({ title: 'Body text needed', description: 'Enter body text for the flow message.', variant: 'warning' });
+            return;
+        }
+
+        let flowActionData: Record<string, unknown> = {};
+        if (flowActionDataJson.trim()) {
+            try {
+                const parsed = JSON.parse(flowActionDataJson);
+                if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+                    throw new Error('Flow action data must be a JSON object');
+                }
+                flowActionData = parsed as Record<string, unknown>;
+            } catch (_error) {
+                addToast({
+                    title: 'Invalid action data',
+                    description: 'Flow action data must be valid JSON object.',
+                    variant: 'warning',
+                });
+                return;
+            }
+        }
+
+        try {
+            setFlowSending(true);
+            const response = await axios.post(
+                route('app.whatsapp.conversations.send-flow', { conversation: conversation.id }),
+                {
+                    flow_id: flowId.trim(),
+                    flow_token: flowToken.trim(),
+                    flow_cta: flowCta.trim(),
+                    body_text: flowBodyText,
+                    header_text: flowHeaderText || null,
+                    footer_text: flowFooterText || null,
+                    flow_action_screen: flowActionScreen || null,
+                    flow_action_data: flowActionData,
+                    client_request_id: createClientRequestId('flow'),
+                }
+            );
+            const message = response?.data?.message || 'Flow message sent successfully.';
+            const isDuplicate = typeof message === 'string' && message.toLowerCase().includes('duplicate');
+            addToast({ title: isDuplicate ? 'Duplicate ignored' : 'Flow accepted', description: message, variant: isDuplicate ? 'info' : 'success' });
+            setShowForms(false);
+            setFlowBodyText('');
+            setFlowHeaderText('');
+            setFlowFooterText('');
+            setFlowActionScreen('');
+            setFlowActionDataJson('');
+        } catch (error: any) {
+            addToast({
+                title: 'Failed to send flow',
+                description: error?.response?.data?.message || 'Please try again',
+                variant: 'error',
+            });
+        } finally {
+            setFlowSending(false);
+        }
+    }, [
+        addToast,
+        conversation.id,
+        flowActionDataJson,
+        flowActionScreen,
+        flowBodyText,
+        flowCta,
+        flowFooterText,
+        flowHeaderText,
+        flowId,
+        flowSending,
+        flowToken,
+        isCustomerCareWindowOpen,
+        notifyClosedCustomerCareWindow,
+    ]);
 
     const sendAttachments = useCallback(async (caption?: string) => {
         if (attachmentsSending) return;
@@ -1762,7 +1863,7 @@ export default function ConversationsShow({
     };
 
     const hasComposerPanels =
-        showComposerTools || showLocation || showQuickReplies || showTemplates || showLists || showButtons;
+        showComposerTools || showLocation || showQuickReplies || showTemplates || showLists || showButtons || showForms;
 
     const content = (
         <>
@@ -2351,6 +2452,7 @@ export default function ConversationsShow({
                                             setShowLocation((prev) => !prev);
                                             setShowLists(false);
                                             setShowButtons(false);
+                                            setShowForms(false);
                                             setShowQuickReplies(false);
                                         }}
                                         className="rounded-xl border border-gray-200 px-3 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
@@ -2364,6 +2466,7 @@ export default function ConversationsShow({
                                             setShowLists((prev) => !prev);
                                             setShowButtons(false);
                                             setShowLocation(false);
+                                            setShowForms(false);
                                             setShowQuickReplies(false);
                                         }}
                                         className="rounded-xl border border-gray-200 px-3 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
@@ -2377,6 +2480,7 @@ export default function ConversationsShow({
                                             setShowButtons((prev) => !prev);
                                             setShowLists(false);
                                             setShowLocation(false);
+                                            setShowForms(false);
                                             setShowQuickReplies(false);
                                         }}
                                         className="rounded-xl border border-gray-200 px-3 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
@@ -2391,12 +2495,138 @@ export default function ConversationsShow({
                                             setShowLists(false);
                                             setShowButtons(false);
                                             setShowLocation(false);
+                                            setShowForms(false);
                                         }}
                                         className="rounded-xl border border-gray-200 px-3 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
                                     >
                                         <div className="flex items-center gap-2 font-medium"><Zap className="h-4 w-4" /> Quick replies</div>
                                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Insert a saved reply.</p>
                                     </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowForms((prev) => !prev);
+                                            setShowQuickReplies(false);
+                                            setShowLists(false);
+                                            setShowButtons(false);
+                                            setShowLocation(false);
+                                        }}
+                                        className="rounded-xl border border-gray-200 px-3 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+                                    >
+                                        <div className="flex items-center gap-2 font-medium"><FileText className="h-4 w-4" /> Forms / Flows</div>
+                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Collect structured answers with flow forms.</p>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {showForms && (
+                            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="mb-2 block text-xs font-semibold text-gray-700 dark:text-gray-300">Flow ID *</label>
+                                        <TextInput
+                                            value={flowId}
+                                            onChange={(e) => setFlowId(e.target.value)}
+                                            placeholder="e.g. 123456789012345"
+                                            maxLength={128}
+                                            disabled={flowSending || !isCustomerCareWindowOpen}
+                                            className="rounded-xl"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="mb-2 block text-xs font-semibold text-gray-700 dark:text-gray-300">Flow Token *</label>
+                                        <TextInput
+                                            value={flowToken}
+                                            onChange={(e) => setFlowToken(e.target.value)}
+                                            placeholder="Generated flow token"
+                                            maxLength={255}
+                                            disabled={flowSending || !isCustomerCareWindowOpen}
+                                            className="rounded-xl"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="mb-2 block text-xs font-semibold text-gray-700 dark:text-gray-300">CTA Text * (Max 30)</label>
+                                        <TextInput
+                                            value={flowCta}
+                                            onChange={(e) => setFlowCta(e.target.value)}
+                                            placeholder="Open form"
+                                            maxLength={30}
+                                            disabled={flowSending || !isCustomerCareWindowOpen}
+                                            className="rounded-xl"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="mb-2 block text-xs font-semibold text-gray-700 dark:text-gray-300">Body Text * (Max 1024)</label>
+                                        <Textarea
+                                            value={flowBodyText}
+                                            onChange={(e) => setFlowBodyText(e.target.value)}
+                                            placeholder="Please complete this quick form."
+                                            maxLength={1024}
+                                            rows={3}
+                                            disabled={flowSending || !isCustomerCareWindowOpen}
+                                            className="rounded-xl"
+                                        />
+                                    </div>
+                                    <div className="grid gap-3 md:grid-cols-2">
+                                        <div>
+                                            <label className="mb-2 block text-xs font-semibold text-gray-700 dark:text-gray-300">Header Text (Optional)</label>
+                                            <TextInput
+                                                value={flowHeaderText}
+                                                onChange={(e) => setFlowHeaderText(e.target.value)}
+                                                placeholder="Optional header"
+                                                maxLength={60}
+                                                disabled={flowSending || !isCustomerCareWindowOpen}
+                                                className="rounded-xl"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="mb-2 block text-xs font-semibold text-gray-700 dark:text-gray-300">Footer Text (Optional)</label>
+                                            <TextInput
+                                                value={flowFooterText}
+                                                onChange={(e) => setFlowFooterText(e.target.value)}
+                                                placeholder="Optional footer"
+                                                maxLength={60}
+                                                disabled={flowSending || !isCustomerCareWindowOpen}
+                                                className="rounded-xl"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="mb-2 block text-xs font-semibold text-gray-700 dark:text-gray-300">Start Screen (Optional)</label>
+                                        <TextInput
+                                            value={flowActionScreen}
+                                            onChange={(e) => setFlowActionScreen(e.target.value)}
+                                            placeholder="FIRST_ENTRY_SCREEN"
+                                            maxLength={128}
+                                            disabled={flowSending || !isCustomerCareWindowOpen}
+                                            className="rounded-xl"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="mb-2 block text-xs font-semibold text-gray-700 dark:text-gray-300">Action Data JSON (Optional)</label>
+                                        <Textarea
+                                            value={flowActionDataJson}
+                                            onChange={(e) => setFlowActionDataJson(e.target.value)}
+                                            placeholder='{"customer_id":"123","source":"support"}'
+                                            rows={3}
+                                            disabled={flowSending || !isCustomerCareWindowOpen}
+                                            className="rounded-xl font-mono text-xs"
+                                        />
+                                    </div>
+                                    <div className="mt-3 flex justify-end gap-2">
+                                        <Button type="button" variant="secondary" onClick={() => setShowForms(false)} disabled={flowSending}>
+                                            Cancel
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            onClick={sendFlow}
+                                            disabled={flowSending || !isCustomerCareWindowOpen}
+                                            className="bg-[#25D366] text-white hover:bg-[#1DAA57]"
+                                        >
+                                            {flowSending ? 'Sending...' : 'Send Flow'}
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -2881,6 +3111,23 @@ export default function ConversationsShow({
 
                         <form onSubmit={submit} className="flex items-center gap-2">
                             <div className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-1.5 py-1 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowComposerTools((prev) => !prev);
+                                        setShowTemplates(false);
+                                        setShowQuickReplies(false);
+                                        setShowLocation(false);
+                                        setShowLists(false);
+                                        setShowButtons(false);
+                                        setShowForms(false);
+                                    }}
+                                    className="inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                                    aria-label="Composer tools"
+                                    title="Composer tools"
+                                >
+                                    <Plus className="h-4 w-4" />
+                                </button>
                                 <button
                                     type="button"
                                     onClick={() => setShowEmojiBar((prev) => !prev)}

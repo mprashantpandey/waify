@@ -54,6 +54,7 @@ Route::middleware(['module.entitled:whatsapp.cloud'])->group(function () {
     Route::post('/conversations/{conversation}/send-location', [ConversationController::class, 'sendLocationMessage'])->name('whatsapp.conversations.send-location');
     Route::post('/conversations/{conversation}/send-list', [ConversationController::class, 'sendList'])->name('whatsapp.conversations.send-list');
     Route::post('/conversations/{conversation}/send-buttons', [ConversationController::class, 'sendInteractiveButtons'])->name('whatsapp.conversations.send-buttons');
+    Route::post('/conversations/{conversation}/send-flow', [ConversationController::class, 'sendFlowMessage'])->name('whatsapp.conversations.send-flow');
     Route::post('/conversations/{conversation}/notes', [ConversationController::class, 'addInternalNote'])->name('whatsapp.conversations.notes.store');
     Route::post('/conversations/{conversation}/update', [ConversationController::class, 'updateMeta'])->name('whatsapp.conversations.update');
     Route::post('/conversations/{conversation}/ai-suggest', [ConversationController::class, 'aiSuggest'])->name('whatsapp.conversations.ai-suggest');

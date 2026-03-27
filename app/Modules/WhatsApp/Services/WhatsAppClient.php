@@ -747,6 +747,121 @@ class WhatsAppClient
     }
 
     /**
+     * Send a WhatsApp Flow interactive message via Cloud API.
+     */
+    public function sendFlowMessage(
+        WhatsAppConnection $connection,
+        string $toWaId,
+        string $flowId,
+        string $flowToken,
+        string $flowCta,
+        string $bodyText,
+        ?string $headerText = null,
+        ?string $footerText = null,
+        ?string $flowActionScreen = null,
+        array $flowActionData = []
+    ): array {
+        $url = sprintf(
+            '%s/%s/%s/messages',
+            $this->baseUrl,
+            $connection->api_version ?: config('whatsapp.meta.api_version', 'v21.0'),
+            $connection->phone_number_id
+        );
+
+        $parameters = [
+            'flow_message_version' => '3',
+            'flow_token' => $flowToken,
+            'flow_id' => $flowId,
+            'flow_cta' => $flowCta,
+            'flow_action' => 'navigate',
+        ];
+
+        if ($flowActionScreen || !empty($flowActionData)) {
+            $parameters['flow_action_payload'] = [
+                'screen' => $flowActionScreen ?: 'FIRST_ENTRY_SCREEN',
+                'data' => $flowActionData,
+            ];
+        }
+
+        $interactive = [
+            'type' => 'flow',
+            'body' => ['text' => $bodyText],
+            'action' => [
+                'name' => 'flow',
+                'parameters' => $parameters,
+            ],
+        ];
+
+        if ($headerText) {
+            $interactive['header'] = ['type' => 'text', 'text' => $headerText];
+        }
+
+        if ($footerText) {
+            $interactive['footer'] = ['text' => $footerText];
+        }
+
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'recipient_type' => 'individual',
+            'to' => $toWaId,
+            'type' => 'interactive',
+            'interactive' => $interactive,
+        ];
+
+        try {
+            $this->assertConnectionReady($connection);
+            $this->checkRateLimit($connection);
+
+            $response = $this->metaRequestWithToken($connection->access_token)
+                ->post($url, $payload);
+
+            $responseData = $response->json();
+
+            if (!$response->successful()) {
+                $errorMessage = $responseData['error']['message'] ?? 'Unknown error from WhatsApp API';
+                $errorCode = $responseData['error']['code'] ?? $response->status();
+
+                Log::channel('whatsapp')->error('WhatsApp flow message API error', [
+                    'connection_id' => $connection->id,
+                    'phone_number_id' => $connection->phone_number_id,
+                    'flow_id' => $flowId,
+                    'error' => $responseData['error'] ?? [],
+                    'status' => $response->status(),
+                ]);
+
+                throw new WhatsAppApiException(
+                    "WhatsApp API error: {$errorMessage}",
+                    $responseData,
+                    $errorCode
+                );
+            }
+
+            Log::channel('whatsapp')->info('Flow message sent successfully', [
+                'connection_id' => $connection->id,
+                'flow_id' => $flowId,
+                'message_id' => $responseData['messages'][0]['id'] ?? null,
+            ]);
+
+            return $responseData;
+        } catch (WhatsAppApiException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            Log::channel('whatsapp')->error('Unexpected error sending flow message', [
+                'connection_id' => $connection->id,
+                'flow_id' => $flowId,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw new WhatsAppApiException(
+                "Failed to send flow message: {$e->getMessage()}",
+                [],
+                0,
+                $e
+            );
+        }
+    }
+
+    /**
      * Get the base URL for API calls.
      */
     public function getBaseUrl(): string

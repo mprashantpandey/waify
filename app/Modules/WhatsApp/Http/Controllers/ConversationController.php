@@ -2004,6 +2004,194 @@ class ConversationController extends Controller
         }
     }
 
+    /**
+     * Send a WhatsApp Flow interactive message.
+     */
+    public function sendFlowMessage(Request $request, WhatsAppConversation $conversation)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+        $wantsJson = $request->expectsJson() || $request->ajax();
+        $respondError = function (string $message, ?string $detail = null, int $status = 422) use ($wantsJson) {
+            if ($wantsJson) {
+                return response()->json([
+                    'message' => $message,
+                    'message_detail' => $detail,
+                ], $status);
+            }
+
+            return redirect()->back()->withErrors([
+                'flow' => $message,
+                'message_detail' => $detail,
+            ]);
+        };
+        $respondSuccess = function (string $message) use ($wantsJson) {
+            if ($wantsJson) {
+                return response()->json(['success' => true, 'message' => $message], 200);
+            }
+
+            return redirect()->back()->with('success', $message);
+        };
+
+        if (!account_ids_match($conversation->account_id, $account->id)) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'flow_id' => 'required|string|max:128',
+            'flow_token' => 'required|string|max:255',
+            'flow_cta' => 'required|string|max:30',
+            'body_text' => 'required|string|max:1024',
+            'header_text' => 'nullable|string|max:60',
+            'footer_text' => 'nullable|string|max:60',
+            'flow_action_screen' => 'nullable|string|max:128',
+            'flow_action_data' => 'nullable|array',
+            'client_request_id' => 'nullable|string|max:120',
+        ]);
+
+        $conversation->load(['connection', 'contact']);
+        $this->outboundPipeline->assertSendPrerequisites($conversation->connection, (string) $conversation->contact->wa_id, 'flow');
+        $windowGuard = $this->ensureCustomerCareWindowOpen($conversation, $respondError);
+        if ($windowGuard !== null) {
+            return $windowGuard;
+        }
+
+        $clientRequestId = $this->normalizeClientRequestId($validated['client_request_id'] ?? null);
+        $flowFingerprint = hash('sha256', implode('|', [
+            'flow',
+            (string) $conversation->id,
+            (string) $validated['flow_id'],
+            (string) $validated['flow_token'],
+            (string) $validated['flow_cta'],
+            (string) $validated['body_text'],
+            json_encode($validated['flow_action_data'] ?? [], JSON_UNESCAPED_UNICODE) ?: '',
+        ]));
+        if (!$this->reserveOutboundSendGuard(
+            (int) $account->id,
+            (int) $conversation->id,
+            'flow',
+            $clientRequestId,
+            $flowFingerprint
+        )) {
+            return $respondSuccess('Duplicate send request ignored. Message is already being processed.');
+        }
+
+        $this->outboundPipeline->assertRateLimits($account, $conversation->connection);
+        $pipelineIdempotencyKey = $this->outboundPipeline->buildIdempotencyKey(
+            (int) $account->id,
+            (int) $conversation->id,
+            'flow',
+            $clientRequestId,
+            $flowFingerprint
+        );
+        $outboundJob = $this->outboundPipeline->begin([
+            'account_id' => $account->id,
+            'whatsapp_connection_id' => $conversation->whatsapp_connection_id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'message_type' => 'flow',
+            'to_wa_id' => $conversation->contact->wa_id,
+            'client_request_id' => $clientRequestId,
+            'idempotency_key' => $pipelineIdempotencyKey,
+            'request_payload' => [
+                'flow_id' => $validated['flow_id'],
+                'flow_cta' => $validated['flow_cta'],
+                'body_text' => $validated['body_text'],
+                'header_text' => $validated['header_text'] ?? null,
+                'footer_text' => $validated['footer_text'] ?? null,
+                'flow_action_screen' => $validated['flow_action_screen'] ?? null,
+                'flow_action_data' => $validated['flow_action_data'] ?? [],
+            ],
+        ]);
+        if ($outboundJob) {
+            $this->outboundPipeline->markValidating($outboundJob);
+        }
+
+        $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
+
+        $message = WhatsAppMessage::lockForUpdate()->create([
+            'account_id' => $account->id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'direction' => 'outbound',
+            'type' => 'interactive',
+            'text_body' => $validated['body_text'],
+            'payload' => [
+                'interactive_type' => 'flow',
+                'flow_id' => $validated['flow_id'],
+                'flow_cta' => $validated['flow_cta'],
+                'header_text' => $validated['header_text'] ?? null,
+                'footer_text' => $validated['footer_text'] ?? null,
+                'flow_action_screen' => $validated['flow_action_screen'] ?? null,
+                'flow_action_data' => $validated['flow_action_data'] ?? [],
+            ],
+            'status' => 'queued',
+        ]);
+
+        $message->load('conversation.contact');
+        event(new MessageCreated($message));
+
+        try {
+            if ($outboundJob) {
+                $this->outboundPipeline->markSending($outboundJob);
+            }
+            $response = $this->whatsappClient->sendFlowMessage(
+                $conversation->connection,
+                $conversation->contact->wa_id,
+                $validated['flow_id'],
+                $validated['flow_token'],
+                $validated['flow_cta'],
+                $validated['body_text'],
+                $validated['header_text'] ?? null,
+                $validated['footer_text'] ?? null,
+                $validated['flow_action_screen'] ?? null,
+                $validated['flow_action_data'] ?? []
+            );
+
+            $metaMessageId = $response['messages'][0]['id'] ?? null;
+            $message->update([
+                'meta_message_id' => $metaMessageId,
+                'status' => 'sent',
+                'sent_at' => now(),
+                'payload' => array_merge($message->payload ?? [], ['response' => $response]),
+            ]);
+            if ($outboundJob) {
+                $this->outboundPipeline->markSentToProvider($outboundJob, $metaMessageId, $response);
+                $outboundJob->update(['whatsapp_message_id' => $message->id]);
+            }
+
+            $this->usageService->incrementMessages($account, 1);
+
+            $conversation->update([
+                'last_message_at' => now(),
+                'last_message_preview' => $validated['body_text'],
+            ]);
+
+            $this->touchContactAfterOutbound($conversation);
+
+            event(new MessageUpdated($message));
+            event(new ConversationUpdated($conversation));
+
+            return $respondSuccess('Flow message sent successfully.');
+        } catch (\Exception $e) {
+            $message->update([
+                'status' => 'failed',
+                'error_message' => $e->getMessage(),
+            ]);
+            event(new MessageUpdated($message));
+            if ($outboundJob) {
+                $failure = $this->outboundPipeline->classifyFailure($e);
+                $this->outboundPipeline->markFailed(
+                    $outboundJob,
+                    $e->getMessage(),
+                    $this->outboundPipeline->safeSerializeProviderError($e),
+                    $failure['retryable'],
+                    $failure['retry_after_seconds']
+                );
+                $outboundJob->update(['whatsapp_message_id' => $message->id]);
+            }
+
+            return $respondError('Failed to send flow message: ' . $e->getMessage());
+        }
+    }
+
     private function normalizeTemplateVariables(mixed $variables): array
     {
         if (!is_array($variables)) {
