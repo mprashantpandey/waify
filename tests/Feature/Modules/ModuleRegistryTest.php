@@ -47,4 +47,18 @@ class ModuleRegistryTest extends TestCase
         $this->assertNotContains('whatsapp.cloud', $enabled);
         $this->assertContains('core.dashboard', $enabled);
     }
+
+    public function test_registry_does_not_expose_enabled_by_default_modules_outside_plan(): void
+    {
+        $account = $this->createAccountWithPlan('free');
+
+        $enabled = app(ModuleRegistry::class)
+            ->getEnabledForAccount($account)
+            ->pluck('key')
+            ->all();
+
+        $this->assertContains('core.dashboard', $enabled);
+        $this->assertContains('whatsapp.cloud', $enabled);
+        $this->assertNotContains('contacts', $enabled);
+    }
 }

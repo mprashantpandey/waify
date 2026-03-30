@@ -11,9 +11,11 @@ use App\Modules\WhatsApp\Services\WebhookConnectionResolver;
 use App\Modules\WhatsApp\Services\WebhookEventClassifier;
 use App\Modules\WhatsApp\Services\WebhookProcessor;
 use App\Modules\WhatsApp\Support\WebhookLogSanitizer;
+use Illuminate\Contracts\Bus\Dispatcher as BusDispatcher;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
@@ -24,7 +26,8 @@ class WebhookController extends Controller
     public function __construct(
         protected WebhookProcessor $webhookProcessor,
         protected WebhookEventClassifier $webhookEventClassifier,
-        protected WebhookConnectionResolver $webhookConnectionResolver
+        protected WebhookConnectionResolver $webhookConnectionResolver,
+        protected BusDispatcher $bus
     ) {
         $this->middleware(\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class)->except(['verify', 'receive']);
     }
@@ -220,29 +223,70 @@ class WebhookController extends Controller
             ];
 
             try {
-                $event = WhatsAppWebhookEvent::create([
-                    'account_id' => $connection->account_id,
-                    'tenant_id' => $connection->account_id,
-                    'whatsapp_connection_id' => $connection->id,
-                    'provider' => 'whatsapp_meta',
-                    'event_type' => $classification['event_type'] ?? 'unknown',
-                    'object_type' => $classification['object_type'] ?? 'whatsapp_business_account',
-                    'idempotency_key' => $idempotencyKey,
-                    'correlation_id' => $correlationId,
-                    'status' => 'received',
-                    'payload' => $payload,
-                    'delivery_headers' => $headersSubset,
-                    'signature_valid' => is_bool($signatureValid) ? $signatureValid : null,
-                    'payload_size' => $payloadSize,
-                    'ip' => $request->ip(),
-                    'user_agent' => (string) $request->userAgent(),
-                ]);
+                $event = DB::transaction(function () use (
+                    $classification,
+                    $connection,
+                    $correlationId,
+                    $headersSubset,
+                    $idempotencyKey,
+                    $payload,
+                    $payloadSize,
+                    $request,
+                    $signatureValid
+                ) {
+                    $event = WhatsAppWebhookEvent::create([
+                        'account_id' => $connection->account_id,
+                        'tenant_id' => $connection->account_id,
+                        'whatsapp_connection_id' => $connection->id,
+                        'provider' => 'whatsapp_meta',
+                        'event_type' => $classification['event_type'] ?? 'unknown',
+                        'object_type' => $classification['object_type'] ?? 'whatsapp_business_account',
+                        'idempotency_key' => $idempotencyKey,
+                        'correlation_id' => $correlationId,
+                        'status' => 'received',
+                        'payload' => $payload,
+                        'delivery_headers' => $headersSubset,
+                        'signature_valid' => is_bool($signatureValid) ? $signatureValid : null,
+                        'payload_size' => $payloadSize,
+                        'ip' => $request->ip(),
+                        'user_agent' => (string) $request->userAgent(),
+                    ]);
 
-                $connection->update([
-                    'webhook_last_received_at' => now(),
-                ]);
+                    $connection->update([
+                        'webhook_last_received_at' => now(),
+                    ]);
+
+                    $this->bus->dispatch(new ProcessWebhookEventJob($event->id));
+
+                    return $event;
+                });
             } catch (QueryException $e) {
-                if (str_contains(strtolower($e->getMessage()), 'wa_webhook_events_provider_conn_idem_uq')) {
+                if ($this->isDuplicateWebhookEventException($e)) {
+                    $existingEvent = WhatsAppWebhookEvent::query()
+                        ->where('whatsapp_connection_id', $connection->id)
+                        ->where('provider', 'whatsapp_meta')
+                        ->where('idempotency_key', $idempotencyKey)
+                        ->first();
+
+                    if ($existingEvent && in_array($existingEvent->status, ['received', 'failed'], true)) {
+                        $this->bus->dispatch(new ProcessWebhookEventJob($existingEvent->id));
+
+                        Cache::put($dedupeKey, [
+                            'status' => 'queued_recovery',
+                            'correlation_id' => $correlationId,
+                            'event_id' => $existingEvent->id,
+                            'queued_at' => now()->timestamp,
+                        ], now()->addSeconds($dedupeTtlSeconds));
+                        $releaseDedupeKey = false;
+
+                        return response()->json([
+                            'success' => true,
+                            'queued' => true,
+                            'event_id' => $existingEvent->id,
+                            'correlation_id' => $correlationId,
+                        ], 200);
+                    }
+
                     Cache::put($dedupeKey, [
                         'status' => 'duplicate',
                         'correlation_id' => $correlationId,
@@ -260,7 +304,6 @@ class WebhookController extends Controller
                 throw $e;
             }
 
-            ProcessWebhookEventJob::dispatch($event->id);
             Cache::put($dedupeKey, [
                 'status' => 'queued',
                 'correlation_id' => $correlationId,
@@ -296,5 +339,16 @@ class WebhookController extends Controller
         $value = trim((string) $value);
 
         return $value === '' ? null : $value;
+    }
+
+    protected function isDuplicateWebhookEventException(QueryException $e): bool
+    {
+        $message = strtolower($e->getMessage());
+        $sqlState = (string) ($e->errorInfo[0] ?? '');
+
+        return $sqlState === '23000'
+            || str_contains($message, 'wa_webhook_events_provider_conn_idem_uq')
+            || str_contains($message, 'unique constraint failed: whatsapp_webhook_events.provider, whatsapp_webhook_events.whatsapp_connection_id, whatsapp_webhook_events.idempotency_key')
+            || str_contains($message, 'duplicate entry');
     }
 }

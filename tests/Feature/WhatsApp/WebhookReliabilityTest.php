@@ -9,8 +9,10 @@ use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use App\Modules\WhatsApp\Models\WhatsAppWebhookEvent;
 use App\Modules\WhatsApp\Services\WebhookProcessor;
 use App\Services\OperationalAlertService;
+use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use Mockery;
 use Tests\TestCase;
 
 class WebhookReliabilityTest extends TestCase
@@ -203,6 +205,106 @@ class WebhookReliabilityTest extends TestCase
             1,
             WhatsAppWebhookEvent::query()->where('whatsapp_connection_id', $connection->id)->count()
         );
+    }
+
+    public function test_duplicate_received_event_is_requeued_for_processing(): void
+    {
+        Queue::fake();
+
+        $account = Account::factory()->create();
+        $connection = WhatsAppConnection::factory()->create([
+            'account_id' => $account->id,
+            'phone_number_id' => '150215621517428',
+            'waba_id' => '131698056692862',
+        ]);
+
+        $payload = [
+            'entry' => [[
+                'id' => $connection->waba_id,
+                'changes' => [[
+                    'field' => 'messages',
+                    'value' => [
+                        'metadata' => [
+                            'phone_number_id' => $connection->phone_number_id,
+                        ],
+                        'messages' => [[
+                            'id' => 'wamid.rel.requeue.1',
+                            'from' => '919999999002',
+                            'type' => 'text',
+                            'text' => ['body' => 'retry'],
+                        ]],
+                    ],
+                ]],
+            ]],
+        ];
+
+        $serializedPayload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{}';
+        $idempotencyKey = sha1(implode('|', ['whatsapp_meta', (string) $connection->id, sha1($serializedPayload)]));
+
+        $event = WhatsAppWebhookEvent::query()->create([
+            'account_id' => $account->id,
+            'tenant_id' => $account->id,
+            'whatsapp_connection_id' => $connection->id,
+            'provider' => 'whatsapp_meta',
+            'event_type' => 'messages.text',
+            'object_type' => 'whatsapp_business_account',
+            'idempotency_key' => $idempotencyKey,
+            'correlation_id' => 'existing-correlation',
+            'status' => 'received',
+            'payload' => $payload,
+            'payload_size' => strlen($serializedPayload),
+        ]);
+
+        $this->postJson(route('webhooks.whatsapp.receive'), $payload)
+            ->assertStatus(200)
+            ->assertJson([
+                'success' => true,
+                'queued' => true,
+                'event_id' => $event->id,
+            ]);
+
+        Queue::assertPushed(ProcessWebhookEventJob::class, function (ProcessWebhookEventJob $job) use ($event) {
+            return $job->webhookEventId === $event->id;
+        });
+    }
+
+    public function test_dispatch_failure_rolls_back_event_creation(): void
+    {
+        $dispatcher = Mockery::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('dispatch')->andThrow(new \RuntimeException('queue down'));
+        $this->app->instance(Dispatcher::class, $dispatcher);
+
+        $account = Account::factory()->create();
+        $connection = WhatsAppConnection::factory()->create([
+            'account_id' => $account->id,
+            'phone_number_id' => '150215621517428',
+            'waba_id' => '131698056692862',
+        ]);
+
+        $payload = [
+            'entry' => [[
+                'id' => $connection->waba_id,
+                'changes' => [[
+                    'field' => 'messages',
+                    'value' => [
+                        'metadata' => [
+                            'phone_number_id' => $connection->phone_number_id,
+                        ],
+                        'messages' => [[
+                            'id' => 'wamid.rel.fail.1',
+                            'from' => '919999999003',
+                            'type' => 'text',
+                            'text' => ['body' => 'fail'],
+                        ]],
+                    ],
+                ]],
+            ]],
+        ];
+
+        $this->postJson(route('webhooks.whatsapp.receive'), $payload)
+            ->assertStatus(500);
+
+        $this->assertSame(0, WhatsAppWebhookEvent::query()->count());
     }
 
     public function test_processing_job_marks_event_processed_and_creates_message(): void

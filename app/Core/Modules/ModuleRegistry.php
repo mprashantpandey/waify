@@ -88,11 +88,7 @@ class ModuleRegistry
             return false;
         }
 
-        if ($state['plan_enabled']->has($moduleKey)) {
-            return true;
-        }
-
-        return (($module['is_core'] ?? false) || ($module['enabled_by_default'] ?? false)) && $accountOverride !== false;
+        return $state['plan_enabled']->has($moduleKey);
     }
 
     protected function resolveAccountState($account): array
