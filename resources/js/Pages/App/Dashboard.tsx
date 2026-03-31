@@ -240,6 +240,14 @@ export default function Dashboard({
     ];
 
     const quickActions = [
+        hasRoute('app.setup')
+            ? {
+                  href: route('app.setup', {}),
+                  label: 'Setup',
+                  description: 'See what is ready, what still needs setup, and what your plan includes.',
+                  icon: CheckCircle,
+              }
+            : null,
         hasRoute('app.whatsapp.connections.index')
             ? {
                   href: route('app.whatsapp.connections.index', {}),
@@ -315,6 +323,27 @@ export default function Dashboard({
                     </div>
                 </section>
 
+                {hasRoute('app.setup') && onboarding_checklist?.show && (
+                    <section className="rounded-2xl border border-blue-200 bg-blue-50/70 p-4 shadow-sm dark:border-blue-900/40 dark:bg-blue-950/20">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                            <div className="flex items-start gap-3">
+                                <div className="rounded-xl bg-blue-100 p-2 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                                    <CheckCircle className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-semibold text-blue-950 dark:text-blue-100">Open Setup to finish onboarding</p>
+                                    <p className="mt-1 text-sm text-blue-900/75 dark:text-blue-200/80">
+                                        {onboarding_checklist.completed} of {onboarding_checklist.total} steps completed. Use Setup for the full readiness view.
+                                    </p>
+                                </div>
+                            </div>
+                            <Link href={route('app.setup', {})}>
+                                <Button size="sm" className="rounded-xl">Open Setup</Button>
+                            </Link>
+                        </div>
+                    </section>
+                )}
+
                 {connection_alerts.length > 0 && (
                     <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/20">
                         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -365,11 +394,25 @@ export default function Dashboard({
                         <Card className="border border-gray-200 shadow-sm dark:border-gray-800">
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-lg">Next steps</CardTitle>
-                                <CardDescription>Finish the basics and keep your account ready.</CardDescription>
+                                <CardDescription>Use Setup for the full checklist, then return here for daily work.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-3">
                                 {onboarding_checklist?.show ? (
                                     <>
+                                        {hasRoute('app.setup') && (
+                                            <Link
+                                                href={route('app.setup', {})}
+                                                className="flex items-center justify-between gap-4 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 transition hover:border-blue-300 dark:border-blue-900/40 dark:bg-blue-950/20 dark:hover:border-blue-800"
+                                            >
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-semibold text-blue-950 dark:text-blue-100">Open full setup view</p>
+                                                    <p className="mt-1 text-sm text-blue-900/75 dark:text-blue-200/80">
+                                                        Review all setup steps and feature readiness in one place.
+                                                    </p>
+                                                </div>
+                                                <ArrowRight className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-300" />
+                                            </Link>
+                                        )}
                                         {(onboarding_checklist.items ?? []).slice(0, 3).map((item) => (
                                             <button
                                                 key={item.key}
