@@ -98,12 +98,19 @@ export default function BroadcastsIndex({
                             Create and manage WhatsApp broadcast campaigns
                         </p>
                     </div>
-                    <Link href={route('app.broadcasts.create', {})} className="w-full sm:w-auto">
+                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                        <Link href={route('app.broadcasts.sequences.index', {})} className="w-full sm:w-auto">
+                            <Button variant="secondary" className="w-full sm:w-auto">
+                                Sequences
+                            </Button>
+                        </Link>
+                        <Link href={route('app.broadcasts.create', {})} className="w-full sm:w-auto">
                         <Button className="w-full sm:w-auto bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50">
                             <Plus className="h-4 w-4 mr-2" />
                             Create Campaign
                         </Button>
                     </Link>
+                    </div>
                 </div>
 
                 <Card className="border-0 shadow-lg">
