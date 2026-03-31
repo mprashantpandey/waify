@@ -23,15 +23,18 @@ type Props = {
     };
     filters: {
         search?: string;
+        status?: string;
     };
+    statuses: string[];
 };
 
-export default function EcommerceProductsIndex({ products, filters }: Props) {
+export default function EcommerceProductsIndex({ products, filters, statuses }: Props) {
     const [search, setSearch] = useState(filters.search || '');
+    const [status, setStatus] = useState(filters.status || '');
 
     const onSearch = (e: FormEvent) => {
         e.preventDefault();
-        router.get(route('app.ecommerce.products.index'), { search }, { preserveState: true, preserveScroll: true });
+        router.get(route('app.ecommerce.products.index'), { search: search || undefined, status: status || undefined }, { preserveState: true, preserveScroll: true });
     };
 
     const formatPrice = (amount: number, currency: string) => {
@@ -61,11 +64,23 @@ export default function EcommerceProductsIndex({ products, filters }: Props) {
 
                 <Card>
                     <CardContent className="p-4">
-                        <form onSubmit={onSearch} className="flex gap-2">
+                        <form onSubmit={onSearch} className="flex flex-col gap-3 md:flex-row">
                             <div className="relative flex-1">
                                 <Search className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                                 <TextInput className="pl-9 w-full" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name or SKU..." />
                             </div>
+                            <select
+                                value={status}
+                                onChange={(e) => setStatus(e.target.value)}
+                                className="rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 text-sm md:w-44"
+                            >
+                                <option value="">All statuses</option>
+                                {statuses.map((item) => (
+                                    <option key={item} value={item}>
+                                        {item}
+                                    </option>
+                                ))}
+                            </select>
                             <Button type="submit" variant="secondary">Search</Button>
                         </form>
                     </CardContent>
@@ -115,4 +130,3 @@ export default function EcommerceProductsIndex({ products, filters }: Props) {
         </AppShell>
     );
 }
-

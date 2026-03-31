@@ -84,7 +84,7 @@ export default function EcommerceProductCreate() {
                                         className="w-full"
                                         required
                                     />
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Example: 999 = Rs 9.99 when currency uses 2 decimals.</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">For INR, enter paise. Example: 9999 = Rs 99.99.</p>
                                     <InputError message={errors.price} className="mt-1" />
                                 </div>
                                 <div>
@@ -131,4 +131,3 @@ export default function EcommerceProductCreate() {
         </AppShell>
     );
 }
-

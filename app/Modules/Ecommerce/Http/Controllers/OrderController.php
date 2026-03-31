@@ -14,11 +14,26 @@ class OrderController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
         $status = (string) $request->string('status');
+        $search = trim((string) $request->string('search'));
+        $statuses = ['pending', 'confirmed', 'paid', 'shipped', 'cancelled'];
+        if ($status !== '' && !in_array($status, $statuses, true)) {
+            $status = '';
+        }
 
         $orders = EcommerceOrder::query()
             ->where('account_id', $account->id)
             ->with('product:id,name')
             ->when($status !== '', fn ($query) => $query->where('status', $status))
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('customer_name', 'like', "%{$search}%")
+                        ->orWhere('customer_phone', 'like', "%{$search}%")
+                        ->orWhere('customer_wa_id', 'like', "%{$search}%")
+                        ->orWhereHas('product', function ($productQuery) use ($search) {
+                            $productQuery->where('name', 'like', "%{$search}%");
+                        });
+                });
+            })
             ->latest('id')
             ->paginate(20)
             ->withQueryString()
@@ -40,9 +55,9 @@ class OrderController extends Controller
             'orders' => $orders,
             'filters' => [
                 'status' => $status,
+                'search' => $search,
             ],
-            'statuses' => ['pending', 'confirmed', 'paid', 'shipped', 'cancelled'],
+            'statuses' => $statuses,
         ]);
     }
 }
-

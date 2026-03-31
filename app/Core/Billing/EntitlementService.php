@@ -14,22 +14,33 @@ class EntitlementService
     ) {}
 
     /**
+     * Check if a module is enabled for the account.
+     */
+    public function isModuleEnabled(Account $account, string $moduleKey): bool
+    {
+        $module = \App\Models\Module::query()->where('key', $moduleKey)->first();
+        if (!$module || !$module->is_enabled) {
+            return false;
+        }
+
+        $effectiveModules = $this->planResolver->getEffectiveModules($account);
+
+        return in_array($moduleKey, $effectiveModules, true);
+    }
+
+    /**
      * Assert that a module is enabled for the account.
      * 
      * @throws \Symfony\Component\HttpKernel\Exception\HttpException
      */
     public function assertModuleEnabled(Account $account, string $moduleKey): void
     {
-        // First check: module must be enabled at platform level
-        $module = \App\Models\Module::where('key', $moduleKey)->first();
+        $module = \App\Models\Module::query()->where('key', $moduleKey)->first();
         if (!$module || !$module->is_enabled) {
             abort(404, "Module '{$moduleKey}' is currently disabled at the platform level. Please contact support.");
         }
-        
-        // Second check: module must be available on plan and enabled in account
-        $effectiveModules = $this->planResolver->getEffectiveModules($account);
 
-        if (!in_array($moduleKey, $effectiveModules)) {
+        if (!$this->isModuleEnabled($account, $moduleKey)) {
             abort(403, "Module '{$moduleKey}' is not available on your current plan. Please upgrade to access this feature.");
         }
     }

@@ -10,6 +10,7 @@ type Props = {
         active_products_count: number;
         orders_count: number;
         pending_orders_count: number;
+        low_stock_products_count: number;
     };
     recent_orders: Array<{
         id: number;
@@ -57,6 +58,7 @@ export default function EcommerceIndex({ summary, recent_orders }: Props) {
                     <MetricCard icon={Package} label="Active Products" value={summary.active_products_count} />
                     <MetricCard icon={ShoppingCart} label="Orders" value={summary.orders_count} />
                     <MetricCard icon={Clock3} label="Pending Orders" value={summary.pending_orders_count} />
+                    <MetricCard icon={Package} label="Low Stock" value={summary.low_stock_products_count} />
                 </div>
 
                 <Card>
@@ -114,4 +116,3 @@ function MetricCard({ icon: Icon, label, value }: { icon: any; label: string; va
         </Card>
     );
 }
-

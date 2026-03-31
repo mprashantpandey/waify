@@ -8,6 +8,42 @@ use App\Models\Account;
 class PlanResolver
 {
     /**
+     * Get modules available to the account from plan, addons, and core defaults.
+     */
+    public function getAvailableModules(Account $account): array
+    {
+        $platformEnabledModules = \App\Models\Module::query()
+            ->where('is_enabled', true)
+            ->pluck('key')
+            ->all();
+
+        $plan = $this->getAccountPlan($account);
+
+        $availableModules = [];
+
+        if ($plan) {
+            $availableModules = $plan->modules ?? [];
+
+            $addons = $account->addons()->with('addon')->get();
+            foreach ($addons as $accountAddon) {
+                $addonModules = $accountAddon->addon->modules_delta ?? [];
+                $availableModules = array_merge($availableModules, $addonModules);
+            }
+        }
+
+        $coreModules = \App\Models\Module::query()
+            ->where('is_core', true)
+            ->where('is_enabled', true)
+            ->pluck('key')
+            ->all();
+
+        return array_values(array_unique(array_intersect(
+            array_merge($availableModules, $coreModules),
+            $platformEnabledModules,
+        )));
+    }
+
+    /**
      * Get the plan for a account.
      */
     public function getAccountPlan(Account $account): ?Plan
@@ -31,82 +67,18 @@ class PlanResolver
      */
     public function getEffectiveModules(Account $account): array
     {
-        // Get platform-enabled modules first
-        $platformEnabledModules = \App\Models\Module::where('is_enabled', true)
-            ->pluck('key')
-            ->toArray();
-        
-        // Get account-enabled modules
-        $accountModules = \App\Models\AccountModule::where('account_id', $account->id)
-            ->where('enabled', true)
-            ->pluck('module_key')
-            ->toArray();
-        
-        $plan = $this->getAccountPlan($account);
-        
-        $effectiveModules = [];
-        
-        if ($plan) {
-            // Start with plan modules
-            $modules = $plan->modules ?? [];
+        $availableModules = $this->getAvailableModules($account);
+        $accountModules = \App\Models\AccountModule::query()
+            ->where('account_id', $account->id)
+            ->pluck('enabled', 'module_key');
 
-            // Add modules from active addons
-            $addons = $account->addons()->with('addon')->get();
-            foreach ($addons as $accountAddon) {
-                $addonModules = $accountAddon->addon->modules_delta ?? [];
-                $modules = array_merge($modules, $addonModules);
+        return array_values(array_filter($availableModules, function (string $moduleKey) use ($accountModules): bool {
+            if (!$accountModules->has($moduleKey)) {
+                return true;
             }
 
-            // Remove duplicates
-            $modules = array_unique($modules);
-            
-            // Filter plan modules to only include platform-enabled ones
-            $modules = array_intersect($modules, $platformEnabledModules);
-            
-            // Plan modules: available if no AccountModule row (enabled by default) or AccountModule.enabled
-            foreach ($modules as $moduleKey) {
-                $accountModule = \App\Models\AccountModule::where('account_id', $account->id)
-                    ->where('module_key', $moduleKey)
-                    ->first();
-                if (!$accountModule || $accountModule->enabled) {
-                    $effectiveModules[] = $moduleKey;
-                }
-            }
-        }
-        
-        // Also include core modules that are enabled at platform level
-        // Core modules are available if they're enabled at platform level
-        // (they don't need to be in the plan's modules array)
-        $coreModules = \App\Models\Module::where('is_core', true)
-            ->where('is_enabled', true)
-            ->pluck('key')
-            ->toArray();
-        
-        // Filter core modules to only those enabled in account (or enabled by default)
-        // For core modules, if they're enabled at platform level, they're available
-        // if they're enabled in account OR if no account module record exists (enabled by default)
-        $availableCoreModules = [];
-        foreach ($coreModules as $moduleKey) {
-            // Must be enabled at platform level (already filtered above)
-            if (!in_array($moduleKey, $platformEnabledModules)) {
-                continue;
-            }
-            
-            // Check if enabled in account
-            $accountModule = \App\Models\AccountModule::where('account_id', $account->id)
-                ->where('module_key', $moduleKey)
-                ->first();
-            
-            // Core modules are available if:
-            // 1. No account module record exists (enabled by default), OR
-            // 2. Account module exists and is enabled
-            if (!$accountModule || $accountModule->enabled) {
-                $availableCoreModules[] = $moduleKey;
-            }
-        }
-        
-        // Merge plan modules with core modules
-        return array_unique(array_merge($effectiveModules, $availableCoreModules));
+            return (bool) $accountModules->get($moduleKey);
+        }));
     }
 
     /**
@@ -148,4 +120,3 @@ class PlanResolver
         return $limits;
     }
 }
-

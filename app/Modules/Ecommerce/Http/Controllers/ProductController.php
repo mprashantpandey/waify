@@ -15,6 +15,11 @@ class ProductController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
         $search = (string) $request->string('search');
+        $status = (string) $request->string('status');
+        $allowedStatuses = ['draft', 'active', 'archived'];
+        if ($status !== '' && !in_array($status, $allowedStatuses, true)) {
+            $status = '';
+        }
 
         $products = EcommerceProduct::query()
             ->where('account_id', $account->id)
@@ -24,6 +29,7 @@ class ProductController extends Controller
                         ->orWhere('sku', 'like', "%{$search}%");
                 });
             })
+            ->when($status !== '', fn ($query) => $query->where('status', $status))
             ->latest('id')
             ->paginate(20)
             ->withQueryString()
@@ -43,7 +49,9 @@ class ProductController extends Controller
             'products' => $products,
             'filters' => [
                 'search' => $search,
+                'status' => $status,
             ],
+            'statuses' => $allowedStatuses,
         ]);
     }
 
@@ -67,6 +75,9 @@ class ProductController extends Controller
         ]);
 
         $baseSlug = Str::slug($validated['name']);
+        if ($baseSlug === '') {
+            $baseSlug = 'product';
+        }
         $slug = $baseSlug;
         $suffix = 1;
 
@@ -93,4 +104,3 @@ class ProductController extends Controller
             ->with('success', 'Product created successfully.');
     }
 }
-

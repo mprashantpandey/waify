@@ -1,5 +1,7 @@
 <?php
 
+use App\Core\Billing\EntitlementService;
+
 if (!function_exists('module_enabled')) {
     /**
      * Check if a module is enabled for a account.
@@ -10,26 +12,7 @@ if (!function_exists('module_enabled')) {
             return false;
         }
 
-        // First check: module must be enabled at platform level
-        $module = \App\Models\Module::where('key', $moduleKey)->first();
-        if (!$module || !$module->is_enabled) {
-            return false;
-        }
-
-        $accountModule = \App\Models\AccountModule::where('account_id', $account->id)
-            ->where('module_key', $moduleKey)
-            ->first();
-
-        if ($accountModule) {
-            return $accountModule->enabled;
-        }
-
-        // Check if module is enabled by default (core modules)
-        if ($module && $module->is_core) {
-            return true; // Core modules are enabled by default
-        }
-
-        return false;
+        return app(EntitlementService::class)->isModuleEnabled($account, $moduleKey);
     }
 }
 

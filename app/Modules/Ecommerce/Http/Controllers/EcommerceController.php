@@ -33,6 +33,13 @@ class EcommerceController extends Controller
             ->whereIn('status', ['pending', 'confirmed'])
             ->count();
 
+        $lowStockProductsCount = EcommerceProduct::query()
+            ->where('account_id', $account->id)
+            ->where('status', 'active')
+            ->whereNotNull('stock')
+            ->where('stock', '<=', 5)
+            ->count();
+
         $recentOrders = EcommerceOrder::query()
             ->where('account_id', $account->id)
             ->latest('id')
@@ -54,9 +61,9 @@ class EcommerceController extends Controller
                 'active_products_count' => $activeProductsCount,
                 'orders_count' => $ordersCount,
                 'pending_orders_count' => $pendingOrdersCount,
+                'low_stock_products_count' => $lowStockProductsCount,
             ],
             'recent_orders' => $recentOrders,
         ]);
     }
 }
-

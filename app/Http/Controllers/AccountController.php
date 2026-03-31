@@ -2,7 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Core\Billing\PlanResolver;
 use App\Models\Account;
+use App\Models\AccountModule;
+use App\Models\Module;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -35,21 +39,24 @@ class AccountController extends Controller
     public function modules(Request $request): Response
     {
         $account = $request->attributes->get('account') ?? current_account();
-        
-        // Get plan modules (all modules available on current plan, not just enabled ones)
-        $planResolver = app(\App\Core\Billing\PlanResolver::class);
+        $user = $request->user();
+        $this->authorizeModuleManagement($account, $user);
+
+        $planResolver = app(PlanResolver::class);
         $plan = $planResolver->getAccountPlan($account);
-        $planModuleKeys = $plan ? ($plan->modules ?? []) : [];
-        
-        // Get all modules from database that are enabled at platform level
-        $allModules = \App\Models\Module::where('is_enabled', true)->get();
-        
-        // Get account module toggles
-        $accountModules = \App\Models\AccountModule::where('account_id', $account->id)
+        $availableModuleKeys = $planResolver->getAvailableModules($account);
+        $enabledModuleKeys = array_flip($planResolver->getEffectiveModules($account));
+
+        $allModules = Module::query()
+            ->where('is_enabled', true)
+            ->whereIn('key', $availableModuleKeys)
+            ->get();
+
+        $accountModules = AccountModule::query()
+            ->where('account_id', $account->id)
             ->get()
             ->keyBy('module_key');
 
-        // Get current plan info
         $currentPlan = $plan ? [
             'key' => $plan->key,
             'name' => $plan->name] : null;
@@ -57,22 +64,13 @@ class AccountController extends Controller
         return Inertia::render('App/Modules', [
             'account' => $account,
             'current_plan' => $currentPlan,
-            'modules' => $allModules->map(function ($module) use ($accountModules, $planModuleKeys) {
+            'modules' => $allModules->map(function ($module) use ($accountModules, $availableModuleKeys, $enabledModuleKeys) {
                 $accountModule = $accountModules->get($module->key);
-                $isInPlan = in_array($module->key, $planModuleKeys);
+                $isInPlan = in_array($module->key, $availableModuleKeys, true);
                 $isCore = $module->is_core;
-                
-                // Determine if module is available (in plan or core)
                 $isAvailable = $isInPlan || $isCore;
-                
-                // Determine enabled status:
-                // - Core modules are enabled by default if no account module record exists
-                // - Plan modules need to be explicitly enabled via AccountModule
-                // - If AccountModule exists, use its enabled status
-                $enabled = $accountModule 
-                    ? $accountModule->enabled 
-                    : ($isCore ? true : false); // Core modules enabled by default, plan modules disabled by default
-                
+                $enabled = isset($enabledModuleKeys[$module->key]);
+
                 return [
                     'id' => $module->id,
                     'key' => $module->key,
@@ -82,17 +80,20 @@ class AccountController extends Controller
                     'is_in_plan' => $isInPlan,
                     'enabled' => $enabled,
                     'available' => $isAvailable,
-                    'can_toggle' => $isAvailable, // Can toggle if available (in plan or core)
+                    'can_toggle' => $isAvailable,
+                    'explicit_override' => $accountModule ? (bool) $accountModule->enabled : null,
                 ];
-            })->filter(function ($module) {
-                // Only show modules that are available (in plan) or core
-                return $module['available'];
             })->sortBy(function ($module) {
-                // Sort: core modules first, then plan modules, then by name
-                if ($module['is_core']) return '0-' . $module['name'];
-                if ($module['is_in_plan']) return '1-' . $module['name'];
+                if ($module['is_core']) {
+                    return '0-' . $module['name'];
+                }
+                if ($module['is_in_plan']) {
+                    return '1-' . $module['name'];
+                }
+
                 return '2-' . $module['name'];
-            })->values()]);
+            })->values(),
+        ]);
     }
 
     /**
@@ -100,9 +101,8 @@ class AccountController extends Controller
      */
     public function toggleModule(Request $request)
     {
-        // Get moduleKey from route parameter directly to avoid binding issues
         $moduleKey = $request->route('moduleKey');
-        
+
         if (!$moduleKey) {
             \Log::error('Module key not found in route', [
                 'route_params' => $request->route()->parameters(),
@@ -110,62 +110,65 @@ class AccountController extends Controller
             abort(404, 'Module key not found in route.');
         }
         
-        \Log::info('toggleModule called', [
-            'moduleKey_param' => $moduleKey,
-            'route_params' => $request->route()->parameters(),
-            'account_slug' => $request->route('account')]);
-        
         $account = $request->attributes->get('account') ?? current_account();
-        
+        $user = $request->user();
+        $this->authorizeModuleManagement($account, $user);
+
         if (!$account) {
             \Log::error('Account not found in toggleModule', [
                 'account_slug' => $request->route('account')]);
             abort(404, 'Account not found.');
         }
 
-        // Verify module exists and is available on plan
-        $planResolver = app(\App\Core\Billing\PlanResolver::class);
-        $plan = $planResolver->getAccountPlan($account);
-        $planModuleKeys = $plan ? ($plan->modules ?? []) : [];
-        
-        $module = \App\Models\Module::where('key', $moduleKey)->first();
+        $planResolver = app(PlanResolver::class);
+        $availableModuleKeys = $planResolver->getAvailableModules($account);
+
+        $module = Module::query()->where('key', $moduleKey)->first();
         if (!$module) {
-            \Log::error('Module not found', [
-                'moduleKey' => $moduleKey]);
             abort(404, 'Module not found.');
         }
 
-        // Check if module is enabled at platform level
         if (!$module->is_enabled) {
             abort(403, 'This module is currently disabled at the platform level. Please contact support.');
         }
 
-        $isInPlan = in_array($moduleKey, $planModuleKeys);
-        $isCore = $module->is_core;
-        
-        if (!$isInPlan && !$isCore) {
+        if (!in_array($moduleKey, $availableModuleKeys, true)) {
             abort(403, 'This module is not available on your current plan.');
         }
 
-        // Get or create account module record
-        $accountModule = \App\Models\AccountModule::firstOrCreate(
+        $accountModule = AccountModule::query()->firstOrCreate(
             [
                 'account_id' => $account->id,
                 'module_key' => $moduleKey],
             [
-                'enabled' => false, // Default to disabled for new records
+                'enabled' => false,
             ]
         );
-        
-        \Log::info('AccountModule found/created', [
-            'account_id' => $account->id,
-            'module_key' => $moduleKey,
-            'enabled' => $accountModule->enabled]);
 
-        // Toggle enabled status
         $accountModule->enabled = !$accountModule->enabled;
         $accountModule->save();
 
         return back()->with('success', "Module {$module->name} " . ($accountModule->enabled ? 'enabled' : 'disabled') . ' successfully.');
+    }
+
+    protected function authorizeModuleManagement(?Account $account, ?User $user): void
+    {
+        if (!$account || !$user) {
+            abort(404, 'Account not found.');
+        }
+
+        if ($account->isOwnedBy($user)) {
+            return;
+        }
+
+        $membership = $account->users()
+            ->where('users.id', $user->id)
+            ->first();
+
+        if (in_array($membership?->pivot?->role, ['owner', 'admin'], true)) {
+            return;
+        }
+
+        abort(403, 'Only account admins can manage modules.');
     }
 }

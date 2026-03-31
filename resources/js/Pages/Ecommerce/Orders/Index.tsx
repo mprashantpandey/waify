@@ -1,6 +1,10 @@
 import { Head, router } from '@inertiajs/react';
+import { FormEvent, useState } from 'react';
 import AppShell from '@/Layouts/AppShell';
 import { Card, CardContent } from '@/Components/UI/Card';
+import TextInput from '@/Components/TextInput';
+import Button from '@/Components/UI/Button';
+import { Search } from 'lucide-react';
 
 type Order = {
     id: number;
@@ -20,17 +24,32 @@ type Props = {
     };
     filters: {
         status?: string;
+        search?: string;
     };
     statuses: string[];
 };
 
 export default function EcommerceOrdersIndex({ orders, filters, statuses }: Props) {
+    const [search, setSearch] = useState(filters.search || '');
+    const [status, setStatus] = useState(filters.status || '');
+
     const formatPrice = (amount: number, currency: string) => {
         return new Intl.NumberFormat('en-IN', {
             style: 'currency',
             currency,
             minimumFractionDigits: 0,
         }).format((amount || 0) / 100);
+    };
+
+    const submitFilters = (e: FormEvent) => {
+        e.preventDefault();
+        router.get(route('app.ecommerce.orders.index'), {
+            status: status || undefined,
+            search: search || undefined,
+        }, {
+            preserveState: true,
+            preserveScroll: true,
+        });
     };
 
     return (
@@ -42,10 +61,24 @@ export default function EcommerceOrdersIndex({ orders, filters, statuses }: Prop
                         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Orders</h1>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Track orders captured from WhatsApp commerce flows.</p>
                     </div>
-                    <div>
+                </div>
+
+                <Card>
+                    <CardContent className="p-4">
+                        <form onSubmit={submitFilters} className="flex flex-col gap-3 md:flex-row">
+                            <div className="relative flex-1">
+                                <Search className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                <TextInput
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    className="w-full pl-9"
+                                    placeholder="Search by customer, phone, or product..."
+                                />
+                            </div>
+                            <div>
                         <select
-                            value={filters.status || ''}
-                            onChange={(e) => router.get(route('app.ecommerce.orders.index'), { status: e.target.value || undefined }, { preserveState: true, preserveScroll: true })}
+                            value={status}
+                            onChange={(e) => setStatus(e.target.value)}
                             className="rounded-md border-gray-300 dark:border-gray-700 dark:bg-gray-900 text-sm"
                         >
                             <option value="">All statuses</option>
@@ -55,8 +88,11 @@ export default function EcommerceOrdersIndex({ orders, filters, statuses }: Prop
                                 </option>
                             ))}
                         </select>
-                    </div>
-                </div>
+                            </div>
+                            <Button type="submit" variant="secondary">Apply</Button>
+                        </form>
+                    </CardContent>
+                </Card>
 
                 <Card>
                     <CardContent className="p-0 overflow-hidden">
@@ -105,4 +141,3 @@ export default function EcommerceOrdersIndex({ orders, filters, statuses }: Prop
         </AppShell>
     );
 }
-

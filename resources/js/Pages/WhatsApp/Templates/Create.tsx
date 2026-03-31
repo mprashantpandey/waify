@@ -254,17 +254,13 @@ export default function TemplatesCreate({
         if (cleanedExamples.length > 0) {
             submitData.body_examples = cleanedExamples;
         }
-        
-        console.log('Submitting template data:', submitData);
-        
         // Use router.post to send the data directly
         router.post(route('app.whatsapp.templates.store', {}), submitData, {
             onSuccess: () => {
                 // Success toast comes from server flash via GlobalFlashHandler.
                 setSubmitting(false);
             },
-            onError: (errors) => {
-                console.error('Template creation errors:', errors);
+            onError: () => {
                 setSubmitting(false);
             },
             onFinish: () => {
