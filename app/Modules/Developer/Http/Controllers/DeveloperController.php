@@ -7,10 +7,17 @@ use App\Models\AccountApiKey;
 use App\Models\TenantWebhookDelivery;
 use App\Models\TenantWebhookEndpoint;
 use App\Models\TenantWebhookSubscription;
+use App\Models\InboundAutomationWebhook;
+use App\Models\InboundAutomationWebhookLog;
 use App\Modules\Developer\Jobs\DeliverTenantWebhookJob;
+use App\Modules\Developer\Services\InboundAutomationWebhookService;
 use App\Modules\Developer\Services\TenantWebhookService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use App\Modules\Contacts\Models\ContactCustomField;
+use App\Modules\Broadcasts\Models\CampaignSequence;
+use App\Modules\WhatsApp\Models\WhatsAppConnection;
+use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -110,6 +117,66 @@ class DeveloperController extends Controller
             'available_scopes' => self::AVAILABLE_SCOPES,
             'webhook_event_keys' => TenantWebhookService::EVENT_KEYS,
             'webhook_endpoints' => $endpoints,
+            'inbound_webhook_action_types' => collect(InboundAutomationWebhookService::ACTION_TYPES)->map(fn (string $type) => [
+                'value' => $type,
+                'label' => $type === 'start_sequence' ? 'Start sequence' : 'Send template',
+            ])->values()->all(),
+            'inbound_webhooks' => InboundAutomationWebhook::query()
+                ->where('account_id', $account->id)
+                ->with(['sequence', 'connection', 'template', 'logs' => fn ($q) => $q->latest('id')])
+                ->orderByDesc('id')
+                ->get()
+                ->map(fn (InboundAutomationWebhook $webhook) => $this->formatInboundWebhook($webhook))
+                ->values()
+                ->all(),
+            'inbound_sequences' => CampaignSequence::query()
+                ->where('account_id', $account->id)
+                ->orderBy('name')
+                ->get(['id', 'name', 'status', 'whatsapp_connection_id'])
+                ->map(fn (CampaignSequence $sequence) => [
+                    'id' => $sequence->id,
+                    'name' => $sequence->name,
+                    'status' => $sequence->status,
+                    'whatsapp_connection_id' => $sequence->whatsapp_connection_id,
+                ])
+                ->values()
+                ->all(),
+            'inbound_connections' => WhatsAppConnection::query()
+                ->where('account_id', $account->id)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name'])
+                ->map(fn (WhatsAppConnection $connection) => [
+                    'id' => $connection->id,
+                    'name' => $connection->name,
+                ])
+                ->values()
+                ->all(),
+            'inbound_templates' => WhatsAppTemplate::query()
+                ->where('account_id', $account->id)
+                ->whereIn('status', ['approved', 'APPROVED'])
+                ->orderBy('name')
+                ->get(['id', 'name', 'whatsapp_connection_id', 'body_text'])
+                ->map(fn (WhatsAppTemplate $template) => [
+                    'id' => $template->id,
+                    'name' => $template->name,
+                    'whatsapp_connection_id' => $template->whatsapp_connection_id,
+                    'variable_count' => (int) $template->variable_count,
+                ])
+                ->values()
+                ->all(),
+            'inbound_custom_fields' => ContactCustomField::query()
+                ->where('account_id', $account->id)
+                ->orderBy('order')
+                ->orderBy('id')
+                ->get(['key', 'name'])
+                ->map(fn (ContactCustomField $field) => [
+                    'key' => $field->key,
+                    'name' => $field->name,
+                ])
+                ->values()
+                ->all(),
+            'inbound_base_url' => route('hooks.inbound.handle', ['publicKey' => 'PUBLIC_KEY_PLACEHOLDER']),
         ]);
     }
 
@@ -452,6 +519,43 @@ class DeveloperController extends Controller
     /**
      * @return array<string,mixed>
      */
+
+    protected function formatInboundWebhook(InboundAutomationWebhook $webhook): array
+    {
+        return [
+            'id' => $webhook->id,
+            'name' => $webhook->name,
+            'public_key' => $webhook->public_key,
+            'public_url' => route('hooks.inbound.handle', ['publicKey' => $webhook->public_key]),
+            'is_active' => (bool) $webhook->is_active,
+            'action_type' => $webhook->action_type,
+            'campaign_sequence_id' => $webhook->campaign_sequence_id,
+            'sequence_name' => $webhook->sequence?->name,
+            'whatsapp_connection_id' => $webhook->whatsapp_connection_id,
+            'connection_name' => $webhook->connection?->name,
+            'whatsapp_template_id' => $webhook->whatsapp_template_id,
+            'template_name' => $webhook->template?->name,
+            'payload_mappings' => $webhook->payload_mappings ?? [],
+            'template_variable_paths' => array_values((array) ($webhook->template_variable_paths ?? [])),
+            'template_static_params' => array_values((array) ($webhook->template_static_params ?? [])),
+            'last_received_at' => $webhook->last_received_at?->toIso8601String(),
+            'last_triggered_at' => $webhook->last_triggered_at?->toIso8601String(),
+            'last_error' => $webhook->last_error,
+            'created_at' => $webhook->created_at?->toIso8601String(),
+            'recent_logs' => $webhook->logs
+                ->take(10)
+                ->map(fn (InboundAutomationWebhookLog $log) => [
+                    'id' => $log->id,
+                    'status' => $log->status,
+                    'response_summary' => $log->response_summary,
+                    'created_at' => $log->created_at?->toIso8601String(),
+                    'processed_at' => $log->processed_at?->toIso8601String(),
+                ])
+                ->values()
+                ->all(),
+        ];
+    }
+
     protected function formatDelivery(TenantWebhookDelivery $delivery): array
     {
         return [

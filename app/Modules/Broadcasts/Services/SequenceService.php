@@ -306,6 +306,65 @@ class SequenceService
         return $enrollments;
     }
 
+
+    public function triggerForContact(CampaignSequence $sequence, WhatsAppContact $contact): CampaignSequenceEnrollment
+    {
+        return DB::transaction(function () use ($sequence, $contact): CampaignSequenceEnrollment {
+            $sequence->refresh();
+            $sequence->loadMissing(['steps', 'connection']);
+
+            if ($sequence->steps->isEmpty()) {
+                throw new \RuntimeException('Sequence requires at least one step.');
+            }
+
+            if (!$sequence->connection || !(bool) $sequence->connection->is_active) {
+                throw new \RuntimeException('Sequence needs an active WhatsApp connection.');
+            }
+
+            if (!in_array($sequence->status, ['active', 'draft', 'paused'], true)) {
+                throw new \RuntimeException('Sequence is not available for new enrollments.');
+            }
+
+            $enrollment = CampaignSequenceEnrollment::query()->firstOrCreate(
+                [
+                    'campaign_sequence_id' => $sequence->id,
+                    'wa_id' => $this->normalizeWaId((string) $contact->wa_id),
+                ],
+                [
+                    'whatsapp_contact_id' => $contact->id,
+                    'name' => $contact->name ?: $contact->wa_id,
+                    'status' => 'active',
+                    'enrolled_at' => now(),
+                    'metadata' => ['sent_step_ids' => []],
+                ]
+            );
+
+            if ($enrollment->status !== 'active') {
+                $enrollment->update([
+                    'whatsapp_contact_id' => $contact->id,
+                    'name' => $contact->name ?: $contact->wa_id,
+                    'status' => 'active',
+                    'failed_at' => null,
+                    'failure_reason' => null,
+                    'completed_at' => null,
+                ]);
+            }
+
+            if ($sequence->status !== 'active') {
+                $sequence->update([
+                    'status' => 'active',
+                    'activated_at' => $sequence->activated_at ?: now(),
+                    'paused_at' => null,
+                ]);
+            }
+
+            $this->syncEnrollmentCounts($sequence);
+            $this->dispatchPendingSteps($sequence, $enrollment->fresh());
+
+            return $enrollment->fresh();
+        });
+    }
+
     protected function resolveSegmentAudience(CampaignSequence $sequence): Collection
     {
         $segmentIds = collect(data_get($sequence->audience_filters, 'segment_ids', []))

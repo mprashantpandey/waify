@@ -43,7 +43,7 @@ Zyptos already has solid coverage in:
 | WooCommerce integration | Yes | Missing | No order/customer sync |
 | Abandoned cart automation | Yes | Missing | No store-triggered recovery automation |
 | CTWA ads attribution | Yes | Missing | No ad-source routing/analytics |
-| Custom webhook listener | Yes | Missing | No tenant-facing inbound automation webhook |
+| Custom webhook listener | Yes | Partial | Tenant-facing inbound webhook listener now exists for sequence and template triggers; richer trigger catalog still missing |
 | Drip / sequence automation | Yes | Partial | Sequence foundation now exists; triggers, analytics, and richer automation still missing |
 | Custom contact fields | Yes | Implemented | Tenant can manage fields, store values, and filter segments by them |
 | Phone masking | Yes | Missing | No agent masking layer |
@@ -95,4 +95,5 @@ Reason:
 ## Progress updates
 - 2026-03-31: Contact custom fields shipped with contact create/edit support and segment filtering.
 - 2026-03-31: Sequence/drip foundation shipped with sequence builder, step scheduling, audience enrollment, and delayed step jobs.
-- Next recommended slice: tenant-facing inbound webhook listener for external automation triggers.
+- 2026-03-31: Tenant-facing inbound webhook listener shipped with signed public endpoints, contact upsert, sequence triggers, and template triggers.
+- Next recommended slice: packaged Google Sheets integration on top of the new inbound automation surface.

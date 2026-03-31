@@ -346,6 +346,10 @@ Route::prefix('/webhooks/whatsapp')
         Route::post('/', [\App\Modules\WhatsApp\Http\Controllers\WebhookController::class, 'receive'])->name('receive');
     });
 
+Route::post('/hooks/inbound/{publicKey}', [\App\Modules\Developer\Http\Controllers\InboundAutomationWebhookController::class, 'handle'])
+    ->middleware([\App\Http\Middleware\EnsureWebhooksEnabled::class, \App\Http\Middleware\LogApiRequests::class])
+    ->name('hooks.inbound.handle');
+
 // Razorpay webhook (public)
 Route::post('/webhooks/razorpay', [\App\Http\Controllers\Billing\RazorpayWebhookController::class, 'handle'])
     ->middleware([\App\Http\Middleware\EnsureWebhooksEnabled::class, \App\Http\Middleware\LogApiRequests::class])

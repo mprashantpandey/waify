@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Developer\Http\Controllers\DeveloperController;
+use App\Modules\Developer\Http\Controllers\InboundAutomationWebhookController;
 
 Route::middleware(['module.entitled:developer'])->prefix('developer')->name('developer.')->group(function () {
     Route::get('/', [DeveloperController::class, 'index'])->name('index');
@@ -13,4 +14,7 @@ Route::middleware(['module.entitled:developer'])->prefix('developer')->name('dev
     Route::delete('/webhooks/{id}', [DeveloperController::class, 'destroyWebhookEndpoint'])->name('webhooks.destroy');
     Route::post('/webhooks/{id}/test', [DeveloperController::class, 'testWebhookEndpoint'])->name('webhooks.test');
     Route::post('/webhook-deliveries/{id}/replay', [DeveloperController::class, 'replayWebhookDelivery'])->name('webhook-deliveries.replay');
+    Route::post('/inbound-webhooks', [InboundAutomationWebhookController::class, 'store'])->name('inbound-webhooks.store');
+    Route::patch('/inbound-webhooks/{id}', [InboundAutomationWebhookController::class, 'update'])->name('inbound-webhooks.update');
+    Route::delete('/inbound-webhooks/{id}', [InboundAutomationWebhookController::class, 'destroy'])->name('inbound-webhooks.destroy');
 });
