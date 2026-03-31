@@ -100,6 +100,32 @@ class HandleInertiaRequests extends Middleware
                             'group' => 'other']];
 
                     $navigation = array_merge($navigation, $staticNav);
+
+                    // Keep the tenant sidebar intentionally small. Secondary pages
+                    // like tags, segments, lists, widgets, products, and orders stay
+                    // accessible from their feature pages, but they do not need first-class
+                    // placement in the global tenant navigation.
+                    $tenantSidebarAllowlist = [
+                        'app.dashboard',
+                        'app.setup',
+                        'app.whatsapp.conversations.index',
+                        'app.whatsapp.templates.index',
+                        'app.whatsapp.connections.index',
+                        'app.broadcasts.index',
+                        'app.chatbots.index',
+                        'app.chatbots',
+                        'app.ai.index',
+                        'app.ai',
+                        'app.ecommerce.index',
+                        'app.analytics.index',
+                        'app.team.index',
+                        'app.billing.index',
+                        'app.settings',
+                    ];
+
+                    $navigation = array_values(array_filter($navigation, function ($item) use ($tenantSidebarAllowlist) {
+                        return in_array($item['href'] ?? '', $tenantSidebarAllowlist, true);
+                    }));
                 }
             }
         }
