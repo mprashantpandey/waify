@@ -158,9 +158,9 @@ Route::middleware(['auth', 'account.resolve', 'account.active', 'account.subscri
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     
-    // Modules management
-    Route::get('/modules', [AccountController::class, 'modules'])->name('modules');
-    Route::post('/modules/{moduleKey}/toggle', [AccountController::class, 'toggleModule'])->name('modules.toggle');
+    // Tenant setup surface (module management lives in platform/admin)
+    Route::get('/setup', [\App\Http\Controllers\SetupController::class, 'index'])->name('setup');
+    Route::get('/modules', fn () => redirect()->route('app.setup'))->name('modules');
     
     // Billing (always accessible)
     Route::prefix('/settings/billing')->name('billing.')->group(function () {

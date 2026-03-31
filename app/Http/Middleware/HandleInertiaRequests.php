@@ -84,6 +84,11 @@ class HandleInertiaRequests extends Middleware
                     // Add static navigation items for non-members (owner, admin, platform admin)
                     $staticNav = [
                         [
+                            'label' => 'Setup',
+                            'href' => 'app.setup',
+                            'icon' => 'Zap',
+                            'group' => 'core'],
+                        [
                             'label' => 'Team',
                             'href' => 'app.team.index',
                             'icon' => 'Users',

@@ -22,6 +22,17 @@ export const NAVIGATION_META: Record<string, NavigationMeta> = {
             { label: 'View Connections', route: 'app.whatsapp.connections.index' },
         ],
     },
+    'app.setup': {
+        title: 'Setup',
+        section: 'Overview',
+        description: 'See which parts of your workspace are ready, what still needs setup, and what your plan includes.',
+        keywords: ['setup', 'workspace', 'features', 'readiness'],
+        tips: ['Start with your WhatsApp number.', 'Templates need approval before campaigns.', 'Use this page to see what is included without changing account features.'],
+        quickActions: [
+            { label: 'Add Connection', route: 'app.whatsapp.connections.create' },
+            { label: 'Open Billing', route: 'app.billing.plans' },
+        ],
+    },
     'app.whatsapp.connections.index': {
         title: 'Connections',
         section: 'Messaging',
@@ -198,6 +209,7 @@ export const NAVIGATION_META: Record<string, NavigationMeta> = {
 
 export const PAGE_META: Record<string, NavigationMeta> = {
     'App/Dashboard': NAVIGATION_META['app.dashboard'],
+    'App/Setup': NAVIGATION_META['app.setup'],
     'WhatsApp/Connections/Index': NAVIGATION_META['app.whatsapp.connections.index'],
     'WhatsApp/Connections/Create': NAVIGATION_META['app.whatsapp.connections.create'],
     'WhatsApp/Connections/Edit': NAVIGATION_META['app.whatsapp.connections.index'],

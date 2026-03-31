@@ -13,9 +13,4 @@ return [
             'href' => 'app.dashboard',
             'icon' => 'LayoutDashboard',
             'group' => 'core'],
-        [
-            'label' => 'Modules',
-            'href' => 'app.modules',
-            'icon' => 'Puzzle',
-            'group' => 'core']]];
-
+    ]];

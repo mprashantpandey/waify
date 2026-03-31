@@ -25,7 +25,7 @@ class ModuleAccessTest extends TestCase
         $this->artisan('db:seed', ['--class' => 'PlanSeeder']);
     }
 
-    public function test_member_cannot_view_module_management_page(): void
+    public function test_modules_route_redirects_members_to_setup_page(): void
     {
         $this->withoutMiddleware([
             EnsureAccountSubscribed::class,
@@ -42,10 +42,10 @@ class ModuleAccessTest extends TestCase
             ->withSession(['current_account_id' => $account->id])
             ->get(route('app.modules'));
 
-        $response->assertForbidden();
+        $response->assertRedirect(route('app.setup'));
     }
 
-    public function test_admin_can_view_module_management_page_with_effective_module_states(): void
+    public function test_admin_can_view_setup_page_with_feature_readiness(): void
     {
         $this->withoutMiddleware([
             EnsureAccountSubscribed::class,
@@ -66,39 +66,24 @@ class ModuleAccessTest extends TestCase
 
         $response = $this->actingAs($admin)
             ->withSession(['current_account_id' => $account->id])
-            ->get(route('app.modules'));
+            ->get(route('app.setup'));
 
         $response->assertOk();
         $response->assertInertia(fn (Assert $page) => $page
-            ->component('App/Modules')
-            ->where('modules', function ($modules): bool {
-                $ai = collect($modules)->firstWhere('key', 'ai');
+            ->component('App/Setup')
+            ->where('features', function ($features): bool {
+                $ai = collect($features)->firstWhere('key', 'ai');
 
                 return $ai !== null
                     && ($ai['available'] ?? null) === true
-                    && ($ai['enabled'] ?? null) === false;
+                    && ($ai['state'] ?? null) === 'setup';
             })
         );
     }
 
-    public function test_member_cannot_toggle_modules(): void
+    public function test_legacy_toggle_route_is_removed(): void
     {
-        $this->withoutMiddleware([
-            EnsureAccountSubscribed::class,
-            EnsurePhoneVerifiedForTenant::class,
-            RestrictChatAgentAccess::class,
-        ]);
-
-        $account = $this->createAccountWithPlan('starter');
-        $member = User::factory()->create();
-
-        $account->users()->attach($member->id, ['role' => 'member']);
-
-        $response = $this->actingAs($member)
-            ->withSession(['current_account_id' => $account->id])
-            ->post(route('app.modules.toggle', ['moduleKey' => 'templates']));
-
-        $response->assertForbidden();
+        $this->assertFalse(app('router')->has('app.modules.toggle'));
     }
 
     public function test_module_enabled_respects_plan_entitlement_and_not_only_account_override(): void

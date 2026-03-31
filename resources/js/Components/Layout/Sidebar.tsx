@@ -70,6 +70,7 @@ export function Sidebar({ navigation, currentRoute, account, isOpen = false, onC
     const groupOrder = ['core', 'messaging', 'automation', 'ai', 'growth', 'billing', 'developer', 'other'] as const;
     const navOrder: string[] = [
         'app.dashboard',
+        'app.setup',
         'app.whatsapp.connections.index',
         'app.whatsapp.connections.create',
         'app.whatsapp.conversations.index',
