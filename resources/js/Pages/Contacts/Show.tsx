@@ -18,6 +18,7 @@ interface Contact {
     phone: string | null;
     company: string | null;
     notes: string | null;
+    custom_fields?: Record<string, any>;
     status: string;
     do_not_contact?: boolean;
     opted_in_at?: string | null;
@@ -55,19 +56,30 @@ interface PolicyEvent {
     created_at: string;
 }
 
+interface CustomField {
+    id: number;
+    key: string;
+    name: string;
+    type: string;
+    options?: string[];
+    required: boolean;
+}
+
 export default function ContactsShow({
     account,
     contact: contactProp,
     activities = [],
     policyEvents = [],
     tags: tagsProp = [],
-    segments: availableSegments = []}: {
+    segments: availableSegments = [],
+    custom_fields = []}: {
     account: any;
     contact: Contact;
     activities?: Activity[];
     policyEvents?: PolicyEvent[];
     tags?: Array<{ id: number; name: string; color: string }>;
     segments?: Array<{ id: number; name: string }>;
+    custom_fields?: CustomField[];
 }) {
     const contact = {
         ...contactProp,
@@ -88,6 +100,7 @@ export default function ContactsShow({
         phone: contact.phone || '',
         company: contact.company || '',
         notes: contact.notes || '',
+        custom_fields: contact.custom_fields || {},
         status: contact.status,
         do_not_contact: Boolean(contact.do_not_contact),
         opt_in_source: contact.opt_in_source || '',
@@ -179,6 +192,11 @@ export default function ContactsShow({
                             </div>
                         </div>
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 lg:shrink-0">
+                            <Link href={route('app.contacts.fields.index')}>
+                                <Button type="button" variant="secondary" className="w-full sm:w-auto">
+                                    Custom fields
+                                </Button>
+                            </Link>
                             <Button
                                 className="w-full sm:w-auto bg-[#25D366] hover:bg-[#1DAA57] text-white"
                                 disabled={navigatingToConversation}
@@ -350,6 +368,80 @@ export default function ContactsShow({
                                         rows={4}
                                     />
                                 </div>
+
+                                {custom_fields.length > 0 && (
+                                    <div className="space-y-4 border-t border-gray-200 pt-4 dark:border-gray-800">
+                                        <div>
+                                            <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Custom fields</h3>
+                                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                Use these fields for CRM detail, segmentation, and future automation.
+                                            </p>
+                                        </div>
+                                        {custom_fields.map((field) => (
+                                            <div key={field.id}>
+                                                <InputLabel htmlFor={`custom_${field.key}`} value={`${field.name}${field.required ? ' *' : ''}`} />
+                                                {field.type === 'select' ? (
+                                                    <select
+                                                        id={`custom_${field.key}`}
+                                                        value={contactData.custom_fields[field.key] || ''}
+                                                        onChange={(e) => setContactData('custom_fields', { ...contactData.custom_fields, [field.key]: e.target.value })}
+                                                        className="mt-1 block w-full rounded-md border border-gray-300 dark:border-gray-700 dark:bg-gray-800"
+                                                    >
+                                                        <option value="">Select</option>
+                                                        {(field.options || []).map((option) => (
+                                                            <option key={option} value={option}>{option}</option>
+                                                        ))}
+                                                    </select>
+                                                ) : field.type === 'multiselect' ? (
+                                                    <div className="mt-2 flex flex-wrap gap-2">
+                                                        {(field.options || []).map((option) => {
+                                                            const current = Array.isArray(contactData.custom_fields[field.key]) ? contactData.custom_fields[field.key] : [];
+                                                            const selected = current.includes(option);
+                                                            return (
+                                                                <button
+                                                                    key={option}
+                                                                    type="button"
+                                                                    onClick={() => setContactData('custom_fields', {
+                                                                        ...contactData.custom_fields,
+                                                                        [field.key]: selected ? current.filter((entry: string) => entry !== option) : [...current, option],
+                                                                    })}
+                                                                    className={`rounded-full px-3 py-1 text-sm ${selected ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'}`}
+                                                                >
+                                                                    {option}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                ) : field.type === 'boolean' ? (
+                                                    <label className="mt-2 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={Boolean(contactData.custom_fields[field.key])}
+                                                            onChange={(e) => setContactData('custom_fields', { ...contactData.custom_fields, [field.key]: e.target.checked })}
+                                                        />
+                                                        Yes
+                                                    </label>
+                                                ) : field.type === 'textarea' ? (
+                                                    <textarea
+                                                        id={`custom_${field.key}`}
+                                                        value={contactData.custom_fields[field.key] || ''}
+                                                        onChange={(e) => setContactData('custom_fields', { ...contactData.custom_fields, [field.key]: e.target.value })}
+                                                        rows={3}
+                                                        className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-gray-800"
+                                                    />
+                                                ) : (
+                                                    <TextInput
+                                                        id={`custom_${field.key}`}
+                                                        type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : field.type === 'email' ? 'email' : 'text'}
+                                                        value={contactData.custom_fields[field.key] || ''}
+                                                        onChange={(e) => setContactData('custom_fields', { ...contactData.custom_fields, [field.key]: e.target.value })}
+                                                        className="mt-1 block w-full"
+                                                    />
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
 
                                 <div>
                                         <InputLabel value="Tags" />

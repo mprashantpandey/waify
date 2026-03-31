@@ -121,6 +121,11 @@ export default function ContactsIndex({
                                 Segments
                             </Button>
                         </Link>
+                        <Link href={route('app.contacts.fields.index')} className="col-span-1">
+                            <Button variant="secondary" className="w-full sm:w-auto">
+                                Custom fields
+                            </Button>
+                        </Link>
                         <Link href={route('app.contacts.export', {})} className="col-span-1">
                             <Button variant="secondary" className="w-full sm:w-auto">
                                 <Download className="h-4 w-4 mr-2" />

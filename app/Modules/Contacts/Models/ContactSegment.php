@@ -113,12 +113,29 @@ class ContactSegment extends Model
         return ['name', 'wa_id', 'email', 'phone', 'company', 'status', 'source'];
     }
 
+    public static function allowedFilterFieldsForAccount(int $accountId): array
+    {
+        $customFields = ContactCustomField::query()
+            ->where('account_id', $accountId)
+            ->orderBy('order')
+            ->orderBy('id')
+            ->pluck('key')
+            ->filter()
+            ->map(fn ($key) => "custom_fields.{$key}")
+            ->all();
+
+        return array_values(array_unique([
+            ...static::allowedFilterFields(),
+            ...$customFields,
+        ]));
+    }
+
     /**
      * Apply filters to query.
      */
     protected function applyFilters($query, array $filters)
     {
-        $allowedFields = array_flip(static::allowedFilterFields());
+        $allowedFields = array_flip(static::allowedFilterFieldsForAccount($this->account_id));
 
         foreach ($filters as $filter) {
             $field = $filter['field'] ?? null;
@@ -132,38 +149,54 @@ class ContactSegment extends Model
                 continue;
             }
 
+            $column = str_starts_with($field, 'custom_fields.')
+                ? 'custom_fields->' . substr($field, strlen('custom_fields.'))
+                : $field;
+
             switch ($operator) {
                 case 'equals':
-                    $query->where($field, $value);
+                    if (is_array($value)) {
+                        foreach ($value as $entry) {
+                            $query->whereJsonContains($column, $entry);
+                        }
+                    } else {
+                        $query->where($column, $value);
+                    }
                     break;
                 case 'not_equals':
-                    $query->where($field, '!=', $value);
+                    if (is_array($value)) {
+                        foreach ($value as $entry) {
+                            $query->whereJsonDoesntContain($column, $entry);
+                        }
+                    } else {
+                        $query->where($column, '!=', $value);
+                    }
                     break;
                 case 'contains':
-                    $query->where($field, 'like', "%{$value}%");
+                    $query->where($column, 'like', "%{$value}%");
                     break;
                 case 'not_contains':
-                    $query->where($field, 'not like', "%{$value}%");
+                    $query->where($column, 'not like', "%{$value}%");
                     break;
                 case 'starts_with':
-                    $query->where($field, 'like', "{$value}%");
+                    $query->where($column, 'like', "{$value}%");
                     break;
                 case 'ends_with':
-                    $query->where($field, 'like', "%{$value}");
+                    $query->where($column, 'like', "%{$value}");
                     break;
                 case 'greater_than':
-                    $query->where($field, '>', $value);
+                    $query->where($column, '>', $value);
                     break;
                 case 'less_than':
-                    $query->where($field, '<', $value);
+                    $query->where($column, '<', $value);
                     break;
                 case 'is_empty':
-                    $query->where(function ($q) use ($field) {
-                        $q->whereNull($field)->orWhere($field, '');
+                    $query->where(function ($q) use ($column) {
+                        $q->whereNull($column)->orWhere($column, '');
                     });
                     break;
                 case 'is_not_empty':
-                    $query->whereNotNull($field)->where($field, '!=', '');
+                    $query->whereNotNull($column)->where($column, '!=', '');
                     break;
             }
         }

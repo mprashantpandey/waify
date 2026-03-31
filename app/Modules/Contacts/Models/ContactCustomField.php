@@ -15,6 +15,7 @@ class ContactCustomField extends Model
 
     protected $fillable = [
         'account_id',
+        'key',
         'name',
         'type',
         'options',
@@ -33,4 +34,3 @@ class ContactCustomField extends Model
         return $this->belongsTo(Account::class);
     }
 }
-

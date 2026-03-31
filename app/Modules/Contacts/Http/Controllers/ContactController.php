@@ -4,6 +4,7 @@ namespace App\Modules\Contacts\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\Contacts\Models\ContactActivity;
+use App\Modules\Contacts\Models\ContactCustomField;
 use App\Modules\Contacts\Models\ContactSegment;
 use App\Modules\Contacts\Models\ContactTag;
 use App\Modules\Contacts\Services\ContactService;
@@ -14,6 +15,7 @@ use App\Modules\WhatsApp\Services\ContactComplianceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -35,6 +37,12 @@ class ContactController extends Controller
         $query = WhatsAppContact::where('account_id', $account->id)
             ->with(['tags', 'segments']);
 
+        $customFieldDefinitions = ContactCustomField::query()
+            ->where('account_id', $account->id)
+            ->orderBy('order')
+            ->orderBy('id')
+            ->get();
+
         // Search
         if ($request->has('search') && $request->search) {
             $search = $request->search;
@@ -44,6 +52,10 @@ class ContactController extends Controller
                     ->orWhere('email', 'like', "%{$search}%")
                     ->orWhere('phone', 'like', "%{$search}%")
                     ->orWhere('company', 'like', "%{$search}%");
+
+                foreach ($customFieldDefinitions as $field) {
+                    $q->orWhere("custom_fields->{$field->key}", 'like', "%{$search}%");
+                }
             });
         }
 
@@ -102,6 +114,16 @@ class ContactController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'color']);
 
+        $customFields = $customFieldDefinitions->map(fn (ContactCustomField $field) => [
+            'id' => $field->id,
+            'key' => $field->key,
+            'name' => $field->name,
+            'type' => $field->type,
+            'options' => $field->options ?? [],
+            'required' => (bool) $field->required,
+            'order' => (int) $field->order,
+        ]);
+
         $segments = ContactSegment::where('account_id', $account->id)
             ->orderBy('name')
             ->get(['id', 'name', 'contact_count']);
@@ -110,6 +132,7 @@ class ContactController extends Controller
             'account' => $account,
             'contacts' => $contacts,
             'tags' => $tags,
+            'custom_fields' => $customFields,
             'segments' => $segments,
             'filters' => [
                 'search' => $request->search,
@@ -129,9 +152,16 @@ class ContactController extends Controller
             ->orderBy('name')
             ->get(['id', 'name', 'color']);
 
+        $customFields = ContactCustomField::query()
+            ->where('account_id', $account->id)
+            ->orderBy('order')
+            ->orderBy('id')
+            ->get(['id', 'key', 'name', 'type', 'options', 'required', 'order']);
+
         return Inertia::render('Contacts/Create', [
             'account' => $account,
-            'tags' => $tags]);
+            'tags' => $tags,
+            'custom_fields' => $customFields]);
     }
 
     /**
@@ -155,7 +185,14 @@ class ContactController extends Controller
             'opt_out_reason' => 'nullable|string|max:255',
             'opt_out_channel' => 'nullable|string|max:100',
             'tags' => 'nullable|array',
-            'tags.*' => 'exists:contact_tags,id']);
+            'tags.*' => 'exists:contact_tags,id',
+            'custom_fields' => 'nullable|array',
+        ]);
+
+        $validated['custom_fields'] = $this->validateCustomFieldValues(
+            $account->id,
+            (array) ($validated['custom_fields'] ?? [])
+        );
 
         $contact = $this->contactService->createOrUpdateContact(
             $validated,
@@ -269,6 +306,12 @@ class ContactController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
+        $customFields = ContactCustomField::query()
+            ->where('account_id', $account->id)
+            ->orderBy('order')
+            ->orderBy('id')
+            ->get(['id', 'key', 'name', 'type', 'options', 'required', 'order']);
+
         return Inertia::render('Contacts/Show', [
             'account' => $account,
             'contact' => [
@@ -280,6 +323,7 @@ class ContactController extends Controller
                 'phone' => $contact->phone,
                 'company' => $contact->company,
                 'notes' => $contact->notes,
+                'custom_fields' => $contact->custom_fields ?? [],
                 'status' => $contact->status ?? 'active',
                 'do_not_contact' => (bool) ($contact->do_not_contact ?? false),
                 'opted_in_at' => $contact->opted_in_at?->toIso8601String(),
@@ -308,7 +352,8 @@ class ContactController extends Controller
             'activities' => $activities,
             'policyEvents' => $policyEvents,
             'tags' => $tags,
-            'segments' => $segments]);
+            'segments' => $segments,
+            'custom_fields' => $customFields]);
     }
 
     /**
@@ -337,7 +382,13 @@ class ContactController extends Controller
             'tags' => 'nullable|array',
             'tags.*' => 'exists:contact_tags,id',
             'segments' => 'nullable|array',
-            'segments.*' => 'exists:contact_segments,id']);
+            'segments.*' => 'exists:contact_segments,id',
+            'custom_fields' => 'nullable|array',
+        ]);
+        $validated['custom_fields'] = $this->validateCustomFieldValues(
+            $account->id,
+            (array) ($validated['custom_fields'] ?? [])
+        );
         $beforeSuppressed = $this->contactComplianceService->isSuppressed($contact);
         $contactUpdate = \Illuminate\Support\Arr::except($validated, ['tags', 'segments']);
         if (($contactUpdate['status'] ?? null) === 'opt_out') {
@@ -516,5 +567,75 @@ class ContactController extends Controller
         } catch (\Exception $e) {
             return back()->withErrors(['error' => 'Failed to merge contacts: ' . $e->getMessage()]);
         }
+    }
+
+    private function validateCustomFieldValues(int $accountId, array $submitted): array
+    {
+        $definitions = ContactCustomField::query()
+            ->where('account_id', $accountId)
+            ->orderBy('order')
+            ->orderBy('id')
+            ->get()
+            ->keyBy('key');
+
+        $normalized = [];
+
+        foreach ($definitions as $key => $field) {
+            $value = $submitted[$key] ?? null;
+
+            if ($field->required && ($value === null || $value === '' || $value === [])) {
+                throw ValidationException::withMessages([
+                    "custom_fields.{$key}" => "{$field->name} is required.",
+                ]);
+            }
+
+            if ($value === null || $value === '' || $value === []) {
+                continue;
+            }
+
+            switch ($field->type) {
+                case 'email':
+                    validator(['value' => $value], ['value' => 'email'])->validate();
+                    $normalized[$key] = trim((string) $value);
+                    break;
+                case 'number':
+                    validator(['value' => $value], ['value' => 'numeric'])->validate();
+                    $normalized[$key] = (string) $value;
+                    break;
+                case 'date':
+                    validator(['value' => $value], ['value' => 'date'])->validate();
+                    $normalized[$key] = (string) $value;
+                    break;
+                case 'boolean':
+                    $normalized[$key] = filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? false;
+                    break;
+                case 'select':
+                    if (!in_array((string) $value, $field->options ?? [], true)) {
+                        throw ValidationException::withMessages([
+                            "custom_fields.{$key}" => "Invalid option selected for {$field->name}.",
+                        ]);
+                    }
+                    $normalized[$key] = (string) $value;
+                    break;
+                case 'multiselect':
+                    $entries = array_values(array_filter(array_map('strval', is_array($value) ? $value : [$value])));
+                    foreach ($entries as $entry) {
+                        if (!in_array($entry, $field->options ?? [], true)) {
+                            throw ValidationException::withMessages([
+                                "custom_fields.{$key}" => "Invalid option selected for {$field->name}.",
+                            ]);
+                        }
+                    }
+                    $normalized[$key] = $entries;
+                    break;
+                default:
+                    $normalized[$key] = is_array($value)
+                        ? json_encode($value, JSON_UNESCAPED_UNICODE)
+                        : trim((string) $value);
+                    break;
+            }
+        }
+
+        return $normalized;
     }
 }

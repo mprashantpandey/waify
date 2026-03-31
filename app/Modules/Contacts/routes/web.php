@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Contacts\Http\Controllers\ContactController;
+use App\Modules\Contacts\Http\Controllers\ContactCustomFieldController;
 use App\Modules\Contacts\Http\Controllers\TagController;
 use App\Modules\Contacts\Http\Controllers\SegmentController;
 use Illuminate\Support\Facades\Route;
@@ -19,6 +20,11 @@ Route::middleware(['module.entitled:contacts'])->group(function () {
     Route::post('/contacts/tags', [TagController::class, 'store'])->name('contacts.tags.store');
     Route::put('/contacts/tags/{tag}', [TagController::class, 'update'])->name('contacts.tags.update');
     Route::delete('/contacts/tags/{tag}', [TagController::class, 'destroy'])->name('contacts.tags.destroy');
+
+    Route::get('/contacts/fields', [ContactCustomFieldController::class, 'index'])->name('contacts.fields.index');
+    Route::post('/contacts/fields', [ContactCustomFieldController::class, 'store'])->name('contacts.fields.store');
+    Route::put('/contacts/fields/{field}', [ContactCustomFieldController::class, 'update'])->name('contacts.fields.update');
+    Route::delete('/contacts/fields/{field}', [ContactCustomFieldController::class, 'destroy'])->name('contacts.fields.destroy');
 
     // Segments (CRM) - must be before /contacts/{contact}
     Route::get('/contacts/segments', [SegmentController::class, 'index'])->name('contacts.segments.index');

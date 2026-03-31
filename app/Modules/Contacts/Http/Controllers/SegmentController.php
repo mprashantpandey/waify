@@ -3,6 +3,7 @@
 namespace App\Modules\Contacts\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Contacts\Models\ContactCustomField;
 use App\Modules\Contacts\Models\ContactSegment;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
 use Illuminate\Http\Request;
@@ -48,9 +49,20 @@ class SegmentController extends Controller
             ['value' => 'source', 'label' => 'Source'],
         ];
 
+        $customFields = ContactCustomField::query()
+            ->where('account_id', $account->id)
+            ->orderBy('order')
+            ->orderBy('id')
+            ->get(['key', 'name', 'type'])
+            ->map(fn ($field) => [
+                'value' => 'custom_fields.' . $field->key,
+                'label' => $field->name,
+                'type' => $field->type,
+            ]);
+
         return Inertia::render('Contacts/Segments/Create', [
             'account' => $account,
-            'filter_fields' => $filterFields,
+            'filter_fields' => [...$filterFields, ...$customFields],
         ]);
     }
 
@@ -58,14 +70,7 @@ class SegmentController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string|max:500',
-            'filters' => 'nullable|array',
-            'filters.*.field' => 'required|string|max:100|in:' . implode(',', ContactSegment::allowedFilterFields()),
-            'filters.*.operator' => 'required|string|in:equals,not_equals,contains,not_contains,starts_with,ends_with,greater_than,less_than,is_empty,is_not_empty',
-            'filters.*.value' => 'nullable|string|max:500',
-        ]);
+        $validated = $this->validateSegmentPayload($request, $account->id);
 
         $segment = ContactSegment::create([
             'account_id' => $account->id,
@@ -139,6 +144,17 @@ class SegmentController extends Controller
             ['value' => 'source', 'label' => 'Source'],
         ];
 
+        $customFields = ContactCustomField::query()
+            ->where('account_id', $account->id)
+            ->orderBy('order')
+            ->orderBy('id')
+            ->get(['key', 'name', 'type'])
+            ->map(fn ($field) => [
+                'value' => 'custom_fields.' . $field->key,
+                'label' => $field->name,
+                'type' => $field->type,
+            ]);
+
         return Inertia::render('Contacts/Segments/Edit', [
             'account' => $account,
             'segment' => [
@@ -147,7 +163,7 @@ class SegmentController extends Controller
                 'description' => $segment->description,
                 'filters' => $segment->filters ?? [],
             ],
-            'filter_fields' => $filterFields,
+            'filter_fields' => [...$filterFields, ...$customFields],
         ]);
     }
 
@@ -159,14 +175,7 @@ class SegmentController extends Controller
             abort(404);
         }
 
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string|max:500',
-            'filters' => 'nullable|array',
-            'filters.*.field' => 'required|string|max:100|in:' . implode(',', ContactSegment::allowedFilterFields()),
-            'filters.*.operator' => 'required|string|in:equals,not_equals,contains,not_contains,starts_with,ends_with,greater_than,less_than,is_empty,is_not_empty',
-            'filters.*.value' => 'nullable|string|max:500',
-        ]);
+        $validated = $this->validateSegmentPayload($request, $account->id);
 
         $segment->update([
             'name' => $validated['name'],
@@ -210,5 +219,17 @@ class SegmentController extends Controller
         $segment->calculateContactCount();
 
         return back()->with('success', 'Segment count recalculated.');
+    }
+
+    private function validateSegmentPayload(Request $request, int $accountId): array
+    {
+        return $request->validate([
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string|max:500',
+            'filters' => 'nullable|array',
+            'filters.*.field' => 'required|string|max:100|in:' . implode(',', ContactSegment::allowedFilterFieldsForAccount($accountId)),
+            'filters.*.operator' => 'required|string|in:equals,not_equals,contains,not_contains,starts_with,ends_with,greater_than,less_than,is_empty,is_not_empty',
+            'filters.*.value' => 'nullable',
+        ]);
     }
 }
