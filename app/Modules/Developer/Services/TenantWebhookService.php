@@ -36,14 +36,10 @@ class TenantWebhookService
             return 0;
         }
 
-        $endpoints = $this->eligibleEndpoints($account, $eventKey);
-        if ($endpoints->isEmpty()) {
-            return 0;
-        }
-
         $eventId = (string) Str::uuid();
         $created = 0;
 
+        $endpoints = $this->eligibleEndpoints($account, $eventKey);
         foreach ($endpoints as $endpoint) {
             $delivery = TenantWebhookDelivery::firstOrCreate(
                 [
@@ -65,6 +61,8 @@ class TenantWebhookService
                 DeliverTenantWebhookJob::dispatch($delivery->id);
             }
         }
+
+        $created += app(GoogleSheetsIntegrationService::class)->dispatchEvent($account, $eventKey, $payload, $eventId, $idempotencyKey);
 
         return $created;
     }

@@ -6,7 +6,7 @@ import Button from '@/Components/UI/Button';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
-import { Code2, Key, Plus, Trash2, Copy, Check, BookOpen, AlertCircle, Link2, RotateCcw, Send, Webhook } from 'lucide-react';
+import { Code2, Key, Plus, Trash2, Copy, Check, BookOpen, AlertCircle, Link2, RotateCcw, Send, Webhook, Table2 } from 'lucide-react';
 import { useToast } from '@/hooks/useToast';
 import { useConfirm } from '@/hooks/useConfirm';
 
@@ -97,6 +97,33 @@ interface InboundWebhookRow {
     recent_logs: InboundWebhookLogRow[];
 }
 
+interface GoogleSheetsDeliveryRow {
+    id: number;
+    event_key: string;
+    status: string;
+    attempts: number;
+    response_summary: string | null;
+    error_message: string | null;
+    created_at: string | null;
+    delivered_at: string | null;
+}
+
+interface GoogleSheetsIntegrationRow {
+    id: number;
+    name: string;
+    spreadsheet_id: string;
+    sheet_name: string;
+    spreadsheet_url: string;
+    service_account_email: string;
+    is_active: boolean;
+    event_keys: string[];
+    append_headers: boolean;
+    include_payload_json: boolean;
+    last_delivery_at: string | null;
+    last_delivery_error: string | null;
+    recent_deliveries: GoogleSheetsDeliveryRow[];
+}
+
 interface WebhookEndpointRow {
     id: number;
     name: string;
@@ -124,6 +151,7 @@ export default function DeveloperIndex({
     inbound_connections = [],
     inbound_templates = [],
     inbound_custom_fields = [],
+    google_sheets_integrations = [],
 }: {
     account: any;
     api_keys: ApiKeyRow[];
@@ -137,6 +165,7 @@ export default function DeveloperIndex({
     inbound_connections?: InboundConnectionRow[];
     inbound_templates?: InboundTemplateRow[];
     inbound_custom_fields?: InboundCustomFieldRow[];
+    google_sheets_integrations?: GoogleSheetsIntegrationRow[];
 }) {
     const { addToast } = useToast();
     const confirm = useConfirm();
@@ -175,6 +204,15 @@ export default function DeveloperIndex({
     const newInboundWebhookSecret = flash.new_inbound_webhook_secret as { id: number; secret: string } | undefined;
     const [copiedInboundUrl, setCopiedInboundUrl] = useState<number | null>(null);
     const [copiedInboundSecret, setCopiedInboundSecret] = useState<number | null>(null);
+    const googleSheetsForm = useForm({
+        name: '',
+        spreadsheet_id: '',
+        sheet_name: 'Leads',
+        service_account_json: '',
+        event_keys: ['contact.created', 'conversation.created'] as string[],
+        append_headers: true,
+        include_payload_json: true,
+    });
 
     const filteredInboundTemplates = useMemo(() => {
         const connectionId = Number(inboundForm.data.whatsapp_connection_id || 0);
@@ -303,6 +341,34 @@ export default function DeveloperIndex({
             setCopiedInboundSecret(webhookId);
             setTimeout(() => setCopiedInboundSecret((current) => current === webhookId ? null : current), 2000);
         });
+    };
+
+    const createGoogleSheetsIntegration = (e: React.FormEvent) => {
+        e.preventDefault();
+        googleSheetsForm.post(route('app.developer.google-sheets.store'), {
+            preserveScroll: true,
+            onSuccess: () => googleSheetsForm.reset('name', 'spreadsheet_id', 'sheet_name', 'service_account_json'),
+        });
+    };
+
+    const toggleGoogleSheetsIntegration = (integration: GoogleSheetsIntegrationRow) => {
+        router.patch(route('app.developer.google-sheets.update', { id: integration.id }), {
+            is_active: !integration.is_active,
+        }, { preserveScroll: true });
+    };
+
+    const testGoogleSheetsIntegration = (integration: GoogleSheetsIntegrationRow) => {
+        router.post(route('app.developer.google-sheets.test', { id: integration.id }), {}, { preserveScroll: true });
+    };
+
+    const deleteGoogleSheetsIntegration = async (integration: GoogleSheetsIntegrationRow) => {
+        const ok = await confirm({
+            title: 'Delete Google Sheets integration',
+            message: `Delete "${integration.name}"? Sheets sync will stop immediately.`,
+            variant: 'warning',
+        });
+        if (!ok) return;
+        router.delete(route('app.developer.google-sheets.destroy', { id: integration.id }), { preserveScroll: true });
     };
 
     return (
@@ -706,6 +772,192 @@ export default function DeveloperIndex({
                                                                         <span className="text-gray-400">—</span>
                                                                     )}
                                                                 </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Table2 className="h-5 w-5" />
+                            Google Sheets
+                        </CardTitle>
+                        <CardDescription>
+                            Push contacts, conversations, and campaign events into Google Sheets without writing code. Share the sheet with the service account email after you create the connector.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <form onSubmit={createGoogleSheetsIntegration} className="space-y-3 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                            <div className="grid gap-3 md:grid-cols-2">
+                                <div>
+                                    <InputLabel htmlFor="gs_name" value="Integration name" />
+                                    <TextInput
+                                        id="gs_name"
+                                        value={googleSheetsForm.data.name}
+                                        onChange={(e) => googleSheetsForm.setData('name', e.target.value)}
+                                        placeholder="Leads sheet"
+                                        className="mt-1"
+                                    />
+                                    <InputError message={googleSheetsForm.errors.name} />
+                                </div>
+                                <div>
+                                    <InputLabel htmlFor="gs_sheet_id" value="Spreadsheet ID" />
+                                    <TextInput
+                                        id="gs_sheet_id"
+                                        value={googleSheetsForm.data.spreadsheet_id}
+                                        onChange={(e) => googleSheetsForm.setData('spreadsheet_id', e.target.value)}
+                                        placeholder="Google Sheet ID"
+                                        className="mt-1"
+                                    />
+                                    <InputError message={googleSheetsForm.errors.spreadsheet_id} />
+                                </div>
+                            </div>
+                            <div className="grid gap-3 md:grid-cols-2">
+                                <div>
+                                    <InputLabel htmlFor="gs_sheet_name" value="Tab name" />
+                                    <TextInput
+                                        id="gs_sheet_name"
+                                        value={googleSheetsForm.data.sheet_name}
+                                        onChange={(e) => googleSheetsForm.setData('sheet_name', e.target.value)}
+                                        placeholder="Leads"
+                                        className="mt-1"
+                                    />
+                                    <InputError message={googleSheetsForm.errors.sheet_name} />
+                                </div>
+                                <div className="rounded-lg bg-gray-50 dark:bg-gray-900/60 p-3 text-xs text-gray-600 dark:text-gray-400">
+                                    Use a Google service account JSON key. Share your spreadsheet with the service account email as an editor.
+                                </div>
+                            </div>
+                            <div>
+                                <InputLabel htmlFor="gs_service_account" value="Service account JSON" />
+                                <textarea
+                                    id="gs_service_account"
+                                    value={googleSheetsForm.data.service_account_json}
+                                    onChange={(e) => googleSheetsForm.setData('service_account_json', e.target.value)}
+                                    className="mt-1 block min-h-[160px] w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+                                    placeholder="Paste the full Google service account JSON here"
+                                />
+                                <InputError message={googleSheetsForm.errors.service_account_json} />
+                            </div>
+                            <div>
+                                <InputLabel value="Sync these events" />
+                                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                                    {webhook_event_keys.map((eventKey) => (
+                                        <label key={`sheet-${eventKey}`} className="inline-flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 text-xs">
+                                            <input
+                                                type="checkbox"
+                                                checked={googleSheetsForm.data.event_keys.includes(eventKey)}
+                                                onChange={(e) => {
+                                                    const current = [...googleSheetsForm.data.event_keys];
+                                                    googleSheetsForm.setData(
+                                                        'event_keys',
+                                                        e.target.checked
+                                                            ? Array.from(new Set([...current, eventKey]))
+                                                            : current.filter((k) => k !== eventKey),
+                                                    );
+                                                }}
+                                            />
+                                            <code>{eventKey}</code>
+                                        </label>
+                                    ))}
+                                </div>
+                                <InputError message={googleSheetsForm.errors.event_keys as any} />
+                            </div>
+                            <div className="flex flex-wrap gap-4 text-sm">
+                                <label className="inline-flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={googleSheetsForm.data.append_headers}
+                                        onChange={(e) => googleSheetsForm.setData('append_headers', e.target.checked)}
+                                    />
+                                    Add header row before the first append
+                                </label>
+                                <label className="inline-flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={googleSheetsForm.data.include_payload_json}
+                                        onChange={(e) => googleSheetsForm.setData('include_payload_json', e.target.checked)}
+                                    />
+                                    Include raw payload JSON
+                                </label>
+                            </div>
+                            <Button type="submit" disabled={googleSheetsForm.processing || googleSheetsForm.data.event_keys.length === 0} className="gap-2">
+                                <Plus className="h-4 w-4" />
+                                Add Google Sheets connector
+                            </Button>
+                        </form>
+
+                        {google_sheets_integrations.length === 0 ? (
+                            <p className="text-sm text-gray-500 dark:text-gray-400">No Google Sheets integrations configured.</p>
+                        ) : (
+                            <div className="space-y-4">
+                                {google_sheets_integrations.map((integration) => (
+                                    <div key={integration.id} className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 space-y-3">
+                                        <div className="flex flex-wrap items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <p className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                                                    {integration.name}
+                                                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] ${integration.is_active ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'}`}>
+                                                        {integration.is_active ? 'Active' : 'Disabled'}
+                                                    </span>
+                                                </p>
+                                                <p className="text-xs text-gray-500 dark:text-gray-400 break-all">{integration.spreadsheet_url}</p>
+                                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                    Tab: {integration.sheet_name} · Service account: {integration.service_account_email}
+                                                </p>
+                                                <div className="mt-2 flex flex-wrap gap-1">
+                                                    {integration.event_keys.map((eventKey) => (
+                                                        <code key={`${integration.id}-${eventKey}`} className="rounded bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-[11px]">
+                                                            {eventKey}
+                                                        </code>
+                                                    ))}
+                                                </div>
+                                                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                                    Last sync: {integration.last_delivery_at ? new Date(integration.last_delivery_at).toLocaleString() : '—'}
+                                                    {integration.last_delivery_error ? ` · ${integration.last_delivery_error}` : ''}
+                                                </p>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                <Button type="button" variant="secondary" size="sm" onClick={() => testGoogleSheetsIntegration(integration)} className="gap-1">
+                                                    <Send className="h-4 w-4" />
+                                                    Test
+                                                </Button>
+                                                <Button type="button" variant="secondary" size="sm" onClick={() => toggleGoogleSheetsIntegration(integration)}>
+                                                    {integration.is_active ? 'Disable' : 'Enable'}
+                                                </Button>
+                                                <Button type="button" variant="ghost" size="sm" className="text-red-600 hover:text-red-700 dark:text-red-400" onClick={() => deleteGoogleSheetsIntegration(integration)}>
+                                                    <Trash2 className="h-4 w-4 mr-1" />
+                                                    Delete
+                                                </Button>
+                                            </div>
+                                        </div>
+                                        {integration.recent_deliveries.length > 0 && (
+                                            <div className="overflow-x-auto">
+                                                <table className="min-w-full text-xs">
+                                                    <thead>
+                                                        <tr className="text-left text-gray-500 dark:text-gray-400">
+                                                            <th className="py-1 pr-3">Event</th>
+                                                            <th className="py-1 pr-3">Status</th>
+                                                            <th className="py-1 pr-3">Summary</th>
+                                                            <th className="py-1 pr-3">When</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {integration.recent_deliveries.map((delivery) => (
+                                                            <tr key={delivery.id} className="border-t border-gray-200 dark:border-gray-700">
+                                                                <td className="py-2 pr-3"><code>{delivery.event_key}</code></td>
+                                                                <td className="py-2 pr-3">{delivery.status}</td>
+                                                                <td className="py-2 pr-3">{delivery.response_summary || delivery.error_message || '—'}</td>
+                                                                <td className="py-2 pr-3">{delivery.created_at ? new Date(delivery.created_at).toLocaleString() : '—'}</td>
                                                             </tr>
                                                         ))}
                                                     </tbody>

@@ -2,6 +2,7 @@
 
 use App\Modules\Developer\Http\Controllers\DeveloperController;
 use App\Modules\Developer\Http\Controllers\InboundAutomationWebhookController;
+use App\Modules\Developer\Http\Controllers\GoogleSheetsIntegrationController;
 
 Route::middleware(['module.entitled:developer'])->prefix('developer')->name('developer.')->group(function () {
     Route::get('/', [DeveloperController::class, 'index'])->name('index');
@@ -17,4 +18,8 @@ Route::middleware(['module.entitled:developer'])->prefix('developer')->name('dev
     Route::post('/inbound-webhooks', [InboundAutomationWebhookController::class, 'store'])->name('inbound-webhooks.store');
     Route::patch('/inbound-webhooks/{id}', [InboundAutomationWebhookController::class, 'update'])->name('inbound-webhooks.update');
     Route::delete('/inbound-webhooks/{id}', [InboundAutomationWebhookController::class, 'destroy'])->name('inbound-webhooks.destroy');
+    Route::post('/google-sheets', [GoogleSheetsIntegrationController::class, 'store'])->name('google-sheets.store');
+    Route::patch('/google-sheets/{id}', [GoogleSheetsIntegrationController::class, 'update'])->name('google-sheets.update');
+    Route::delete('/google-sheets/{id}', [GoogleSheetsIntegrationController::class, 'destroy'])->name('google-sheets.destroy');
+    Route::post('/google-sheets/{id}/test', [GoogleSheetsIntegrationController::class, 'test'])->name('google-sheets.test');
 });

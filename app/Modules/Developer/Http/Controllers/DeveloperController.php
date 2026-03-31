@@ -9,6 +9,8 @@ use App\Models\TenantWebhookEndpoint;
 use App\Models\TenantWebhookSubscription;
 use App\Models\InboundAutomationWebhook;
 use App\Models\InboundAutomationWebhookLog;
+use App\Models\GoogleSheetsIntegration;
+use App\Models\GoogleSheetsDelivery;
 use App\Modules\Developer\Jobs\DeliverTenantWebhookJob;
 use App\Modules\Developer\Services\InboundAutomationWebhookService;
 use App\Modules\Developer\Services\TenantWebhookService;
@@ -177,6 +179,14 @@ class DeveloperController extends Controller
                 ->values()
                 ->all(),
             'inbound_base_url' => route('hooks.inbound.handle', ['publicKey' => 'PUBLIC_KEY_PLACEHOLDER']),
+            'google_sheets_integrations' => GoogleSheetsIntegration::query()
+                ->where('account_id', $account->id)
+                ->with(['deliveries' => fn ($q) => $q->latest('id')])
+                ->orderByDesc('id')
+                ->get()
+                ->map(fn (GoogleSheetsIntegration $integration) => $this->formatGoogleSheetsIntegration($integration))
+                ->values()
+                ->all(),
         ]);
     }
 
@@ -550,6 +560,38 @@ class DeveloperController extends Controller
                     'response_summary' => $log->response_summary,
                     'created_at' => $log->created_at?->toIso8601String(),
                     'processed_at' => $log->processed_at?->toIso8601String(),
+                ])
+                ->values()
+                ->all(),
+        ];
+    }
+
+    protected function formatGoogleSheetsIntegration(GoogleSheetsIntegration $integration): array
+    {
+        return [
+            'id' => $integration->id,
+            'name' => $integration->name,
+            'spreadsheet_id' => $integration->spreadsheet_id,
+            'sheet_name' => $integration->sheet_name,
+            'spreadsheet_url' => $integration->spreadsheet_url,
+            'service_account_email' => $integration->service_account_email,
+            'is_active' => (bool) $integration->is_active,
+            'event_keys' => array_values((array) ($integration->event_keys ?? [])),
+            'append_headers' => (bool) $integration->append_headers,
+            'include_payload_json' => (bool) $integration->include_payload_json,
+            'last_delivery_at' => $integration->last_delivery_at?->toIso8601String(),
+            'last_delivery_error' => $integration->last_delivery_error,
+            'recent_deliveries' => $integration->deliveries
+                ->take(10)
+                ->map(fn (GoogleSheetsDelivery $delivery) => [
+                    'id' => $delivery->id,
+                    'event_key' => $delivery->event_key,
+                    'status' => $delivery->status,
+                    'attempts' => (int) $delivery->attempts,
+                    'response_summary' => $delivery->response_summary,
+                    'error_message' => $delivery->error_message,
+                    'created_at' => $delivery->created_at?->toIso8601String(),
+                    'delivered_at' => $delivery->delivered_at?->toIso8601String(),
                 ])
                 ->values()
                 ->all(),

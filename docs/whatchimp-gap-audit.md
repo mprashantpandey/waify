@@ -37,7 +37,7 @@ Zyptos already has solid coverage in:
 | Omnichannel inbox (Instagram/Facebook) | Yes | Missing | WhatsApp-only today |
 | WhatsApp payments | Yes | Missing | Platform billing exists, customer payments do not |
 | Appointment booking | Yes | Missing | No services/slots/reminders layer |
-| Google Sheets integration | Yes | Missing | No packaged connector |
+| Google Sheets integration | Yes | Partial | Packaged outbound event sync now exists; sheet-to-Zyptos trigger templates still missing |
 | Zapier/Make/Pabbly/n8n | Yes | Missing | API exists, connectors do not |
 | Shopify integration | Yes | Missing | No order/customer sync |
 | WooCommerce integration | Yes | Missing | No order/customer sync |
@@ -96,4 +96,5 @@ Reason:
 - 2026-03-31: Contact custom fields shipped with contact create/edit support and segment filtering.
 - 2026-03-31: Sequence/drip foundation shipped with sequence builder, step scheduling, audience enrollment, and delayed step jobs.
 - 2026-03-31: Tenant-facing inbound webhook listener shipped with signed public endpoints, contact upsert, sequence triggers, and template triggers.
-- Next recommended slice: packaged Google Sheets integration on top of the new inbound automation surface.
+- 2026-03-31: Google Sheets integration shipped for outbound event sync with per-account connectors, signed service-account auth, and tenant-managed event subscriptions.
+- Next recommended slice: Shopify integration, starting with customer/order sync and abandoned-cart triggers.
