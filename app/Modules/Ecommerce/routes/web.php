@@ -3,6 +3,7 @@
 use App\Modules\Ecommerce\Http\Controllers\EcommerceController;
 use App\Modules\Ecommerce\Http\Controllers\ProductController;
 use App\Modules\Ecommerce\Http\Controllers\OrderController;
+use App\Modules\Ecommerce\Http\Controllers\ShopifyIntegrationController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['module.entitled:ecommerce'])->group(function () {
@@ -13,5 +14,9 @@ Route::middleware(['module.entitled:ecommerce'])->group(function () {
     Route::post('/commerce/products', [ProductController::class, 'store'])->name('ecommerce.products.store');
 
     Route::get('/commerce/orders', [OrderController::class, 'index'])->name('ecommerce.orders.index');
+    Route::post('/commerce/shopify', [ShopifyIntegrationController::class, 'store'])->name('ecommerce.shopify.store');
+    Route::patch('/commerce/shopify/{id}', [ShopifyIntegrationController::class, 'update'])->name('ecommerce.shopify.update');
+    Route::delete('/commerce/shopify/{id}', [ShopifyIntegrationController::class, 'destroy'])->name('ecommerce.shopify.destroy');
+    Route::post('/commerce/shopify/{id}/sync', [ShopifyIntegrationController::class, 'sync'])->name('ecommerce.shopify.sync');
 });
 

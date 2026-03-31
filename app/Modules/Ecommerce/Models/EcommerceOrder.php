@@ -19,7 +19,10 @@ class EcommerceOrder extends Model
         'currency',
         'status',
         'source',
+        'external_source',
+        'external_id',
         'notes',
+        'metadata',
         'ordered_at',
     ];
 
@@ -28,6 +31,7 @@ class EcommerceOrder extends Model
         'unit_price' => 'integer',
         'total_price' => 'integer',
         'ordered_at' => 'datetime',
+        'metadata' => 'array',
     ];
 
     public function account(): BelongsTo

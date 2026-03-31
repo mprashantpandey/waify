@@ -350,6 +350,10 @@ Route::post('/hooks/inbound/{publicKey}', [\App\Modules\Developer\Http\Controlle
     ->middleware([\App\Http\Middleware\EnsureWebhooksEnabled::class, \App\Http\Middleware\LogApiRequests::class])
     ->name('hooks.inbound.handle');
 
+Route::post('/hooks/shopify/{integration}', [\App\Modules\Ecommerce\Http\Controllers\ShopifyIntegrationController::class, 'handle'])
+    ->middleware([\App\Http\Middleware\EnsureWebhooksEnabled::class, \App\Http\Middleware\LogApiRequests::class])
+    ->name('hooks.shopify.handle');
+
 // Razorpay webhook (public)
 Route::post('/webhooks/razorpay', [\App\Http\Controllers\Billing\RazorpayWebhookController::class, 'handle'])
     ->middleware([\App\Http\Middleware\EnsureWebhooksEnabled::class, \App\Http\Middleware\LogApiRequests::class])

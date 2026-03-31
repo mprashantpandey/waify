@@ -18,6 +18,8 @@ class EcommerceProduct extends Model
         'currency',
         'status',
         'stock',
+        'external_source',
+        'external_id',
         'metadata',
     ];
 

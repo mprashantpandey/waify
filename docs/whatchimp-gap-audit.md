@@ -39,9 +39,9 @@ Zyptos already has solid coverage in:
 | Appointment booking | Yes | Missing | No services/slots/reminders layer |
 | Google Sheets integration | Yes | Partial | Packaged outbound event sync now exists; sheet-to-Zyptos trigger templates still missing |
 | Zapier/Make/Pabbly/n8n | Yes | Missing | API exists, connectors do not |
-| Shopify integration | Yes | Missing | No order/customer sync |
+| Shopify integration | Yes | Partial | Tenant-managed store connection now syncs customers and orders, verifies webhooks, imports recent data, and can trigger abandoned-checkout sequences. Storefront sync, analytics, and deeper automations are still missing |
 | WooCommerce integration | Yes | Missing | No order/customer sync |
-| Abandoned cart automation | Yes | Missing | No store-triggered recovery automation |
+| Abandoned cart automation | Yes | Partial | Shopify abandoned checkout webhooks can now trigger sequences; analytics, recovery performance, and storefront-specific rules are still missing |
 | CTWA ads attribution | Yes | Missing | No ad-source routing/analytics |
 | Custom webhook listener | Yes | Partial | Tenant-facing inbound webhook listener now exists for sequence and template triggers; richer trigger catalog still missing |
 | Drip / sequence automation | Yes | Partial | Sequence foundation now exists; triggers, analytics, and richer automation still missing |
@@ -98,3 +98,6 @@ Reason:
 - 2026-03-31: Tenant-facing inbound webhook listener shipped with signed public endpoints, contact upsert, sequence triggers, and template triggers.
 - 2026-03-31: Google Sheets integration shipped for outbound event sync with per-account connectors, signed service-account auth, and tenant-managed event subscriptions.
 - Next recommended slice: Shopify integration, starting with customer/order sync and abandoned-cart triggers.
+
+
+- 2026-03-31: Shopify integration foundation shipped with tenant-managed store connections, HMAC-verified webhooks, customer/order sync into contacts and commerce orders, and abandoned-checkout sequence triggers.
