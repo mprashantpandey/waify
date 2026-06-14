@@ -2,10 +2,10 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\PlatformSettingsService;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
-use App\Services\PlatformSettingsService;
 
 class EnsureMaintenanceMode
 {
@@ -20,21 +20,21 @@ class EnsureMaintenanceMode
         if ($request->is('webhooks/*')) {
             return $next($request);
         }
-        
+
         $settingsService = app(PlatformSettingsService::class);
-        
+
         if ($settingsService->isMaintenanceMode()) {
             // Allow super admins to access during maintenance
-            if (!$request->user() || !$request->user()->isSuperAdmin()) {
+            if (! $request->user() || ! $request->user()->isSuperAdmin()) {
                 $general = $settingsService->getGeneral();
                 $message = $general['maintenance_message'] ?? 'We are currently performing scheduled maintenance. Please check back shortly.';
-                
+
                 if ($request->expectsJson()) {
                     return response()->json([
                         'message' => $message,
                         'maintenance' => true], 503);
                 }
-                
+
                 return response()->view('maintenance', [
                     'message' => $message], 503);
             }
@@ -43,4 +43,3 @@ class EnsureMaintenanceMode
         return $next($request);
     }
 }
-

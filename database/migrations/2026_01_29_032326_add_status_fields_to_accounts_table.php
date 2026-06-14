@@ -15,7 +15,7 @@ return new class extends Migration
             $table->string('status')->default('active')->after('slug'); // active|suspended|disabled
             $table->text('disabled_reason')->nullable()->after('status');
             $table->timestamp('disabled_at')->nullable()->after('disabled_reason');
-            
+
             $table->index('status');
         });
     }

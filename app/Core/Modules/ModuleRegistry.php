@@ -38,48 +38,24 @@ class ModuleRegistry
      */
     public function getEnabledForAccount($account): Collection
     {
-        // First, get all modules that are enabled at platform level
-        $platformEnabledModules = \App\Models\Module::where('is_enabled', true)
-            ->pluck('key')
-            ->toArray();
-
         $settingsService = app(\App\Services\PlatformSettingsService::class);
         $analyticsEnabled = $settingsService->isFeatureEnabled('analytics');
 
-        // Get modules available on the account's plan
         $planResolver = app(\App\Core\Billing\PlanResolver::class);
-        $availableModuleKeys = $planResolver->getEffectiveModules($account);
+        $effectiveModuleKeys = $planResolver->getEffectiveModules($account);
 
-        // Also get account-enabled modules (for core modules that are always available)
-        $accountModuleKeys = \App\Models\AccountModule::where('account_id', $account->id)
-            ->where('enabled', true)
-            ->pluck('module_key')
-            ->toArray();
-
-        // Combine: modules must be:
-        // 1. Enabled at platform level
-        // 2. Either on the plan AND enabled in account, OR core/enabled_by_default AND enabled in account
-        return $this->all()->filter(function ($module) use ($platformEnabledModules, $availableModuleKeys, $accountModuleKeys, $analyticsEnabled) {
+        return $this->all()->filter(function ($module) use ($effectiveModuleKeys, $analyticsEnabled) {
             $moduleKey = $module['key'];
 
-            // First check: module must be enabled at platform level
-            if (!in_array($moduleKey, $platformEnabledModules)) {
+            if (! in_array($moduleKey, $effectiveModuleKeys, true)) {
                 return false;
             }
 
-            if ($moduleKey === 'analytics' && !$analyticsEnabled) {
+            if ($moduleKey === 'analytics' && ! $analyticsEnabled) {
                 return false;
             }
 
-            $isOnPlan = in_array($moduleKey, $availableModuleKeys);
-            $isEnabledInAccount = in_array($moduleKey, $accountModuleKeys);
-            $isCore = $module['is_core'] ?? false;
-            $enabledByDefault = $module['enabled_by_default'] ?? false;
-
-            // Module is available if:
-            // 1. It's on the plan AND enabled in account, OR
-            // 2. It's core/enabled_by_default AND enabled in account
-            return $isOnPlan || (($isCore || $enabledByDefault) && $isEnabledInAccount);
+            return true;
         });
     }
 
@@ -99,7 +75,7 @@ class ModuleRegistry
                     // Only include nav items if the module is enabled at platform level
                     $moduleKey = $module['key'];
                     $platformModule = \App\Models\Module::where('key', $moduleKey)->first();
-                    
+
                     if ($platformModule && $platformModule->is_enabled) {
                         $navItems[] = $navItem;
                     }

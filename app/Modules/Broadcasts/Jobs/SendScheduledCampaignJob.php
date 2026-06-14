@@ -20,8 +20,7 @@ class SendScheduledCampaignJob implements ShouldQueue
      */
     public function __construct(
         public int $campaignId
-    ) {
-    }
+    ) {}
 
     /**
      * Execute the job.
@@ -30,8 +29,9 @@ class SendScheduledCampaignJob implements ShouldQueue
     {
         $campaign = Campaign::find($this->campaignId);
 
-        if (!$campaign) {
+        if (! $campaign) {
             Log::warning('Scheduled campaign not found', ['campaign_id' => $this->campaignId]);
+
             return;
         }
 
@@ -39,6 +39,7 @@ class SendScheduledCampaignJob implements ShouldQueue
             Log::info('Campaign is not in scheduled status', [
                 'campaign_id' => $this->campaignId,
                 'status' => $campaign->status]);
+
             return;
         }
 
@@ -46,4 +47,3 @@ class SendScheduledCampaignJob implements ShouldQueue
         $campaignService->startCampaign($campaign);
     }
 }
-

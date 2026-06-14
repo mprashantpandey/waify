@@ -17,7 +17,7 @@ class EnsureFeatureEnabled
     {
         $settingsService = app(\App\Services\PlatformSettingsService::class);
 
-        if (!$settingsService->isFeatureEnabled($feature)) {
+        if (! $settingsService->isFeatureEnabled($feature)) {
             abort(403, 'This feature is currently disabled.');
         }
 

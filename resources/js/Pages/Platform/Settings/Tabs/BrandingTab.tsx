@@ -1,201 +1,306 @@
+import { ChangeEvent } from 'react';
+import { Image, MonitorSmartphone, Moon, Sun, Trash2, Upload, type LucideIcon } from 'lucide-react';
+import Button from '@/Components/UI/Button';
 import { Input } from '@/Components/UI/Input';
 import { Label } from '@/Components/UI/Label';
-import { Switch } from '@/Components/UI/Switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Components/UI/Card';
+import { cn } from '@/lib/utils';
+
+type AssetField = 'logo' | 'logo_dark' | 'sidebar_icon' | 'sidebar_icon_dark' | 'favicon' | 'favicon_dark';
 
 interface BrandingTabProps {
     data: any;
-    setData: any;
-    errors: any;
+    setData: (key: string, value: any) => void;
+    errors: Record<string, string>;
+}
+
+interface AssetCardProps {
+    id: AssetField;
+    title: string;
+    description: string;
+    url?: string | null;
+    removeKey: string;
+    removed?: boolean;
+    accept: string;
+    icon: LucideIcon;
+    compact?: boolean;
+    darkPreview?: boolean;
+    errors: Record<string, string>;
+    onUpload: (field: AssetField, event: ChangeEvent<HTMLInputElement>) => void;
+    onRemove: (removeKey: string, field: AssetField) => void;
+}
+
+function FieldError({ message }: { message?: string }) {
+    if (!message) return null;
+
+    return <p className="mt-1 text-sm text-red-600 dark:text-red-300">{message}</p>;
+}
+
+function AssetCard({
+    id,
+    title,
+    description,
+    url,
+    removeKey,
+    removed,
+    accept,
+    icon: Icon,
+    compact = false,
+    darkPreview = false,
+    errors,
+    onUpload,
+    onRemove,
+}: AssetCardProps) {
+    const hasAsset = Boolean(url && !removed);
+
+    return (
+        <div className="overflow-hidden rounded-card border border-gray-100 bg-white dark:border-waify-dark-border dark:bg-waify-dark-surface">
+            <div className="flex items-start justify-between gap-3 border-b border-gray-100 p-4 dark:border-waify-dark-border">
+                <div className="flex min-w-0 items-start gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-card bg-waify-green-soft text-waify-green-dark dark:bg-emerald-500/15 dark:text-emerald-200">
+                        <Icon className="h-5 w-5" />
+                    </span>
+                    <div className="min-w-0">
+                        <Label htmlFor={id}>{title}</Label>
+                        <p className="mt-1 text-xs leading-5 text-waify-text-muted dark:text-waify-dark-text-muted">{description}</p>
+                    </div>
+                </div>
+                {hasAsset && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => onRemove(removeKey, id)}>
+                        <Trash2 className="h-4 w-4" />
+                    </Button>
+                )}
+            </div>
+
+            <div className="space-y-3 p-4">
+                <div
+                    className={cn(
+                        'flex h-24 items-center justify-center rounded-card border border-dashed px-4',
+                        darkPreview
+                            ? 'border-white/10 bg-waify-sidebar text-white/70'
+                            : 'border-gray-200 bg-gray-50 text-waify-text-muted dark:border-waify-dark-border dark:bg-waify-dark-surface-2 dark:text-waify-dark-text-muted'
+                    )}
+                >
+                    {hasAsset ? (
+                        <img src={url as string} alt={title} className={compact ? 'h-11 w-11 object-contain' : 'max-h-14 max-w-full object-contain'} />
+                    ) : (
+                        <div className="flex flex-col items-center gap-2 text-xs">
+                            <Upload className="h-4 w-4" />
+                            <span>{removed ? 'Removed after save' : 'No file uploaded'}</span>
+                        </div>
+                    )}
+                </div>
+
+                <Input id={id} type="file" accept={accept} onChange={(event) => onUpload(id, event)} />
+                <FieldError message={errors[id]} />
+            </div>
+        </div>
+    );
 }
 
 export default function BrandingTab({ data, setData, errors }: BrandingTabProps) {
-    const handleFileChange = (field: 'logo' | 'favicon', e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            setData(field, file);
-        }
+    const branding = data.branding || {};
+
+    const updateBranding = (key: string, value: any) => {
+        setData('branding', { ...branding, [key]: value });
     };
+
+    const handleFileChange = (field: AssetField, event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        setData(field, file);
+        updateBranding(`remove_${field}`, false);
+    };
+
+    const markForRemoval = (removeKey: string, field: AssetField) => {
+        updateBranding(removeKey, true);
+        setData(field, null);
+    };
+
+    const primaryColor = branding.primary_color || '#22c55e';
+    const rasterLogoAccept = 'image/jpeg,image/png,image/gif,image/svg+xml';
+    const faviconAccept = 'image/x-icon,image/png';
 
     return (
         <div className="space-y-6">
             <Card>
                 <CardHeader>
-                    <CardTitle>Platform Branding</CardTitle>
-                    <CardDescription>
-                        Customize your platform's appearance and branding
-                    </CardDescription>
+                    <CardTitle className="flex items-center gap-2">
+                        <Image className="h-5 w-5" />
+                        Brand Identity
+                    </CardTitle>
+                    <CardDescription>Core name and visual assets used across app shells, auth screens, public pages, and favicons.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
                     <div>
                         <Label htmlFor="branding.platform_name">Platform Name</Label>
                         <Input
                             id="branding.platform_name"
-                            value={data.branding?.platform_name || ''}
-                            onChange={(e) => setData('branding', { ...data.branding, platform_name: e.target.value })}
-                            placeholder="Waify"
+                            value={branding.platform_name || ''}
+                            onChange={(event) => updateBranding('platform_name', event.target.value)}
+                            placeholder="Zyptos"
                         />
-                        {errors?.['branding.platform_name'] && (
-                            <p className="text-sm text-red-600 mt-1">{errors['branding.platform_name']}</p>
-                        )}
+                        <FieldError message={errors['branding.platform_name']} />
                     </div>
 
-                    <div>
-                        <Label htmlFor="logo">Logo</Label>
-                        {data.branding?.logo_url && (
-                            <div className="mb-2">
-                                <img 
-                                    src={data.branding.logo_url} 
-                                    alt="Current logo" 
-                                    className="h-12 w-auto mb-2"
-                                />
+                    <div className="grid gap-3 md:grid-cols-3">
+                        <div className="overflow-hidden rounded-card border border-gray-100 dark:border-waify-dark-border">
+                            <div className="flex h-16 items-center gap-3 bg-white px-4 text-waify-text">
+                                {branding.logo_url && !branding.remove_logo ? (
+                                    <img src={branding.logo_url} alt="" className="max-h-9 w-auto" />
+                                ) : (
+                                    <div className="flex h-9 w-9 items-center justify-center rounded-card text-white" style={{ backgroundColor: primaryColor }}>
+                                        <Upload className="h-4 w-4" />
+                                    </div>
+                                )}
+                                <div className="truncate text-sm font-semibold">{branding.platform_name || 'Zyptos'}</div>
                             </div>
-                        )}
-                        <Input
-                            id="logo"
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleFileChange('logo', e)}
-                        />
-                        <p className="text-sm text-gray-500 mt-1">
-                            Recommended: PNG or SVG, max 2MB. Will be displayed in sidebar and headers.
-                        </p>
-                    </div>
+                        </div>
 
-                    <div>
-                        <Label htmlFor="favicon">Favicon</Label>
-                        {data.branding?.favicon_url && (
-                            <div className="mb-2">
-                                <img 
-                                    src={data.branding.favicon_url} 
-                                    alt="Current favicon" 
-                                    className="h-8 w-8 mb-2"
-                                />
+                        <div className="overflow-hidden rounded-card border border-gray-100 dark:border-waify-dark-border">
+                            <div className="flex h-16 items-center gap-3 bg-waify-sidebar px-4 text-white">
+                                {branding.logo_dark_url && !branding.remove_logo_dark ? (
+                                    <img src={branding.logo_dark_url} alt="" className="max-h-9 w-auto" />
+                                ) : (
+                                    <div className="flex h-9 w-9 items-center justify-center rounded-card" style={{ backgroundColor: primaryColor }}>
+                                        <Upload className="h-4 w-4" />
+                                    </div>
+                                )}
+                                <div className="truncate text-sm font-semibold">{branding.platform_name || 'Zyptos'}</div>
                             </div>
-                        )}
-                        <Input
+                        </div>
+
+                        <div className="flex h-16 items-center gap-3 rounded-card bg-waify-sidebar px-4">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-card bg-white/5">
+                                {branding.sidebar_icon_dark_url && !branding.remove_sidebar_icon_dark ? (
+                                    <img src={branding.sidebar_icon_dark_url} alt="" className="h-7 w-7 object-contain" />
+                                ) : (
+                                    <Upload className="h-4 w-4 text-white/70" />
+                                )}
+                            </div>
+                            <div className="min-w-0 flex-1 space-y-2">
+                                <div className="h-3 w-24 rounded-full bg-white/20" />
+                                <div className="h-3 w-16 rounded-full bg-white/10" />
+                            </div>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <div className="space-y-4">
+                <div>
+                    <h3 className="text-sm font-semibold text-waify-text dark:text-waify-dark-text">Logo Assets</h3>
+                    <p className="mt-1 text-sm text-waify-text-muted dark:text-waify-dark-text-muted">Use horizontal logos for headers, public pages, and auth layouts.</p>
+                </div>
+                <div className="grid gap-4 lg:grid-cols-2">
+                    <AssetCard
+                        id="logo"
+                        title="Light Logo"
+                        description="PNG, JPG, GIF, or SVG up to 2MB."
+                        url={branding.logo_url}
+                        removeKey="remove_logo"
+                        removed={branding.remove_logo}
+                        accept={rasterLogoAccept}
+                        icon={Sun}
+                        errors={errors}
+                        onUpload={handleFileChange}
+                        onRemove={markForRemoval}
+                    />
+                    <AssetCard
+                        id="logo_dark"
+                        title="Dark Logo"
+                        description="For dark headers, dark mode, and dark public sections."
+                        url={branding.logo_dark_url}
+                        removeKey="remove_logo_dark"
+                        removed={branding.remove_logo_dark}
+                        accept={rasterLogoAccept}
+                        icon={Moon}
+                        darkPreview
+                        errors={errors}
+                        onUpload={handleFileChange}
+                        onRemove={markForRemoval}
+                    />
+                </div>
+            </div>
+
+            <div className="grid gap-6 xl:grid-cols-2">
+                <div className="space-y-4">
+                    <div>
+                        <h3 className="text-sm font-semibold text-waify-text dark:text-waify-dark-text">Sidebar Icons</h3>
+                        <p className="mt-1 text-sm text-waify-text-muted dark:text-waify-dark-text-muted">Compact marks for collapsed navigation and dense app surfaces.</p>
+                    </div>
+                    <div className="grid gap-4">
+                        <AssetCard
+                            id="sidebar_icon"
+                            title="Light Sidebar Icon"
+                            description="Square icon for light shell."
+                            url={branding.sidebar_icon_url}
+                            removeKey="remove_sidebar_icon"
+                            removed={branding.remove_sidebar_icon}
+                            accept={rasterLogoAccept}
+                            icon={MonitorSmartphone}
+                            compact
+                            errors={errors}
+                            onUpload={handleFileChange}
+                            onRemove={markForRemoval}
+                        />
+                        <AssetCard
+                            id="sidebar_icon_dark"
+                            title="Dark Sidebar Icon"
+                            description="Square icon for dark shell."
+                            url={branding.sidebar_icon_dark_url}
+                            removeKey="remove_sidebar_icon_dark"
+                            removed={branding.remove_sidebar_icon_dark}
+                            accept={rasterLogoAccept}
+                            icon={MonitorSmartphone}
+                            compact
+                            darkPreview
+                            errors={errors}
+                            onUpload={handleFileChange}
+                            onRemove={markForRemoval}
+                        />
+                    </div>
+                </div>
+
+                <div className="space-y-4">
+                    <div>
+                        <h3 className="text-sm font-semibold text-waify-text dark:text-waify-dark-text">Favicons</h3>
+                        <p className="mt-1 text-sm text-waify-text-muted dark:text-waify-dark-text-muted">Browser tab icons for light and dark browser themes.</p>
+                    </div>
+                    <div className="grid gap-4">
+                        <AssetCard
                             id="favicon"
-                            type="file"
-                            accept="image/x-icon,image/png"
-                            onChange={(e) => handleFileChange('favicon', e)}
+                            title="Light Favicon"
+                            description="ICO or PNG up to 512KB."
+                            url={branding.favicon_url}
+                            removeKey="remove_favicon"
+                            removed={branding.remove_favicon}
+                            accept={faviconAccept}
+                            icon={Sun}
+                            compact
+                            errors={errors}
+                            onUpload={handleFileChange}
+                            onRemove={markForRemoval}
                         />
-                        <p className="text-sm text-gray-500 mt-1">
-                            Recommended: ICO or PNG, 32x32px, max 512KB.
-                        </p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <Label htmlFor="branding.primary_color">Primary Color</Label>
-                            <div className="flex gap-2">
-                                <Input
-                                    id="branding.primary_color"
-                                    type="color"
-                                    value={data.branding?.primary_color || '#3B82F6'}
-                                    onChange={(e) => setData('branding', { ...data.branding, primary_color: e.target.value })}
-                                    className="w-20 h-10"
-                                />
-                                <Input
-                                    value={data.branding?.primary_color || '#3B82F6'}
-                                    onChange={(e) => setData('branding', { ...data.branding, primary_color: e.target.value })}
-                                    placeholder="#3B82F6"
-                                    pattern="^#[0-9A-Fa-f]{6}$"
-                                />
-                            </div>
-                            {errors?.['branding.primary_color'] && (
-                                <p className="text-sm text-red-600 mt-1">{errors['branding.primary_color']}</p>
-                            )}
-                        </div>
-
-                        <div>
-                            <Label htmlFor="branding.secondary_color">Secondary Color</Label>
-                            <div className="flex gap-2">
-                                <Input
-                                    id="branding.secondary_color"
-                                    type="color"
-                                    value={data.branding?.secondary_color || '#8B5CF6'}
-                                    onChange={(e) => setData('branding', { ...data.branding, secondary_color: e.target.value })}
-                                    className="w-20 h-10"
-                                />
-                                <Input
-                                    value={data.branding?.secondary_color || '#8B5CF6'}
-                                    onChange={(e) => setData('branding', { ...data.branding, secondary_color: e.target.value })}
-                                    placeholder="#8B5CF6"
-                                    pattern="^#[0-9A-Fa-f]{6}$"
-                                />
-                            </div>
-                            {errors?.['branding.secondary_color'] && (
-                                <p className="text-sm text-red-600 mt-1">{errors['branding.secondary_color']}</p>
-                            )}
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Support Information</CardTitle>
-                    <CardDescription>
-                        Contact information displayed to users
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div>
-                        <Label htmlFor="branding.support_email">Support Email</Label>
-                        <Input
-                            id="branding.support_email"
-                            type="email"
-                            value={data.branding?.support_email || ''}
-                            onChange={(e) => setData('branding', { ...data.branding, support_email: e.target.value })}
-                            placeholder="support@example.com"
-                        />
-                        {errors?.['branding.support_email'] && (
-                            <p className="text-sm text-red-600 mt-1">{errors['branding.support_email']}</p>
-                        )}
-                    </div>
-
-                    <div>
-                        <Label htmlFor="branding.support_phone">Support Phone</Label>
-                        <Input
-                            id="branding.support_phone"
-                            value={data.branding?.support_phone || ''}
-                            onChange={(e) => setData('branding', { ...data.branding, support_phone: e.target.value })}
-                            placeholder="+1 (555) 123-4567"
-                        />
-                        {errors?.['branding.support_phone'] && (
-                            <p className="text-sm text-red-600 mt-1">{errors['branding.support_phone']}</p>
-                        )}
-                    </div>
-
-                    <div>
-                        <Label htmlFor="branding.footer_text">Footer Text</Label>
-                        <Input
-                            id="branding.footer_text"
-                            value={data.branding?.footer_text || ''}
-                            onChange={(e) => setData('branding', { ...data.branding, footer_text: e.target.value })}
-                            placeholder="© 2024 Your Company. All rights reserved."
-                        />
-                        {errors?.['branding.footer_text'] && (
-                            <p className="text-sm text-red-600 mt-1">{errors['branding.footer_text']}</p>
-                        )}
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <Label htmlFor="branding.show_powered_by">Show "Powered By"</Label>
-                            <p className="text-sm text-gray-500">
-                                Display "Powered by [Platform Name]" in the footer
-                            </p>
-                        </div>
-                        <Switch
-                            id="branding.show_powered_by"
-                            checked={data.branding?.show_powered_by || false}
-                            onCheckedChange={(checked) => setData('branding', { ...data.branding, show_powered_by: checked })}
+                        <AssetCard
+                            id="favicon_dark"
+                            title="Dark Favicon"
+                            description="ICO or PNG up to 512KB."
+                            url={branding.favicon_dark_url}
+                            removeKey="remove_favicon_dark"
+                            removed={branding.remove_favicon_dark}
+                            accept={faviconAccept}
+                            icon={Moon}
+                            compact
+                            darkPreview
+                            errors={errors}
+                            onUpload={handleFileChange}
+                            onRemove={markForRemoval}
                         />
                     </div>
-                </CardContent>
-            </Card>
+                </div>
+            </div>
         </div>
     );
 }
-

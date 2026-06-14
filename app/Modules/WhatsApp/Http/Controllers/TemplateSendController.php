@@ -2,9 +2,9 @@
 
 namespace App\Modules\WhatsApp\Http\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Core\Billing\EntitlementService;
 use App\Core\Billing\UsageService;
+use App\Http\Controllers\Controller;
 use App\Modules\WhatsApp\Events\Inbox\ConversationUpdated;
 use App\Modules\WhatsApp\Events\Inbox\MessageCreated;
 use App\Modules\WhatsApp\Events\Inbox\MessageUpdated;
@@ -25,8 +25,7 @@ class TemplateSendController extends Controller
         protected WhatsAppClient $whatsappClient,
         protected EntitlementService $entitlementService,
         protected UsageService $usageService
-    ) {
-    }
+    ) {}
 
     /**
      * Show the send template form.
@@ -36,48 +35,14 @@ class TemplateSendController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         // Ensure template belongs to account
-        if (!account_ids_match($template->account_id, $account->id)) {
+        if (! account_ids_match($template->account_id, $account->id)) {
             abort(404);
         }
 
-        $template->load('connection');
+        return redirect()->route('app.whatsapp.templates.index', [
+            'use_template' => $template->slug,
+        ]);
 
-        // Get required variables
-        $requiredVars = $this->composer->extractRequiredVariables($template);
-
-        // Get contacts and conversations for selection
-        $contacts = WhatsAppContact::where('account_id', $account->id)
-            ->orderBy('name')
-            ->get(['id', 'wa_id', 'name']);
-
-        $conversations = WhatsAppConversation::where('account_id', $account->id)
-            ->with('contact')
-            ->orderBy('last_message_at', 'desc')
-            ->limit(50)
-            ->get()
-            ->map(function ($conv) {
-                return [
-                    'id' => $conv->id,
-                    'contact' => [
-                        'wa_id' => $conv->contact->wa_id,
-                        'name' => $conv->contact->name ?? $conv->contact->wa_id]];
-            });
-
-        return \Inertia\Inertia::render('WhatsApp/Templates/Send', [
-            'account' => $account,
-            'template' => [
-                'id' => $template->id,
-                'slug' => $template->slug,
-                'name' => $template->name,
-                'language' => $template->language,
-                'body_text' => $template->body_text,
-                'header_text' => $template->header_text,
-                'footer_text' => $template->footer_text,
-                'buttons' => $template->buttons,
-                'variable_count' => $template->variable_count,
-                'required_variables' => $requiredVars],
-            'contacts' => $contacts,
-            'conversations' => $conversations]);
     }
 
     /**
@@ -88,13 +53,13 @@ class TemplateSendController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         // Ensure template belongs to account
-        if (!account_ids_match($template->account_id, $account->id)) {
+        if (! account_ids_match($template->account_id, $account->id)) {
             abort(404);
         }
 
         $template->load('connection');
 
-        if (!$request->has('variables') || $request->input('variables') === null || $request->input('variables') === '') {
+        if (! $request->has('variables') || $request->input('variables') === null || $request->input('variables') === '') {
             $request->merge(['variables' => []]);
         }
 
@@ -107,7 +72,7 @@ class TemplateSendController extends Controller
         // Validate variables count
         $requiredVars = $this->composer->extractRequiredVariables($template);
         $variables = $validated['variables'] ?? [];
-        if (!is_array($variables)) {
+        if (! is_array($variables)) {
             $variables = [];
         }
         $variables = array_values(array_map(
@@ -158,7 +123,7 @@ class TemplateSendController extends Controller
 
             // Load relationships for broadcast
             $message->load('conversation.contact');
-            
+
             // Broadcast optimistic message created
             event(new MessageCreated($message));
 
@@ -198,7 +163,7 @@ class TemplateSendController extends Controller
 
             DB::commit();
 
-            return redirect()->route('app.whatsapp.conversations.show', [
+            return redirect()->route('app.whatsapp.conversations.index', [
                 'conversation' => $message->whatsapp_conversation_id])->with('success', 'Template message sent successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
@@ -218,7 +183,7 @@ class TemplateSendController extends Controller
             }
 
             return redirect()->back()->withErrors([
-                'send' => 'Failed to send template: ' . $e->getMessage()]);
+                'send' => 'Failed to send template: '.$e->getMessage()]);
         }
     }
 

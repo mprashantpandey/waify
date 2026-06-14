@@ -2,8 +2,8 @@
 
 namespace App\Modules\Broadcasts\Models;
 
-use App\Models\User;
 use App\Models\Account;
+use App\Models\User;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -64,14 +64,14 @@ class Campaign extends Model
         parent::boot();
 
         static::creating(function ($campaign) {
-            if (!$campaign->slug) {
+            if (! $campaign->slug) {
                 $campaign->slug = static::generateSlug($campaign);
             }
         });
 
         static::updating(function ($campaign) {
             // Regenerate slug if name changes
-            if ($campaign->isDirty('name') && !$campaign->isDirty('slug')) {
+            if ($campaign->isDirty('name') && ! $campaign->isDirty('slug')) {
                 $campaign->slug = static::generateSlug($campaign);
             }
         });
@@ -91,7 +91,7 @@ class Campaign extends Model
             ->where('account_id', $campaign->account_id ?? 0)
             ->where('id', '!=', $campaign->id ?? 0)
             ->exists()) {
-            $slug = $originalSlug . '-' . $counter;
+            $slug = $originalSlug.'-'.$counter;
             $counter++;
         }
 
@@ -180,9 +180,9 @@ class Campaign extends Model
             return 0;
         }
 
-        $processed = max(0, (int) $this->sent_count + (int) $this->failed_count);
+        $processed = min($totalRecipients, max(0, (int) $this->sent_count + (int) $this->failed_count));
 
-        return round(($processed / $totalRecipients) * 100, 2);
+        return min(100, round(($processed / $totalRecipients) * 100, 2));
     }
 
     /**
@@ -190,14 +190,14 @@ class Campaign extends Model
      */
     public function getDeliveryRateAttribute(): float
     {
-        $sentCount = max(0, (int) $this->sent_count);
-        $deliveredCount = max(0, (int) $this->delivered_count);
+        $totalRecipients = max(0, (int) $this->total_recipients);
+        $deliveredCount = min($totalRecipients, max(0, (int) $this->delivered_count));
 
-        if ($sentCount === 0) {
+        if ($totalRecipients === 0) {
             return 0;
         }
 
-        return round(($deliveredCount / max(1, $sentCount)) * 100, 2);
+        return min(100, round(($deliveredCount / max(1, $totalRecipients)) * 100, 2));
     }
 
     /**
@@ -205,13 +205,14 @@ class Campaign extends Model
      */
     public function getReadRateAttribute(): float
     {
-        $deliveredCount = max(0, (int) $this->delivered_count);
-        $readCount = max(0, (int) $this->read_count);
+        $sentCount = max(0, (int) $this->sent_count);
+        $deliveredCount = min($sentCount, max(0, (int) $this->delivered_count));
+        $readCount = min($deliveredCount, max(0, (int) $this->read_count));
 
         if ($deliveredCount === 0) {
             return 0;
         }
 
-        return round(($readCount / max(1, $deliveredCount)) * 100, 2);
+        return min(100, round(($readCount / max(1, $deliveredCount)) * 100, 2));
     }
 }

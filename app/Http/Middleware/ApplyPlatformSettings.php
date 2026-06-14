@@ -2,10 +2,10 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\PlatformSettingsService;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
-use App\Services\PlatformSettingsService;
 
 class ApplyPlatformSettings
 {
@@ -23,19 +23,22 @@ class ApplyPlatformSettings
 
         // Apply localization settings
         $settingsService->applyLocalization();
-        
+
         // Apply mail configuration
         $settingsService->applyMailConfig();
-        
+
         // Apply Pusher configuration
         $settingsService->applyPusherConfig();
-        
+
         // Apply WhatsApp Meta configuration
         $settingsService->applyWhatsAppConfig();
-        
+
+        // Apply Google OAuth configuration
+        $settingsService->applyGoogleConfig();
+
         // Apply storage configuration
         $settingsService->applyStorageConfig();
-        
+
         // Apply payment configuration
         $settingsService->applyPaymentConfig();
 

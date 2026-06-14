@@ -45,8 +45,9 @@ export default function ProfileIncompleteModal() {
 
     // Don't show on profile page or platform routes
     const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
-    if (currentPath === '/profile' || 
-        currentPath.startsWith('/profile/') || 
+    if (currentPath === '/profile' ||
+        currentPath.startsWith('/profile/') ||
+        currentPath === '/app/settings' ||
         currentPath.startsWith('/platform')) {
         return null;
     }
@@ -57,7 +58,7 @@ export default function ProfileIncompleteModal() {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full border border-gray-200 dark:border-gray-800 overflow-hidden">
+            <div className="bg-white dark:bg-gray-900 rounded-card shadow-2xl max-w-md w-full border border-gray-200 dark:border-gray-800 overflow-hidden">
                 {/* Header */}
                 <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -118,7 +119,7 @@ export default function ProfileIncompleteModal() {
                         I'll do it later
                     </button>
                     <Link
-                        href={route('profile.edit')}
+                        href={`${route('app.settings')}?tab=profile`}
                         className="flex items-center gap-2"
                     >
                         <Button className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg">
@@ -131,4 +132,3 @@ export default function ProfileIncompleteModal() {
         </div>
     );
 }
-

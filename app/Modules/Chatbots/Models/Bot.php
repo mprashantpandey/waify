@@ -2,8 +2,8 @@
 
 namespace App\Modules\Chatbots\Models;
 
-use App\Models\User;
 use App\Models\Account;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -21,6 +21,9 @@ class Bot extends Model
         'is_default',
         'applies_to',
         'stop_on_first_flow',
+        'session_timeout_minutes',
+        'session_resume_mode',
+        'session_expired_message',
         'version',
         'created_by',
         'updated_by'];
@@ -30,7 +33,8 @@ class Bot extends Model
         return [
             'is_default' => 'boolean',
             'applies_to' => 'array',
-            'stop_on_first_flow' => 'boolean'];
+            'stop_on_first_flow' => 'boolean',
+            'session_timeout_minutes' => 'integer'];
     }
 
     public function account(): BelongsTo
@@ -77,7 +81,7 @@ class Bot extends Model
     {
         // Backward compatibility: older bots may have null applies_to.
         // Treat that as "all connections" so active bots still run.
-        if (empty($this->applies_to) || !is_array($this->applies_to)) {
+        if (empty($this->applies_to) || ! is_array($this->applies_to)) {
             return true;
         }
 
@@ -86,7 +90,7 @@ class Bot extends Model
         }
 
         $connectionIds = $this->applies_to['connection_ids'] ?? [];
-        if (!is_array($connectionIds)) {
+        if (! is_array($connectionIds)) {
             $connectionIds = [$connectionIds];
         }
         $connectionIds = array_values(array_unique(array_map(

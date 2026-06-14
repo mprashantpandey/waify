@@ -2,11 +2,11 @@
 
 namespace App\Http\Middleware;
 
-use Illuminate\Http\Request;
+use App\Models\PlatformSetting;
 use App\Models\User;
+use Illuminate\Http\Request;
 use Inertia\Middleware;
 use Tighten\Ziggy\Ziggy;
-use App\Models\PlatformSetting;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -34,10 +34,10 @@ class HandleInertiaRequests extends Middleware
     {
         $user = $request->user();
         $account = $request->attributes->get('account') ?? current_account();
-        
+
         $accounts = [];
         $navigation = [];
-        
+
         $accountRole = null;
 
         if ($user) {
@@ -60,10 +60,12 @@ class HandleInertiaRequests extends Middleware
                 if ($accountRole === 'member') {
                     $navigation = array_values(array_filter($navigation, function ($item) {
                         $href = $item['href'] ?? '';
+
                         return in_array($href, [
                             'app.whatsapp.conversations.index',
                             'app.ai.index',
                             'app.ai',
+                            'app.notifications.index',
                         ], true);
                     }));
                     if (empty($navigation)) {
@@ -75,6 +77,11 @@ class HandleInertiaRequests extends Middleware
                     // Add static navigation items for non-members (owner, admin, platform admin)
                     $staticNav = [
                         [
+                            'label' => 'Workspaces',
+                            'href' => 'app.workspaces.index',
+                            'icon' => 'Building2',
+                            'group' => 'core'],
+                        [
                             'label' => 'Team',
                             'href' => 'app.team.index',
                             'icon' => 'Users',
@@ -83,6 +90,56 @@ class HandleInertiaRequests extends Middleware
                             'label' => 'Activity Logs',
                             'href' => 'app.activity-logs',
                             'icon' => 'Activity',
+                            'group' => 'core'],
+                        [
+                            'label' => 'Developer',
+                            'href' => 'app.developer.index',
+                            'icon' => 'Code2',
+                            'group' => 'core'],
+                        [
+                            'label' => 'Notifications',
+                            'href' => 'app.notifications.index',
+                            'icon' => 'Bell',
+                            'group' => 'core'],
+                        [
+                            'label' => 'Integrations',
+                            'href' => 'app.integrations.index',
+                            'icon' => 'Plug',
+                            'group' => 'core'],
+                        [
+                            'label' => 'Channels',
+                            'href' => 'app.channels.index',
+                            'icon' => 'Radio',
+                            'group' => 'core'],
+                        [
+                            'label' => 'Media Library',
+                            'href' => 'app.media-library.index',
+                            'icon' => 'Image',
+                            'group' => 'core'],
+                        [
+                            'label' => 'Catalog',
+                            'href' => 'app.catalog.index',
+                            'icon' => 'Store',
+                            'group' => 'core'],
+                        [
+                            'label' => 'Ecommerce',
+                            'href' => 'app.ecommerce.index',
+                            'icon' => 'ShoppingBag',
+                            'group' => 'core'],
+                        [
+                            'label' => 'Meta Leads',
+                            'href' => 'app.meta-leads.index',
+                            'icon' => 'Target',
+                            'group' => 'core'],
+                        [
+                            'label' => 'Appointments',
+                            'href' => 'app.appointments.index',
+                            'icon' => 'Calendar',
+                            'group' => 'core'],
+                        [
+                            'label' => 'Surveys',
+                            'href' => 'app.surveys.index',
+                            'icon' => 'ClipboardList',
                             'group' => 'core'],
                         [
                             'label' => 'Settings',
@@ -102,10 +159,69 @@ class HandleInertiaRequests extends Middleware
 
         // Check if profile is complete
         $isProfileComplete = $user ? (
-            !empty($user->name) && 
-            !empty($user->email) && 
-            !empty($user->phone)
+            ! empty($user->name) &&
+            ! empty($user->email)
         ) : true;
+
+        $notificationSummary = ['unread' => 0, 'critical' => 0, 'latest' => []];
+        $inboxSummary = ['unread' => 0];
+        if ($user?->isSuperAdmin()) {
+            $base = \App\Models\AppNotification::where('scope', 'platform')->whereNull('read_at');
+            $notificationSummary = [
+                'unread' => (clone $base)->count(),
+                'critical' => (clone $base)->where('severity', 'critical')->count(),
+                'latest' => \App\Models\AppNotification::where('scope', 'platform')
+                    ->latest()
+                    ->limit(5)
+                    ->get(['id', 'title', 'body', 'severity', 'action_url', 'created_at'])
+                    ->map(fn ($notification) => [
+                        'id' => $notification->id,
+                        'title' => $notification->title,
+                        'body' => $notification->body,
+                        'severity' => $notification->severity,
+                        'action_url' => $notification->action_url,
+                        'created_at' => $notification->created_at?->toIso8601String(),
+                    ])
+                    ->all(),
+            ];
+        } elseif ($account) {
+            $base = \App\Models\AppNotification::where('scope', 'workspace')->where('account_id', $account->id)->whereNull('read_at');
+            $notificationSummary = [
+                'unread' => (clone $base)->count(),
+                'critical' => (clone $base)->where('severity', 'critical')->count(),
+                'latest' => \App\Models\AppNotification::where('scope', 'workspace')
+                    ->where('account_id', $account->id)
+                    ->latest()
+                    ->limit(5)
+                    ->get(['id', 'title', 'body', 'severity', 'action_url', 'created_at'])
+                    ->map(fn ($notification) => [
+                        'id' => $notification->id,
+                        'title' => $notification->title,
+                        'body' => $notification->body,
+                        'severity' => $notification->severity,
+                        'action_url' => $notification->action_url,
+                        'created_at' => $notification->created_at?->toIso8601String(),
+                    ])
+                    ->all(),
+            ];
+        }
+
+        if ($account) {
+            $inboxSummary = [
+                'unread' => \App\Modules\WhatsApp\Models\WhatsAppMessage::where('account_id', $account->id)
+                    ->where('direction', 'inbound')
+                    ->whereNull('read_at')
+                    ->count(),
+            ];
+        }
+
+        $workspacePermissions = [];
+        if ($user && $account) {
+            $permissionService = app(\App\Services\WorkspacePermissionService::class);
+            $workspacePermissions = collect(array_keys(\App\Models\AccountRole::PERMISSIONS))
+                ->mapWithKeys(fn ($permission) => [$permission => $permissionService->can($user, $account, $permission)])
+                ->all();
+        }
 
         return [
             ...parent::share($request),
@@ -126,31 +242,48 @@ class HandleInertiaRequests extends Middleware
                     'notify_assignment_enabled' => $user->notify_assignment_enabled ?? true,
                     'notify_mention_enabled' => $user->notify_mention_enabled ?? true,
                     'notify_sound_enabled' => $user->notify_sound_enabled ?? true,
+                    'notify_billing_enabled' => $user->notify_billing_enabled ?? true,
+                    'notify_waba_enabled' => $user->notify_waba_enabled ?? true,
+                    'notify_automation_enabled' => $user->notify_automation_enabled ?? true,
+                    'notify_leads_enabled' => $user->notify_leads_enabled ?? true,
+                    'notify_templates_enabled' => $user->notify_templates_enabled ?? true,
+                    'notify_email_enabled' => $user->notify_email_enabled ?? true,
+                    'notify_in_app_enabled' => $user->notify_in_app_enabled ?? true,
+                    'quiet_hours_enabled' => $user->quiet_hours_enabled ?? false,
+                    'quiet_hours_start' => $user->quiet_hours_start,
+                    'quiet_hours_end' => $user->quiet_hours_end,
+                    'two_factor_enabled' => $user->two_factor_enabled_at !== null,
+                    'force_password_reset_at' => $user->force_password_reset_at?->toIso8601String(),
                     'ai_suggestions_enabled' => $user->ai_suggestions_enabled ?? false,
                 ] : null,
                 'profile_complete' => $isProfileComplete],
             'account' => $account,
+            'workspace' => $account,
             'account_role' => $accountRole ?? null,
+            'workspace_role' => $accountRole ?? null,
             'accounts' => $accounts,
+            'workspaces' => $accounts,
             'navigation' => $navigation,
+            'notification_summary' => $notificationSummary,
+            'inbox_summary' => $inboxSummary,
+            'workspace_permissions' => $workspacePermissions,
             'branding' => $brandingService->getAll(),
             'impersonation' => [
                 'active' => (bool) $impersonatorId,
                 'impersonator' => $impersonator ? [
                     'id' => $impersonator->id,
                     'name' => $impersonator->name,
-                    'email' => $impersonator->email] : null],
+                    'email' => $impersonator->email] : null,
+                'user_id' => $request->session()->get('impersonated_user_id'),
+                'account_id' => $request->session()->get('impersonated_account_id')],
             'ai' => [
-                'enabled' => PlatformSetting::get('ai.enabled', false),
+                'enabled' => $this->toBoolean(PlatformSetting::get('ai.enabled', false)),
                 'provider' => PlatformSetting::get('ai.provider', 'openai')],
             'analyticsSettings' => [
                 'google_analytics_enabled' => PlatformSetting::get('analytics.google_analytics_enabled', false),
                 'google_analytics_id' => PlatformSetting::get('analytics.google_analytics_id'),
                 'mixpanel_enabled' => PlatformSetting::get('analytics.mixpanel_enabled', false),
                 'mixpanel_token' => PlatformSetting::get('analytics.mixpanel_token'),
-                'sentry_enabled' => PlatformSetting::get('analytics.sentry_enabled', false),
-                'sentry_dsn' => PlatformSetting::get('analytics.sentry_dsn'),
-                'sentry_environment' => PlatformSetting::get('analytics.sentry_environment', 'production'),
             ],
             'compliance' => [
                 'terms_url' => PlatformSetting::get('compliance.terms_url'),
@@ -160,22 +293,45 @@ class HandleInertiaRequests extends Middleware
                 'cookie_consent_required' => PlatformSetting::get('compliance.cookie_consent_required', false),
             ],
             'supportSettings' => [
-                'live_chat_enabled' => PlatformSetting::get('support.live_chat_enabled', true),
-                'ticket_support_enabled' => PlatformSetting::get('support.ticket_support_enabled', true),
+                'ticket_support_enabled' => $this->toBoolean(PlatformSetting::get('support.ticket_support_enabled', true)),
             ],
             'features' => [
-                'analytics' => PlatformSetting::get('features.analytics', true),
-                'public_api' => PlatformSetting::get('features.public_api', false),
-                'webhooks' => PlatformSetting::get('features.webhooks', true),
+                'analytics' => $this->toBoolean(PlatformSetting::get('features.analytics', true)),
+                'public_api' => $this->toBoolean(PlatformSetting::get('features.public_api', false)),
+                'webhooks' => $this->toBoolean(PlatformSetting::get('features.webhooks', true)),
             ],
             'pusherConfig' => (function () {
                 $settingsService = app(\App\Services\PlatformSettingsService::class);
+
                 return [
-                    'pusherKey' => $settingsService->get('pusher.key', config('broadcasting.connections.pusher.key')),
-                    'pusherCluster' => $settingsService->get('pusher.cluster', config('broadcasting.connections.pusher.options.cluster'))];
+                    'pusherKey' => $settingsService->getNonBlank('pusher.key', config('broadcasting.connections.pusher.key')),
+                    'pusherCluster' => $settingsService->getNonBlank('pusher.cluster', config('broadcasting.connections.pusher.options.cluster'))];
             })(),
             'ziggy' => fn () => [
                 ...(new Ziggy)->toArray(),
                 'location' => $request->url()]];
+    }
+
+    protected function toBoolean(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_numeric($value)) {
+            return (int) $value === 1;
+        }
+
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+            if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+                return true;
+            }
+            if (in_array($normalized, ['0', 'false', 'no', 'off', ''], true)) {
+                return false;
+            }
+        }
+
+        return (bool) $value;
     }
 }

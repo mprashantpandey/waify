@@ -67,11 +67,11 @@ class PlanFactory extends Factory
             'trial_days' => 7,
             'limits' => [
                 'agents' => 3,
-                'whatsapp_connections' => 2,
+                'whatsapp_connections' => 1,
                 'messages_monthly' => 5000,
                 'template_sends_monthly' => 1000,
             ],
-            'modules' => ['whatsapp.cloud', 'templates', 'inbox'],
+            'modules' => ['whatsapp.cloud', 'templates'],
         ]);
     }
 }

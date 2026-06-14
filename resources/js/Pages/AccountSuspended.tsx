@@ -19,7 +19,7 @@ export default function AccountSuspended({
                         <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-gradient-to-br from-yellow-100 to-yellow-200 dark:from-yellow-900/20 dark:to-yellow-800/20 mb-6">
                             <AlertCircle className="h-12 w-12 text-yellow-600 dark:text-yellow-400" />
                         </div>
-                        <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent mb-3">
+                        <h1 className="text-3xl font-bold text-waify-text mb-3">
                             Account Disabled
                         </h1>
                         <p className="text-gray-600 dark:text-gray-400 mb-6">

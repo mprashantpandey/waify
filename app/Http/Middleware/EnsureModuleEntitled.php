@@ -22,7 +22,7 @@ class EnsureModuleEntitled
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!$account) {
+        if (! $account) {
             abort(404, 'Account not found.');
         }
 

@@ -17,11 +17,11 @@ class EnsureModuleEnabled
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!$account) {
+        if (! $account) {
             abort(404, 'Account not found');
         }
 
-        if (!module_enabled($account, $moduleKey)) {
+        if (! module_enabled($account, $moduleKey)) {
             abort(403, 'Module is not enabled for this account');
         }
 

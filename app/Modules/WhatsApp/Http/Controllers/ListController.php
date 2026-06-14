@@ -3,10 +3,9 @@
 namespace App\Modules\WhatsApp\Http\Controllers;
 
 use App\Http\Controllers\Controller;
-use App\Modules\WhatsApp\Models\WhatsAppList;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
+use App\Modules\WhatsApp\Models\WhatsAppList;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -31,8 +30,9 @@ class ListController extends Controller
                     'button_text' => $list->button_text,
                     'description' => $list->description,
                     'footer_text' => $list->footer_text,
+                    'sections' => $list->sections ?? [],
                     'sections_count' => count($list->sections ?? []),
-                    'total_rows' => collect($list->sections ?? [])->sum(fn($s) => count($s['rows'] ?? [])),
+                    'total_rows' => collect($list->sections ?? [])->sum(fn ($s) => count($s['rows'] ?? [])),
                     'is_active' => $list->is_active,
                     'connection' => [
                         'id' => $list->connection->id,
@@ -50,7 +50,7 @@ class ListController extends Controller
         }
 
         $connections = $connectionsQuery->get()
-            ->map(fn($conn) => [
+            ->map(fn ($conn) => [
                 'id' => $conn->id,
                 'name' => $conn->name,
             ]);
@@ -58,32 +58,6 @@ class ListController extends Controller
         return Inertia::render('WhatsApp/Lists/Index', [
             'account' => $account,
             'lists' => $lists,
-            'connections' => $connections,
-        ]);
-    }
-
-    /**
-     * Show the form for creating a new list.
-     */
-    public function create(Request $request): Response
-    {
-        $account = $request->attributes->get('account') ?? current_account();
-
-        $connectionsQuery = WhatsAppConnection::where('account_id', $account->id);
-        if (Schema::hasColumn('whatsapp_connections', 'status')) {
-            $connectionsQuery->where('status', 'connected');
-        } elseif (Schema::hasColumn('whatsapp_connections', 'is_active')) {
-            $connectionsQuery->where('is_active', true);
-        }
-
-        $connections = $connectionsQuery->get()
-            ->map(fn($conn) => [
-                'id' => $conn->id,
-                'name' => $conn->name,
-            ]);
-
-        return Inertia::render('WhatsApp/Lists/Create', [
-            'account' => $account,
             'connections' => $connections,
         ]);
     }
@@ -115,7 +89,7 @@ class ListController extends Controller
             ->firstOrFail();
 
         // Validate total rows
-        $totalRows = collect($validated['sections'])->sum(fn($s) => count($s['rows']));
+        $totalRows = collect($validated['sections'])->sum(fn ($s) => count($s['rows']));
         if ($totalRows > 10) {
             return redirect()->back()->withErrors([
                 'sections' => 'Total rows across all sections cannot exceed 10.',
@@ -135,85 +109,14 @@ class ListController extends Controller
 
         // Validate structure
         $errors = $list->validateStructure();
-        if (!empty($errors)) {
+        if (! empty($errors)) {
             $list->delete();
+
             return redirect()->back()->withErrors(['sections' => $errors])->withInput();
         }
 
         return redirect()->route('app.whatsapp.lists.index')
             ->with('success', 'List created successfully.');
-    }
-
-    /**
-     * Display the specified list.
-     */
-    public function show(Request $request, WhatsAppList $list): Response
-    {
-        $account = $request->attributes->get('account') ?? current_account();
-
-        if (!account_ids_match($list->account_id, $account->id)) {
-            abort(404);
-        }
-
-        $list->load('connection');
-
-        return Inertia::render('WhatsApp/Lists/Show', [
-            'account' => $account,
-            'list' => [
-                'id' => $list->id,
-                'name' => $list->name,
-                'button_text' => $list->button_text,
-                'description' => $list->description,
-                'footer_text' => $list->footer_text,
-                'sections' => $list->sections,
-                'is_active' => $list->is_active,
-                'connection' => [
-                    'id' => $list->connection->id,
-                    'name' => $list->connection->name,
-                ],
-                'created_at' => $list->created_at->toIso8601String(),
-            ],
-        ]);
-    }
-
-    /**
-     * Show the form for editing the specified list.
-     */
-    public function edit(Request $request, WhatsAppList $list): Response
-    {
-        $account = $request->attributes->get('account') ?? current_account();
-
-        if (!account_ids_match($list->account_id, $account->id)) {
-            abort(404);
-        }
-
-        $connectionsQuery = WhatsAppConnection::where('account_id', $account->id);
-        if (Schema::hasColumn('whatsapp_connections', 'status')) {
-            $connectionsQuery->where('status', 'connected');
-        } elseif (Schema::hasColumn('whatsapp_connections', 'is_active')) {
-            $connectionsQuery->where('is_active', true);
-        }
-
-        $connections = $connectionsQuery->get()
-            ->map(fn($conn) => [
-                'id' => $conn->id,
-                'name' => $conn->name,
-            ]);
-
-        return Inertia::render('WhatsApp/Lists/Edit', [
-            'account' => $account,
-            'list' => [
-                'id' => $list->id,
-                'whatsapp_connection_id' => $list->whatsapp_connection_id,
-                'name' => $list->name,
-                'button_text' => $list->button_text,
-                'description' => $list->description,
-                'footer_text' => $list->footer_text,
-                'sections' => $list->sections,
-                'is_active' => $list->is_active,
-            ],
-            'connections' => $connections,
-        ]);
     }
 
     /**
@@ -223,7 +126,7 @@ class ListController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($list->account_id, $account->id)) {
+        if (! account_ids_match($list->account_id, $account->id)) {
             abort(404);
         }
 
@@ -247,7 +150,7 @@ class ListController extends Controller
             ->firstOrFail();
 
         // Validate total rows
-        $totalRows = collect($validated['sections'])->sum(fn($s) => count($s['rows']));
+        $totalRows = collect($validated['sections'])->sum(fn ($s) => count($s['rows']));
         if ($totalRows > 10) {
             return redirect()->back()->withErrors([
                 'sections' => 'Total rows across all sections cannot exceed 10.',
@@ -265,7 +168,7 @@ class ListController extends Controller
 
         // Validate structure
         $errors = $list->fresh()->validateStructure();
-        if (!empty($errors)) {
+        if (! empty($errors)) {
             return redirect()->back()->withErrors(['sections' => $errors])->withInput();
         }
 
@@ -280,7 +183,7 @@ class ListController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($list->account_id, $account->id)) {
+        if (! account_ids_match($list->account_id, $account->id)) {
             abort(404);
         }
 
@@ -297,11 +200,11 @@ class ListController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($list->account_id, $account->id)) {
+        if (! account_ids_match($list->account_id, $account->id)) {
             abort(404);
         }
 
-        $list->update(['is_active' => !$list->is_active]);
+        $list->update(['is_active' => ! $list->is_active]);
 
         return redirect()->back()->with('success', 'List status updated.');
     }

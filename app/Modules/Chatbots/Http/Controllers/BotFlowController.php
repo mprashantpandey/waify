@@ -17,7 +17,7 @@ class BotFlowController extends Controller
         $rules = [
             'name' => $isUpdate ? 'sometimes|required|string|max:255' : 'required|string|max:255',
             'trigger' => $isUpdate ? 'sometimes|required|array' : 'required|array',
-            'trigger.type' => $isUpdate ? 'sometimes|required|string|in:inbound_message,keyword,button_reply' : 'required|string|in:inbound_message,keyword,button_reply',
+            'trigger.type' => $isUpdate ? 'sometimes|required|string|in:inbound_message,keyword,button_reply,form_submission' : 'required|string|in:inbound_message,keyword,button_reply,form_submission',
             'enabled' => $isUpdate ? 'sometimes|boolean' : 'boolean',
             'priority' => $isUpdate ? 'sometimes|integer|min:0|max:1000' : 'integer|min:0|max:1000',
             'nodes' => $isUpdate ? 'sometimes|array' : 'nullable|array',
@@ -31,13 +31,13 @@ class BotFlowController extends Controller
 
             if ($request->has('trigger')) {
                 $trigger = $request->input('trigger', []);
-                if (!is_array($trigger)) {
+                if (! is_array($trigger)) {
                     $validator->errors()->add('trigger', 'Trigger must be an object.');
                 } else {
                     $triggerType = $trigger['type'] ?? null;
                     if ($triggerType === 'keyword') {
                         $keywords = $trigger['keywords'] ?? [];
-                        if (!is_array($keywords)) {
+                        if (! is_array($keywords)) {
                             $validator->errors()->add('trigger.keywords', 'Keywords must be an array.');
                         } else {
                             $keywords = array_values(array_filter(array_map(
@@ -59,7 +59,7 @@ class BotFlowController extends Controller
 
                     if ($triggerType === 'inbound_message' && isset($trigger['connection_ids'])) {
                         $connectionIds = $trigger['connection_ids'];
-                        if (!is_array($connectionIds)) {
+                        if (! is_array($connectionIds)) {
                             $validator->errors()->add('trigger.connection_ids', 'Connection IDs must be an array.');
                         } else {
                             $normalizedIds = array_values(array_unique(array_map(
@@ -67,7 +67,7 @@ class BotFlowController extends Controller
                                 array_filter($connectionIds, static fn ($id) => is_numeric($id))
                             )));
 
-                            if (!empty($normalizedIds)) {
+                            if (! empty($normalizedIds)) {
                                 $validCount = WhatsAppConnection::where('account_id', $account->id)
                                     ->whereIn('id', $normalizedIds)
                                     ->count();
@@ -82,34 +82,38 @@ class BotFlowController extends Controller
 
             if ($request->has('nodes')) {
                 $nodes = $request->input('nodes', []);
-                if (!is_array($nodes)) {
+                if (! is_array($nodes)) {
                     $validator->errors()->add('nodes', 'Nodes must be an array.');
+
                     return;
                 }
 
                 $allowedNodeTypes = ['condition', 'action', 'delay', 'webhook'];
-                $allowedActionTypes = ['send_text', 'send_template', 'send_buttons', 'send_list', 'assign_agent', 'add_tag', 'set_status', 'set_priority'];
+                $allowedActionTypes = ['send_text', 'send_template', 'send_buttons', 'send_list', 'send_media', 'send_flow', 'assign_agent', 'add_tag', 'add_segment', 'update_contact', 'create_deal', 'create_appointment', 'sync_integration', 'set_status', 'set_priority', 'handoff', 'send_payment_link', 'ai_agent_reply'];
                 $allowedConditionTypes = ['text_contains', 'text_equals', 'text_starts_with', 'regex_match', 'time_window', 'connection_is', 'conversation_status', 'tags_contains'];
 
                 foreach ($nodes as $i => $node) {
-                    if (!is_array($node)) {
+                    if (! is_array($node)) {
                         $validator->errors()->add("nodes.$i", 'Invalid node payload.');
+
                         continue;
                     }
 
-                    if (array_key_exists('id', $node) && $node['id'] !== null && $node['id'] !== '' && !is_numeric($node['id'])) {
+                    if (array_key_exists('id', $node) && $node['id'] !== null && $node['id'] !== '' && ! is_numeric($node['id'])) {
                         $validator->errors()->add("nodes.$i.id", 'Node id must be numeric.');
                     }
 
                     if (array_key_exists('type', $node)) {
                         $type = $node['type'];
-                        if (!is_string($type) || !in_array($type, $allowedNodeTypes, true)) {
+                        if (! is_string($type) || ! in_array($type, $allowedNodeTypes, true)) {
                             $validator->errors()->add("nodes.$i.type", 'Invalid node type.');
+
                             continue;
                         }
 
-                        if (array_key_exists('config', $node) && !is_array($node['config'])) {
+                        if (array_key_exists('config', $node) && ! is_array($node['config'])) {
                             $validator->errors()->add("nodes.$i.config", 'Node config must be an object.');
+
                             continue;
                         }
 
@@ -117,23 +121,23 @@ class BotFlowController extends Controller
 
                         if ($type === 'action') {
                             $actionType = $config['action_type'] ?? null;
-                            if (!$actionType || !in_array($actionType, $allowedActionTypes, true)) {
+                            if (! $actionType || ! in_array($actionType, $allowedActionTypes, true)) {
                                 $validator->errors()->add("nodes.$i.config.action_type", 'Invalid action type.');
                             }
                             if ($actionType === 'send_text') {
-                                if (!array_key_exists('message', $config) || !is_string($config['message'])) {
+                                if (! array_key_exists('message', $config) || ! is_string($config['message'])) {
                                     $validator->errors()->add("nodes.$i.config.message", 'Message is required for send_text.');
                                 }
                             }
                             if ($actionType === 'send_template') {
                                 $templateId = $config['template_id'] ?? null;
-                                if (!is_numeric($templateId) || (int) $templateId <= 0) {
+                                if (! is_numeric($templateId) || (int) $templateId <= 0) {
                                     $validator->errors()->add("nodes.$i.config.template_id", 'Template ID is required for send_template.');
                                 }
                             }
                             if ($actionType === 'send_buttons') {
                                 $buttons = $config['buttons'] ?? [];
-                                if (!is_array($buttons) || count($buttons) < 1 || count($buttons) > 3) {
+                                if (! is_array($buttons) || count($buttons) < 1 || count($buttons) > 3) {
                                     $validator->errors()->add("nodes.$i.config.buttons", 'Buttons must be an array with 1 to 3 items.');
                                 }
                                 $bodyText = isset($config['body_text']) ? trim((string) $config['body_text']) : '';
@@ -143,54 +147,74 @@ class BotFlowController extends Controller
                             }
                             if ($actionType === 'send_list') {
                                 $listId = $config['list_id'] ?? null;
-                                if (!is_numeric($listId) || (int) $listId <= 0) {
+                                if (! is_numeric($listId) || (int) $listId <= 0) {
                                     $validator->errors()->add("nodes.$i.config.list_id", 'list_id is required for send_list.');
                                 }
                             }
                             if ($actionType === 'assign_agent') {
                                 $agentId = $config['agent_id'] ?? null;
-                                if (!is_numeric($agentId) || (int) $agentId <= 0) {
+                                if (! is_numeric($agentId) || (int) $agentId <= 0) {
                                     $validator->errors()->add("nodes.$i.config.agent_id", 'Agent ID is required for assign_agent.');
                                 }
                             }
                             if ($actionType === 'add_tag') {
                                 $tagId = $config['tag_id'] ?? null;
                                 $tagName = isset($config['tag']) ? trim((string) $config['tag']) : (isset($config['tag_name']) ? trim((string) $config['tag_name']) : '');
-                                if ((!is_numeric($tagId) || (int) $tagId <= 0) && $tagName === '') {
+                                if ((! is_numeric($tagId) || (int) $tagId <= 0) && $tagName === '') {
                                     $validator->errors()->add("nodes.$i.config.tag_id", 'Tag ID or name is required for add_tag.');
+                                }
+                            }
+                            if ($actionType === 'add_segment') {
+                                $segmentId = $config['segment_id'] ?? null;
+                                $segmentName = isset($config['segment']) ? trim((string) $config['segment']) : (isset($config['segment_name']) ? trim((string) $config['segment_name']) : '');
+                                if ((! is_numeric($segmentId) || (int) $segmentId <= 0) && $segmentName === '') {
+                                    $validator->errors()->add("nodes.$i.config.segment_id", 'Segment ID or name is required for add_segment.');
+                                }
+                            }
+                            if ($actionType === 'send_flow') {
+                                $flowId = $config['flow_id'] ?? null;
+                                $metaFlowId = isset($config['meta_flow_id']) ? trim((string) $config['meta_flow_id']) : '';
+                                if ((! is_numeric($flowId) || (int) $flowId <= 0) && $metaFlowId === '') {
+                                    $validator->errors()->add("nodes.$i.config.flow_id", 'WhatsApp Flow ID is required for send_flow.');
+                                }
+                            }
+                            if ($actionType === 'sync_integration') {
+                                $provider = isset($config['provider']) ? trim((string) $config['provider']) : '';
+                                if ($provider === '') {
+                                    $validator->errors()->add("nodes.$i.config.provider", 'Integration provider is required for sync_integration.');
                                 }
                             }
                         }
 
                         if ($type === 'condition') {
                             $conditionType = $config['type'] ?? null;
-                            if (!$conditionType || !in_array($conditionType, $allowedConditionTypes, true)) {
+                            if (! $conditionType || ! in_array($conditionType, $allowedConditionTypes, true)) {
                                 $validator->errors()->add("nodes.$i.config.type", 'Invalid condition type.');
                             }
                         }
 
                         if ($type === 'delay') {
                             $seconds = $config['seconds'] ?? null;
-                            if (!is_numeric($seconds) || (int) $seconds < 1) {
+                            if (! is_numeric($seconds) || (int) $seconds < 1) {
                                 $validator->errors()->add("nodes.$i.config.seconds", 'Delay seconds must be at least 1.');
                             }
                         }
 
                         if ($type === 'webhook') {
                             $url = $config['url'] ?? null;
-                            if (!$url || !filter_var($url, FILTER_VALIDATE_URL)) {
+                            if (! $url || ! filter_var($url, FILTER_VALIDATE_URL)) {
                                 $validator->errors()->add("nodes.$i.config.url", 'Valid webhook URL required.');
                             }
                         }
                     }
 
-                    if (array_key_exists('sort_order', $node) && $node['sort_order'] !== null && $node['sort_order'] !== '' && (!is_numeric($node['sort_order']) || (int) $node['sort_order'] < 0)) {
+                    if (array_key_exists('sort_order', $node) && $node['sort_order'] !== null && $node['sort_order'] !== '' && (! is_numeric($node['sort_order']) || (int) $node['sort_order'] < 0)) {
                         $validator->errors()->add("nodes.$i.sort_order", 'sort_order must be a positive integer.');
                     }
-                    if (array_key_exists('pos_x', $node) && $node['pos_x'] !== null && $node['pos_x'] !== '' && !is_numeric($node['pos_x'])) {
+                    if (array_key_exists('pos_x', $node) && $node['pos_x'] !== null && $node['pos_x'] !== '' && ! is_numeric($node['pos_x'])) {
                         $validator->errors()->add("nodes.$i.pos_x", 'pos_x must be numeric.');
                     }
-                    if (array_key_exists('pos_y', $node) && $node['pos_y'] !== null && $node['pos_y'] !== '' && !is_numeric($node['pos_y'])) {
+                    if (array_key_exists('pos_y', $node) && $node['pos_y'] !== null && $node['pos_y'] !== '' && ! is_numeric($node['pos_y'])) {
                         $validator->errors()->add("nodes.$i.pos_y", 'pos_y must be numeric.');
                     }
                 }
@@ -198,24 +222,26 @@ class BotFlowController extends Controller
 
             if ($request->has('edges')) {
                 $edges = $request->input('edges', []);
-                if (!is_array($edges)) {
+                if (! is_array($edges)) {
                     $validator->errors()->add('edges', 'Edges must be an array.');
+
                     return;
                 }
                 foreach ($edges as $i => $edge) {
-                    if (!is_array($edge)) {
+                    if (! is_array($edge)) {
                         $validator->errors()->add("edges.$i", 'Invalid edge payload.');
+
                         continue;
                     }
 
                     foreach (['from_node_id', 'to_node_id'] as $k) {
-                        if (array_key_exists($k, $edge) && $edge[$k] !== null && $edge[$k] !== '' && !is_numeric($edge[$k])) {
+                        if (array_key_exists($k, $edge) && $edge[$k] !== null && $edge[$k] !== '' && ! is_numeric($edge[$k])) {
                             $validator->errors()->add("edges.$i.$k", "$k must be numeric.");
                         }
                     }
 
                     if (array_key_exists('label', $edge) && $edge['label'] !== null && $edge['label'] !== '') {
-                        if (!is_string($edge['label']) || strlen($edge['label']) > 50) {
+                        if (! is_string($edge['label']) || strlen($edge['label']) > 50) {
                             $validator->errors()->add("edges.$i.label", 'Edge label must be a string up to 50 chars.');
                         }
                     }
@@ -235,7 +261,7 @@ class BotFlowController extends Controller
 
         Gate::authorize('manage', [Bot::class, $account]);
 
-        if (!account_ids_match($bot->account_id, $account->id)) {
+        if (! account_ids_match($bot->account_id, $account->id)) {
             abort(404);
         }
 
@@ -250,10 +276,10 @@ class BotFlowController extends Controller
             'priority' => $validated['priority'] ?? 100]);
 
         $nodes = $validated['nodes'] ?? [];
-        if (!empty($nodes)) {
+        if (! empty($nodes)) {
             $sortOrder = 1;
             foreach ($nodes as $node) {
-                if (!is_array($node)) {
+                if (! is_array($node)) {
                     continue;
                 }
 
@@ -270,10 +296,10 @@ class BotFlowController extends Controller
         }
 
         $edges = $validated['edges'] ?? [];
-        if (!empty($edges)) {
+        if (! empty($edges)) {
             $sortOrder = 1;
             foreach ($edges as $edge) {
-                if (!is_array($edge)) {
+                if (! is_array($edge)) {
                     continue;
                 }
                 $flow->edges()->create([
@@ -299,7 +325,7 @@ class BotFlowController extends Controller
 
         Gate::authorize('manage', [Bot::class, $account]);
 
-        if (!account_ids_match($flow->account_id, $account->id)) {
+        if (! account_ids_match($flow->account_id, $account->id)) {
             abort(404);
         }
 
@@ -308,19 +334,19 @@ class BotFlowController extends Controller
         $updates = $validated;
         unset($updates['nodes'], $updates['edges']);
 
-        if (!empty($updates)) {
+        if (! empty($updates)) {
             $flow->update($updates);
         }
 
         if (array_key_exists('nodes', $validated)) {
             $nodes = $validated['nodes'] ?? [];
             foreach ($nodes as $node) {
-                if (!is_array($node) || empty($node['id'])) {
+                if (! is_array($node) || empty($node['id'])) {
                     continue;
                 }
 
                 $existing = $flow->nodes()->whereKey($node['id'])->first();
-                if (!$existing) {
+                if (! $existing) {
                     continue;
                 }
 
@@ -354,15 +380,15 @@ class BotFlowController extends Controller
             $edges = $validated['edges'] ?? [];
             $sortOrder = 1;
             foreach ($edges as $edge) {
-                if (!is_array($edge)) {
+                if (! is_array($edge)) {
                     continue;
                 }
                 $fromId = isset($edge['from_node_id']) ? (int) $edge['from_node_id'] : null;
                 $toId = isset($edge['to_node_id']) ? (int) $edge['to_node_id'] : null;
-                if (!$fromId || !$toId) {
+                if (! $fromId || ! $toId) {
                     continue;
                 }
-                if (!isset($nodeIdSet[$fromId]) || !isset($nodeIdSet[$toId])) {
+                if (! isset($nodeIdSet[$fromId]) || ! isset($nodeIdSet[$toId])) {
                     continue;
                 }
                 $flow->edges()->create([
@@ -388,7 +414,7 @@ class BotFlowController extends Controller
 
         Gate::authorize('manage', [Bot::class, $account]);
 
-        if (!account_ids_match($flow->account_id, $account->id)) {
+        if (! account_ids_match($flow->account_id, $account->id)) {
             abort(404);
         }
 

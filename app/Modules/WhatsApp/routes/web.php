@@ -1,12 +1,13 @@
 <?php
 
 use App\Modules\WhatsApp\Http\Controllers\ConnectionController;
-use App\Modules\WhatsApp\Http\Controllers\ConnectionHealthController;
+use App\Modules\WhatsApp\Http\Controllers\ConversationComposerController;
 use App\Modules\WhatsApp\Http\Controllers\ConversationController;
+use App\Modules\WhatsApp\Http\Controllers\FlowController;
+use App\Modules\WhatsApp\Http\Controllers\QrConnectionController;
 use App\Modules\WhatsApp\Http\Controllers\TemplateController;
 use App\Modules\WhatsApp\Http\Controllers\TemplateSendController;
 use App\Modules\WhatsApp\Http\Controllers\TemplateSyncController;
-use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use Illuminate\Support\Facades\Route;
 
 // Note: These routes are loaded inside the app routes group, so they don't need their own prefix/middleware
@@ -19,42 +20,60 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['module.entitled:whatsapp.cloud'])->group(function () {
     // Connections
     Route::get('/connections', [ConnectionController::class, 'index'])->name('whatsapp.connections.index');
-    Route::get('/connections/create', [ConnectionController::class, 'create'])->name('whatsapp.connections.create');
-    Route::get('/connections/wizard', [ConnectionController::class, 'wizard'])->name('whatsapp.connections.wizard');
     Route::post('/connections', [ConnectionController::class, 'store'])->name('whatsapp.connections.store');
     Route::post('/connections/test', [ConnectionController::class, 'testConnection'])->name('whatsapp.connections.test');
-    Route::post('/connections/{connection}/test', [ConnectionController::class, 'testSavedConnection'])->name('whatsapp.connections.test-saved');
     Route::post('/connections/embedded', [ConnectionController::class, 'storeEmbedded'])->name('whatsapp.connections.store-embedded');
-    Route::get('/connections/{connection}/edit', [ConnectionController::class, 'edit'])->name('whatsapp.connections.edit');
-    Route::get('/connections/{connection}/health', [ConnectionController::class, 'showHealth'])->name('whatsapp.connections.health');
-    Route::get('/connections/{connection}/health/api', [ConnectionHealthController::class, 'check'])->name('whatsapp.connections.health.api');
-    Route::get('/connections/{connection}/health/quick', [ConnectionHealthController::class, 'quickCheck'])->name('whatsapp.connections.health.quick');
+    Route::post('/connections/qr', [QrConnectionController::class, 'store'])->name('whatsapp.connections.qr.store');
+    Route::get('/connections/{connection}/qr/status', [QrConnectionController::class, 'status'])->name('whatsapp.connections.qr.status');
+    Route::get('/connections/{connection}/qr/reconnect', [QrConnectionController::class, 'reconnectRedirect'])->name('whatsapp.connections.qr.reconnect.redirect');
+    Route::post('/connections/{connection}/qr/reconnect', [QrConnectionController::class, 'reconnect'])->name('whatsapp.connections.qr.reconnect');
+    Route::delete('/connections/{connection}/qr/disconnect', [QrConnectionController::class, 'disconnect'])->name('whatsapp.connections.qr.disconnect');
     Route::put('/connections/{connection}', [ConnectionController::class, 'update'])->name('whatsapp.connections.update');
+    Route::delete('/connections/{connection}', [ConnectionController::class, 'destroy'])->name('whatsapp.connections.destroy');
+    Route::post('/connections/{connection}/sync-meta', [ConnectionController::class, 'syncMeta'])->name('whatsapp.connections.sync-meta');
+    Route::post('/connections/{connection}/subscribe-webhook', [ConnectionController::class, 'subscribeWebhook'])->name('whatsapp.connections.subscribe-webhook');
+    Route::delete('/connections/{connection}/subscribe-webhook', [ConnectionController::class, 'unsubscribeWebhook'])->name('whatsapp.connections.unsubscribe-webhook');
     Route::post('/connections/{connection}/rotate-verify-token', [ConnectionController::class, 'rotateVerifyToken'])->name('whatsapp.connections.rotate-verify-token');
-    Route::post('/connections/{connection}/webhook/test', [ConnectionController::class, 'testWebhook'])->name('whatsapp.connections.webhook.test');
+
+    // Meta WhatsApp Flows lifecycle
+    Route::get('/flows', [FlowController::class, 'index'])->name('whatsapp.flows.index');
+    Route::post('/flows', [FlowController::class, 'store'])->name('whatsapp.flows.store');
+    Route::post('/flows/sync', [FlowController::class, 'sync'])->name('whatsapp.flows.sync');
+    Route::put('/flows/{flow}', [FlowController::class, 'update'])->name('whatsapp.flows.update');
+    Route::post('/flows/{flow}/publish', [FlowController::class, 'publish'])->name('whatsapp.flows.publish');
+    Route::post('/flows/{flow}/deprecate', [FlowController::class, 'deprecate'])->name('whatsapp.flows.deprecate');
 
     // Conversations (static path before {conversation} so "by-contact" is not matched as conversation id)
     Route::get('/conversations', [ConversationController::class, 'index'])->name('whatsapp.conversations.index');
+    Route::post('/conversations', [ConversationController::class, 'store'])->name('whatsapp.conversations.store');
     Route::get('/conversations/by-contact/{contact}', [ConversationController::class, 'showByContact'])->name('whatsapp.conversations.by-contact');
-    Route::get('/conversations/new', [ConversationController::class, 'newConversation'])->name('whatsapp.conversations.new');
-    Route::get('/conversations/{conversation}', [ConversationController::class, 'show'])->name('whatsapp.conversations.show');
     Route::get('/conversations/{conversation}/messages', [ConversationController::class, 'loadMoreMessages'])->name('whatsapp.conversations.messages');
-    Route::post('/conversations/{conversation}/send', [ConversationController::class, 'sendMessage'])->name('whatsapp.conversations.send');
-    Route::post('/conversations/{conversation}/send-template', [ConversationController::class, 'sendTemplateMessage'])->name('whatsapp.conversations.send-template');
-    Route::post('/conversations/{conversation}/send-media', [ConversationController::class, 'sendMediaMessage'])->name('whatsapp.conversations.send-media');
-    Route::post('/conversations/{conversation}/send-location', [ConversationController::class, 'sendLocationMessage'])->name('whatsapp.conversations.send-location');
-    Route::post('/conversations/{conversation}/send-list', [ConversationController::class, 'sendList'])->name('whatsapp.conversations.send-list');
-    Route::post('/conversations/{conversation}/send-buttons', [ConversationController::class, 'sendInteractiveButtons'])->name('whatsapp.conversations.send-buttons');
+    Route::get('/conversations/{conversation}/gallery', [ConversationController::class, 'gallery'])->name('whatsapp.conversations.gallery');
+    Route::post('/conversations/{conversation}/send', [ConversationComposerController::class, 'sendMessage'])->name('whatsapp.conversations.send');
+    Route::post('/conversations/{conversation}/messages/{message}/retry', [ConversationComposerController::class, 'retryMessage'])->name('whatsapp.conversations.retry-message');
+    Route::post('/conversations/{conversation}/send-template', [ConversationComposerController::class, 'sendTemplateMessage'])->name('whatsapp.conversations.send-template');
+    Route::post('/conversations/{conversation}/send-media', [ConversationComposerController::class, 'sendMediaMessage'])->name('whatsapp.conversations.send-media');
+    Route::post('/conversations/{conversation}/send-reaction', [ConversationComposerController::class, 'sendReaction'])->name('whatsapp.conversations.send-reaction');
+    Route::post('/conversations/{conversation}/send-location', [ConversationComposerController::class, 'sendLocationMessage'])->name('whatsapp.conversations.send-location');
+    Route::post('/conversations/{conversation}/send-list', [ConversationComposerController::class, 'sendList'])->name('whatsapp.conversations.send-list');
+    Route::post('/conversations/{conversation}/send-buttons', [ConversationComposerController::class, 'sendInteractiveButtons'])->name('whatsapp.conversations.send-buttons');
+    Route::post('/conversations/{conversation}/send-flow', [ConversationComposerController::class, 'sendFlow'])->name('whatsapp.conversations.send-flow');
+    Route::post('/conversations/{conversation}/send-cta-url', [ConversationComposerController::class, 'sendCtaUrl'])->name('whatsapp.conversations.send-cta-url');
+    Route::post('/conversations/{conversation}/send-payment-link', [ConversationComposerController::class, 'sendPaymentLink'])->name('whatsapp.conversations.send-payment-link');
+    Route::post('/conversations/{conversation}/send-contact-card', [ConversationComposerController::class, 'sendContactCard'])->name('whatsapp.conversations.send-contact-card');
+    Route::post('/conversations/{conversation}/send-product', [ConversationComposerController::class, 'sendProduct'])->name('whatsapp.conversations.send-product');
     Route::post('/conversations/{conversation}/notes', [ConversationController::class, 'addInternalNote'])->name('whatsapp.conversations.notes.store');
+    Route::post('/conversations/{conversation}/read', [ConversationController::class, 'markRead'])->name('whatsapp.conversations.read');
     Route::post('/conversations/{conversation}/update', [ConversationController::class, 'updateMeta'])->name('whatsapp.conversations.update');
+    Route::post('/conversations/{conversation}/automation/stop', [ConversationController::class, 'stopAutomation'])->name('whatsapp.conversations.automation.stop');
+    Route::post('/conversations/{conversation}/bot/toggle', [ConversationController::class, 'toggleBot'])->name('whatsapp.conversations.bot.toggle');
     Route::post('/conversations/{conversation}/ai-suggest', [ConversationController::class, 'aiSuggest'])->name('whatsapp.conversations.ai-suggest');
+    Route::post('/conversations/{conversation}/ai-feedback', [ConversationController::class, 'aiFeedback'])->name('whatsapp.conversations.ai-feedback');
+    Route::delete('/conversations/{conversation}', [ConversationController::class, 'destroy'])->name('whatsapp.conversations.destroy');
 
     // Lists (requires whatsapp.cloud entitlement)
     Route::get('/lists', [\App\Modules\WhatsApp\Http\Controllers\ListController::class, 'index'])->name('whatsapp.lists.index');
-    Route::get('/lists/create', [\App\Modules\WhatsApp\Http\Controllers\ListController::class, 'create'])->name('whatsapp.lists.create');
     Route::post('/lists', [\App\Modules\WhatsApp\Http\Controllers\ListController::class, 'store'])->name('whatsapp.lists.store');
-    Route::get('/lists/{list}', [\App\Modules\WhatsApp\Http\Controllers\ListController::class, 'show'])->name('whatsapp.lists.show');
-    Route::get('/lists/{list}/edit', [\App\Modules\WhatsApp\Http\Controllers\ListController::class, 'edit'])->name('whatsapp.lists.edit');
     Route::put('/lists/{list}', [\App\Modules\WhatsApp\Http\Controllers\ListController::class, 'update'])->name('whatsapp.lists.update');
     Route::delete('/lists/{list}', [\App\Modules\WhatsApp\Http\Controllers\ListController::class, 'destroy'])->name('whatsapp.lists.destroy');
     Route::post('/lists/{list}/toggle', [\App\Modules\WhatsApp\Http\Controllers\ListController::class, 'toggle'])->name('whatsapp.lists.toggle');
@@ -67,17 +86,14 @@ Route::middleware(['module.entitled:whatsapp.cloud'])->group(function () {
 // Templates (requires templates module entitlement)
 Route::middleware(['module.entitled:templates'])->group(function () {
     Route::get('/templates', [TemplateController::class, 'index'])->name('whatsapp.templates.index');
-    Route::get('/templates/create', [TemplateController::class, 'create'])->name('whatsapp.templates.create');
+    Route::get('/templates/library', [TemplateController::class, 'library'])->name('whatsapp.templates.library');
     Route::post('/templates', [TemplateController::class, 'store'])->name('whatsapp.templates.store');
-    Route::get('/templates/{template}', [TemplateController::class, 'show'])->name('whatsapp.templates.show');
-    Route::get('/templates/{template}/edit', [TemplateController::class, 'edit'])->name('whatsapp.templates.edit');
     Route::put('/templates/{template}', [TemplateController::class, 'update'])->name('whatsapp.templates.update');
     Route::post('/templates/{template}/check-status', [TemplateController::class, 'checkStatus'])->name('whatsapp.templates.check-status');
     Route::post('/templates/sync', [TemplateSyncController::class, 'store'])->name('whatsapp.templates.sync');
     Route::post('/templates/{template}/archive', [TemplateController::class, 'archive'])->name('whatsapp.templates.archive');
     Route::post('/templates/{template}/restore', [TemplateController::class, 'restore'])->name('whatsapp.templates.restore');
     Route::delete('/templates/{template}', [TemplateController::class, 'destroy'])->name('whatsapp.templates.destroy');
-    Route::get('/templates/{template}/send', [TemplateSendController::class, 'create'])->name('whatsapp.templates.send');
     Route::post('/templates/{template}/send', [TemplateSendController::class, 'store'])->name('whatsapp.templates.send.store');
     Route::post('/templates/upload-media', [TemplateController::class, 'uploadMedia'])->name('whatsapp.templates.upload-media');
 });

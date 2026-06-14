@@ -20,10 +20,9 @@ class OpsRunMaintenanceCommand extends Command
             forceCleanup: (bool) $this->option('force-cleanup'),
         );
 
-        $this->line('Backup: ' . ($result['backup']['status'] ?? 'unknown') . ' - ' . ($result['backup']['message'] ?? ''));
-        $this->line('Cleanup: ' . ($result['cleanup']['status'] ?? 'unknown') . ' - ' . ($result['cleanup']['message'] ?? ''));
+        $this->line('Backup: '.($result['backup']['status'] ?? 'unknown').' - '.($result['backup']['message'] ?? ''));
+        $this->line('Cleanup: '.($result['cleanup']['status'] ?? 'unknown').' - '.($result['cleanup']['message'] ?? ''));
 
         return self::SUCCESS;
     }
 }
-

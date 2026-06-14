@@ -5,19 +5,18 @@ namespace App\Modules\WhatsApp\Events\Inbox;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Schema;
 
-class ConversationUpdated implements ShouldBroadcast
+class ConversationUpdated implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public function __construct(
         public WhatsAppConversation $conversation
-    ) {
-    }
+    ) {}
 
     /**
      * Get the channels the event should broadcast on.
@@ -51,6 +50,12 @@ class ConversationUpdated implements ShouldBroadcast
         $conversation = $this->conversation;
         $conversation->loadMissing(['contact', 'connection']);
 
+        $contactMeta = $conversation->contact?->metadata ?? [];
+        $unresolvedLid = (bool) ($contactMeta['baileys_lid_unresolved'] ?? false);
+        $displayPhone = $conversation->contact
+            ? ($unresolvedLid ? 'Linked-device contact' : ($conversation->contact->phone ?: $conversation->contact->wa_id))
+            : null;
+
         $tags = [];
         if ($conversation->contact && $conversation->contact->relationLoaded('tags')) {
             $tags = $conversation->contact->tags?->map(function ($tag) {
@@ -71,6 +76,7 @@ class ConversationUpdated implements ShouldBroadcast
         if (Schema::hasColumn('whatsapp_conversations', 'assigned_to')) {
             $assigneeId = $conversation->assigned_to;
         }
+        $metadata = is_array($conversation->metadata) ? $conversation->metadata : [];
 
         return [
             'conversation' => [
@@ -83,11 +89,31 @@ class ConversationUpdated implements ShouldBroadcast
                 'tags' => $tags,
                 'last_activity_at' => $conversation->last_message_at?->toIso8601String(),
                 'last_message_at' => $conversation->last_message_at?->toIso8601String(),
+                'last_inbound_message_at' => $conversation->messages()
+                    ->where('direction', 'inbound')
+                    ->latest('created_at')
+                    ->first()?->created_at?->toIso8601String(),
                 'last_message_preview' => $conversation->last_message_preview,
+                'updated_at' => $conversation->updated_at?->toIso8601String(),
+                'automation_processing' => $this->isProcessing($metadata),
+                'automation_processing_mode' => $metadata['automation_processing_mode'] ?? null,
+                'bot_paused' => (bool) ($metadata['bot_paused'] ?? false),
+                'bot_paused_reason' => $metadata['bot_paused_reason'] ?? null,
+                'handoff_status' => $metadata['handoff_status'] ?? null,
+                'handoff_reason' => $metadata['handoff_reason'] ?? null,
                 'contact' => $conversation->contact ? [
                     'id' => $conversation->contact->id,
+                    'slug' => $conversation->contact->slug,
                     'wa_id' => $conversation->contact->wa_id,
                     'name' => $conversation->contact->name ?? $conversation->contact->wa_id,
+                    'display_phone' => $displayPhone,
+                    'is_unresolved_lid' => $unresolvedLid,
+                    'email' => $conversation->contact->email,
+                    'phone' => $conversation->contact->phone,
+                    'company' => $conversation->contact->company,
+                    'notes' => $conversation->contact->notes,
+                    'status' => $conversation->contact->status,
+                    'tags' => $tags,
                 ] : null,
                 'connection' => $conversation->connection ? [
                     'id' => $conversation->connection->id,
@@ -95,5 +121,19 @@ class ConversationUpdated implements ShouldBroadcast
                 ] : null,
             ],
         ];
+    }
+
+    protected function isProcessing(array $metadata): bool
+    {
+        if (! ($metadata['automation_processing'] ?? false)) {
+            return false;
+        }
+
+        $expiresAt = $metadata['automation_processing_expires_at'] ?? null;
+        if (! $expiresAt) {
+            return true;
+        }
+
+        return now()->lt(\Illuminate\Support\Carbon::parse($expiresAt));
     }
 }

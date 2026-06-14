@@ -12,8 +12,7 @@ class MailDeliveryService
 {
     public function __construct(
         protected NotificationOutboxService $outboxService
-    ) {
-    }
+    ) {}
 
     public function sendMailable(string $recipient, Mailable $mailable, ?string $mailer = null, ?Account $account = null, array $meta = []): NotificationOutbox
     {
@@ -27,7 +26,7 @@ class MailDeliveryService
         );
 
         $mailable->withSymfonyMessage(function ($message) use ($outbox) {
-            $message->getHeaders()->addTextHeader('X-Waify-Outbox-Id', (string) $outbox->id);
+            $message->getHeaders()->addTextHeader('X-Zyptos-Outbox-Id', (string) $outbox->id);
         });
 
         try {
@@ -41,4 +40,3 @@ class MailDeliveryService
         return $outbox->fresh();
     }
 }
-

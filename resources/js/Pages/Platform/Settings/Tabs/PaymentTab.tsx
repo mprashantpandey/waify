@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/Components/UI/Card';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
-import { CreditCard, DollarSign, Receipt, Eye, EyeOff } from 'lucide-react';
+import { Banknote, CalendarClock, CreditCard, DollarSign, Receipt, Eye, EyeOff } from 'lucide-react';
 import { useState } from 'react';
 
 interface PaymentTabProps {
@@ -13,6 +13,18 @@ interface PaymentTabProps {
 
 export default function PaymentTab({ data, setData, errors }: PaymentTabProps) {
     const [showRazorpaySecret, setShowRazorpaySecret] = useState(false);
+    const selfHostedEnabled = data.payment?.self_hosted_payments_enabled ?? true;
+    const toggle = (checked: boolean, onChange: (checked: boolean) => void) => (
+        <label className="relative inline-flex cursor-pointer items-center">
+            <input
+                type="checkbox"
+                checked={checked}
+                onChange={(e) => onChange(e.target.checked)}
+                className="peer sr-only"
+            />
+            <div className="h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:bg-gray-700 dark:peer-focus:ring-blue-800"></div>
+        </label>
+    );
 
     return (
         <div className="space-y-6">
@@ -76,31 +88,164 @@ export default function PaymentTab({ data, setData, errors }: PaymentTabProps) {
                                     <InputLabel value="Enable Razorpay" />
                                     <p className="text-sm text-gray-500 dark:text-gray-400">Accept INR payments via Razorpay</p>
                                 </div>
-                                <label className="relative inline-flex items-center cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={data.payment?.razorpay_enabled || false}
-                                        onChange={(e) => setData('payment.razorpay_enabled', e.target.checked)}
-                                        className="sr-only peer"
-                                    />
-                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                                </label>
+                                {toggle(data.payment?.razorpay_enabled || false, (checked) => setData('payment.razorpay_enabled', checked))}
                             </div>
                             <div className="flex items-center justify-between">
                                 <div>
                                     <InputLabel value="Allow Wallet Self Top-up" />
                                     <p className="text-sm text-gray-500 dark:text-gray-400">Let account owners add wallet credits from billing settings</p>
                                 </div>
-                                <label className="relative inline-flex items-center cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={data.payment?.wallet_self_topup_enabled || false}
-                                        onChange={(e) => setData('payment.wallet_self_topup_enabled', e.target.checked)}
-                                        className="sr-only peer"
-                                    />
-                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                                </label>
+                                {toggle(data.payment?.wallet_self_topup_enabled || false, (checked) => setData('payment.wallet_self_topup_enabled', checked))}
                             </div>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <CalendarClock className="h-5 w-5" />
+                        Subscription Recovery Controls
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                            <InputLabel htmlFor="payment.subscription_grace_days" value="Grace Period After Renewal Date" />
+                            <TextInput
+                                id="payment.subscription_grace_days"
+                                type="number"
+                                value={data.payment?.subscription_grace_days ?? 3}
+                                onChange={(e) => setData('payment.subscription_grace_days', parseInt(e.target.value) || 0)}
+                                className="mt-1"
+                                min="0"
+                                max="90"
+                            />
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Workspace remains active during this many overdue days.</p>
+                            <InputError message={errors['payment.subscription_grace_days']} />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="payment.renewal_reminder_days" value="Renewal Reminder Lead Time" />
+                            <TextInput
+                                id="payment.renewal_reminder_days"
+                                type="number"
+                                value={data.payment?.renewal_reminder_days ?? 7}
+                                onChange={(e) => setData('payment.renewal_reminder_days', parseInt(e.target.value) || 0)}
+                                className="mt-1"
+                                min="0"
+                                max="90"
+                            />
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Send reminder this many days before period end.</p>
+                            <InputError message={errors['payment.renewal_reminder_days']} />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="payment.renewal_reminder_time" value="Reminder Time" />
+                            <TextInput
+                                id="payment.renewal_reminder_time"
+                                type="time"
+                                value={data.payment?.renewal_reminder_time || '09:00'}
+                                onChange={(e) => setData('payment.renewal_reminder_time', e.target.value)}
+                                className="mt-1"
+                            />
+                            <InputError message={errors['payment.renewal_reminder_time']} />
+                        </div>
+                        <div className="flex items-center justify-between rounded-md border border-gray-200 p-4 dark:border-slate-700">
+                            <div>
+                                <InputLabel value="Auto-disable Overdue Workspaces" />
+                                <p className="text-sm text-gray-500 dark:text-gray-400">Disable workspace access after the overdue threshold.</p>
+                            </div>
+                            {toggle(data.payment?.auto_disable_overdue_enabled || false, (checked) => setData('payment.auto_disable_overdue_enabled', checked))}
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="payment.auto_disable_overdue_days" value="Auto-disable After Days" />
+                            <TextInput
+                                id="payment.auto_disable_overdue_days"
+                                type="number"
+                                value={data.payment?.auto_disable_overdue_days ?? 7}
+                                onChange={(e) => setData('payment.auto_disable_overdue_days', parseInt(e.target.value) || 1)}
+                                className="mt-1"
+                                min="1"
+                                max="180"
+                            />
+                            <InputError message={errors['payment.auto_disable_overdue_days']} />
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <CreditCard className="h-5 w-5" />
+                        Self-Hosted Payment Methods
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between rounded-md border border-gray-200 p-4 dark:border-slate-700">
+                        <div>
+                            <InputLabel value="Enable Self-Hosted Payments" />
+                            <p className="text-sm text-gray-500 dark:text-gray-400">Allow workspace owners to create Zyptos invoices/orders from billing.</p>
+                        </div>
+                        {toggle(selfHostedEnabled, (checked) => setData('payment.self_hosted_payments_enabled', checked))}
+                    </div>
+                    <div className={`grid grid-cols-1 gap-3 md:grid-cols-2 ${selfHostedEnabled ? '' : 'opacity-50'}`}>
+                        {[
+                            ['payment.method_bank_enabled', 'Bank Transfer / UPI'],
+                            ['payment.method_razorpay_enabled', 'Razorpay one-time'],
+                        ].map(([key, label]) => (
+                            <div key={key} className="flex items-center justify-between rounded-md border border-gray-200 p-3 dark:border-slate-700">
+                                <InputLabel value={label} />
+                                {toggle(data.payment?.[key.replace('payment.', '')] ?? true, (checked) => setData(key, checked))}
+                            </div>
+                        ))}
+                    </div>
+                    <div className="rounded-md border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-100">
+                        <div className="flex items-start gap-3">
+                            <Banknote className="mt-0.5 h-4 w-4 shrink-0" />
+                            <p>Offline checkout now uses one customer-facing option: <strong>Bank Transfer / UPI</strong>. These details appear on unpaid invoices and invoice emails.</p>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <InputLabel htmlFor="payment.upi_id" value="UPI ID" />
+                            <TextInput id="payment.upi_id" value={data.payment?.upi_id || ''} onChange={(e) => setData('payment.upi_id', e.target.value)} className="mt-1" placeholder="billing@upi" />
+                            <InputError message={errors['payment.upi_id']} />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="payment.upi_payee_name" value="UPI Payee Name" />
+                            <TextInput id="payment.upi_payee_name" value={data.payment?.upi_payee_name || ''} onChange={(e) => setData('payment.upi_payee_name', e.target.value)} className="mt-1" />
+                            <InputError message={errors['payment.upi_payee_name']} />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="payment.bank_account_name" value="Bank Account Name" />
+                            <TextInput id="payment.bank_account_name" value={data.payment?.bank_account_name || ''} onChange={(e) => setData('payment.bank_account_name', e.target.value)} className="mt-1" />
+                            <InputError message={errors['payment.bank_account_name']} />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="payment.bank_account_number" value="Bank Account Number" />
+                            <TextInput id="payment.bank_account_number" value={data.payment?.bank_account_number || ''} onChange={(e) => setData('payment.bank_account_number', e.target.value)} className="mt-1" />
+                            <InputError message={errors['payment.bank_account_number']} />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="payment.bank_ifsc" value="IFSC" />
+                            <TextInput id="payment.bank_ifsc" value={data.payment?.bank_ifsc || ''} onChange={(e) => setData('payment.bank_ifsc', e.target.value.toUpperCase())} className="mt-1" />
+                            <InputError message={errors['payment.bank_ifsc']} />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="payment.bank_name" value="Bank Name" />
+                            <TextInput id="payment.bank_name" value={data.payment?.bank_name || ''} onChange={(e) => setData('payment.bank_name', e.target.value)} className="mt-1" />
+                            <InputError message={errors['payment.bank_name']} />
+                        </div>
+                        <div className="md:col-span-2">
+                            <InputLabel htmlFor="payment.manual_payment_note" value="Additional Payment Instructions" />
+                            <textarea
+                                id="payment.manual_payment_note"
+                                value={data.payment?.manual_payment_note || ''}
+                                onChange={(e) => setData('payment.manual_payment_note', e.target.value)}
+                                className="mt-1 min-h-24 w-full rounded-md border-gray-300 shadow-sm focus:border-waify-green focus:ring-waify-green dark:border-slate-700 dark:bg-slate-900 dark:text-waify-dark-text"
+                            />
+                            <InputError message={errors['payment.manual_payment_note']} />
                         </div>
                     </div>
                 </CardContent>
@@ -162,6 +307,16 @@ export default function PaymentTab({ data, setData, errors }: PaymentTabProps) {
                 <CardContent className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
+                            <InputLabel htmlFor="payment.legal_name" value="Legal Business Name" />
+                            <TextInput id="payment.legal_name" value={data.payment?.legal_name || ''} onChange={(e) => setData('payment.legal_name', e.target.value)} className="mt-1" />
+                            <InputError message={errors['payment.legal_name']} />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="payment.gstin" value="Supplier GSTIN" />
+                            <TextInput id="payment.gstin" value={data.payment?.gstin || ''} onChange={(e) => setData('payment.gstin', e.target.value.toUpperCase())} className="mt-1" />
+                            <InputError message={errors['payment.gstin']} />
+                        </div>
+                        <div>
                             <InputLabel htmlFor="payment.tax_rate" value="Default Tax Rate (%)" />
                             <TextInput
                                 id="payment.tax_rate"
@@ -174,6 +329,11 @@ export default function PaymentTab({ data, setData, errors }: PaymentTabProps) {
                                 step="0.01"
                             />
                             <InputError message={errors['payment.tax_rate']} />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="payment.sac_code" value="SAC Code" />
+                            <TextInput id="payment.sac_code" type="text" value={data.payment?.sac_code || '998313'} onChange={(e) => setData('payment.sac_code', e.target.value)} className="mt-1" />
+                            <InputError message={errors['payment.sac_code']} />
                         </div>
                         <div>
                             <InputLabel htmlFor="payment.invoice_prefix" value="Invoice Prefix" />
@@ -198,6 +358,31 @@ export default function PaymentTab({ data, setData, errors }: PaymentTabProps) {
                                 min="1"
                             />
                             <InputError message={errors['payment.invoice_number_start']} />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="payment.state_code" value="Supplier State Code" />
+                            <TextInput id="payment.state_code" value={data.payment?.state_code || ''} onChange={(e) => setData('payment.state_code', e.target.value.toUpperCase())} className="mt-1" placeholder="MH, DL, KA" />
+                            <InputError message={errors['payment.state_code']} />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="payment.state" value="Supplier State" />
+                            <TextInput id="payment.state" value={data.payment?.state || ''} onChange={(e) => setData('payment.state', e.target.value)} className="mt-1" />
+                            <InputError message={errors['payment.state']} />
+                        </div>
+                        <div className="md:col-span-2">
+                            <InputLabel htmlFor="payment.address_line1" value="Registered Address" />
+                            <TextInput id="payment.address_line1" value={data.payment?.address_line1 || ''} onChange={(e) => setData('payment.address_line1', e.target.value)} className="mt-1" />
+                            <InputError message={errors['payment.address_line1']} />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="payment.city" value="City" />
+                            <TextInput id="payment.city" value={data.payment?.city || ''} onChange={(e) => setData('payment.city', e.target.value)} className="mt-1" />
+                            <InputError message={errors['payment.city']} />
+                        </div>
+                        <div>
+                            <InputLabel htmlFor="payment.postal_code" value="Postal Code" />
+                            <TextInput id="payment.postal_code" value={data.payment?.postal_code || ''} onChange={(e) => setData('payment.postal_code', e.target.value)} className="mt-1" />
+                            <InputError message={errors['payment.postal_code']} />
                         </div>
                     </div>
                 </CardContent>

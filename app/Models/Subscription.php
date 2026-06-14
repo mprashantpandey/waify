@@ -23,6 +23,12 @@ class Subscription extends Model
         'canceled_at',
         'provider',
         'provider_ref',
+        'provider_plan_ref',
+        'provider_customer_ref',
+        'provider_status',
+        'provider_payload',
+        'discount_code',
+        'discount_snapshot',
         'last_payment_at',
         'last_payment_failed_at',
         'last_error'];
@@ -32,7 +38,7 @@ class Subscription extends Model
         parent::boot();
 
         static::creating(function ($subscription) {
-            if (!$subscription->slug) {
+            if (! $subscription->slug) {
                 $subscription->slug = static::generateSlug($subscription);
             }
         });
@@ -43,13 +49,13 @@ class Subscription extends Model
      */
     public static function generateSlug($subscription): string
     {
-        $baseSlug = 'sub-' . ($subscription->account_id ?? '') . '-' . ($subscription->plan_id ?? '');
+        $baseSlug = 'sub-'.($subscription->account_id ?? '').'-'.($subscription->plan_id ?? '');
         $slug = \Illuminate\Support\Str::slug($baseSlug);
         $originalSlug = $slug;
         $counter = 1;
 
         while (static::where('slug', $slug)->exists()) {
-            $slug = $originalSlug . '-' . $counter;
+            $slug = $originalSlug.'-'.$counter;
             $counter++;
         }
 
@@ -73,6 +79,8 @@ class Subscription extends Model
             'current_period_end' => 'datetime',
             'cancel_at_period_end' => 'boolean',
             'canceled_at' => 'datetime',
+            'provider_payload' => 'array',
+            'discount_snapshot' => 'array',
             'last_payment_at' => 'datetime',
             'last_payment_failed_at' => 'datetime'];
     }

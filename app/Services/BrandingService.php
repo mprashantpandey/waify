@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Storage;
 
 /**
  * Branding Service
- * 
+ *
  * Manages platform branding: name, logo, favicon, colors, etc.
  */
 class BrandingService
@@ -24,7 +24,7 @@ class BrandingService
      */
     public function getPlatformName(): string
     {
-        return $this->settingsService->get('branding.platform_name', config('app.name', 'Waify'));
+        return $this->settingsService->get('branding.platform_name', config('app.name', 'Zyptos'));
     }
 
     /**
@@ -32,13 +32,22 @@ class BrandingService
      */
     public function getLogoUrl(): ?string
     {
-        $logoPath = $this->settingsService->get('branding.logo_path');
-        
-        if (!$logoPath) {
-            return null;
-        }
+        return $this->urlForPath($this->settingsService->get('branding.logo_path'));
+    }
 
-        return Storage::url($logoPath);
+    public function getDarkLogoUrl(): ?string
+    {
+        return $this->urlForPath($this->settingsService->get('branding.logo_dark_path'));
+    }
+
+    public function getSidebarIconUrl(): ?string
+    {
+        return $this->urlForPath($this->settingsService->get('branding.sidebar_icon_path'));
+    }
+
+    public function getDarkSidebarIconUrl(): ?string
+    {
+        return $this->urlForPath($this->settingsService->get('branding.sidebar_icon_dark_path'));
     }
 
     /**
@@ -46,13 +55,12 @@ class BrandingService
      */
     public function getFaviconUrl(): ?string
     {
-        $faviconPath = $this->settingsService->get('branding.favicon_path');
-        
-        if (!$faviconPath) {
-            return null;
-        }
+        return $this->urlForPath($this->settingsService->get('branding.favicon_path'));
+    }
 
-        return Storage::url($faviconPath);
+    public function getDarkFaviconUrl(): ?string
+    {
+        return $this->urlForPath($this->settingsService->get('branding.favicon_dark_path'));
     }
 
     /**
@@ -81,11 +89,15 @@ class BrandingService
         if (is_string($showPoweredBy)) {
             $showPoweredBy = $showPoweredBy === '1' || $showPoweredBy === 'true';
         }
-        
+
         return [
             'platform_name' => $this->getPlatformName(),
             'logo_url' => $this->getLogoUrl(),
+            'logo_dark_url' => $this->getDarkLogoUrl(),
+            'sidebar_icon_url' => $this->getSidebarIconUrl(),
+            'sidebar_icon_dark_url' => $this->getDarkSidebarIconUrl(),
             'favicon_url' => $this->getFaviconUrl(),
+            'favicon_dark_url' => $this->getDarkFaviconUrl(),
             'primary_color' => $this->getPrimaryColor(),
             'secondary_color' => $this->getSecondaryColor(),
             'support_email' => $this->settingsService->get('branding.support_email'),
@@ -99,9 +111,22 @@ class BrandingService
      */
     public function uploadLogo(\Illuminate\Http\UploadedFile $file): string
     {
-        $path = $file->store('branding', 'public');
-        PlatformSetting::set('branding.logo_path', $path, 'string', 'branding');
-        return $path;
+        return $this->uploadAsset($file, 'branding.logo_path');
+    }
+
+    public function uploadDarkLogo(\Illuminate\Http\UploadedFile $file): string
+    {
+        return $this->uploadAsset($file, 'branding.logo_dark_path');
+    }
+
+    public function uploadSidebarIcon(\Illuminate\Http\UploadedFile $file): string
+    {
+        return $this->uploadAsset($file, 'branding.sidebar_icon_path');
+    }
+
+    public function uploadDarkSidebarIcon(\Illuminate\Http\UploadedFile $file): string
+    {
+        return $this->uploadAsset($file, 'branding.sidebar_icon_dark_path');
     }
 
     /**
@@ -109,9 +134,70 @@ class BrandingService
      */
     public function uploadFavicon(\Illuminate\Http\UploadedFile $file): string
     {
+        return $this->uploadAsset($file, 'branding.favicon_path');
+    }
+
+    public function uploadDarkFavicon(\Illuminate\Http\UploadedFile $file): string
+    {
+        return $this->uploadAsset($file, 'branding.favicon_dark_path');
+    }
+
+    public function deleteLogo(): void
+    {
+        $this->deleteAsset('branding.logo_path');
+    }
+
+    public function deleteDarkLogo(): void
+    {
+        $this->deleteAsset('branding.logo_dark_path');
+    }
+
+    public function deleteSidebarIcon(): void
+    {
+        $this->deleteAsset('branding.sidebar_icon_path');
+    }
+
+    public function deleteDarkSidebarIcon(): void
+    {
+        $this->deleteAsset('branding.sidebar_icon_dark_path');
+    }
+
+    public function deleteFavicon(): void
+    {
+        $this->deleteAsset('branding.favicon_path');
+    }
+
+    public function deleteDarkFavicon(): void
+    {
+        $this->deleteAsset('branding.favicon_dark_path');
+    }
+
+    protected function uploadAsset(\Illuminate\Http\UploadedFile $file, string $settingKey): string
+    {
+        $this->deleteAsset($settingKey);
+
         $path = $file->store('branding', 'public');
-        PlatformSetting::set('branding.favicon_path', $path, 'string', 'branding');
+        PlatformSetting::set($settingKey, $path, 'string', 'branding');
+
         return $path;
     }
-}
 
+    protected function deleteAsset(string $settingKey): void
+    {
+        $path = $this->settingsService->get($settingKey);
+        if ($path && Storage::disk('public')->exists($path)) {
+            Storage::disk('public')->delete($path);
+        }
+
+        PlatformSetting::set($settingKey, '', 'string', 'branding');
+    }
+
+    protected function urlForPath(?string $path): ?string
+    {
+        if (! $path) {
+            return null;
+        }
+
+        return Storage::url($path);
+    }
+}

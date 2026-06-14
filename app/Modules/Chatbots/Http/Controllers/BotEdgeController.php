@@ -22,7 +22,7 @@ class BotEdgeController extends Controller
 
         Gate::authorize('manage', [Bot::class, $account]);
 
-        if (!account_ids_match($flow->account_id, $account->id)) {
+        if (! account_ids_match($flow->account_id, $account->id)) {
             abort(404);
         }
 
@@ -38,12 +38,13 @@ class BotEdgeController extends Controller
             $fromNode = BotNode::whereKey($fromId)->first();
             $toNode = BotNode::whereKey($toId)->first();
 
-            if (!$fromNode || !$toNode) {
+            if (! $fromNode || ! $toNode) {
                 return;
             }
 
-            if (!account_ids_match($fromNode->account_id, $account->id) || !account_ids_match($toNode->account_id, $account->id)) {
+            if (! account_ids_match($fromNode->account_id, $account->id) || ! account_ids_match($toNode->account_id, $account->id)) {
                 $validator->errors()->add('from_node_id', 'Selected nodes do not belong to the current account.');
+
                 return;
             }
 
@@ -73,7 +74,7 @@ class BotEdgeController extends Controller
 
         Gate::authorize('manage', [Bot::class, $account]);
 
-        if (!account_ids_match($edge->account_id, $account->id)) {
+        if (! account_ids_match($edge->account_id, $account->id)) {
             abort(404);
         }
 
@@ -88,12 +89,13 @@ class BotEdgeController extends Controller
 
             $fromNode = BotNode::whereKey($fromId)->first();
             $toNode = BotNode::whereKey($toId)->first();
-            if (!$fromNode || !$toNode) {
+            if (! $fromNode || ! $toNode) {
                 return;
             }
 
-            if (!account_ids_match($fromNode->account_id, $account->id) || !account_ids_match($toNode->account_id, $account->id)) {
+            if (! account_ids_match($fromNode->account_id, $account->id) || ! account_ids_match($toNode->account_id, $account->id)) {
                 $validator->errors()->add('from_node_id', 'Selected nodes do not belong to the current account.');
+
                 return;
             }
 
@@ -116,7 +118,7 @@ class BotEdgeController extends Controller
 
         Gate::authorize('manage', [Bot::class, $account]);
 
-        if (!account_ids_match($edge->account_id, $account->id)) {
+        if (! account_ids_match($edge->account_id, $account->id)) {
             abort(404);
         }
 

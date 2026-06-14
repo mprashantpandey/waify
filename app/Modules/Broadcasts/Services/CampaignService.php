@@ -5,7 +5,6 @@ namespace App\Modules\Broadcasts\Services;
 use App\Core\Billing\PlanResolver;
 use App\Core\Billing\UsageService;
 use App\Models\PlatformSetting;
-use App\Services\OperationalAlertService;
 use App\Modules\Broadcasts\Models\Campaign;
 use App\Modules\Broadcasts\Models\CampaignMessage;
 use App\Modules\Broadcasts\Models\CampaignRecipient;
@@ -13,6 +12,7 @@ use App\Modules\Contacts\Models\ContactSegment;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
 use App\Modules\WhatsApp\Services\TemplateComposer;
 use App\Modules\WhatsApp\Services\WhatsAppClient;
+use App\Services\OperationalAlertService;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -27,8 +27,7 @@ class CampaignService
         protected PlanResolver $planResolver,
         protected UsageService $usageService,
         protected OperationalAlertService $alertService
-    ) {
-    }
+    ) {}
 
     /**
      * Prepare recipients for a campaign.
@@ -40,7 +39,7 @@ class CampaignService
         $lockKey = "campaign_prepare_recipients:{$campaign->id}";
         $lock = Cache::lock($lockKey, 300); // 5 minute lock
 
-        if (!$lock->get()) {
+        if (! $lock->get()) {
             throw new \Exception('Recipient preparation is already in progress for this campaign.');
         }
 
@@ -59,89 +58,85 @@ class CampaignService
         // Delete existing recipients if re-preparing.
         $campaign->recipients()->delete();
 
-        $recipients = [];
-
-        switch ($campaign->recipient_type) {
-            case 'contacts':
-                $recipients = $this->getRecipientsFromContacts($campaign);
-                break;
-            case 'custom':
-                $recipients = $this->getCustomRecipients($campaign);
-                break;
-            case 'segment':
-                $recipients = $this->getRecipientsFromSegment($campaign);
-                break;
-        }
-
-        // Filter out opt-out and blocked contacts if respect_opt_out is enabled
-        if ($campaign->respect_opt_out) {
-            $recipients = array_filter($recipients, function ($recipient) use ($campaign) {
-                if (isset($recipient['contact_id'])) {
-                    $contact = WhatsAppContact::find($recipient['contact_id']);
-                    if ($contact && in_array($contact->status ?? 'active', ['opt_out', 'blocked'])) {
-                        return false;
-                    }
-                }
-                return true;
-            });
-        }
-
         $sampleSize = max(0, (int) Arr::get($campaign->metadata, 'recipient_sample_size', 0));
         $isDryRun = (bool) Arr::get($campaign->metadata, 'dry_run', false);
-        if ($sampleSize > 0 && count($recipients) > $sampleSize) {
-            shuffle($recipients);
-            $recipients = array_slice($recipients, 0, $sampleSize);
-        }
 
-        // Create recipient records in transaction
-        DB::transaction(function () use ($campaign, $recipients) {
-            foreach ($recipients as $recipient) {
-                CampaignRecipient::create([
-                    'campaign_id' => $campaign->id,
-                    'whatsapp_contact_id' => $recipient['contact_id'] ?? null,
-                    'phone_number' => $recipient['phone_number'],
-                    'name' => $recipient['name'] ?? null,
-                    'template_params' => $recipient['template_params'] ?? null,
-                    'status' => 'pending']);
+        if ($campaign->recipient_type === 'custom' || $sampleSize > 0) {
+            $recipients = match ($campaign->recipient_type) {
+                'contacts' => $this->getRecipientsFromContacts($campaign, $sampleSize),
+                'segment' => $this->getRecipientsFromSegment($campaign, $sampleSize),
+                'custom' => $this->getCustomRecipients($campaign),
+                default => [],
+            };
+
+            if ($sampleSize > 0 && count($recipients) > $sampleSize) {
+                shuffle($recipients);
+                $recipients = array_slice($recipients, 0, $sampleSize);
             }
 
+            $count = $this->insertRecipientRows($campaign, $recipients);
+        } else {
+            $count = match ($campaign->recipient_type) {
+                'contacts' => $this->insertRecipientsFromContacts($campaign),
+                'segment' => $this->insertRecipientsFromSegments($campaign),
+                default => 0,
+            };
+        }
+
+        DB::transaction(function () use ($campaign, $count, $isDryRun) {
             $campaign->update([
-                'total_recipients' => count($recipients),
+                'total_recipients' => $count,
                 'sent_count' => 0,
                 'delivered_count' => 0,
                 'read_count' => 0,
                 'failed_count' => 0,
                 'completed_at' => null,
                 'metadata' => array_merge($campaign->metadata ?? [], [
-                    'effective_recipient_count' => count($recipients),
+                    'effective_recipient_count' => $count,
                     'dry_run' => $isDryRun,
                 ]),
             ]);
         });
-        
-        return count($recipients);
+
+        return $count;
     }
 
     /**
      * Get recipients from contacts.
      */
-    protected function getRecipientsFromContacts(Campaign $campaign): array
+    protected function getRecipientsFromContacts(Campaign $campaign, int $limit = 0): array
     {
-        $query = WhatsAppContact::where('account_id', $campaign->account_id);
+        $query = $this->contactsRecipientQuery($campaign);
 
-        // Exclude opt-out and blocked contacts by default
+        if ($limit > 0) {
+            $query->inRandomOrder()->limit($limit);
+        }
+
+        return $query->get(['id', 'wa_id', 'name'])->map(function ($contact) {
+            return [
+                'contact_id' => $contact->id,
+                'phone_number' => $contact->wa_id,
+                'name' => $contact->name];
+        })->toArray();
+    }
+
+    protected function contactsRecipientQuery(Campaign $campaign)
+    {
+        $query = WhatsAppContact::where('account_id', $campaign->account_id)
+            ->whereNotNull('wa_id')
+            ->where('wa_id', '!=', '');
+
         if ($campaign->respect_opt_out) {
             $query->whereNotIn('status', ['opt_out', 'blocked']);
         }
 
-        // Apply filters if provided
         if ($campaign->recipient_filters) {
             $filters = $campaign->recipient_filters;
-            
+
             if (isset($filters['has_conversation']) && $filters['has_conversation']) {
                 $query->whereHas('conversations');
             }
-            
+
             if (isset($filters['last_seen_days'])) {
                 $days = (int) $filters['last_seen_days'];
                 $query->where('last_seen_at', '>=', now()->subDays($days));
@@ -153,14 +148,26 @@ class CampaignService
             }
         }
 
-        $contacts = $query->get();
+        return $query;
+    }
 
-        return $contacts->map(function ($contact) {
-            return [
-                'contact_id' => $contact->id,
-                'phone_number' => $contact->wa_id,
-                'name' => $contact->name];
-        })->toArray();
+    protected function insertRecipientsFromContacts(Campaign $campaign): int
+    {
+        $count = 0;
+
+        $this->contactsRecipientQuery($campaign)
+            ->orderBy('id')
+            ->chunkById(1000, function ($contacts) use ($campaign, &$count) {
+                $rows = $contacts->map(fn ($contact) => [
+                    'contact_id' => $contact->id,
+                    'phone_number' => $contact->wa_id,
+                    'name' => $contact->name,
+                ])->all();
+
+                $count += $this->insertRecipientRows($campaign, $rows);
+            }, 'id');
+
+        return $count;
     }
 
     /**
@@ -168,10 +175,10 @@ class CampaignService
      */
     protected function getCustomRecipients(Campaign $campaign): array
     {
-        if (!$campaign->custom_recipients) {
+        if (! $campaign->custom_recipients) {
             return [];
         }
-        
+
         return collect($campaign->custom_recipients)
             ->map(function ($recipient) {
                 return [
@@ -186,9 +193,9 @@ class CampaignService
     }
 
     /**
-     * Get recipients from segment (placeholder for future implementation).
+     * Get recipients from selected contact segments.
      */
-    protected function getRecipientsFromSegment(Campaign $campaign): array
+    protected function getRecipientsFromSegment(Campaign $campaign, int $limit = 0): array
     {
         $filters = $campaign->recipient_filters ?? [];
         $segmentIds = [];
@@ -210,6 +217,7 @@ class CampaignService
                 'campaign_id' => $campaign->id,
                 'account_id' => $campaign->account_id,
             ]);
+
             return [];
         }
 
@@ -222,6 +230,7 @@ class CampaignService
                 'campaign_id' => $campaign->id,
                 'segment_ids' => $segmentIds,
             ]);
+
             return [];
         }
 
@@ -234,12 +243,25 @@ class CampaignService
                 $query->whereNotIn('status', ['opt_out', 'blocked']);
             }
 
+            $query->whereNotNull('wa_id')->where('wa_id', '!=', '');
+            if ($limit > 0) {
+                $query->inRandomOrder()->limit($limit);
+            }
+
             $segmentContacts = $query->get(['id', 'wa_id', 'name']);
             $contacts = $contacts->merge($segmentContacts);
+
+            if ($limit > 0 && $contacts->unique('id')->count() >= $limit) {
+                break;
+            }
+        }
+
+        $contacts = $contacts->unique('id');
+        if ($limit > 0) {
+            $contacts = $contacts->take($limit);
         }
 
         return $contacts
-            ->unique('id')
             ->map(function ($contact) {
                 return [
                     'contact_id' => $contact->id,
@@ -251,18 +273,117 @@ class CampaignService
             ->toArray();
     }
 
+    protected function insertRecipientsFromSegments(Campaign $campaign): int
+    {
+        $filters = $campaign->recipient_filters ?? [];
+        $segmentIds = [];
+
+        if (isset($filters['segment_id'])) {
+            $segmentIds[] = (int) $filters['segment_id'];
+        }
+        if (isset($filters['segment_ids']) && is_array($filters['segment_ids'])) {
+            $segmentIds = array_merge($segmentIds, array_map('intval', $filters['segment_ids']));
+        }
+        if (isset($filters['segments']) && is_array($filters['segments'])) {
+            $segmentIds = array_merge($segmentIds, array_map('intval', $filters['segments']));
+        }
+
+        $segmentIds = array_values(array_unique(array_filter($segmentIds)));
+        if (empty($segmentIds)) {
+            return 0;
+        }
+
+        $segments = ContactSegment::where('account_id', $campaign->account_id)
+            ->whereIn('id', $segmentIds)
+            ->get();
+
+        $count = 0;
+        $seenContactIds = [];
+
+        foreach ($segments as $segment) {
+            $query = $segment->contactsQuery()
+                ->whereNotNull('wa_id')
+                ->where('wa_id', '!=', '');
+
+            if ($campaign->respect_opt_out) {
+                $query->whereNotIn('status', ['opt_out', 'blocked']);
+            }
+
+            $query->orderBy('id')->chunkById(1000, function ($contacts) use ($campaign, &$count, &$seenContactIds) {
+                $rows = [];
+
+                foreach ($contacts as $contact) {
+                    if (isset($seenContactIds[$contact->id])) {
+                        continue;
+                    }
+
+                    $seenContactIds[$contact->id] = true;
+                    $rows[] = [
+                        'contact_id' => $contact->id,
+                        'phone_number' => $contact->wa_id,
+                        'name' => $contact->name,
+                    ];
+                }
+
+                $count += $this->insertRecipientRows($campaign, $rows);
+            }, 'id');
+        }
+
+        return $count;
+    }
+
+    protected function insertRecipientRows(Campaign $campaign, array $recipients): int
+    {
+        $now = now();
+        $rows = [];
+        $count = 0;
+
+        foreach ($recipients as $recipient) {
+            $phone = trim((string) ($recipient['phone_number'] ?? ''));
+            if ($phone === '') {
+                continue;
+            }
+
+            $rows[] = [
+                'campaign_id' => $campaign->id,
+                'whatsapp_contact_id' => $recipient['contact_id'] ?? null,
+                'phone_number' => $phone,
+                'name' => $recipient['name'] ?? null,
+                'template_params' => isset($recipient['template_params'])
+                    ? json_encode($recipient['template_params'], JSON_UNESCAPED_UNICODE)
+                    : null,
+                'status' => 'pending',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+
+            if (count($rows) >= 1000) {
+                CampaignRecipient::insert($rows);
+                $count += count($rows);
+                $rows = [];
+            }
+        }
+
+        if ($rows !== []) {
+            CampaignRecipient::insert($rows);
+            $count += count($rows);
+        }
+
+        return $count;
+    }
+
     /**
      * Start sending a campaign.
      */
     public function startCampaign(Campaign $campaign): void
     {
-        if (!$campaign->canStart()) {
+        if (! $campaign->canStart()) {
             throw new \Exception('Campaign cannot be started in its current state.');
         }
 
         $preflight = $this->runPreflightChecks($campaign);
-        if (!$preflight['ok']) {
-            throw new \RuntimeException('Campaign preflight failed: ' . implode(' | ', $preflight['errors']));
+        if (! $preflight['ok']) {
+            throw new \RuntimeException('Campaign preflight failed: '.implode(' | ', $preflight['errors']));
         }
 
         if ((bool) Arr::get($campaign->metadata, 'dry_run', false)) {
@@ -302,17 +423,19 @@ class CampaignService
      */
     public function sendToRecipient(Campaign $campaign, CampaignRecipient $recipient): bool
     {
-        if (!$campaign->connection) {
+        if (! $campaign->connection) {
             Log::error('Campaign has no connection', ['campaign_id' => $campaign->id]);
             $this->markRecipientFailed($recipient, 'No WhatsApp connection configured');
+
             return false;
         }
 
-        if (!$this->canSendNowForConnection($campaign)) {
+        if (! $this->canSendNowForConnection($campaign)) {
             $recipient->update([
                 'status' => 'pending',
                 'failure_reason' => 'Deferred by throughput/quiet-hours policy.',
             ]);
+
             return false;
         }
 
@@ -320,9 +443,11 @@ class CampaignService
         if ($campaign->respect_opt_out && $recipient->whatsapp_contact_id) {
             $contact = WhatsAppContact::find($recipient->whatsapp_contact_id);
             if ($contact && in_array($contact->status ?? 'active', ['opt_out', 'blocked'])) {
-                $recipient->lockForUpdate()->update([
+                CampaignRecipient::whereKey($recipient->id)->update([
                     'status' => 'skipped',
                     'failure_reason' => "Contact has {$contact->status} status"]);
+                $this->syncCampaignStats((int) $campaign->id);
+
                 return false;
             }
         }
@@ -344,7 +469,7 @@ class CampaignService
 
             if ($response && isset($response['messages'][0]['id'])) {
                 $wamid = $response['messages'][0]['id'];
-                
+
                 $recipient->update([
                     'status' => 'sent',
                     'sent_at' => now(),
@@ -363,20 +488,20 @@ class CampaignService
                         'sent_at' => now()]
                 );
 
-                // Update campaign stats (with lock to prevent race conditions)
-                Campaign::whereKey($campaign->id)->increment('sent_count');
                 if ($campaign->account) {
                     $this->usageService->incrementMessageUsage($campaign->account, 1);
                     if ($campaign->type === 'template') {
                         $this->usageService->incrementTemplateUsage($campaign->account, 1);
                     }
                 }
+                $this->syncCampaignStats((int) $campaign->id);
                 $this->clearConnectionBackoff($campaign);
 
                 return true;
             }
 
             $this->markRecipientFailed($recipient, 'No message ID in response');
+
             return false;
         } catch (\Exception $e) {
             Log::error('Failed to send campaign message', [
@@ -390,10 +515,12 @@ class CampaignService
                     'status' => 'pending',
                     'failure_reason' => 'Rate limited by provider. Retrying with adaptive delay.',
                 ]);
+
                 return false;
             }
 
             $this->markRecipientFailed($recipient, $e->getMessage());
+
             return false;
         }
     }
@@ -403,7 +530,7 @@ class CampaignService
      */
     protected function sendTemplateMessage(Campaign $campaign, CampaignRecipient $recipient): array
     {
-        if (!$campaign->template) {
+        if (! $campaign->template) {
             throw new \Exception('Template not found for campaign');
         }
 
@@ -417,10 +544,29 @@ class CampaignService
             $recipient->template_params ?? []
         );
 
-        if (!empty($params)) {
+        if (! empty($params)) {
             // Extract components from prepared payload
             $payload = $this->templateComposer->preparePayload($template, $recipient->phone_number, $params);
             $components = $payload['template']['components'] ?? [];
+        }
+
+        if (($campaign->connection?->connection_mode ?? null) === 'baileys_qr') {
+            $preview = $this->templateComposer->renderPreview($template, $params);
+            $parts = array_filter([
+                $preview['header'] ?? null,
+                $preview['body'] ?? null,
+                $preview['footer'] ?? null,
+            ]);
+            $message = trim(implode("\n\n", $parts));
+            if ($message === '') {
+                $message = trim((string) ($campaign->message_text ?: $template->name));
+            }
+
+            return $this->whatsappClient->sendTextMessage(
+                $campaign->connection,
+                $recipient->phone_number,
+                $message
+            );
         }
 
         return $this->whatsappClient->sendTemplateMessage(
@@ -437,7 +583,7 @@ class CampaignService
      */
     protected function sendTextMessage(Campaign $campaign, CampaignRecipient $recipient): array
     {
-        if (!$campaign->message_text) {
+        if (! $campaign->message_text) {
             throw new \Exception('Message text not provided');
         }
 
@@ -449,11 +595,11 @@ class CampaignService
     }
 
     /**
-     * Send media message (placeholder).
+     * Send media message.
      */
     protected function sendMediaMessage(Campaign $campaign, CampaignRecipient $recipient): array
     {
-        if (!$campaign->media_url || !$campaign->media_type) {
+        if (! $campaign->media_url || ! $campaign->media_type) {
             throw new \Exception('Media URL or media type not provided');
         }
 
@@ -483,12 +629,20 @@ class CampaignService
      */
     protected function markRecipientFailed(CampaignRecipient $recipient, string $reason): void
     {
-        $recipient->lockForUpdate()->update([
+        $reason = trim($reason) !== '' ? $reason : 'Campaign delivery failed before Meta returned a detailed error.';
+
+        CampaignRecipient::whereKey($recipient->id)->update([
             'status' => 'failed',
             'failed_at' => now(),
             'failure_reason' => $reason]);
 
-        Campaign::whereKey($recipient->campaign_id)->increment('failed_count');
+        CampaignMessage::where('campaign_recipient_id', $recipient->id)->update([
+            'status' => 'failed',
+            'failed_at' => now(),
+            'error_message' => $reason,
+        ]);
+
+        $this->syncCampaignStats((int) $recipient->campaign_id);
         $this->checkAndAlertCampaignErrorRate((int) $recipient->campaign_id);
     }
 
@@ -496,13 +650,13 @@ class CampaignService
      * Update message status from webhook.
      * Uses lock to prevent concurrent status updates.
      */
-    public function updateMessageStatus(string $wamid, string $status, ?\DateTime $timestamp = null): void
+    public function updateMessageStatus(string $wamid, string $status, ?\DateTime $timestamp = null, ?string $failureReason = null): void
     {
         // Use lock to prevent concurrent status updates
         $lockKey = "campaign_status_update:{$wamid}";
         $lock = \Illuminate\Support\Facades\Cache::lock($lockKey, 30);
 
-        if (!$lock->get()) {
+        if (! $lock->get()) {
             // Another process is updating this status
             return;
         }
@@ -512,33 +666,48 @@ class CampaignService
                 ->lockForUpdate() // Row-level lock
                 ->first();
 
-            if (!$message) {
+            if (! $message) {
+                return;
+            }
+
+            $currentRank = $this->campaignStatusRank((string) $message->status);
+            $incomingRank = $this->campaignStatusRank($status);
+            if ($incomingRank < $currentRank && $status !== 'failed') {
                 return;
             }
 
             $updateData = ['status' => $status];
             $recipientUpdate = ['status' => $status];
 
+            if ($status !== 'failed') {
+                $updateData['failed_at'] = null;
+                $updateData['error_message'] = null;
+                $recipientUpdate['failed_at'] = null;
+                $recipientUpdate['failure_reason'] = null;
+            }
+
             switch ($status) {
                 case 'delivered':
                     $updateData['delivered_at'] = $timestamp ?? now();
                     $recipientUpdate['delivered_at'] = $timestamp ?? now();
-                    Campaign::whereKey($message->campaign_id)->increment('delivered_count');
                     break;
                 case 'read':
                     $updateData['read_at'] = $timestamp ?? now();
                     $recipientUpdate['read_at'] = $timestamp ?? now();
-                    Campaign::whereKey($message->campaign_id)->increment('read_count');
                     break;
                 case 'failed':
                     $updateData['failed_at'] = $timestamp ?? now();
                     $recipientUpdate['failed_at'] = $timestamp ?? now();
-                    Campaign::whereKey($message->campaign_id)->increment('failed_count');
+                    $recipientUpdate['failure_reason'] = $failureReason ?: 'Provider marked delivery failed.';
+                    $updateData['error_message'] = $recipientUpdate['failure_reason'];
                     break;
             }
 
             $message->update($updateData);
-            $message->recipient->lockForUpdate()->update($recipientUpdate);
+            if ($message->campaign_recipient_id) {
+                CampaignRecipient::whereKey($message->campaign_recipient_id)->update($recipientUpdate);
+            }
+            $this->syncCampaignStats((int) $message->campaign_id);
         } finally {
             $lock->release();
         }
@@ -554,10 +723,46 @@ class CampaignService
             ->count();
 
         if ($pendingCount === 0 && $campaign->status === 'sending') {
+            $this->syncCampaignStats((int) $campaign->id);
             $campaign->update([
                 'status' => 'completed',
                 'completed_at' => now()]);
         }
+    }
+
+    public function syncCampaignStats(int $campaignId): void
+    {
+        $stats = CampaignRecipient::query()
+            ->where('campaign_id', $campaignId)
+            ->selectRaw("count(*) as total_recipients")
+            ->selectRaw("sum(case when status in ('sent', 'delivered', 'read') then 1 else 0 end) as sent_count")
+            ->selectRaw("sum(case when status in ('delivered', 'read') then 1 else 0 end) as delivered_count")
+            ->selectRaw("sum(case when status = 'read' then 1 else 0 end) as read_count")
+            ->selectRaw("sum(case when status = 'failed' then 1 else 0 end) as failed_count")
+            ->first();
+
+        if (! $stats) {
+            return;
+        }
+
+        Campaign::whereKey($campaignId)->update([
+            'total_recipients' => (int) $stats->total_recipients,
+            'sent_count' => (int) $stats->sent_count,
+            'delivered_count' => (int) $stats->delivered_count,
+            'read_count' => (int) $stats->read_count,
+            'failed_count' => (int) $stats->failed_count,
+        ]);
+    }
+
+    protected function campaignStatusRank(string $status): int
+    {
+        return match ($status) {
+            'sent' => 10,
+            'failed' => 15,
+            'delivered' => 20,
+            'read' => 30,
+            default => 0,
+        };
     }
 
     public function retryFailedRecipients(Campaign $campaign): int
@@ -597,6 +802,108 @@ class CampaignService
         return $failedCount;
     }
 
+    /**
+     * Recover campaigns whose queue job was missed, killed, or never processed.
+     *
+     * This method is intentionally conservative: it only touches due scheduled
+     * campaigns or campaigns already marked as sending with pending recipients.
+     * The send job itself uses a campaign lock, so duplicate recovery attempts
+     * do not send the same recipient twice.
+     */
+    public function recoverStalledCampaigns(int $limit = 25): array
+    {
+        $started = [];
+        $requeued = [];
+        $completed = [];
+        $errors = [];
+
+        $dueScheduled = Campaign::query()
+            ->where('status', 'scheduled')
+            ->whereNotNull('scheduled_at')
+            ->where('scheduled_at', '<=', now())
+            ->where('total_recipients', '>', 0)
+            ->orderBy('scheduled_at')
+            ->limit($limit)
+            ->get();
+
+        foreach ($dueScheduled as $campaign) {
+            try {
+                $this->startCampaign($campaign);
+                $started[] = $campaign->id;
+            } catch (\Throwable $e) {
+                $errors[] = [
+                    'campaign_id' => $campaign->id,
+                    'stage' => 'scheduled_start',
+                    'error' => $e->getMessage(),
+                ];
+                Log::warning('Failed to recover due scheduled campaign', [
+                    'campaign_id' => $campaign->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $remainingLimit = max(0, $limit - count($started));
+        if ($remainingLimit > 0) {
+            $stalledSending = Campaign::query()
+                ->where('status', 'sending')
+                ->whereHas('recipients', fn ($query) => $query->whereIn('status', ['pending', 'sending']))
+                ->where(function ($query) {
+                    $query->whereNull('updated_at')
+                        ->orWhere('updated_at', '<=', now()->subMinutes(2));
+                })
+                ->orderBy('updated_at')
+                ->limit($remainingLimit)
+                ->get();
+
+            foreach ($stalledSending as $campaign) {
+                try {
+                    $campaign->recipients()
+                        ->where('status', 'sending')
+                        ->whereNull('wamid')
+                        ->update([
+                            'status' => 'pending',
+                            'failure_reason' => 'Recovered from interrupted campaign worker.',
+                        ]);
+                    $this->dispatchNextSend($campaign->id);
+                    $campaign->forceFill([
+                        'metadata' => array_merge($campaign->metadata ?? [], [
+                            'last_requeued_at' => now()->toIso8601String(),
+                        ]),
+                    ])->save();
+                    $requeued[] = $campaign->id;
+                } catch (\Throwable $e) {
+                    $errors[] = [
+                        'campaign_id' => $campaign->id,
+                        'stage' => 'sending_requeue',
+                        'error' => $e->getMessage(),
+                    ];
+                    Log::warning('Failed to requeue stalled campaign', [
+                        'campaign_id' => $campaign->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
+
+        Campaign::query()
+            ->where('status', 'sending')
+            ->whereDoesntHave('recipients', fn ($query) => $query->whereIn('status', ['pending', 'sending']))
+            ->limit($limit)
+            ->get()
+            ->each(function (Campaign $campaign) use (&$completed) {
+                $this->checkCampaignCompletion($campaign);
+                $completed[] = $campaign->id;
+            });
+
+        return [
+            'started_scheduled' => $started,
+            'requeued_sending' => $requeued,
+            'completed' => $completed,
+            'errors' => $errors,
+        ];
+    }
+
     public function duplicateCampaign(Campaign $campaign, int $userId): Campaign
     {
         $copy = Campaign::create([
@@ -604,7 +911,7 @@ class CampaignService
             'whatsapp_connection_id' => $campaign->whatsapp_connection_id,
             'whatsapp_template_id' => $campaign->whatsapp_template_id,
             'created_by' => $userId,
-            'name' => $campaign->name . ' (Copy)',
+            'name' => $campaign->name.' (Copy)',
             'description' => $campaign->description,
             'type' => $campaign->type,
             'status' => 'draft',
@@ -640,18 +947,25 @@ class CampaignService
         $warnings = [];
 
         $connection = $campaign->connection;
-        if (!$connection) {
+        if (! $connection) {
             $errors[] = 'No WhatsApp connection configured.';
         } else {
-            if (!((bool) $connection->is_active)) {
+            if (! ((bool) $connection->is_active)) {
                 $errors[] = 'Selected WhatsApp connection is inactive.';
             }
 
-            if ($connection->webhook_last_error) {
+            if ($connection->connection_mode === 'baileys_qr') {
+                $warnings[] = 'WhatsApp QR (Unofficial) uses a linked-device session. Anti-ban cannot be guaranteed; Zyptos will throttle and back off automatically.';
+                if ($connection->qr_status !== 'connected') {
+                    $errors[] = 'WhatsApp QR session is not connected.';
+                }
+            }
+
+            if ($connection->connection_mode !== 'baileys_qr' && $connection->webhook_last_error) {
                 $warnings[] = 'Connection has recent webhook errors.';
             }
 
-            if (!$connection->webhook_last_received_at || $connection->webhook_last_received_at->lt(now()->subHours(24))) {
+            if ($connection->connection_mode !== 'baileys_qr' && (! $connection->webhook_last_received_at || $connection->webhook_last_received_at->lt(now()->subHours(24)))) {
                 $warnings[] = 'Connection webhook activity is stale (>24h).';
             }
 
@@ -662,22 +976,26 @@ class CampaignService
 
         if ($campaign->type === 'template') {
             $template = $campaign->template;
-            if (!$template) {
+            if (! $template) {
                 $errors[] = 'Template campaign requires an approved template.';
             } else {
-                $status = strtolower(trim((string) $template->status));
-                if ($status !== 'approved') {
-                    $errors[] = 'Template is not approved.';
-                }
-                if ((bool) $template->is_archived) {
-                    $errors[] = 'Template is archived.';
-                }
-                if (
-                    $campaign->whatsapp_connection_id
-                    && $template->whatsapp_connection_id
-                    && (int) $template->whatsapp_connection_id !== (int) $campaign->whatsapp_connection_id
-                ) {
-                    $errors[] = 'Template does not belong to the selected connection.';
+                if (($connection?->connection_mode ?? null) === 'baileys_qr') {
+                    $warnings[] = 'Template campaign will be sent as normal text through WhatsApp QR (Unofficial); Meta template delivery/reporting is not available.';
+                } else {
+                    $status = strtolower(trim((string) $template->status));
+                    if ($status !== 'approved') {
+                        $errors[] = 'Template is not approved.';
+                    }
+                    if ((bool) $template->is_archived) {
+                        $errors[] = 'Template is archived.';
+                    }
+                    if (
+                        $campaign->whatsapp_connection_id
+                        && $template->whatsapp_connection_id
+                        && (int) $template->whatsapp_connection_id !== (int) $campaign->whatsapp_connection_id
+                    ) {
+                        $errors[] = 'Template does not belong to the selected connection.';
+                    }
                 }
             }
         }
@@ -694,13 +1012,13 @@ class CampaignService
 
             $messageLimit = (int) ($limits['messages_monthly'] ?? 0);
             if ($messageLimit !== -1 && ($usage->messages_sent + $pendingCount) > $messageLimit) {
-                $errors[] = "Message quota exceeded for this campaign (required {$pendingCount}, remaining " . max(0, $messageLimit - (int) $usage->messages_sent) . ').';
+                $errors[] = "Message quota exceeded for this campaign (required {$pendingCount}, remaining ".max(0, $messageLimit - (int) $usage->messages_sent).').';
             }
 
             if ($campaign->type === 'template') {
                 $templateLimit = (int) ($limits['template_sends_monthly'] ?? 0);
                 if ($templateLimit !== -1 && ($usage->template_sends + $pendingCount) > $templateLimit) {
-                    $errors[] = "Template send quota exceeded (required {$pendingCount}, remaining " . max(0, $templateLimit - (int) $usage->template_sends) . ').';
+                    $errors[] = "Template send quota exceeded (required {$pendingCount}, remaining ".max(0, $templateLimit - (int) $usage->template_sends).').';
                 }
             }
         }
@@ -719,6 +1037,7 @@ class CampaignService
         $backoffUntil = $this->getConnectionBackoffUntil($campaign);
         $remainingBackoff = $backoffUntil ? max(0, now()->diffInSeconds($backoffUntil, false)) : 0;
         $quietHoursDelay = $this->getQuietHoursDelaySeconds($campaign);
+
         return max($baseDelay, $remainingBackoff, $quietHoursDelay);
     }
 
@@ -735,6 +1054,7 @@ class CampaignService
     protected function isRateLimitError(string $message): bool
     {
         $normalized = strtolower($message);
+
         return str_contains($normalized, 'rate limit')
             || str_contains($normalized, 'too many requests')
             || str_contains($normalized, 'error code: 4')
@@ -743,7 +1063,7 @@ class CampaignService
 
     protected function applyConnectionBackoff(Campaign $campaign, string $reason): void
     {
-        if (!$campaign->whatsapp_connection_id) {
+        if (! $campaign->whatsapp_connection_id) {
             return;
         }
 
@@ -766,7 +1086,7 @@ class CampaignService
 
     protected function clearConnectionBackoff(Campaign $campaign): void
     {
-        if (!$campaign->whatsapp_connection_id) {
+        if (! $campaign->whatsapp_connection_id) {
             return;
         }
 
@@ -776,12 +1096,12 @@ class CampaignService
 
     protected function getConnectionBackoffUntil(Campaign $campaign): ?Carbon
     {
-        if (!$campaign->whatsapp_connection_id) {
+        if (! $campaign->whatsapp_connection_id) {
             return null;
         }
 
         $raw = Cache::get("campaign:connection:{$campaign->whatsapp_connection_id}:rate_limited_until");
-        if (!is_string($raw) || $raw === '') {
+        if (! is_string($raw) || $raw === '') {
             return null;
         }
 
@@ -799,7 +1119,7 @@ class CampaignService
         }
 
         $connection = $campaign->connection;
-        if (!$connection) {
+        if (! $connection) {
             return false;
         }
 
@@ -811,17 +1131,19 @@ class CampaignService
             $secondsToNextMinute = max(1, 60 - (int) now()->second);
             $untilKey = "campaign:connection:{$connection->id}:rate_limited_until";
             Cache::put($untilKey, now()->addSeconds($secondsToNextMinute)->toIso8601String(), now()->addSeconds($secondsToNextMinute + 90));
+
             return false;
         }
 
         Cache::put($key, $current + 1, 70);
+
         return true;
     }
 
     protected function getQuietHoursDelaySeconds(Campaign $campaign): int
     {
         $connection = $campaign->connection;
-        if (!$connection || !$connection->quiet_hours_start || !$connection->quiet_hours_end) {
+        if (! $connection || ! $connection->quiet_hours_start || ! $connection->quiet_hours_end) {
             return 0;
         }
 
@@ -852,7 +1174,7 @@ class CampaignService
 
     public function sendTestMessage(Campaign $campaign, string $targetWaId): array
     {
-        if (!$campaign->connection) {
+        if (! $campaign->connection) {
             throw new \RuntimeException('Campaign has no WhatsApp connection configured.');
         }
 
@@ -877,16 +1199,31 @@ class CampaignService
 
     protected function sendTemplateTestMessage(Campaign $campaign, string $targetWaId): array
     {
-        if (!$campaign->template) {
+        if (! $campaign->template) {
             throw new \RuntimeException('Template not found for campaign.');
         }
 
         $template = $campaign->template;
         $components = [];
         $params = $campaign->template_params ?? [];
-        if (!empty($params)) {
+        if (! empty($params)) {
             $payload = $this->templateComposer->preparePayload($template, $targetWaId, $params);
             $components = $payload['template']['components'] ?? [];
+        }
+
+        if (($campaign->connection?->connection_mode ?? null) === 'baileys_qr') {
+            $preview = $this->templateComposer->renderPreview($template, $params);
+            $message = trim(implode("\n\n", array_filter([
+                $preview['header'] ?? null,
+                $preview['body'] ?? null,
+                $preview['footer'] ?? null,
+            ])));
+
+            return $this->whatsappClient->sendTextMessage(
+                $campaign->connection,
+                $targetWaId,
+                $message !== '' ? $message : $template->name
+            );
         }
 
         return $this->whatsappClient->sendTemplateMessage(
@@ -901,7 +1238,7 @@ class CampaignService
     protected function checkAndAlertCampaignErrorRate(int $campaignId): void
     {
         $campaign = Campaign::find($campaignId);
-        if (!$campaign) {
+        if (! $campaign) {
             return;
         }
 
@@ -922,7 +1259,7 @@ class CampaignService
             eventKey: 'campaign.error_rate.high',
             title: 'High campaign failure rate detected',
             context: [
-                'scope' => 'campaign:' . $campaign->id,
+                'scope' => 'campaign:'.$campaign->id,
                 'campaign_id' => $campaign->id,
                 'campaign_name' => $campaign->name,
                 'processed' => $processed,

@@ -78,7 +78,7 @@ class WalletService
             $wallet = $this->getOrCreateWallet($account);
             $wallet = AccountWallet::whereKey($wallet->id)->lockForUpdate()->firstOrFail();
 
-            if (!$allowNegative && $wallet->balance_minor < $amountMinor) {
+            if (! $allowNegative && $wallet->balance_minor < $amountMinor) {
                 return WalletTransaction::create([
                     'account_id' => $account->id,
                     'account_wallet_id' => $wallet->id,

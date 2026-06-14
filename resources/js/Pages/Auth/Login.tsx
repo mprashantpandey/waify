@@ -1,19 +1,19 @@
 import Checkbox from '@/Components/Checkbox';
-import InputError from '@/Components/InputError';
-import InputLabel from '@/Components/InputLabel';
-import Button from '@/Components/UI/Button';
-import TextInput from '@/Components/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
-import { Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
+import { Mail, ArrowRight, AlertCircle } from 'lucide-react';
 import { Alert } from '@/Components/UI/Alert';
+import Button from '@/Components/UI/Button';
+import { AuthDivider, AuthField, AuthInput, PasswordField, SocialAuthButtons } from '@/Components/Auth/AuthParts';
 
 export default function Login({
     status,
-    canResetPassword}: {
+    canResetPassword,
+    googleOAuthEnabled = false}: {
     status?: string;
     canResetPassword: boolean;
+    googleOAuthEnabled?: boolean;
 }) {
     const { data, setData, post, processing, errors, reset } = useForm({
         email: '',
@@ -28,16 +28,12 @@ export default function Login({
     };
 
     return (
-        <GuestLayout>
+        <GuestLayout headerLabel="New here?" headerLinkText="Create account" headerLinkHref={route('register')}>
             <Head title="Log in" />
 
-            <div className="mb-6">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-                    Welcome back
-                </h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Sign in to your account to continue
-                </p>
+            <div className="mb-7">
+                <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-waify-text dark:text-waify-dark-text">Welcome back</h1>
+                <p className="mt-2 text-waify-text-muted dark:text-waify-dark-text-muted">Sign in to continue to your Zyptos workspace.</p>
             </div>
 
             {status && (
@@ -47,50 +43,39 @@ export default function Login({
                 </Alert>
             )}
 
-            <form onSubmit={submit} className="space-y-5">
-                <div>
-                    <InputLabel htmlFor="email" value="Email Address" className="text-sm font-semibold mb-2" />
+            <SocialAuthButtons googleEnabled={googleOAuthEnabled} googleHref={googleOAuthEnabled ? route('auth.google.redirect') : undefined} />
+            <AuthDivider label="Or continue with email" />
 
+            <form onSubmit={submit} className="space-y-4">
+                <AuthField label="Work email" error={errors.email}>
                     <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                        <TextInput
+                        <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <AuthInput
                             id="email"
                             type="email"
                             name="email"
                             value={data.email}
-                            className="mt-1 block w-full pl-10 rounded-xl"
+                            className="pl-10"
                             autoComplete="username"
-                            isFocused={true}
+                            autoFocus
+                            required
                             onChange={(e) => setData('email', e.target.value)}
-                            placeholder="you@example.com"
+                            placeholder="rohan@company.com"
                         />
                     </div>
+                </AuthField>
 
-                    <InputError message={errors.email} className="mt-2" />
-                </div>
+                <PasswordField
+                    id="password"
+                    value={data.password}
+                    onChange={(e) => setData('password', e.target.value)}
+                    autoComplete="current-password"
+                    placeholder="Enter your password"
+                    forgotHref={canResetPassword ? route('password.request') : undefined}
+                    error={errors.password}
+                />
 
-                <div>
-                    <InputLabel htmlFor="password" value="Password" className="text-sm font-semibold mb-2" />
-
-                    <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                        <TextInput
-                            id="password"
-                            type="password"
-                            name="password"
-                            value={data.password}
-                            className="mt-1 block w-full pl-10 rounded-xl"
-                            autoComplete="current-password"
-                            onChange={(e) => setData('password', e.target.value)}
-                            placeholder="Enter your password"
-                        />
-                    </div>
-
-                    <InputError message={errors.password} className="mt-2" />
-                </div>
-
-                <div className="flex items-center justify-between">
-                    <label className="flex items-center">
+                <label className="flex items-center gap-2 text-sm text-waify-text cursor-pointer select-none dark:text-waify-dark-text">
                         <Checkbox
                             name="remember"
                             checked={data.remember}
@@ -101,44 +86,35 @@ export default function Login({
                                 )
                             }
                         />
-                        <span className="ms-2 text-sm text-gray-600 dark:text-gray-400">
-                            Remember me
-                        </span>
-                    </label>
+                    Keep me signed in for 30 days
+                </label>
 
-                    {canResetPassword && (
-                        <Link
-                            href={route('password.request')}
-                            className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
-                        >
-                            Forgot password?
-                        </Link>
-                    )}
-                </div>
-
-                <Button 
+                <Button
                     type="submit" 
                     disabled={processing}
-                    className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50 rounded-xl"
+                    className="w-full h-11"
                 >
                     {processing ? 'Signing in...' : (
                         <>
                             Sign In
-                            <ArrowRight className="h-4 w-4 ml-2" />
+                            <ArrowRight className="h-4 w-4" />
                         </>
                     )}
                 </Button>
             </form>
 
             <div className="mt-6 text-center">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-waify-text-muted">
                     Don't have an account?{' '}
                     <Link
                         href={route('register')}
-                        className="font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                        className="font-semibold text-waify-green-dark hover:underline"
                     >
                         Sign up
                     </Link>
+                </p>
+                <p className="mt-6 text-xs text-waify-text-muted dark:text-waify-dark-text-muted">
+                    By signing in you agree to our <Link href={route('terms')} className="underline">Terms</Link> and <Link href={route('privacy')} className="underline">Privacy Policy</Link>.
                 </p>
             </div>
         </GuestLayout>

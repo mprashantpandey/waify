@@ -17,15 +17,16 @@ class OpsMaintenanceService
 {
     public function __construct(
         protected OperationalAlertService $alertService
-    ) {
-    }
+    ) {}
 
     public function runDatabaseBackup(bool $force = false): array
     {
         $lock = Cache::lock('ops:db-backup', 1800);
-        if (!$lock->get()) {
+        if (! $lock->get()) {
             return ['status' => 'skipped', 'message' => 'Backup already running.'];
         }
+
+        $defaultsPath = null;
 
         try {
             $intervalHours = max(6, (int) PlatformSetting::get('compliance.backup_interval_hours', 24));
@@ -35,7 +36,7 @@ class OpsMaintenanceService
                 ->latest('completed_at')
                 ->first();
 
-            if (!$force && $lastSuccess?->completed_at && $lastSuccess->completed_at->gt(now()->subHours($intervalHours))) {
+            if (! $force && $lastSuccess?->completed_at && $lastSuccess->completed_at->gt(now()->subHours($intervalHours))) {
                 return ['status' => 'skipped', 'message' => "Last backup is within {$intervalHours}h window."];
             }
 
@@ -47,7 +48,7 @@ class OpsMaintenanceService
             ]);
 
             $timestamp = now()->format('Ymd-His');
-            $relativeDir = "backups/database/" . now()->format('Y/m/d');
+            $relativeDir = 'backups/database/'.now()->format('Y/m/d');
             $absoluteDir = storage_path("app/{$relativeDir}");
             File::ensureDirectoryExists($absoluteDir);
             $relativePath = "{$relativeDir}/db-{$timestamp}.sql.gz";
@@ -66,28 +67,35 @@ class OpsMaintenanceService
                 throw new \RuntimeException('Database backup configuration is incomplete.');
             }
 
+            $defaultsPath = $this->writeMysqlDefaultsFile($host, $port, $username, $password);
+            $dumpCommand = sprintf(
+                'mysqldump --defaults-extra-file=%s --single-transaction --quick --skip-lock-tables %s',
+                escapeshellarg($defaultsPath),
+                escapeshellarg($database)
+            );
             $command = sprintf(
-                'mysqldump --single-transaction --quick --skip-lock-tables --host=%s --port=%s --user=%s %s | gzip > %s',
-                escapeshellarg($host),
-                escapeshellarg($port),
-                escapeshellarg($username),
-                escapeshellarg($database),
-                escapeshellarg($absolutePath)
+                'bash -o pipefail -c %s',
+                escapeshellarg($dumpCommand.' | gzip > '.escapeshellarg($absolutePath))
             );
 
             $process = Process::fromShellCommandline($command, base_path(), $password !== '' ? ['MYSQL_PWD' => $password] : []);
             $process->setTimeout(1800);
             $process->run();
 
-            if (!$process->isSuccessful()) {
+            if (! $process->isSuccessful()) {
                 throw new \RuntimeException(trim($process->getErrorOutput() ?: $process->getOutput()) ?: 'mysqldump failed');
             }
 
-            if (!File::exists($absolutePath) || File::size($absolutePath) <= 0) {
+            if (! File::exists($absolutePath) || File::size($absolutePath) <= 0) {
                 throw new \RuntimeException('Backup file was not created or is empty.');
             }
 
-            $this->runRestoreDrill($absolutePath, $backup);
+            $sample = $this->readGzipSample($absolutePath);
+            if ($sample === '' || (! str_contains($sample, 'dump') && ! str_contains($sample, 'CREATE TABLE'))) {
+                throw new \RuntimeException('Backup file does not look like a valid SQL dump.');
+            }
+
+            $this->runRestoreDrill($absolutePath, $backup, $force);
 
             $backup->update([
                 'status' => 'completed',
@@ -123,6 +131,9 @@ class OpsMaintenanceService
 
             return ['status' => 'failed', 'message' => $e->getMessage()];
         } finally {
+            if ($defaultsPath && File::exists($defaultsPath)) {
+                File::delete($defaultsPath);
+            }
             $lock->release();
         }
     }
@@ -130,7 +141,7 @@ class OpsMaintenanceService
     public function runRetentionCleanup(bool $force = false): array
     {
         $lock = Cache::lock('ops:retention-cleanup', 600);
-        if (!$lock->get()) {
+        if (! $lock->get()) {
             return ['status' => 'skipped', 'message' => 'Cleanup already running.'];
         }
 
@@ -138,7 +149,7 @@ class OpsMaintenanceService
             $intervalMinutes = max(30, (int) PlatformSetting::get('compliance.cleanup_interval_minutes', 180));
             $lastRunAtRaw = PlatformSetting::get('compliance.cleanup.last_run_at');
             $lastRunAt = $lastRunAtRaw ? Carbon::parse((string) $lastRunAtRaw) : null;
-            if (!$force && $lastRunAt && $lastRunAt->gt(now()->subMinutes($intervalMinutes))) {
+            if (! $force && $lastRunAt && $lastRunAt->gt(now()->subMinutes($intervalMinutes))) {
                 return ['status' => 'skipped', 'message' => "Cleanup ran within {$intervalMinutes} minutes."];
             }
 
@@ -219,7 +230,7 @@ class OpsMaintenanceService
         ];
     }
 
-    protected function runRestoreDrill(string $absolutePath, SystemBackup $backup): void
+    protected function runRestoreDrill(string $absolutePath, SystemBackup $backup, bool $force = false): void
     {
         $restoreEveryDays = max(1, (int) PlatformSetting::get('compliance.backup_restore_drill_days', 7));
 
@@ -229,22 +240,38 @@ class OpsMaintenanceService
             ->latest('restore_drill_at')
             ->first();
 
-        if ($lastDrill?->restore_drill_at && $lastDrill->restore_drill_at->gt(now()->subDays($restoreEveryDays))) {
+        if (! $force && $lastDrill?->restore_drill_at && $lastDrill->restore_drill_at->gt(now()->subDays($restoreEveryDays))) {
             return;
         }
 
-        $handle = @gzopen($absolutePath, 'rb');
-        if (!$handle) {
+        $connection = config('database.default', 'mysql');
+        $db = config("database.connections.{$connection}");
+
+        if ($connection === 'mysql') {
+            $result = $this->runMysqlRestoreDrill($absolutePath, $db);
+
+            $backup->update([
+                'restore_drill_at' => now(),
+                'restore_drill_status' => $result['passed'] ? 'passed' : 'failed',
+                'error_message' => $result['passed'] ? null : mb_substr((string) ($result['error'] ?? 'Restore drill failed.'), 0, 2000),
+                'meta' => array_merge($backup->meta ?? [], [
+                    'restore_drill' => $result,
+                ]),
+            ]);
+
+            return;
+        }
+
+        $sample = $this->readGzipSample($absolutePath);
+        if ($sample === '') {
             $backup->update([
                 'restore_drill_at' => now(),
                 'restore_drill_status' => 'failed',
                 'error_message' => 'Restore drill failed: could not open gzip file.',
             ]);
+
             return;
         }
-
-        $sample = (string) gzread($handle, 4096);
-        gzclose($handle);
 
         $passed = trim($sample) !== '';
 
@@ -255,6 +282,164 @@ class OpsMaintenanceService
                 'restore_drill_sample_prefix' => mb_substr($sample, 0, 200),
             ]),
         ]);
+    }
+
+    protected function runMysqlRestoreDrill(string $absolutePath, array $db): array
+    {
+        $host = (string) ($db['host'] ?? '127.0.0.1');
+        $port = (string) ($db['port'] ?? '3306');
+        $database = (string) ($db['database'] ?? '');
+        $username = (string) ($db['username'] ?? '');
+        $password = (string) ($db['password'] ?? '');
+        $drillDatabase = 'zyptos_restore_drill_'.now()->format('YmdHis');
+        $defaultsPath = null;
+
+        if ($database === '' || $username === '') {
+            return [
+                'passed' => false,
+                'error' => 'Restore drill skipped: database configuration is incomplete.',
+            ];
+        }
+
+        $defaultsPath = $this->writeMysqlDefaultsFile($host, $port, $username, $password);
+        $mysql = sprintf('mysql --defaults-extra-file=%s', escapeshellarg($defaultsPath));
+
+        $run = function (string $command, int $timeout = 1800): Process {
+            $process = Process::fromShellCommandline($command, base_path());
+            $process->setTimeout($timeout);
+            $process->run();
+
+            return $process;
+        };
+
+        $created = false;
+
+        try {
+            $create = $run($mysql.' --execute='.escapeshellarg(
+                "CREATE DATABASE `{$drillDatabase}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+            ));
+
+            if (! $create->isSuccessful()) {
+                throw new \RuntimeException(trim($create->getErrorOutput() ?: $create->getOutput()) ?: 'Could not create restore drill database.');
+            }
+
+            $created = true;
+
+            $restoreCommand = sprintf(
+                'gzip -dc %s | %s %s',
+                escapeshellarg($absolutePath),
+                $mysql,
+                escapeshellarg($drillDatabase)
+            );
+            $restore = $run(sprintf(
+                'bash -o pipefail -c %s',
+                escapeshellarg($restoreCommand)
+            ));
+
+            if (! $restore->isSuccessful()) {
+                throw new \RuntimeException(trim($restore->getErrorOutput() ?: $restore->getOutput()) ?: 'Could not restore backup into drill database.');
+            }
+
+            $tables = $run($mysql.' --batch --skip-column-names '.escapeshellarg($drillDatabase).' --execute='.escapeshellarg('SHOW TABLES'), 120);
+
+            if (! $tables->isSuccessful()) {
+                throw new \RuntimeException(trim($tables->getErrorOutput() ?: $tables->getOutput()) ?: 'Could not inspect restored database.');
+            }
+
+            $restoredTables = collect(explode("\n", trim($tables->getOutput())))->filter()->values();
+            if ($restoredTables->isEmpty()) {
+                throw new \RuntimeException('Restore drill database contains no tables.');
+            }
+
+            $checkedCounts = [];
+            $keyTables = [
+                'migrations',
+                'users',
+                'accounts',
+                'whatsapp_connections',
+                'whatsapp_contacts',
+                'whatsapp_conversations',
+                'whatsapp_messages',
+                'app_notifications',
+            ];
+
+            foreach ($keyTables as $table) {
+                if (! DB::getSchemaBuilder()->hasTable($table) || ! $restoredTables->contains($table)) {
+                    continue;
+                }
+
+                $productionCount = DB::table($table)->count();
+                $count = $run($mysql.' --batch --skip-column-names '.escapeshellarg($drillDatabase).' --execute='.escapeshellarg("SELECT COUNT(*) FROM `{$table}`"), 120);
+
+                if (! $count->isSuccessful()) {
+                    throw new \RuntimeException(trim($count->getErrorOutput() ?: $count->getOutput()) ?: "Could not count restored table {$table}.");
+                }
+
+                $restoredCount = (int) trim($count->getOutput());
+                if ($productionCount !== $restoredCount) {
+                    throw new \RuntimeException("Restore drill count mismatch for {$table}: production={$productionCount}, restored={$restoredCount}.");
+                }
+
+                $checkedCounts[$table] = $restoredCount;
+            }
+
+            return [
+                'passed' => true,
+                'database' => $drillDatabase,
+                'restored_tables' => $restoredTables->count(),
+                'checked_counts' => $checkedCounts,
+                'dropped_after_check' => true,
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'passed' => false,
+                'database' => $drillDatabase,
+                'error' => $e->getMessage(),
+                'dropped_after_check' => $created,
+            ];
+        } finally {
+            if ($created) {
+                $run($mysql.' --execute='.escapeshellarg("DROP DATABASE IF EXISTS `{$drillDatabase}`"), 120);
+            }
+            if ($defaultsPath && File::exists($defaultsPath)) {
+                File::delete($defaultsPath);
+            }
+        }
+    }
+
+    protected function writeMysqlDefaultsFile(string $host, string $port, string $username, string $password): string
+    {
+        $path = storage_path('framework/cache/mysql-client-'.bin2hex(random_bytes(8)).'.cnf');
+        File::ensureDirectoryExists(dirname($path));
+        File::put($path, implode("\n", [
+            '[client]',
+            'host='.$this->mysqlDefaultsValue($host),
+            'port='.$this->mysqlDefaultsValue($port),
+            'user='.$this->mysqlDefaultsValue($username),
+            'password='.$this->mysqlDefaultsValue($password),
+            '',
+        ]));
+        @chmod($path, 0600);
+
+        return $path;
+    }
+
+    protected function mysqlDefaultsValue(string $value): string
+    {
+        return '"'.str_replace(['\\', '"'], ['\\\\', '\\"'], $value).'"';
+    }
+
+    protected function readGzipSample(string $absolutePath): string
+    {
+        $handle = @gzopen($absolutePath, 'rb');
+        if (! $handle) {
+            return '';
+        }
+
+        $sample = (string) gzread($handle, 4096);
+        gzclose($handle);
+
+        return $sample;
     }
 
     protected function pruneBackupFiles(): void
@@ -270,7 +455,7 @@ class OpsMaintenanceService
             ->get();
 
         foreach ($oldBackups as $backup) {
-            $absolutePath = storage_path('app/' . ltrim((string) $backup->path, '/'));
+            $absolutePath = storage_path('app/'.ltrim((string) $backup->path, '/'));
             if (File::exists($absolutePath)) {
                 File::delete($absolutePath);
             }

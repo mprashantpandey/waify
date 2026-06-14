@@ -7,6 +7,7 @@ use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class WhatsAppClient
 {
@@ -26,12 +27,14 @@ class WhatsAppClient
     {
         $rateLimitKey = "whatsapp_api_rate_limit:connection:{$connection->id}";
         $requests = Cache::get($rateLimitKey, 0);
-        
-        // Allow max 100 requests per minute per connection
-        if ($requests >= 100) {
-            $ttl = Cache::get($rateLimitKey . ':ttl', 60);
+        $maxRequests = $connection->connection_mode === 'baileys_qr'
+            ? max(1, min((int) ($connection->throughput_cap_per_minute ?: 15), 60))
+            : 100;
+
+        if ($requests >= $maxRequests) {
+            $ttl = Cache::get($rateLimitKey.':ttl', 60);
             throw new WhatsAppApiException(
-                "Rate limit exceeded: Maximum 100 API requests per minute for this connection. Please wait {$ttl} seconds.",
+                "Rate limit exceeded: Maximum {$maxRequests} requests per minute for this connection. Please wait {$ttl} seconds.",
                 [],
                 429
             );
@@ -39,7 +42,7 @@ class WhatsAppClient
 
         // Increment counter
         Cache::put($rateLimitKey, $requests + 1, 60);
-        Cache::put($rateLimitKey . ':ttl', 60 - (now()->second), 60);
+        Cache::put($rateLimitKey.':ttl', 60 - (now()->second), 60);
     }
 
     /**
@@ -48,12 +51,34 @@ class WhatsAppClient
     public function sendTextMessage(
         WhatsAppConnection $connection,
         string $toWaId,
-        string $messageText
+        string $messageText,
+        ?string $replyToMessageId = null
     ): array {
+        if ($connection->connection_mode === 'baileys_qr') {
+            try {
+                $this->checkRateLimit($connection);
+                $response = app(BaileysBridgeClient::class)->sendText($connection, $toWaId, $messageText);
+
+                return [
+                    'messages' => [
+                        ['id' => $response['message_id'] ?? ('baileys-'.Str::uuid()->toString())],
+                    ],
+                    'baileys' => $response,
+                ];
+            } catch (\Throwable $e) {
+                throw new WhatsAppApiException(
+                    "WhatsApp QR bridge error: {$e->getMessage()}",
+                    [],
+                    0,
+                    $e
+                );
+            }
+        }
+
         $url = sprintf(
             '%s/%s/%s/messages',
             $this->baseUrl,
-            $connection->api_version ?: config('whatsapp.meta.api_version', 'v21.0'),
+            $connection->api_version ?: config('whatsapp.meta.api_version', 'v25.0'),
             $connection->phone_number_id
         );
 
@@ -66,6 +91,10 @@ class WhatsAppClient
                 'preview_url' => false,
                 'body' => $messageText]];
 
+        if ($replyToMessageId) {
+            $payload['context'] = ['message_id' => $replyToMessageId];
+        }
+
         try {
             // Check rate limit before making API call
             $this->checkRateLimit($connection);
@@ -75,7 +104,7 @@ class WhatsAppClient
 
             $responseData = $response->json();
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 $errorMessage = $responseData['error']['message'] ?? 'Unknown error from WhatsApp API';
                 $errorCode = $responseData['error']['code'] ?? $response->status();
 
@@ -85,7 +114,7 @@ class WhatsAppClient
                         'connection_id' => $connection->id,
                         'phone_number_id' => $connection->phone_number_id]);
                     throw new WhatsAppApiException(
-                        "Rate limit exceeded. Please wait before sending more messages.",
+                        'Rate limit exceeded. Please wait before sending more messages.',
                         $responseData,
                         $errorCode
                     );
@@ -125,6 +154,83 @@ class WhatsAppClient
         }
     }
 
+    public function checkCallPermission(WhatsAppConnection $connection, string $toWaId): array
+    {
+        $url = sprintf(
+            '%s/%s/%s/call_permissions',
+            $this->baseUrl,
+            $connection->api_version ?: config('whatsapp.meta.api_version', 'v25.0'),
+            $connection->phone_number_id
+        );
+
+        $this->checkRateLimit($connection);
+
+        $response = Http::withToken($connection->access_token)
+            ->get($url, ['user_wa_id' => $toWaId]);
+
+        $data = $response->json();
+        if (! $response->successful()) {
+            $errorMessage = $data['error']['message'] ?? 'Call permission check failed';
+            throw new WhatsAppApiException("WhatsApp Calling API error: {$errorMessage}", $data, $response->status());
+        }
+
+        return $data ?: [];
+    }
+
+    public function sendCallPermissionRequest(WhatsAppConnection $connection, string $toWaId, string $bodyText): array
+    {
+        $url = sprintf(
+            '%s/%s/%s/messages',
+            $this->baseUrl,
+            $connection->api_version ?: config('whatsapp.meta.api_version', 'v25.0'),
+            $connection->phone_number_id
+        );
+
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'recipient_type' => 'individual',
+            'to' => $toWaId,
+            'type' => 'interactive',
+            'interactive' => [
+                'type' => 'call_permission_request',
+                'body' => ['text' => $bodyText],
+                'action' => ['name' => 'call_permission_request'],
+            ],
+        ];
+
+        $this->checkRateLimit($connection);
+
+        $response = Http::withToken($connection->access_token)->post($url, $payload);
+        $data = $response->json();
+        if (! $response->successful()) {
+            $errorMessage = $data['error']['message'] ?? 'Call permission request failed';
+            throw new WhatsAppApiException("WhatsApp Calling API error: {$errorMessage}", $data, $response->status());
+        }
+
+        return $data ?: [];
+    }
+
+    public function manageCall(WhatsAppConnection $connection, array $payload): array
+    {
+        $url = sprintf(
+            '%s/%s/%s/calls',
+            $this->baseUrl,
+            $connection->api_version ?: config('whatsapp.meta.api_version', 'v25.0'),
+            $connection->phone_number_id
+        );
+
+        $this->checkRateLimit($connection);
+
+        $response = Http::withToken($connection->access_token)->post($url, $payload);
+        $data = $response->json();
+        if (! $response->successful()) {
+            $errorMessage = $data['error']['message'] ?? 'Call action failed';
+            throw new WhatsAppApiException("WhatsApp Calling API error: {$errorMessage}", $data, $response->status());
+        }
+
+        return $data ?: ['success' => true];
+    }
+
     /**
      * Send a template message via WhatsApp Cloud API.
      */
@@ -135,10 +241,36 @@ class WhatsAppClient
         string $language,
         array $components = []
     ): array {
+        if ($connection->connection_mode === 'baileys_qr') {
+            try {
+                $this->checkRateLimit($connection);
+                $response = app(BaileysBridgeClient::class)->sendText(
+                    $connection,
+                    $toWaId,
+                    $this->formatTemplateFallbackText($templateName, $components)
+                );
+
+                return [
+                    'messages' => [
+                        ['id' => $response['message_id'] ?? ('baileys-'.Str::uuid()->toString())],
+                    ],
+                    'baileys' => $response,
+                    'fallback' => 'template_as_text',
+                ];
+            } catch (\Throwable $e) {
+                throw new WhatsAppApiException(
+                    "WhatsApp QR bridge error: {$e->getMessage()}",
+                    [],
+                    0,
+                    $e
+                );
+            }
+        }
+
         $url = sprintf(
             '%s/%s/%s/messages',
             $this->baseUrl,
-            $connection->api_version ?: config('whatsapp.meta.api_version', 'v21.0'),
+            $connection->api_version ?: config('whatsapp.meta.api_version', 'v25.0'),
             $connection->phone_number_id
         );
 
@@ -162,7 +294,7 @@ class WhatsAppClient
 
             $responseData = $response->json();
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 $errorMessage = $responseData['error']['message'] ?? 'Unknown error from WhatsApp API';
                 $errorCode = $responseData['error']['code'] ?? $response->status();
 
@@ -173,7 +305,7 @@ class WhatsAppClient
                         'phone_number_id' => $connection->phone_number_id,
                         'template_name' => $templateName]);
                     throw new WhatsAppApiException(
-                        "Rate limit exceeded. Please wait before sending more messages.",
+                        'Rate limit exceeded. Please wait before sending more messages.',
                         $responseData,
                         $errorCode
                     );
@@ -217,7 +349,7 @@ class WhatsAppClient
     }
 
     /**
-     * Send a media message (image/video/document) via WhatsApp Cloud API.
+     * Send a media message (image/video/document/audio) via WhatsApp Cloud API.
      */
     public function sendMediaMessage(
         WhatsAppConnection $connection,
@@ -227,15 +359,36 @@ class WhatsAppClient
         ?string $caption = null,
         ?string $filename = null
     ): array {
+        if ($connection->connection_mode === 'baileys_qr') {
+            try {
+                $this->checkRateLimit($connection);
+                $response = app(BaileysBridgeClient::class)->sendMedia($connection, $toWaId, $type, $link, $caption, $filename);
+
+                return [
+                    'messages' => [
+                        ['id' => $response['message_id'] ?? ('baileys-'.Str::uuid()->toString())],
+                    ],
+                    'baileys' => $response,
+                ];
+            } catch (\Throwable $e) {
+                throw new WhatsAppApiException(
+                    "WhatsApp QR bridge error: {$e->getMessage()}",
+                    [],
+                    0,
+                    $e
+                );
+            }
+        }
+
         $url = sprintf(
             '%s/%s/%s/messages',
             $this->baseUrl,
-            $connection->api_version ?: config('whatsapp.meta.api_version', 'v21.0'),
+            $connection->api_version ?: config('whatsapp.meta.api_version', 'v25.0'),
             $connection->phone_number_id
         );
 
         $mediaPayload = ['link' => $link];
-        if ($caption) {
+        if ($caption && in_array($type, ['image', 'video', 'document'], true)) {
             $mediaPayload['caption'] = $caption;
         }
         if ($type === 'document' && $filename) {
@@ -257,7 +410,7 @@ class WhatsAppClient
 
             $responseData = $response->json();
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 $errorMessage = $responseData['error']['message'] ?? 'Unknown error from WhatsApp API';
                 $errorCode = $responseData['error']['code'] ?? $response->status();
 
@@ -298,6 +451,270 @@ class WhatsAppClient
         }
     }
 
+    public function uploadMedia(WhatsAppConnection $connection, \SplFileInfo|string $file, ?string $filename = null, ?string $mimeType = null): array
+    {
+        $url = sprintf(
+            '%s/%s/%s/media',
+            $this->baseUrl,
+            $connection->api_version ?: config('whatsapp.meta.api_version', 'v25.0'),
+            $connection->phone_number_id
+        );
+
+        $path = $file instanceof \SplFileInfo ? $file->getPathname() : $file;
+        if (! is_string($path) || ! is_file($path)) {
+            throw new WhatsAppApiException('Invalid media file.', [], 400);
+        }
+
+        $filename ??= basename($path);
+
+        $this->checkRateLimit($connection);
+
+        $headers = [];
+        if ($mimeType) {
+            $headers['Content-Type'] = $mimeType;
+        }
+
+        $handle = fopen($path, 'r');
+        if ($handle === false) {
+            throw new WhatsAppApiException('Unable to read media file for upload.', [], 400);
+        }
+
+        try {
+            $response = Http::withToken($connection->access_token)
+                ->attach('file', $handle, $filename, $headers)
+                ->post($url, [
+                    'messaging_product' => 'whatsapp',
+                ]);
+        } finally {
+            fclose($handle);
+        }
+
+        $data = $response->json();
+        if (! $response->successful() || empty($data['id'])) {
+            throw new WhatsAppApiException(
+                $data['error']['message'] ?? $data['error']['error_user_msg'] ?? 'Failed to upload WhatsApp media.',
+                $data ?: [],
+                $response->status()
+            );
+        }
+
+        return $data;
+    }
+
+    public function sendUploadedMediaMessage(
+        WhatsAppConnection $connection,
+        string $toWaId,
+        string $type,
+        string $mediaId,
+        ?string $caption = null,
+        ?string $filename = null,
+        bool $voice = false,
+        ?string $replyToMessageId = null
+    ): array {
+        $mediaPayload = ['id' => $mediaId];
+        if ($caption && in_array($type, ['image', 'video', 'document'], true)) {
+            $mediaPayload['caption'] = $caption;
+        }
+        if ($type === 'document' && $filename) {
+            $mediaPayload['filename'] = $filename;
+        }
+        if ($type === 'audio' && $voice) {
+            $mediaPayload['voice'] = true;
+        }
+
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'recipient_type' => 'individual',
+            'to' => $toWaId,
+            'type' => $type,
+            $type => $mediaPayload,
+        ];
+
+        if ($replyToMessageId) {
+            $payload['context'] = ['message_id' => $replyToMessageId];
+        }
+
+        return $this->postMessagePayload($connection, $payload, 'uploaded media');
+    }
+
+    public function getMediaUrl(WhatsAppConnection $connection, string $mediaId): array
+    {
+        $url = sprintf(
+            '%s/%s/%s',
+            $this->baseUrl,
+            $connection->api_version ?: config('whatsapp.meta.api_version', 'v25.0'),
+            $mediaId
+        );
+
+        $this->checkRateLimit($connection);
+
+        $response = Http::withToken($connection->access_token)->get($url);
+        $data = $response->json();
+        if (! $response->successful() || empty($data['url'])) {
+            throw new WhatsAppApiException(
+                $data['error']['message'] ?? 'Failed to fetch WhatsApp media URL.',
+                $data ?: [],
+                $response->status()
+            );
+        }
+
+        return $data;
+    }
+
+    public function downloadMedia(WhatsAppConnection $connection, string $mediaId): array
+    {
+        $media = $this->getMediaUrl($connection, $mediaId);
+        $url = $media['url'] ?? null;
+        if (! $url) {
+            throw new WhatsAppApiException('Meta did not return a media download URL.', $media, 404);
+        }
+
+        $this->checkRateLimit($connection);
+
+        $response = Http::withToken($connection->access_token)->get($url);
+        if (! $response->successful()) {
+            $data = $response->json();
+            throw new WhatsAppApiException(
+                $data['error']['message'] ?? 'Failed to download WhatsApp media.',
+                is_array($data) ? $data : [],
+                $response->status()
+            );
+        }
+
+        return [
+            'body' => $response->body(),
+            'mime_type' => $response->header('Content-Type') ?: ($media['mime_type'] ?? 'application/octet-stream'),
+            'sha256' => $media['sha256'] ?? null,
+            'file_size' => $media['file_size'] ?? strlen($response->body()),
+            'url' => $url,
+            'meta' => $media,
+        ];
+    }
+
+    public function markMessageAsRead(WhatsAppConnection $connection, string $metaMessageId): array
+    {
+        if ($connection->connection_mode === 'baileys_qr') {
+            return [
+                'ok' => true,
+                'skipped' => true,
+                'reason' => 'Read receipts are not sent through WhatsApp QR sessions.',
+            ];
+        }
+
+        return $this->postMessagePayload($connection, [
+            'messaging_product' => 'whatsapp',
+            'status' => 'read',
+            'message_id' => $metaMessageId,
+            'typing_indicator' => [
+                'type' => 'text',
+            ],
+        ], 'read receipt');
+    }
+
+    public function sendReactionMessage(
+        WhatsAppConnection $connection,
+        string $toWaId,
+        string $targetMetaMessageId,
+        string $emoji
+    ): array {
+        return $this->postMessagePayload($connection, [
+            'messaging_product' => 'whatsapp',
+            'recipient_type' => 'individual',
+            'to' => $toWaId,
+            'type' => 'reaction',
+            'reaction' => [
+                'message_id' => $targetMetaMessageId,
+                'emoji' => $emoji,
+            ],
+        ], 'reaction message');
+    }
+
+    public function sendContactsMessage(
+        WhatsAppConnection $connection,
+        string $toWaId,
+        array $contacts
+    ): array {
+        return $this->postMessagePayload($connection, [
+            'messaging_product' => 'whatsapp',
+            'recipient_type' => 'individual',
+            'to' => $toWaId,
+            'type' => 'contacts',
+            'contacts' => $contacts,
+        ], 'contacts message');
+    }
+
+    public function sendCtaUrlMessage(
+        WhatsAppConnection $connection,
+        string $toWaId,
+        string $bodyText,
+        string $displayText,
+        string $url,
+        ?string $headerText = null,
+        ?string $footerText = null
+    ): array {
+        $interactive = [
+            'type' => 'cta_url',
+            'body' => ['text' => $bodyText],
+            'action' => [
+                'name' => 'cta_url',
+                'parameters' => [
+                    'display_text' => $displayText,
+                    'url' => $url,
+                ],
+            ],
+        ];
+
+        if ($headerText) {
+            $interactive['header'] = ['type' => 'text', 'text' => $headerText];
+        }
+
+        if ($footerText) {
+            $interactive['footer'] = ['text' => $footerText];
+        }
+
+        return $this->postMessagePayload($connection, [
+            'messaging_product' => 'whatsapp',
+            'recipient_type' => 'individual',
+            'to' => $toWaId,
+            'type' => 'interactive',
+            'interactive' => $interactive,
+        ], 'CTA URL message');
+    }
+
+    public function setUserBlockState(WhatsAppConnection $connection, string $waId, bool $blocked = true): array
+    {
+        $url = sprintf(
+            '%s/%s/%s/block_users',
+            $this->baseUrl,
+            $connection->api_version ?: config('whatsapp.meta.api_version', 'v25.0'),
+            $connection->phone_number_id
+        );
+
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'block_users' => [
+                ['user' => $waId],
+            ],
+        ];
+
+        $this->checkRateLimit($connection);
+
+        $response = $blocked
+            ? Http::withToken($connection->access_token)->post($url, $payload)
+            : Http::withToken($connection->access_token)->delete($url, $payload);
+
+        $data = $response->json();
+        if (! $response->successful()) {
+            throw new WhatsAppApiException(
+                $data['error']['message'] ?? ($blocked ? 'Failed to block WhatsApp user.' : 'Failed to unblock WhatsApp user.'),
+                $data ?: [],
+                $response->status()
+            );
+        }
+
+        return $data ?: ['success' => true];
+    }
+
     /**
      * Send a location message via WhatsApp Cloud API.
      */
@@ -309,7 +726,7 @@ class WhatsAppClient
         $url = sprintf(
             '%s/%s/%s/messages',
             $this->baseUrl,
-            $connection->api_version ?: config('whatsapp.meta.api_version', 'v21.0'),
+            $connection->api_version ?: config('whatsapp.meta.api_version', 'v25.0'),
             $connection->phone_number_id
         );
 
@@ -332,7 +749,7 @@ class WhatsAppClient
 
             $responseData = $response->json();
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 $errorMessage = $responseData['error']['message'] ?? 'Unknown error from WhatsApp API';
                 $errorCode = $responseData['error']['code'] ?? $response->status();
 
@@ -385,7 +802,7 @@ class WhatsAppClient
         $url = sprintf(
             '%s/%s/%s/messages',
             $this->baseUrl,
-            $connection->api_version ?: config('whatsapp.meta.api_version', 'v21.0'),
+            $connection->api_version ?: config('whatsapp.meta.api_version', 'v25.0'),
             $connection->phone_number_id
         );
 
@@ -425,7 +842,7 @@ class WhatsAppClient
 
             $responseData = $response->json();
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 $errorMessage = $responseData['error']['message'] ?? 'Unknown error from WhatsApp API';
                 $errorCode = $responseData['error']['code'] ?? $response->status();
 
@@ -477,7 +894,7 @@ class WhatsAppClient
         $url = sprintf(
             '%s/%s/%s/messages',
             $this->baseUrl,
-            $connection->api_version ?: config('whatsapp.meta.api_version', 'v21.0'),
+            $connection->api_version ?: config('whatsapp.meta.api_version', 'v25.0'),
             $connection->phone_number_id
         );
 
@@ -532,7 +949,7 @@ class WhatsAppClient
 
             $responseData = $response->json();
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 $errorMessage = $responseData['error']['message'] ?? 'Unknown error from WhatsApp API';
                 $errorCode = $responseData['error']['code'] ?? $response->status();
 
@@ -568,6 +985,187 @@ class WhatsAppClient
                 $e
             );
         }
+    }
+
+    public function sendFlowMessage(
+        WhatsAppConnection $connection,
+        string $toWaId,
+        string $flowId,
+        string $bodyText,
+        string $cta,
+        ?string $headerText = null,
+        ?string $footerText = null,
+        string $flowToken = '',
+        string $flowAction = 'navigate',
+        ?string $screen = null
+    ): array {
+        $interactive = [
+            'type' => 'flow',
+            'body' => ['text' => $bodyText],
+            'action' => [
+                'name' => 'flow',
+                'parameters' => array_filter([
+                    'flow_message_version' => '3',
+                    'flow_token' => $flowToken !== '' ? $flowToken : Str::uuid()->toString(),
+                    'flow_id' => $flowId,
+                    'flow_cta' => $cta,
+                    'flow_action' => $flowAction,
+                    'flow_action_payload' => $screen ? ['screen' => $screen] : null,
+                ], fn ($value) => $value !== null),
+            ],
+        ];
+
+        if ($headerText) {
+            $interactive['header'] = ['type' => 'text', 'text' => $headerText];
+        }
+
+        if ($footerText) {
+            $interactive['footer'] = ['text' => $footerText];
+        }
+
+        return $this->postMessagePayload($connection, [
+            'messaging_product' => 'whatsapp',
+            'recipient_type' => 'individual',
+            'to' => $toWaId,
+            'type' => 'interactive',
+            'interactive' => $interactive,
+        ], 'flow message');
+    }
+
+    public function sendProductMessage(
+        WhatsAppConnection $connection,
+        string $toWaId,
+        string $catalogId,
+        string $productRetailerId,
+        ?string $bodyText = null,
+        ?string $footerText = null
+    ): array {
+        $interactive = [
+            'type' => 'product',
+            'action' => [
+                'catalog_id' => $catalogId,
+                'product_retailer_id' => $productRetailerId,
+            ],
+        ];
+
+        if ($bodyText) {
+            $interactive['body'] = ['text' => $bodyText];
+        }
+        if ($footerText) {
+            $interactive['footer'] = ['text' => $footerText];
+        }
+
+        return $this->postMessagePayload($connection, [
+            'messaging_product' => 'whatsapp',
+            'recipient_type' => 'individual',
+            'to' => $toWaId,
+            'type' => 'interactive',
+            'interactive' => $interactive,
+        ], 'product message');
+    }
+
+    public function sendProductListMessage(
+        WhatsAppConnection $connection,
+        string $toWaId,
+        string $catalogId,
+        array $sections,
+        string $bodyText,
+        ?string $headerText = null,
+        ?string $footerText = null
+    ): array {
+        $interactive = [
+            'type' => 'product_list',
+            'body' => ['text' => $bodyText],
+            'action' => [
+                'catalog_id' => $catalogId,
+                'sections' => $sections,
+            ],
+        ];
+
+        if ($headerText) {
+            $interactive['header'] = ['type' => 'text', 'text' => $headerText];
+        }
+        if ($footerText) {
+            $interactive['footer'] = ['text' => $footerText];
+        }
+
+        return $this->postMessagePayload($connection, [
+            'messaging_product' => 'whatsapp',
+            'recipient_type' => 'individual',
+            'to' => $toWaId,
+            'type' => 'interactive',
+            'interactive' => $interactive,
+        ], 'product list message');
+    }
+
+    protected function postMessagePayload(WhatsAppConnection $connection, array $payload, string $operation): array
+    {
+        if ($connection->connection_mode === 'baileys_qr') {
+            throw new WhatsAppApiException(
+                "WhatsApp QR sessions do not support {$operation} through the official Meta API. Send a text or media message instead.",
+                [],
+                422
+            );
+        }
+
+        $url = sprintf(
+            '%s/%s/%s/messages',
+            $this->baseUrl,
+            $connection->api_version ?: config('whatsapp.meta.api_version', 'v25.0'),
+            $connection->phone_number_id
+        );
+
+        try {
+            $this->checkRateLimit($connection);
+
+            $response = Http::withToken($connection->access_token)->post($url, $payload);
+            $responseData = $response->json();
+
+            if (! $response->successful()) {
+                throw new WhatsAppApiException(
+                    $responseData['error']['message'] ?? "WhatsApp API {$operation} failed.",
+                    $responseData ?: [],
+                    $response->status()
+                );
+            }
+
+            return $responseData ?: ['success' => true];
+        } catch (WhatsAppApiException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            throw new WhatsAppApiException(
+                "Failed to perform WhatsApp {$operation}: {$e->getMessage()}",
+                [],
+                0,
+                $e
+            );
+        }
+    }
+
+    protected function formatTemplateFallbackText(string $templateName, array $components): string
+    {
+        $values = [];
+
+        foreach ($components as $component) {
+            foreach (($component['parameters'] ?? []) as $parameter) {
+                $value = $parameter['text']
+                    ?? $parameter['payload']
+                    ?? $parameter['image']['link']
+                    ?? $parameter['document']['link']
+                    ?? $parameter['video']['link']
+                    ?? null;
+
+                if (is_scalar($value) && trim((string) $value) !== '') {
+                    $values[] = trim((string) $value);
+                }
+            }
+        }
+
+        if ($values === []) {
+            return "Template: {$templateName}";
+        }
+
+        return "Template: {$templateName}\n".implode("\n", $values);
     }
 
     /**

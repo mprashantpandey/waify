@@ -3,13 +3,14 @@
 namespace App\Http\Controllers\Platform;
 
 use App\Http\Controllers\Controller;
+use App\Models\PlatformSetting;
 use App\Modules\Support\Events\SupportMessageCreated;
 use App\Modules\Support\Models\SupportMessage;
 use App\Modules\Support\Models\SupportThread;
+use App\Notifications\SupportAgentReplied;
 use App\Services\AI\SupportAssistantService;
 use App\Services\NotificationDispatchService;
-use App\Notifications\SupportAgentReplied;
-use App\Models\PlatformSetting;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -18,170 +19,95 @@ class SupportController extends Controller
 {
     public function index(Request $request): Response
     {
-        $threads = SupportThread::with('account.owner', 'assignee')
+        $this->escalateOverdue();
+
+        $perPage = min(50, max(10, (int) $request->integer('per_page', 15)));
+
+        $query = SupportThread::with('account.owner', 'assignee')
+            ->when($request->filled('q'), function ($query) use ($request) {
+                $search = '%'.(string) $request->string('q')->trim().'%';
+                $query->where(function ($inner) use ($search) {
+                    $inner->where('subject', 'like', $search)
+                        ->orWhereHas('account', fn ($account) => $account->where('name', 'like', $search));
+                });
+            })
+            ->when($request->filled('status') && $request->input('status') !== 'all', function ($query) use ($request) {
+                if ($request->input('status') === 'closed') {
+                    $query->whereIn('status', ['closed', 'resolved']);
+
+                    return;
+                }
+
+                if ($request->input('status') === 'open') {
+                    $query->whereNotIn('status', ['closed', 'resolved']);
+
+                    return;
+                }
+
+                $query->where('status', $request->input('status'));
+            });
+
+        $threads = $query
             ->orderByDesc('last_message_at')
             ->orderByDesc('created_at')
-            ->get()
-            ->map(function (SupportThread $thread) {
-                return [
-                    'id' => $thread->id,
-                    'slug' => $thread->slug ?? (string) $thread->id,
-                    'subject' => $thread->subject,
-                    'status' => $thread->status,
-                    'mode' => $thread->mode ?? 'bot',
-                    'channel' => $thread->channel ?? 'ticket',
-                    'priority' => $thread->priority ?? 'normal',
-                    'category' => $thread->category,
-                    'tags' => $thread->tags ?? [],
-                    'due_at' => $thread->due_at?->toIso8601String(),
-                    'first_response_due_at' => $thread->first_response_due_at?->toIso8601String(),
-                    'escalation_level' => $thread->escalation_level ?? 0,
-                    'assigned_to' => $thread->assigned_to,
-                    'assignee' => $thread->assignee ? [
-                        'id' => $thread->assignee->id,
-                        'name' => $thread->assignee->name,
-                        'email' => $thread->assignee->email] : null,
-                    'account' => [
-                        'id' => $thread->account?->id,
-                        'name' => $thread->account?->name,
-                        'slug' => $thread->account?->slug,
-                        'owner' => [
-                            'id' => $thread->account?->owner?->id,
-                            'name' => $thread->account?->owner?->name,
-                            'email' => $thread->account?->owner?->email]],
-                    'last_message_at' => $thread->last_message_at?->toIso8601String(),
-                    'created_at' => $thread->created_at->toIso8601String()];
-            });
+            ->paginate($perPage)
+            ->withQueryString()
+            ->through(fn (SupportThread $thread) => $this->serializeThread($thread));
+
+        $selectedThread = null;
+        $messages = collect();
+        $auditLogs = [];
+        if ($request->filled('ticket')) {
+            $selected = SupportThread::resolveThread($request->input('ticket'));
+            if ($selected) {
+                $selected->load('account.owner', 'assignee');
+                $selectedThread = $this->serializeThread($selected);
+                $messages = $this->messages($selected);
+                $auditLogs = $this->auditLogs($selected->id);
+            }
+        }
 
         return Inertia::render('Platform/Support/Index', [
-            'threads' => $threads]);
-    }
-
-    public function show(Request $request, $thread): Response
-    {
-        $this->escalateOverdue();
-        $thread = SupportThread::resolveThread($thread);
-        if (!$thread) {
-            abort(404);
-        }
-        $thread->load('account.owner', 'assignee');
-
-        $messages = SupportMessage::where('support_thread_id', $thread->id)
-            ->orderBy('created_at')
-            ->get()
-            ->map(function (SupportMessage $message) {
-                $message->loadMissing('attachments');
-                return [
-                    'id' => $message->id,
-                    'sender_type' => $message->sender_type,
-                    'sender_id' => $message->sender_id,
-                    'body' => $message->body,
-                    'created_at' => $message->created_at->toIso8601String(),
-                    'attachments' => $message->attachments->map(function ($attachment) {
-                        return [
-                            'id' => $attachment->id,
-                            'file_name' => $attachment->file_name,
-                            'mime_type' => $attachment->mime_type,
-                            'file_size' => $attachment->file_size,
-                            'url' => route('support.attachments.show', ['attachment' => $attachment->id])];
-                    })->values()];
-            });
-
-        return Inertia::render('Platform/Support/Show', [
-            'thread' => [
-                'id' => $thread->id,
-                'slug' => $thread->slug ?? (string) $thread->id,
-                'subject' => $thread->subject,
-                'status' => $thread->status,
-                'mode' => $thread->mode ?? 'bot',
-                'channel' => $thread->channel ?? 'ticket',
-                'priority' => $thread->priority ?? 'normal',
-                'category' => $thread->category,
-                'tags' => $thread->tags ?? [],
-                'due_at' => $thread->due_at?->toIso8601String(),
-                'first_response_due_at' => $thread->first_response_due_at?->toIso8601String(),
-                'escalation_level' => $thread->escalation_level ?? 0,
-                'assigned_to' => $thread->assigned_to,
-                'assignee' => $thread->assignee ? [
-                    'id' => $thread->assignee->id,
-                    'name' => $thread->assignee->name,
-                    'email' => $thread->assignee->email] : null,
-                'created_at' => $thread->created_at->toIso8601String(),
-                'account' => [
-                    'id' => $thread->account?->id,
-                    'name' => $thread->account?->name,
-                    'slug' => $thread->account?->slug,
-                    'owner' => [
-                        'id' => $thread->account?->owner?->id,
-                        'name' => $thread->account?->owner?->name,
-                        'email' => $thread->account?->owner?->email]]],
+            'threads' => $threads,
+            'filters' => [
+                'q' => $request->input('q', ''),
+                'status' => $request->input('status', 'all'),
+                'per_page' => $perPage],
+            'stats' => [
+                'total' => SupportThread::count(),
+                'open' => SupportThread::whereNotIn('status', ['closed', 'resolved'])->count(),
+                'closed' => SupportThread::whereIn('status', ['closed', 'resolved'])->count(),
+                'urgent' => SupportThread::where('priority', 'urgent')->count()],
+            'selectedThread' => $selectedThread,
             'messages' => $messages,
             'admins' => $this->platformAdmins(),
-            'auditLogs' => $this->auditLogs($thread->id)]);
+            'auditLogs' => $auditLogs]);
     }
 
-    public function hub(Request $request): Response
+    public function show(Request $request, $thread): RedirectResponse
     {
-        $this->escalateOverdue();
-        $threads = SupportThread::with('account.owner', 'assignee')
-            ->orderByDesc('last_message_at')
-            ->orderByDesc('created_at')
-            ->get()
-            ->map(function (SupportThread $thread) {
-                return [
-                    'id' => $thread->id,
-                    'slug' => $thread->slug ?? (string) $thread->id,
-                    'subject' => $thread->subject,
-                    'status' => $thread->status,
-                    'mode' => $thread->mode ?? 'bot',
-                    'channel' => $thread->channel ?? 'ticket',
-                    'priority' => $thread->priority ?? 'normal',
-                    'category' => $thread->category,
-                    'tags' => $thread->tags ?? [],
-                    'due_at' => $thread->due_at?->toIso8601String(),
-                    'first_response_due_at' => $thread->first_response_due_at?->toIso8601String(),
-                    'escalation_level' => $thread->escalation_level ?? 0,
-                    'assigned_to' => $thread->assigned_to,
-                    'assignee' => $thread->assignee ? [
-                        'id' => $thread->assignee->id,
-                        'name' => $thread->assignee->name,
-                        'email' => $thread->assignee->email] : null,
-                    'account' => [
-                        'id' => $thread->account?->id,
-                        'name' => $thread->account?->name,
-                        'slug' => $thread->account?->slug,
-                        'owner' => [
-                            'id' => $thread->account?->owner?->id,
-                            'name' => $thread->account?->owner?->name,
-                            'email' => $thread->account?->owner?->email]],
-                    'last_message_at' => $thread->last_message_at?->toIso8601String(),
-                    'created_at' => $thread->created_at->toIso8601String()];
-            });
+        $thread = SupportThread::resolveThread($thread);
+        if (! $thread) {
+            abort(404);
+        }
 
-        $openThreads = $threads->filter(fn ($thread) => in_array($thread['status'], ['open', 'pending'], true) && ($thread['channel'] ?? 'ticket') === 'ticket')->values();
-        $closedThreads = $threads->filter(fn ($thread) => $thread['status'] === 'closed')->values();
-        $liveThreads = $threads->filter(fn ($thread) => ($thread['channel'] ?? 'ticket') === 'live' && $thread['status'] === 'open')->values();
+        return redirect()->route('platform.support.index', ['ticket' => $thread->slug ?? $thread->id]);
+    }
 
-        $faqs = $this->getFaqs();
-
-        return Inertia::render('Platform/Support/Hub', [
-            'threads' => $threads,
-            'openThreads' => $openThreads,
-            'closedThreads' => $closedThreads,
-            'liveThreads' => $liveThreads,
-            'faqs' => $faqs,
-            'admins' => $this->platformAdmins()]);
+    public function hub(Request $request): RedirectResponse
+    {
+        return redirect()->route('platform.support.index');
     }
 
     public function message(Request $request, $thread)
     {
         $thread = SupportThread::resolveThread($thread);
-        if (!$thread) {
+        if (! $thread) {
             abort(404);
         }
 
         $hasFiles = $request->hasFile('attachments');
-        if (!trim((string) $request->input('message')) && !$hasFiles) {
+        if (! trim((string) $request->input('message')) && ! $hasFiles) {
             return redirect()->back()->withErrors(['message' => 'Message or attachment is required.']);
         }
 
@@ -211,12 +137,12 @@ class SupportController extends Controller
 
     public function assistant(Request $request, $thread, SupportAssistantService $assistant)
     {
-        if (!PlatformSetting::get('ai.enabled', false)) {
+        if (! PlatformSetting::get('ai.enabled', false)) {
             return response()->json(['error' => 'AI assistant is disabled.'], 403);
         }
 
         $thread = SupportThread::resolveThread($thread);
-        if (!$thread) {
+        if (! $thread) {
             abort(404);
         }
         $thread->load('account');
@@ -239,190 +165,10 @@ class SupportController extends Controller
             'suggestion' => $suggestion]);
     }
 
-    public function live(Request $request)
-    {
-        $thread = SupportThread::with('account.owner')
-            ->where('channel', 'live')
-            ->orderByDesc('last_message_at')
-            ->orderByDesc('created_at')
-            ->first();
-
-        if (!$thread) {
-            return response()->json([
-                'thread' => null,
-                'messages' => []]);
-        }
-
-        $messages = SupportMessage::where('support_thread_id', $thread->id)
-            ->orderBy('created_at')
-            ->limit(50)
-            ->get()
-            ->map(function (SupportMessage $message) {
-                $message->loadMissing('attachments');
-                return [
-                    'id' => $message->id,
-                    'sender_type' => $message->sender_type,
-                    'sender_id' => $message->sender_id,
-                    'body' => $message->body,
-                    'created_at' => $message->created_at->toIso8601String(),
-                    'attachments' => $message->attachments->map(function ($attachment) {
-                        return [
-                            'id' => $attachment->id,
-                            'file_name' => $attachment->file_name,
-                            'mime_type' => $attachment->mime_type,
-                            'file_size' => $attachment->file_size,
-                            'url' => route('support.attachments.show', ['attachment' => $attachment->id])];
-                    })->values()];
-            });
-
-        return response()->json([
-            'thread' => [
-                'id' => $thread->id,
-                'slug' => $thread->slug ?? (string) $thread->id,
-                'subject' => $thread->subject,
-                'status' => $thread->status,
-                'mode' => $thread->mode ?? 'bot',
-                'channel' => $thread->channel ?? 'live',
-                'priority' => $thread->priority ?? 'normal',
-                'account' => [
-                    'id' => $thread->account?->id,
-                    'name' => $thread->account?->name,
-                    'slug' => $thread->account?->slug]],
-            'messages' => $messages]);
-    }
-
-    public function liveList(Request $request)
-    {
-        $threads = SupportThread::with('account.owner')
-            ->where('channel', 'live')
-            ->where('status', 'open')
-            ->orderByDesc('last_message_at')
-            ->limit(50)
-            ->get()
-            ->map(function (SupportThread $thread) {
-                return [
-                    'id' => $thread->id,
-                    'slug' => $thread->slug ?? (string) $thread->id,
-                    'subject' => $thread->subject,
-                    'status' => $thread->status,
-                    'mode' => $thread->mode ?? 'bot',
-                    'priority' => $thread->priority ?? 'normal',
-                    'last_message_at' => $thread->last_message_at?->toIso8601String(),
-                    'account' => [
-                        'id' => $thread->account?->id,
-                        'name' => $thread->account?->name,
-                        'slug' => $thread->account?->slug,
-                        'owner' => [
-                            'id' => $thread->account?->owner?->id,
-                            'name' => $thread->account?->owner?->name,
-                            'email' => $thread->account?->owner?->email]]];
-            });
-
-        return response()->json([
-            'threads' => $threads]);
-    }
-
-    public function liveThread(Request $request, $thread)
-    {
-        $thread = SupportThread::with('account.owner')
-            ->where('channel', 'live')
-            ->where(function ($query) use ($thread) {
-                $query->where('id', $thread)->orWhere('slug', $thread);
-            })
-            ->firstOrFail();
-
-        $messages = SupportMessage::where('support_thread_id', $thread->id)
-            ->orderBy('created_at')
-            ->limit(50)
-            ->get()
-            ->map(function (SupportMessage $message) {
-                $message->loadMissing('attachments');
-                return [
-                    'id' => $message->id,
-                    'sender_type' => $message->sender_type,
-                    'sender_id' => $message->sender_id,
-                    'body' => $message->body,
-                    'created_at' => $message->created_at->toIso8601String(),
-                    'attachments' => $message->attachments->map(function ($attachment) {
-                        return [
-                            'id' => $attachment->id,
-                            'file_name' => $attachment->file_name,
-                            'mime_type' => $attachment->mime_type,
-                            'file_size' => $attachment->file_size,
-                            'url' => route('support.attachments.show', ['attachment' => $attachment->id])];
-                    })->values()];
-            });
-
-        return response()->json([
-            'thread' => [
-                'id' => $thread->id,
-                'slug' => $thread->slug ?? (string) $thread->id,
-                'subject' => $thread->subject,
-                'status' => $thread->status,
-                'mode' => $thread->mode ?? 'bot',
-                'channel' => $thread->channel ?? 'live',
-                'priority' => $thread->priority ?? 'normal',
-                'account' => [
-                    'id' => $thread->account?->id,
-                    'name' => $thread->account?->name,
-                    'slug' => $thread->account?->slug]],
-            'messages' => $messages]);
-    }
-
-    public function liveMessage(Request $request)
-    {
-        $hasFiles = $request->hasFile('attachments');
-        if (!trim((string) $request->input('message')) && !$hasFiles) {
-            return response()->json(['error' => 'Message or attachment is required.'], 422);
-        }
-
-        $validated = $request->validate([
-            'message' => 'nullable|string|max:2000',
-            'thread_id' => 'required|string',
-            'attachments.*' => $this->attachmentRules()]);
-
-        $thread = SupportThread::resolveThread($validated['thread_id']);
-        if (!$thread) {
-            abort(404);
-        }
-
-        $body = trim((string) $request->input('message', ''));
-        $message = SupportMessage::create([
-            'support_thread_id' => $thread->id,
-            'sender_type' => 'admin',
-            'sender_id' => $request->user()->id,
-            'body' => $body]);
-        $this->storeAttachments($message, $request->file('attachments', []));
-
-        $thread->update([
-            'last_message_at' => now(),
-            'last_response_at' => now(),
-            'first_response_at' => $thread->first_response_at ?: now()]);
-        $message->load('thread');
-        event(new SupportMessageCreated($message));
-        $this->notifyCustomer($thread);
-
-        return response()->json([
-            'message' => [
-                'id' => $message->id,
-                'sender_type' => $message->sender_type,
-                'sender_id' => $message->sender_id,
-                'body' => $message->body,
-                'created_at' => $message->created_at->toIso8601String(),
-                'attachments' => $message->attachments->map(function ($attachment) {
-                    return [
-                        'id' => $attachment->id,
-                        'file_name' => $attachment->file_name,
-                        'mime_type' => $attachment->mime_type,
-                        'file_size' => $attachment->file_size,
-                        'url' => route('support.attachments.show', ['attachment' => $attachment->id])];
-                })->values()]]);
-    }
-
     public function close(Request $request, $thread)
     {
         $thread = SupportThread::resolveThread($thread);
-        if (!$thread) {
+        if (! $thread) {
             abort(404);
         }
         $thread->update([
@@ -444,7 +190,7 @@ class SupportController extends Controller
     public function update(Request $request, $thread)
     {
         $thread = SupportThread::resolveThread($thread);
-        if (!$thread) {
+        if (! $thread) {
             abort(404);
         }
 
@@ -471,7 +217,7 @@ class SupportController extends Controller
                 'support_thread_id' => $thread->id,
                 'sender_type' => 'system',
                 'sender_id' => null,
-                'body' => 'Ticket status updated to ' . $updates['status'] . '.']);
+                'body' => 'Ticket status updated to '.$updates['status'].'.']);
             $systemMessage->load('thread');
             event(new SupportMessageCreated($systemMessage));
         }
@@ -505,6 +251,63 @@ class SupportController extends Controller
                 'email' => $user->email])
             ->values()
             ->toArray();
+    }
+
+    protected function serializeThread(SupportThread $thread): array
+    {
+        return [
+            'id' => $thread->id,
+            'slug' => $thread->slug ?? (string) $thread->id,
+            'subject' => $thread->subject,
+            'status' => $thread->status,
+            'mode' => $thread->mode ?? 'bot',
+            'channel' => $thread->channel ?? 'ticket',
+            'priority' => $thread->priority ?? 'normal',
+            'category' => $thread->category,
+            'tags' => $thread->tags ?? [],
+            'due_at' => $thread->due_at?->toIso8601String(),
+            'first_response_due_at' => $thread->first_response_due_at?->toIso8601String(),
+            'escalation_level' => $thread->escalation_level ?? 0,
+            'assigned_to' => $thread->assigned_to,
+            'assignee' => $thread->assignee ? [
+                'id' => $thread->assignee->id,
+                'name' => $thread->assignee->name,
+                'email' => $thread->assignee->email] : null,
+            'account' => [
+                'id' => $thread->account?->id,
+                'name' => $thread->account?->name,
+                'slug' => $thread->account?->slug,
+                'owner' => [
+                    'id' => $thread->account?->owner?->id,
+                    'name' => $thread->account?->owner?->name,
+                    'email' => $thread->account?->owner?->email]],
+            'last_message_at' => $thread->last_message_at?->toIso8601String(),
+            'created_at' => $thread->created_at->toIso8601String()];
+    }
+
+    protected function messages(SupportThread $thread)
+    {
+        return SupportMessage::where('support_thread_id', $thread->id)
+            ->orderBy('created_at')
+            ->get()
+            ->map(function (SupportMessage $message) {
+                $message->loadMissing('attachments');
+
+                return [
+                    'id' => $message->id,
+                    'sender_type' => $message->sender_type,
+                    'sender_id' => $message->sender_id,
+                    'body' => $message->body,
+                    'created_at' => $message->created_at->toIso8601String(),
+                    'attachments' => $message->attachments->map(function ($attachment) {
+                        return [
+                            'id' => $attachment->id,
+                            'file_name' => $attachment->file_name,
+                            'mime_type' => $attachment->mime_type,
+                            'file_size' => $attachment->file_size,
+                            'url' => route('support.attachments.show', ['attachment' => $attachment->id])];
+                    })->values()];
+            });
     }
 
     protected function escalateOverdue(): void
@@ -550,7 +353,7 @@ class SupportController extends Controller
     protected function storeAttachments(SupportMessage $message, array $files): void
     {
         foreach ($files as $file) {
-            if (!$file) {
+            if (! $file) {
                 continue;
             }
             $path = $file->store('support/attachments', 'public');
@@ -567,10 +370,11 @@ class SupportController extends Controller
         $maxMb = (int) PlatformSetting::get('performance.max_upload_size', 10);
         $maxKb = max(1, $maxMb) * 1024;
         $types = $this->allowedAttachmentTypes();
-        $rules = ['file', 'max:' . $maxKb];
-        if (!empty($types)) {
-            $rules[] = 'mimes:' . implode(',', $types);
+        $rules = ['file', 'max:'.$maxKb];
+        if (! empty($types)) {
+            $rules[] = 'mimes:'.implode(',', $types);
         }
+
         return $rules;
     }
 
@@ -578,24 +382,32 @@ class SupportController extends Controller
     {
         $raw = PlatformSetting::get('performance.allowed_file_types', 'jpg,jpeg,png,pdf,doc,docx');
         $types = array_filter(array_map('trim', explode(',', (string) $raw)));
+
         return array_values(array_unique($types));
     }
 
     protected function notifyCustomer(SupportThread $thread): void
     {
-        if (!PlatformSetting::get('support.email_notifications_enabled', true)) {
+        if (! PlatformSetting::get('support.email_notifications_enabled', true)) {
             return;
         }
-        if (!PlatformSetting::get('support.notify_customers', true)) {
+        if (! PlatformSetting::get('support.notify_customers', true)) {
             return;
         }
         $thread->loadMissing('creator', 'account.owner');
         $recipient = $thread->creator ?: $thread->account?->owner;
-        if (!$recipient) {
+        if (! $recipient) {
             return;
         }
 
-        app(NotificationDispatchService::class)->send($recipient, new SupportAgentReplied($thread), 45);
+        app(NotificationDispatchService::class)->send($recipient, new SupportAgentReplied($thread), $this->supportEmailCooldownSeconds());
+    }
+
+    protected function supportEmailCooldownSeconds(): int
+    {
+        $minutes = (int) PlatformSetting::get('support.email_thread_notify_gap_minutes', 60);
+
+        return max(60, $minutes * 60);
     }
 
     protected function auditLogs(int $threadId): array
@@ -628,14 +440,14 @@ class SupportController extends Controller
             $decoded = json_decode($raw, true) ?: [];
         }
 
-        if (!is_array($decoded) || empty($decoded)) {
+        if (! is_array($decoded) || empty($decoded)) {
             return [
                 [
                     'question' => 'How do I connect WhatsApp?',
-                    'answer' => 'Go to Connections and follow the setup wizard to connect your WhatsApp Business account.'],
+                    'answer' => 'Go to WABA Account and follow the automatic setup wizard to connect your WhatsApp Business account.'],
                 [
-                    'question' => 'How do I request a live agent?',
-                    'answer' => 'Open Live Chat and click "Talk to a live agent" to hand off to support.'],
+                    'question' => 'How do users contact support?',
+                    'answer' => 'Users open Support and create a ticket. Replies and attachments stay available in the ticket thread.'],
                 [
                     'question' => 'Where can I see my past tickets?',
                     'answer' => 'Open Support Hub and check the Previous Chats tab.']];

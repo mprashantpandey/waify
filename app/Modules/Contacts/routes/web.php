@@ -1,18 +1,21 @@
 <?php
 
 use App\Modules\Contacts\Http\Controllers\ContactController;
-use App\Modules\Contacts\Http\Controllers\TagController;
 use App\Modules\Contacts\Http\Controllers\SegmentController;
+use App\Modules\Contacts\Http\Controllers\TagController;
 use Illuminate\Support\Facades\Route;
 
 // Contacts routes - Protected by module entitlement
-// Define static paths (tags, segments, create, import, export) before /contacts/{contact} so they are not matched as {contact}
+// Define static paths before /contacts/{contact} so they are not matched as {contact}
 Route::middleware(['module.entitled:contacts'])->group(function () {
     Route::get('/contacts', [ContactController::class, 'index'])->name('contacts.index');
-    Route::get('/contacts/create', [ContactController::class, 'create'])->name('contacts.create');
     Route::post('/contacts', [ContactController::class, 'store'])->name('contacts.store');
     Route::post('/contacts/import', [ContactController::class, 'import'])->name('contacts.import');
+    Route::get('/contacts/imports/{batch}', [ContactController::class, 'importStatus'])->name('contacts.imports.status');
+    Route::get('/contacts/imports/{batch}/errors', [ContactController::class, 'importErrors'])->name('contacts.imports.errors');
     Route::get('/contacts/export', [ContactController::class, 'export'])->name('contacts.export');
+    Route::delete('/contacts/bulk', [ContactController::class, 'bulkDestroy'])->name('contacts.bulk-destroy');
+    Route::post('/contacts/bulk/tags', [ContactController::class, 'bulkUpdateTags'])->name('contacts.bulk-tags');
 
     // Tags (CRM) - must be before /contacts/{contact}
     Route::get('/contacts/tags', [TagController::class, 'index'])->name('contacts.tags.index');
@@ -22,16 +25,12 @@ Route::middleware(['module.entitled:contacts'])->group(function () {
 
     // Segments (CRM) - must be before /contacts/{contact}
     Route::get('/contacts/segments', [SegmentController::class, 'index'])->name('contacts.segments.index');
-    Route::get('/contacts/segments/create', [SegmentController::class, 'create'])->name('contacts.segments.create');
     Route::post('/contacts/segments', [SegmentController::class, 'store'])->name('contacts.segments.store');
-    Route::get('/contacts/segments/{segment}', [SegmentController::class, 'show'])->name('contacts.segments.show');
-    Route::get('/contacts/segments/{segment}/edit', [SegmentController::class, 'edit'])->name('contacts.segments.edit');
     Route::put('/contacts/segments/{segment}', [SegmentController::class, 'update'])->name('contacts.segments.update');
     Route::delete('/contacts/segments/{segment}', [SegmentController::class, 'destroy'])->name('contacts.segments.destroy');
     Route::post('/contacts/segments/{segment}/recalculate', [SegmentController::class, 'recalculate'])->name('contacts.segments.recalculate');
 
     // Dynamic contact routes last
-    Route::get('/contacts/{contact}', [ContactController::class, 'show'])->name('contacts.show');
     Route::put('/contacts/{contact}', [ContactController::class, 'update'])->name('contacts.update');
     Route::delete('/contacts/{contact}', [ContactController::class, 'destroy'])->name('contacts.destroy');
     Route::post('/contacts/{contact}/note', [ContactController::class, 'addNote'])->name('contacts.add-note');

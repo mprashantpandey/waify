@@ -10,7 +10,7 @@ class EnsureProfileComplete
 {
     /**
      * Handle an incoming request.
-     * 
+     *
      * This middleware no longer blocks access, but allows the frontend
      * to show a modal alert when profile is incomplete.
      *

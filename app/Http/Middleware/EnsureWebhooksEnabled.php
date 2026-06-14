@@ -18,12 +18,12 @@ class EnsureWebhooksEnabled
         $settingsService = app(\App\Services\PlatformSettingsService::class);
         $features = $settingsService->getFeatures();
         $webhooksEnabled = (bool) ($features['webhooks'] ?? true);
-        
+
         // Check if webhooks are explicitly disabled in integrations settings
         // Default to true (enabled) if not set
         $integrationsWebhooksEnabled = \App\Models\PlatformSetting::get('integrations.webhooks_enabled');
         $integrationsEnabled = $integrationsWebhooksEnabled === null ? true : (bool) $integrationsWebhooksEnabled;
-        
+
         $razorpayEnabled = (bool) \App\Models\PlatformSetting::get('payment.razorpay_enabled', false);
 
         // Log webhook request for debugging
@@ -38,7 +38,7 @@ class EnsureWebhooksEnabled
         ]);
 
         // Only block if explicitly disabled (both must be true to allow)
-        if (!$webhooksEnabled || ($integrationsWebhooksEnabled !== null && !$integrationsEnabled)) {
+        if (! $webhooksEnabled || ($integrationsWebhooksEnabled !== null && ! $integrationsEnabled)) {
             \Log::warning('[Meta-WhatsApp-Webhook] Request blocked: webhooks disabled', [
                 'path' => $request->path(),
                 'method' => $request->method(),
@@ -49,13 +49,14 @@ class EnsureWebhooksEnabled
                 'integrations_enabled' => $integrationsEnabled,
                 'integrations_webhooks_enabled_raw' => $integrationsWebhooksEnabled,
             ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Webhooks are currently disabled.',
             ], 503);
         }
 
-        if ($request->is('webhooks/razorpay') && !$razorpayEnabled) {
+        if ($request->is('webhooks/razorpay') && ! $razorpayEnabled) {
             return response()->json([
                 'success' => false,
                 'message' => 'Razorpay webhooks are currently disabled.',

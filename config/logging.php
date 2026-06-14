@@ -73,7 +73,6 @@ return [
             'replace_placeholders' => true,
         ],
 
-
         'papertrail' => [
             'driver' => 'monolog',
             'level' => env('LOG_LEVEL', 'debug'),

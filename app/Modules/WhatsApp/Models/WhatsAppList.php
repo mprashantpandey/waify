@@ -68,7 +68,7 @@ class WhatsAppList extends Model
         }
 
         // Sections validation
-        if (empty($this->sections) || !is_array($this->sections)) {
+        if (empty($this->sections) || ! is_array($this->sections)) {
             $errors[] = 'List must have at least one section.';
         } else {
             if (count($this->sections) > 10) {
@@ -79,31 +79,31 @@ class WhatsAppList extends Model
             foreach ($this->sections as $index => $section) {
                 // Section title validation (max 24 characters)
                 if (empty($section['title']) || mb_strlen($section['title']) > 24) {
-                    $errors[] = "Section " . ($index + 1) . ": Title is required and must be 24 characters or less.";
+                    $errors[] = 'Section '.($index + 1).': Title is required and must be 24 characters or less.';
                 }
 
                 // Rows validation
-                if (empty($section['rows']) || !is_array($section['rows'])) {
-                    $errors[] = "Section " . ($index + 1) . ": Must have at least one row.";
+                if (empty($section['rows']) || ! is_array($section['rows'])) {
+                    $errors[] = 'Section '.($index + 1).': Must have at least one row.';
                 } else {
                     if (count($section['rows']) > 10) {
-                        $errors[] = "Section " . ($index + 1) . ": Can have maximum 10 rows.";
+                        $errors[] = 'Section '.($index + 1).': Can have maximum 10 rows.';
                     }
 
                     foreach ($section['rows'] as $rowIndex => $row) {
                         // Row ID validation (max 200 characters, unique)
                         if (empty($row['id']) || mb_strlen($row['id']) > 200) {
-                            $errors[] = "Section " . ($index + 1) . ", Row " . ($rowIndex + 1) . ": ID is required and must be 200 characters or less.";
+                            $errors[] = 'Section '.($index + 1).', Row '.($rowIndex + 1).': ID is required and must be 200 characters or less.';
                         }
 
                         // Row title validation (max 24 characters)
                         if (empty($row['title']) || mb_strlen($row['title']) > 24) {
-                            $errors[] = "Section " . ($index + 1) . ", Row " . ($rowIndex + 1) . ": Title is required and must be 24 characters or less.";
+                            $errors[] = 'Section '.($index + 1).', Row '.($rowIndex + 1).': Title is required and must be 24 characters or less.';
                         }
 
                         // Row description validation (max 72 characters, optional)
                         if (isset($row['description']) && mb_strlen($row['description']) > 72) {
-                            $errors[] = "Section " . ($index + 1) . ", Row " . ($rowIndex + 1) . ": Description must be 72 characters or less.";
+                            $errors[] = 'Section '.($index + 1).', Row '.($rowIndex + 1).': Description must be 72 characters or less.';
                         }
                     }
 
@@ -133,7 +133,7 @@ class WhatsAppList extends Model
                     'id' => $row['id'],
                     'title' => $row['title'],
                 ];
-                if (!empty($row['description'])) {
+                if (! empty($row['description'])) {
                     $rowData['description'] = $row['description'];
                 }
                 $rows[] = $rowData;

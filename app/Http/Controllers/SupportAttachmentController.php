@@ -15,11 +15,11 @@ class SupportAttachmentController extends Controller
         $account = $thread?->account;
         $user = $request->user();
 
-        if (!$message || !$thread || !$account || !$user) {
+        if (! $message || ! $thread || ! $account || ! $user) {
             abort(404);
         }
 
-        if (!$user->isSuperAdmin() && !$user->canAccessAccount($account)) {
+        if (! $user->isSuperAdmin() && ! $user->canAccessAccount($account)) {
             abort(403);
         }
 
@@ -31,7 +31,7 @@ class SupportAttachmentController extends Controller
         $root = Storage::disk('public')->path('');
         $path = Storage::disk('public')->path($filePath);
         $realPath = realpath($path);
-        if ($realPath === false || !str_starts_with($realPath, $root) || !is_file($realPath)) {
+        if ($realPath === false || ! str_starts_with($realPath, $root) || ! is_file($realPath)) {
             abort(404);
         }
 
@@ -40,6 +40,6 @@ class SupportAttachmentController extends Controller
 
         return response()->file($realPath, [
             'Content-Type' => $attachment->mime_type ?: 'application/octet-stream',
-            'Content-Disposition' => 'inline; filename="' . $safeName . '"']);
+            'Content-Disposition' => 'inline; filename="'.$safeName.'"']);
     }
 }

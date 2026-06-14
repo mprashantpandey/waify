@@ -86,7 +86,7 @@ class NotificationOutboxService
 
     protected function resolveRecipient(mixed $notifiable, string $channel): ?string
     {
-        if (!is_object($notifiable)) {
+        if (! is_object($notifiable)) {
             return null;
         }
         if (method_exists($notifiable, 'routeNotificationFor')) {
@@ -94,21 +94,24 @@ class NotificationOutboxService
             if (is_array($route)) {
                 return (string) ($route[0] ?? null);
             }
+
             return $route ? (string) $route : null;
         }
+
         return property_exists($notifiable, 'email') ? (string) ($notifiable->email ?? null) : null;
     }
 
     protected function resolveNotificationSubject(mixed $notifiable, Notification $notification): ?string
     {
         try {
-            if (!method_exists($notification, 'toMail') || !is_object($notifiable)) {
+            if (! method_exists($notification, 'toMail') || ! is_object($notifiable)) {
                 return null;
             }
             $mailMessage = $notification->toMail($notifiable);
-            if (!$mailMessage instanceof MailMessage) {
+            if (! $mailMessage instanceof MailMessage) {
                 return null;
             }
+
             return is_string($mailMessage->subject) ? $mailMessage->subject : null;
         } catch (Throwable) {
             return null;
@@ -117,13 +120,13 @@ class NotificationOutboxService
 
     protected function resolveAccountId(mixed $notifiable): ?int
     {
-        if (!is_object($notifiable)) {
+        if (! is_object($notifiable)) {
             return null;
         }
         if (property_exists($notifiable, 'account_id') && is_numeric($notifiable->account_id)) {
             return (int) $notifiable->account_id;
         }
+
         return null;
     }
 }
-

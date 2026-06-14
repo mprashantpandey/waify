@@ -20,12 +20,12 @@ class WhatsAppTemplateFactory extends Factory
      */
     public function definition(): array
     {
-        $bodyText = $this->faker->sentence() . ' {{1}} ' . $this->faker->sentence();
+        $bodyText = $this->faker->sentence().' {{1}} '.$this->faker->sentence();
 
         return [
             'account_id' => \App\Models\Account::factory(),
             'whatsapp_connection_id' => WhatsAppConnection::factory(),
-            'meta_template_id' => 'meta_' . $this->faker->uuid(),
+            'meta_template_id' => 'meta_'.$this->faker->uuid(),
             'name' => $this->faker->slug(),
             'language' => 'en_US',
             'category' => $this->faker->randomElement(['MARKETING', 'UTILITY', 'AUTHENTICATION']),

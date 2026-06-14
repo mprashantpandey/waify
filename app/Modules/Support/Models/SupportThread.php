@@ -2,8 +2,8 @@
 
 namespace App\Modules\Support\Models;
 
-use App\Models\User;
 use App\Models\Account;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -93,6 +93,7 @@ class SupportThread extends Model
         if ($value instanceof self) {
             return $value;
         }
+
         return self::where('slug', $value)->orWhere('id', $value)->first();
     }
 }

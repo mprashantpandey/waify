@@ -3,10 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Account;
-use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
+use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -29,9 +28,9 @@ class ActivityLogController extends Controller
             ->get()
             ->map(function ($message) {
                 return [
-                    'id' => 'message_' . $message->id,
+                    'id' => 'message_'.$message->id,
                     'type' => 'message',
-                    'description' => ucfirst($message->direction) . ' message ' . ($message->status ?? 'sent'),
+                    'description' => ucfirst($message->direction).' message '.($message->status ?? 'sent'),
                     'metadata' => [
                         'message_id' => $message->id,
                         'direction' => $message->direction,
@@ -51,9 +50,9 @@ class ActivityLogController extends Controller
             ->get()
             ->map(function ($connection) {
                 return [
-                    'id' => 'connection_' . $connection->id,
+                    'id' => 'connection_'.$connection->id,
                     'type' => $connection->webhook_last_error ? 'connection_error' : 'connection_success',
-                    'description' => $connection->webhook_last_error 
+                    'description' => $connection->webhook_last_error
                         ? "Connection error: {$connection->name}"
                         : "Webhook received: {$connection->name}",
                     'metadata' => [
@@ -73,4 +72,3 @@ class ActivityLogController extends Controller
             'logs' => $logs]);
     }
 }
-

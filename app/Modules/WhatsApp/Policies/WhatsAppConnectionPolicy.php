@@ -4,7 +4,6 @@ namespace App\Modules\WhatsApp\Policies;
 
 use App\Models\User;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
-use Illuminate\Auth\Access\Response;
 
 class WhatsAppConnectionPolicy
 {
@@ -34,7 +33,11 @@ class WhatsAppConnectionPolicy
     {
         // Only owners and admins can create connections
         $account = current_account();
-        if (!$account) {
+        if (! $account) {
+            return false;
+        }
+
+        if (WhatsAppConnection::where('account_id', $account->id)->exists()) {
             return false;
         }
 
@@ -54,7 +57,7 @@ class WhatsAppConnectionPolicy
         // Only owners and admins can update connections
         $account = $whatsAppConnection->account;
         $membership = $account->users()->where('user_id', $user->id)->first();
-        
+
         if ($membership) {
             return in_array($membership->pivot->role, ['owner', 'admin']);
         }

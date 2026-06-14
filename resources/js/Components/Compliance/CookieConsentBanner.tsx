@@ -2,7 +2,9 @@ import { useEffect, useState } from 'react';
 import { usePage } from '@inertiajs/react';
 import Button from '@/Components/UI/Button';
 
-const CONSENT_KEY = 'waify.cookie-consent';
+const CONSENT_KEY = 'zyptos.cookie-consent';
+const LEGACY_CONSENT_KEY = 'waify.cookie-consent';
+const CONSENT_EVENT = 'zyptos:cookie-consent';
 
 export default function CookieConsentBanner() {
     const { compliance } = usePage().props as any;
@@ -13,13 +15,14 @@ export default function CookieConsentBanner() {
         if (!consentRequired) {
             return;
         }
-        const stored = window.localStorage.getItem(CONSENT_KEY);
+        const stored = window.localStorage.getItem(CONSENT_KEY) ?? window.localStorage.getItem(LEGACY_CONSENT_KEY);
         setVisible(stored !== 'accepted' && stored !== 'declined');
     }, [consentRequired]);
 
     const handleChoice = (choice: 'accepted' | 'declined') => {
         window.localStorage.setItem(CONSENT_KEY, choice);
-        window.dispatchEvent(new CustomEvent('waify:cookie-consent', { detail: choice }));
+        window.localStorage.removeItem(LEGACY_CONSENT_KEY);
+        window.dispatchEvent(new CustomEvent(CONSENT_EVENT, { detail: choice }));
         setVisible(false);
     };
 

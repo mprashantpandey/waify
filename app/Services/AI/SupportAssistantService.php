@@ -26,6 +26,7 @@ class SupportAssistantService
                         'system' => 'System',
                         default => 'Customer',
                     };
+
                     return "{$label}: {$message->body}";
                 })
                 ->implode("\n");

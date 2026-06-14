@@ -3,7 +3,6 @@
 namespace App\Modules\Chatbots\Models;
 
 use App\Models\Account;
-use App\Modules\Chatbots\Models\BotEdge;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;

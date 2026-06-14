@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
 use Inertia\Inertia;
 
 class CsrfTokenController extends Controller
@@ -16,11 +15,12 @@ class CsrfTokenController extends Controller
     public function refresh(Request $request)
     {
         // Check if session is valid
-        if (!$request->hasSession() || !$request->session()->isStarted()) {
+        if (! $request->hasSession() || ! $request->session()->isStarted()) {
             // If it's an Inertia request, return Inertia response
             if ($request->header('X-Inertia')) {
                 return Inertia::location('/login');
             }
+
             // Otherwise return JSON
             return response()->json([
                 'error' => 'Session expired.',
@@ -30,7 +30,7 @@ class CsrfTokenController extends Controller
 
         // Regenerate the session to get a fresh CSRF token
         $request->session()->regenerateToken();
-        
+
         // If it's an Inertia request, return Inertia response
         // Note: For CSRF refresh, we should NOT redirect Inertia requests as this endpoint
         // is meant to be called via axios, not Inertia. If an Inertia request hits this,
@@ -38,11 +38,10 @@ class CsrfTokenController extends Controller
         if ($request->header('X-Inertia')) {
             return Inertia::location('/');
         }
-        
+
         // Return JSON for axios requests
         return response()->json([
             'token' => csrf_token(),
         ]);
     }
 }
-

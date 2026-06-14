@@ -4,13 +4,18 @@ namespace App\Modules\WhatsApp\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
+use App\Modules\WhatsApp\Models\WhatsAppContact;
+use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use App\Modules\WhatsApp\Services\TemplateManagementService;
-use Illuminate\Http\Request;
+use App\Modules\WhatsApp\Support\PreapprovedTemplateLibrary;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -18,8 +23,8 @@ class TemplateController extends Controller
 {
     public function __construct(
         protected TemplateManagementService $templateManagementService
-    ) {
-    }
+    ) {}
+
     /**
      * Display a listing of templates.
      */
@@ -30,7 +35,7 @@ class TemplateController extends Controller
         $query = WhatsAppTemplate::where('account_id', $account->id)
             ->with('connection')
             ->where(function ($q) {
-                // Legacy rows may have NULL is_archived.
+                // Imported rows may have NULL is_archived.
                 $q->where('is_archived', false)
                     ->orWhereNull('is_archived');
             });
@@ -61,34 +66,105 @@ class TemplateController extends Controller
             });
         }
 
+        $serializeTemplate = function ($template) {
+            $sendStats = $template->sends()
+                ->selectRaw("status, count(*) as total")
+                ->groupBy('status')
+                ->pluck('total', 'status');
+
+            return [
+                'id' => $template->id,
+                'slug' => $template->slug,
+                'name' => $template->name,
+                'language' => $template->language,
+                'category' => $template->category,
+                'status' => $template->status,
+                'body_text' => $template->body_text,
+                'header_type' => $template->header_type ?? 'NONE',
+                'header_text' => $template->header_text,
+                'header_media_url' => $template->header_media_url ?? null,
+                'footer_text' => $template->footer_text,
+                'buttons' => $template->buttons ?? [],
+                'has_buttons' => $template->has_buttons,
+                'variable_count' => $template->variable_count,
+                'quality_score' => $template->quality_score,
+                'rejection_reason' => $template->last_meta_error,
+                'stats' => [
+                    'sent' => (int) ($sendStats['sent'] ?? 0),
+                    'delivered' => (int) ($sendStats['delivered'] ?? 0),
+                    'read' => (int) ($sendStats['read'] ?? 0),
+                    'failed' => (int) ($sendStats['failed'] ?? 0),
+                ],
+                'connection' => [
+                    'id' => $template->connection->id,
+                    'name' => $template->connection->name],
+                'last_synced_at' => $template->last_synced_at?->toIso8601String()];
+        };
+
         $templates = $query->orderBy('name')
             ->orderBy('language')
             ->paginate(20)
-            ->through(function ($template) {
-                return [
-                    'id' => $template->id,
-                    'slug' => $template->slug,
-                    'name' => $template->name,
-                    'language' => $template->language,
-                    'category' => $template->category,
-                    'status' => $template->status,
-                    'body_text' => $template->body_text,
-                    'has_buttons' => $template->has_buttons,
-                    'variable_count' => $template->variable_count,
-                    'connection' => [
-                        'id' => $template->connection->id,
-                        'name' => $template->connection->name],
-                    'last_synced_at' => $template->last_synced_at?->toIso8601String()];
-            });
+            ->through($serializeTemplate);
+
+        $selectedTemplate = null;
+        if ($request->filled('use_template') || $request->filled('template')) {
+            $selected = WhatsAppTemplate::where('account_id', $account->id)
+                ->where('slug', $request->query('use_template') ?: $request->query('template'))
+                ->with('connection')
+                ->first();
+            $selectedTemplate = $selected ? $serializeTemplate($selected) : null;
+        }
+
+        $connectionColumns = ['id', 'name'];
+        if (Schema::hasColumn('whatsapp_connections', 'last_synced_at')) {
+            $connectionColumns[] = 'last_synced_at';
+        }
+        if (Schema::hasColumn('whatsapp_connections', 'last_meta_error')) {
+            $connectionColumns[] = 'last_meta_error';
+        }
 
         $connections = WhatsAppConnection::where('account_id', $account->id)
             ->where('is_active', true)
-            ->get(['id', 'name']);
+            ->get($connectionColumns)
+            ->map(function ($connection) {
+                return [
+                    'id' => $connection->id,
+                    'name' => $connection->name,
+                    'last_synced_at' => $connection->last_synced_at?->toIso8601String(),
+                    'last_sync_error' => $connection->last_meta_error,
+                ];
+            });
 
         return Inertia::render('WhatsApp/Templates/Index', [
             'account' => $account,
             'templates' => $templates,
             'connections' => $connections,
+            'selected_template' => $selectedTemplate,
+            'contacts' => WhatsAppContact::where('account_id', $account->id)
+                ->orderBy('name')
+                ->limit(250)
+                ->get(['id', 'wa_id', 'name'])
+                ->map(fn ($contact) => [
+                    'id' => $contact->id,
+                    'wa_id' => $contact->wa_id,
+                    'name' => $contact->name,
+                ]),
+            'conversations' => WhatsAppConversation::where('account_id', $account->id)
+                ->with('contact')
+                ->orderByDesc('last_message_at')
+                ->limit(50)
+                ->get()
+                ->map(fn ($conversation) => [
+                    'id' => $conversation->id,
+                    'contact' => [
+                        'wa_id' => $conversation->contact?->wa_id,
+                        'name' => $conversation->contact?->name ?? $conversation->contact?->wa_id,
+                    ],
+                ])
+                ->filter(fn ($conversation) => filled($conversation['contact']['wa_id']))
+                ->values(),
+            'sync_report' => session('sync_report'),
+            'library_templates' => collect(PreapprovedTemplateLibrary::all())->values(),
             'filters' => [
                 'connection' => $request->connection,
                 'status' => $request->status,
@@ -97,43 +173,23 @@ class TemplateController extends Controller
                 'search' => $request->search]]);
     }
 
+    public function library(Request $request): RedirectResponse
+    {
+        return redirect()->route('app.whatsapp.templates.index', ['panel' => 'library']);
+    }
+
     /**
      * Display the specified template.
      */
-    public function show(Request $request, WhatsAppTemplate $template): Response
+    public function show(Request $request, WhatsAppTemplate $template): RedirectResponse
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        // Ensure template belongs to account
-        if (!account_ids_match($template->account_id, $account->id)) {
+        if (! account_ids_match($template->account_id, $account->id)) {
             abort(404);
         }
 
-        $template->load('connection');
-
-        return Inertia::render('WhatsApp/Templates/Show', [
-            'account' => $account,
-            'template' => [
-                'id' => $template->id,
-                'slug' => $template->slug,
-                'name' => $template->name,
-                'language' => $template->language,
-                'category' => $template->category,
-                'status' => $template->status,
-                'quality_score' => $template->quality_score,
-                'body_text' => $template->body_text,
-                'header_type' => $template->header_type,
-                'header_text' => $template->header_text,
-                'footer_text' => $template->footer_text,
-                'buttons' => $template->buttons,
-                'components' => $template->components,
-                'variable_count' => $template->variable_count,
-                'has_buttons' => $template->has_buttons,
-                'last_synced_at' => $template->last_synced_at?->toIso8601String(),
-                'last_meta_error' => $template->last_meta_error,
-                'connection' => [
-                    'id' => $template->connection->id,
-                    'name' => $template->connection->name]]]);
+        return redirect()->route('app.whatsapp.templates.index', ['template' => $template->id]);
     }
 
     /**
@@ -144,7 +200,7 @@ class TemplateController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         // Ensure template belongs to account
-        if (!account_ids_match($template->account_id, $account->id)) {
+        if (! account_ids_match($template->account_id, $account->id)) {
             abort(404);
         }
 
@@ -161,7 +217,7 @@ class TemplateController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         // Ensure template belongs to account
-        if (!account_ids_match($template->account_id, $account->id)) {
+        if (! account_ids_match($template->account_id, $account->id)) {
             abort(404);
         }
 
@@ -178,8 +234,24 @@ class TemplateController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         // Ensure template belongs to account
-        if (!account_ids_match($template->account_id, $account->id)) {
+        if (! account_ids_match($template->account_id, $account->id)) {
             abort(404);
+        }
+
+        if ($template->meta_template_id && $template->connection) {
+            try {
+                $this->templateManagementService->deleteTemplate($template->connection, $template->meta_template_id);
+            } catch (\Throwable $e) {
+                Log::channel('whatsapp')->warning('Meta template delete failed; keeping local template', [
+                    'template_id' => $template->id,
+                    'meta_template_id' => $template->meta_template_id,
+                    'error' => $e->getMessage(),
+                ]);
+
+                return redirect()->back()->withErrors([
+                    'delete' => 'Failed to delete template from Meta: '.$e->getMessage(),
+                ]);
+            }
         }
 
         $template->delete();
@@ -190,19 +262,14 @@ class TemplateController extends Controller
     /**
      * Show the form for creating a new template.
      */
-    public function create(Request $request): Response|RedirectResponse
+    public function create(Request $request): RedirectResponse
     {
-        $account = $request->attributes->get('account') ?? current_account();
+        $params = ['panel' => 'create'];
+        if ($request->filled('preset')) {
+            $params['preset'] = $request->query('preset');
+        }
 
-        $connections = WhatsAppConnection::where('account_id', $account->id)
-            ->where('is_active', true)
-            ->get(['id', 'name', 'waba_id']);
-
-        // Allow page to load even without connections - frontend will show error message
-        // This provides better UX than redirecting
-        return Inertia::render('WhatsApp/Templates/Create', [
-            'account' => $account,
-            'connections' => $connections]);
+        return redirect()->route('app.whatsapp.templates.index', $params);
     }
 
     /**
@@ -230,11 +297,24 @@ class TemplateController extends Controller
             'buttons.*.url' => 'nullable|url|required_if:buttons.*.type,URL',
             'buttons.*.url_example' => 'nullable|string|max:200',
             'buttons.*.phone_number' => 'nullable|string|required_if:buttons.*.type,PHONE_NUMBER']);
+        $this->validateTemplateSemanticFields($validated);
 
         $connection = WhatsAppConnection::where('account_id', $account->id)
             ->findOrFail($validated['whatsapp_connection_id']);
 
         Gate::authorize('update', $connection);
+
+        if (! $connection->is_active) {
+            return back()->withErrors(['create' => 'This WhatsApp connection is disabled. Enable or reconnect it before creating templates.'])->withInput();
+        }
+
+        if (! $connection->waba_id) {
+            return back()->withErrors(['create' => 'This WhatsApp connection is missing a WABA ID. Reconnect the WABA account and try again.'])->withInput();
+        }
+
+        if (! $connection->access_token) {
+            return back()->withErrors(['create' => 'This WhatsApp connection is missing or cannot decrypt its access token. Reconnect the WABA account and try again.'])->withInput();
+        }
 
         try {
             Log::channel('whatsapp')->info('Creating template', [
@@ -266,7 +346,7 @@ class TemplateController extends Controller
             $errorMessage = $e->getMessage();
             $displayMessage = str_starts_with($errorMessage, 'Failed to create template:')
                 ? $errorMessage
-                : 'Failed to create template: ' . $errorMessage;
+                : 'Failed to create template: '.$errorMessage;
 
             if ($request->header('X-Inertia')) {
                 return back()->withErrors(['create' => $displayMessage])->withInput();
@@ -279,62 +359,18 @@ class TemplateController extends Controller
     /**
      * Show the form for editing a template.
      */
-    public function edit(Request $request, WhatsAppTemplate $template): Response
+    public function edit(Request $request, WhatsAppTemplate $template): RedirectResponse
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        // Ensure template belongs to account
-        if (!account_ids_match($template->account_id, $account->id)) {
+        if (! account_ids_match($template->account_id, $account->id)) {
             abort(404);
         }
 
-        $template->load('connection');
-
-        // Check template status from Meta
-        $metaStatus = null;
-        $rejectionReason = null;
-        try {
-            if ($template->meta_template_id) {
-                $statusData = $this->templateManagementService->getTemplateStatus(
-                    $template->connection,
-                    $template->meta_template_id
-                );
-                $metaStatus = strtolower($statusData['status'] ?? $template->status);
-                $rejectionReason = $statusData['rejection_reason'] ?? null;
-                
-                // Update local status if different
-                if ($metaStatus !== strtolower($template->status)) {
-                    $template->update([
-                        'status' => $metaStatus,
-                        'last_synced_at' => now()]);
-                }
-            }
-        } catch (\Exception $e) {
-            Log::channel('whatsapp')->warning('Failed to fetch template status from Meta', [
-                'template_id' => $template->id,
-                'error' => $e->getMessage()]);
-        }
-
-        return Inertia::render('WhatsApp/Templates/Edit', [
-            'account' => $account,
-            'template' => [
-                'id' => $template->id,
-                'slug' => $template->slug,
-                'name' => $template->name,
-                'language' => $template->language,
-                'category' => $template->category,
-                'status' => $metaStatus ?? strtolower($template->status),
-                'rejection_reason' => $rejectionReason,
-                'header_type' => $template->header_type ?? 'NONE',
-                'header_text' => $template->header_text,
-                'header_media_url' => $template->header_media_url ?? null,
-                'body_text' => $template->body_text,
-                'footer_text' => $template->footer_text,
-                'buttons' => $template->buttons ?? [],
-                'meta_template_id' => $template->meta_template_id,
-                'connection' => [
-                    'id' => $template->connection->id,
-                    'name' => $template->connection->name]]]);
+        return redirect()->route('app.whatsapp.templates.index', [
+            'template' => $template->id,
+            'panel' => 'edit',
+        ]);
     }
 
     /**
@@ -345,7 +381,7 @@ class TemplateController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         // Ensure template belongs to account
-        if (!account_ids_match($template->account_id, $account->id)) {
+        if (! account_ids_match($template->account_id, $account->id)) {
             abort(404);
         }
 
@@ -366,6 +402,7 @@ class TemplateController extends Controller
             'buttons.*.url' => 'nullable|url|required_if:buttons.*.type,URL',
             'buttons.*.url_example' => 'nullable|string|max:200',
             'buttons.*.phone_number' => 'nullable|string|required_if:buttons.*.type,PHONE_NUMBER']);
+        $this->validateTemplateSemanticFields($validated);
 
         $connection = $template->connection;
         Gate::authorize('update', $connection);
@@ -381,7 +418,7 @@ class TemplateController extends Controller
                 'error' => $e->getMessage()]);
 
             return back()->withErrors([
-                'update' => 'Failed to update template: ' . $e->getMessage()])->withInput();
+                'update' => 'Failed to update template: '.$e->getMessage()])->withInput();
         }
     }
 
@@ -404,13 +441,13 @@ class TemplateController extends Controller
             'IMAGE' => 'mimes:jpg,jpeg,png,gif,webp',
             'VIDEO' => 'mimetypes:video/mp4,video/quicktime,video/3gpp',
             'DOCUMENT' => 'mimes:pdf,doc,docx,xls,xlsx,ppt,pptx,txt,csv,zip'];
-        
+
         $request->validate([
             'file' => $mimeRules[$type] ?? 'file']);
 
         // Store file
         $path = $file->store('whatsapp-templates', 'public');
-        $url = rtrim(config('app.url'), '/') . Storage::url($path);
+        $url = rtrim(config('app.url'), '/').Storage::url($path);
 
         return response()->json([
             'url' => $url,
@@ -426,11 +463,11 @@ class TemplateController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         // Ensure template belongs to account
-        if (!account_ids_match($template->account_id, $account->id)) {
+        if (! account_ids_match($template->account_id, $account->id)) {
             abort(404);
         }
 
-        if (!$template->meta_template_id) {
+        if (! $template->meta_template_id) {
             return back()->with('error', 'Template has not been submitted to Meta yet.');
         }
 
@@ -454,7 +491,49 @@ class TemplateController extends Controller
                 'template_id' => $template->id,
                 'error' => $e->getMessage()]);
 
-            return back()->with('error', 'Failed to check template status: ' . $e->getMessage());
+            return back()->with('error', 'Failed to check template status: '.$e->getMessage());
+        }
+    }
+
+    private function validateTemplateSemanticFields(array $data): void
+    {
+        $errors = [];
+
+        if (strtoupper($data['category'] ?? '') !== 'AUTHENTICATION') {
+            preg_match_all('/\{\{(\d+)\}\}/', (string) ($data['body_text'] ?? ''), $matches);
+            $variables = array_values(array_unique(array_map('intval', $matches[1] ?? [])));
+            sort($variables);
+
+            if ($variables) {
+                $expected = range(1, count($variables));
+                if ($variables !== $expected) {
+                    $errors['body_text'] = 'Template variables must be sequential, for example {{1}}, {{2}}, {{3}}.';
+                }
+
+                $examples = array_values(array_filter($data['body_examples'] ?? [], fn ($example) => trim((string) $example) !== ''));
+                if (count($examples) < count($variables)) {
+                    $errors['body_examples'] = 'Add one sample value for each body variable before submitting to Meta.';
+                }
+            }
+        }
+
+        foreach (($data['buttons'] ?? []) as $index => $button) {
+            $type = strtoupper((string) ($button['type'] ?? ''));
+            if ($type === 'URL') {
+                if (empty($button['url'])) {
+                    $errors["buttons.{$index}.url"] = 'URL buttons need a destination URL.';
+                } elseif (preg_match('/\{\{\d+\}\}/', (string) $button['url']) && empty($button['url_example'])) {
+                    $errors["buttons.{$index}.url_example"] = 'Dynamic URL buttons need an example URL.';
+                }
+            }
+
+            if ($type === 'PHONE_NUMBER' && empty($button['phone_number'])) {
+                $errors["buttons.{$index}.phone_number"] = 'Phone buttons need a phone number with country code.';
+            }
+        }
+
+        if ($errors) {
+            throw ValidationException::withMessages($errors);
         }
     }
 }

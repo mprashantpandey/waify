@@ -1,20 +1,31 @@
-import { useForm } from '@inertiajs/react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/UI/Card';
+import { useState } from 'react';
+import { useForm, router, usePage } from '@inertiajs/react';
+import { Transition } from '@headlessui/react';
+import { CheckCircle2, Eye, EyeOff, KeyRound, Lock, Save, ShieldCheck, Smartphone, Trash2 } from 'lucide-react';
+import { Card } from '@/Components/UI/Card';
+import { Alert } from '@/Components/UI/Alert';
+import { Modal } from '@/Components/UI/Elements';
 import Button from '@/Components/UI/Button';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
-import { Shield, Save, Trash2, Lock, CheckCircle2 } from 'lucide-react';
-import { router } from '@inertiajs/react';
 import { useNotifications } from '@/hooks/useNotifications';
-import { Transition } from '@headlessui/react';
+import TwoFactorSetupPanel from '@/Components/Security/TwoFactorSetupPanel';
 
 export default function SecurityTab() {
+    const { auth, security } = usePage().props as any;
+    const user = auth?.user;
     const { confirm, toast } = useNotifications();
+    const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+    const [deletePasswordOpen, setDeletePasswordOpen] = useState(false);
+    const [deletePassword, setDeletePassword] = useState('');
     const { data, setData, put, processing, errors, reset, recentlySuccessful } = useForm({
         current_password: '',
         password: '',
-        password_confirmation: ''});
+        password_confirmation: '',
+    });
+    const twoFactorForm = useForm({ code: '', password: '' });
+    const sessionForm = useForm({ password: '' });
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -26,7 +37,8 @@ export default function SecurityTab() {
             },
             onError: () => {
                 toast.error('Failed to update password');
-            }});
+            },
+        });
     };
 
     const deleteAccount = async () => {
@@ -34,151 +46,192 @@ export default function SecurityTab() {
             title: 'Delete Account',
             message: 'Are you sure you want to delete your account? This action cannot be undone. All of your data will be permanently deleted.',
             variant: 'danger',
-            confirmText: 'Delete Account'});
+            confirmText: 'Delete Account',
+        });
 
         if (!confirmed) return;
 
-        const password = prompt('Please enter your password to confirm:');
-        if (!password) return;
+        setDeletePassword('');
+        setDeletePasswordOpen(true);
+    };
+
+    const confirmDeleteAccount = () => {
+        if (!deletePassword) return;
 
         router.delete(route('profile.destroy'), {
-            data: { password },
-            onSuccess: () => {
-                toast.success('Account deleted successfully');
-            },
-            onError: () => {
-                toast.error('Failed to delete account');
-            }});
+            data: { password: deletePassword },
+            onSuccess: () => toast.success('Account deleted successfully'),
+            onError: () => toast.error('Failed to delete account'),
+        });
     };
 
     return (
         <div className="space-y-6">
-            <Card className="border-0 shadow-lg">
-                <CardHeader className="bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-purple-500 rounded-xl">
-                            <Shield className="h-5 w-5 text-white" />
-                        </div>
+            <Card className="p-5">
+                <form onSubmit={submit} className="space-y-5">
+                    <div className="mb-1 flex items-start gap-3">
+                        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 text-waify-text-muted dark:bg-slate-700 dark:text-waify-dark-text-muted">
+                            <Lock className="h-4 w-4" />
+                        </span>
                         <div>
-                            <CardTitle className="text-xl font-bold">Update Password</CardTitle>
-                            <CardDescription>Ensure your account is using a long, random password to stay secure</CardDescription>
+                            <div className="text-sm font-semibold text-waify-text dark:text-waify-dark-text">Password</div>
+                            <p className="mt-0.5 text-xs text-waify-text-muted dark:text-waify-dark-text-muted">Change the password used to sign in to this account.</p>
                         </div>
                     </div>
-                </CardHeader>
-                <CardContent className="p-6">
-                    <form onSubmit={submit} className="space-y-5">
-                        <div>
-                            <InputLabel htmlFor="current_password" value="Current Password" className="text-sm font-semibold mb-2" />
-                            <div className="relative">
-                                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                                <TextInput
-                                    id="current_password"
-                                    type="password"
-                                    value={data.current_password}
-                                    onChange={(e) => setData('current_password', e.target.value)}
-                                    className="mt-1 block w-full pl-10 rounded-xl"
-                                    required
-                                    placeholder="Enter current password"
-                                />
-                            </div>
-                            <InputError message={errors.current_password} className="mt-2" />
-                        </div>
 
-                        <div>
-                            <InputLabel htmlFor="password" value="New Password" className="text-sm font-semibold mb-2" />
+                    {[
+                        ['current_password', 'Current password', 'current-password', 'Enter current password'],
+                        ['password', 'New password', 'new-password', 'Enter new password'],
+                        ['password_confirmation', 'Confirm password', 'new-password', 'Confirm new password'],
+                    ].map(([field, label, autocomplete, placeholder]) => (
+                        <div key={field}>
+                            <InputLabel htmlFor={field} value={label} className="mb-1 text-xs font-medium text-waify-text dark:text-waify-dark-text" />
                             <div className="relative">
-                                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                                <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                                 <TextInput
-                                    id="password"
-                                    type="password"
-                                    value={data.password}
-                                    onChange={(e) => setData('password', e.target.value)}
-                                    className="mt-1 block w-full pl-10 rounded-xl"
-                                    required
-                                    placeholder="Enter new password"
+                                    id={field}
+                                    type={visiblePasswords[field] ? 'text' : 'password'}
+                                    value={data[field as keyof typeof data]}
+                                    onChange={(e) => setData(field as keyof typeof data, e.target.value)}
+                                    className="block h-9 w-full rounded-btn border-gray-200 pl-9 pr-10 text-sm focus:border-waify-green focus:ring-waify-green/15 dark:border-slate-600 dark:bg-slate-900"
+                                    autoComplete={autocomplete}
+                                    placeholder={placeholder}
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setVisiblePasswords((current) => ({ ...current, [field]: !current[field] }))}
+                                    className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-gray-400 transition hover:bg-gray-100 hover:text-waify-text dark:hover:bg-slate-800 dark:hover:text-waify-dark-text"
+                                    aria-label={visiblePasswords[field] ? `Hide ${label}` : `Show ${label}`}
+                                >
+                                    {visiblePasswords[field] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </button>
                             </div>
-                            <InputError message={errors.password} className="mt-2" />
+                            <InputError message={errors[field as keyof typeof errors]} className="mt-2 text-xs" />
                         </div>
+                    ))}
 
-                        <div>
-                            <InputLabel htmlFor="password_confirmation" value="Confirm Password" className="text-sm font-semibold mb-2" />
-                            <div className="relative">
-                                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                                <TextInput
-                                    id="password_confirmation"
-                                    type="password"
-                                    value={data.password_confirmation}
-                                    onChange={(e) => setData('password_confirmation', e.target.value)}
-                                    className="mt-1 block w-full pl-10 rounded-xl"
-                                    required
-                                    placeholder="Confirm new password"
-                                />
+                    <div className="flex items-center justify-end gap-4 border-t border-gray-100 pt-4 dark:border-slate-700">
+                        <Button type="submit" disabled={processing}>
+                            {processing ? 'Updating...' : (
+                                <>
+                                    <Save className="h-4 w-4" />
+                                    Update password
+                                </>
+                            )}
+                        </Button>
+                        <Transition show={recentlySuccessful} enter="transition ease-in-out" enterFrom="opacity-0" leave="transition ease-in-out" leaveTo="opacity-0">
+                            <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-300">
+                                <CheckCircle2 className="h-4 w-4" />
+                                Updated
                             </div>
-                            <InputError message={errors.password_confirmation} className="mt-2" />
-                        </div>
-
-                        <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                            <Button 
-                                type="submit" 
-                                disabled={processing}
-                                className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 shadow-lg shadow-purple-500/50 rounded-xl"
-                            >
-                                {processing ? 'Updating...' : (
-                                    <>
-                                        <Save className="h-4 w-4 mr-2" />
-                                        Update Password
-                                    </>
-                                )}
-                            </Button>
-                            <Transition
-                                show={recentlySuccessful}
-                                enter="transition ease-in-out"
-                                enterFrom="opacity-0"
-                                leave="transition ease-in-out"
-                                leaveTo="opacity-0"
-                            >
-                                <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
-                                    <CheckCircle2 className="h-4 w-4" />
-                                    Password updated
-                                </div>
-                            </Transition>
-                        </div>
-                    </form>
-                </CardContent>
+                        </Transition>
+                    </div>
+                </form>
             </Card>
 
-            <Card className="border-0 shadow-lg border-red-200 dark:border-red-800">
-                <CardHeader className="bg-gradient-to-r from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-red-500 rounded-xl">
-                            <Trash2 className="h-5 w-5 text-white" />
-                        </div>
-                        <div>
-                            <CardTitle className="text-xl font-bold text-red-900 dark:text-red-100">Delete Account</CardTitle>
-                            <CardDescription className="text-red-700 dark:text-red-300">
-                                Permanently delete your account and all associated data
-                            </CardDescription>
-                        </div>
+            <Card className="p-5">
+                <div className="mb-4 flex items-start gap-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-waify-green-soft text-waify-green-dark dark:bg-waify-green/10 dark:text-waify-green">
+                        <ShieldCheck className="h-4 w-4" />
+                    </span>
+                    <div>
+                        <div className="text-sm font-semibold text-waify-text dark:text-waify-dark-text">Two-factor authentication</div>
+                        <p className="mt-0.5 text-xs text-waify-text-muted dark:text-waify-dark-text-muted">Use an authenticator app for owner and admin account protection.</p>
                     </div>
-                </CardHeader>
-                <CardContent className="p-6">
-                    <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl mb-4">
-                        <p className="text-sm text-red-800 dark:text-red-200">
-                            Once your account is deleted, all of its resources and data will be permanently deleted. 
-                            Before deleting your account, please download any data or information that you wish to retain.
-                        </p>
+                </div>
+                {user?.two_factor_enabled ? (
+                    <div className="space-y-3">
+                        <div className="rounded-card border border-emerald-100 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200">2FA is enabled.</div>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                            <input type="password" value={twoFactorForm.data.password} onChange={(event) => twoFactorForm.setData('password', event.target.value)} placeholder="Current password" className="waify-input flex-1" />
+                            <Button type="button" variant="danger" onClick={() => twoFactorForm.delete(route('two-factor.disable'), { preserveScroll: true })} disabled={!twoFactorForm.data.password || twoFactorForm.processing}>Disable 2FA</Button>
+                        </div>
+                        <InputError message={twoFactorForm.errors.password} className="text-xs" />
                     </div>
-                    <Button 
-                        variant="danger" 
-                        onClick={deleteAccount}
-                        className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 shadow-lg shadow-red-500/50 rounded-xl"
-                    >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete Account
+                ) : security?.two_factor_setup ? (
+                    <div className="space-y-3">
+                        <TwoFactorSetupPanel setup={security.two_factor_setup} />
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                            <input value={twoFactorForm.data.code} onChange={(event) => twoFactorForm.setData('code', event.target.value)} placeholder="6-digit code" className="waify-input flex-1 font-mono" inputMode="numeric" />
+                            <Button type="button" onClick={() => twoFactorForm.post(route('two-factor.enable'), { preserveScroll: true })} disabled={twoFactorForm.data.code.length < 6 || twoFactorForm.processing}>Verify & enable</Button>
+                        </div>
+                        <InputError message={twoFactorForm.errors.code} className="text-xs" />
+                    </div>
+                ) : (
+                    <Button type="button" variant="secondary" onClick={() => twoFactorForm.post(route('two-factor.prepare'), { preserveScroll: true })}>
+                        <Smartphone className="h-4 w-4" />
+                        Start 2FA setup
                     </Button>
-                </CardContent>
+                )}
             </Card>
+
+            <Card className="p-5">
+                <div className="mb-4 flex items-start gap-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 text-waify-text-muted dark:bg-slate-700 dark:text-waify-dark-text-muted">
+                        <KeyRound className="h-4 w-4" />
+                    </span>
+                    <div>
+                        <div className="text-sm font-semibold text-waify-text dark:text-waify-dark-text">Sessions</div>
+                        <p className="mt-0.5 text-xs text-waify-text-muted dark:text-waify-dark-text-muted">Review active browser sessions and revoke old devices.</p>
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    {(security?.sessions || []).map((session: any) => (
+                        <div key={session.id} className="flex items-center justify-between gap-3 rounded-card border border-gray-100 p-3 text-sm dark:border-waify-dark-border">
+                            <div className="min-w-0">
+                                <div className="font-medium text-waify-text dark:text-waify-dark-text">{session.ip_address || 'Unknown IP'} {session.is_current ? '(current)' : ''}</div>
+                                <div className="truncate text-xs text-waify-text-muted dark:text-waify-dark-text-muted">{session.user_agent || 'Unknown device'}</div>
+                            </div>
+                            <div className="shrink-0 text-xs text-waify-text-muted dark:text-waify-dark-text-muted">{new Date(session.last_activity).toLocaleString()}</div>
+                        </div>
+                    ))}
+                    {(security?.sessions || []).length === 0 && (
+                        <div className="rounded-card border border-gray-100 p-3 text-sm text-waify-text-muted dark:border-waify-dark-border dark:text-waify-dark-text-muted">No active sessions found.</div>
+                    )}
+                </div>
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                    <input type="password" value={sessionForm.data.password} onChange={(event) => sessionForm.setData('password', event.target.value)} placeholder="Current password" className="waify-input flex-1" />
+                    <Button type="button" variant="secondary" onClick={() => sessionForm.delete(route('profile.sessions.destroy-others'), { preserveScroll: true })} disabled={!sessionForm.data.password || sessionForm.processing}>Revoke other sessions</Button>
+                </div>
+                <InputError message={sessionForm.errors.password} className="mt-2 text-xs" />
+            </Card>
+
+            <Card className="border-red-200 p-5 dark:border-red-500/30">
+                <Alert variant="error" title="Delete account">
+                    Once your account is deleted, all of its resources and data will be permanently deleted.
+                </Alert>
+                <Button variant="danger" onClick={deleteAccount} className="mt-4">
+                    <Trash2 className="h-4 w-4" />
+                    Delete account
+                </Button>
+            </Card>
+
+            <Modal
+                open={deletePasswordOpen}
+                onClose={() => setDeletePasswordOpen(false)}
+                title="Confirm account deletion"
+                description="Enter your current password to permanently delete your account."
+                footer={
+                    <>
+                        <Button type="button" variant="secondary" onClick={() => setDeletePasswordOpen(false)}>Cancel</Button>
+                        <Button type="button" variant="danger" onClick={confirmDeleteAccount} disabled={!deletePassword}>
+                            <Trash2 className="h-4 w-4" />
+                            Delete account
+                        </Button>
+                    </>
+                }
+            >
+                <InputLabel htmlFor="delete-password" value="Current password" className="mb-1 text-xs font-medium text-waify-text dark:text-waify-dark-text" />
+                <TextInput
+                    id="delete-password"
+                    type="password"
+                    value={deletePassword}
+                    onChange={(event) => setDeletePassword(event.target.value)}
+                    className="block h-9 w-full rounded-btn border-gray-200 text-sm focus:border-waify-green focus:ring-waify-green/15 dark:border-slate-600 dark:bg-slate-900"
+                    autoComplete="current-password"
+                    placeholder="Enter current password"
+                />
+            </Modal>
         </div>
     );
 }

@@ -14,9 +14,8 @@ class OpsBackupDatabaseCommand extends Command
     public function handle(OpsMaintenanceService $service): int
     {
         $result = $service->runDatabaseBackup((bool) $this->option('force'));
-        $this->line(($result['status'] ?? 'unknown') . ': ' . ($result['message'] ?? ''));
+        $this->line(($result['status'] ?? 'unknown').': '.($result['message'] ?? ''));
 
         return ($result['status'] ?? '') === 'failed' ? self::FAILURE : self::SUCCESS;
     }
 }
-

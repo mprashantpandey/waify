@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use App\Models\PlatformSetting;
-use App\Models\SystemBackup;
 use App\Models\Subscription;
+use App\Models\SystemBackup;
 use App\Modules\Broadcasts\Models\Campaign;
 use App\Modules\Broadcasts\Models\CampaignMessage;
 use App\Modules\Chatbots\Models\Bot;
@@ -276,10 +276,10 @@ class CronDiagnosticsService
         $commands = [
             [
                 'id' => 'central-worker',
-                'title' => 'Central Cron Command',
-                'schedule' => '* * * * *',
-                'description' => 'Single cron command: runs maintenance tick (backup/cleanup windows) then keeps worker active for ~55s each minute.',
-                'command' => "cd {$appPath} && php artisan ops:run-maintenance {$nullRedirect} && flock -n /tmp/waify-queue.lock timeout 55 php artisan queue:work --queue=default,chatbots,campaigns --sleep=1 --tries=3 --timeout=120 {$nullRedirect}",
+                'title' => 'Supervisor Workers',
+                'schedule' => 'always on',
+                'description' => 'Persistent Supervisor workers process inbox, chatbot, campaign, mail, and webhook jobs immediately. Cron is only a fallback for maintenance ticks.',
+                'command' => "supervisorctl status | grep Zyptos {$nullRedirect}",
             ],
         ];
 
@@ -444,9 +444,9 @@ class CronDiagnosticsService
 
     protected function logMeta(string $filename): array
     {
-        $path = storage_path('logs/' . $filename);
+        $path = storage_path('logs/'.$filename);
 
-        if (!File::exists($path)) {
+        if (! File::exists($path)) {
             return [
                 'exists' => false,
                 'path' => $path,
@@ -469,7 +469,7 @@ class CronDiagnosticsService
             ->filter()
             ->max();
 
-        if (!$normalized) {
+        if (! $normalized) {
             return null;
         }
 
@@ -478,7 +478,7 @@ class CronDiagnosticsService
 
     protected function isoOrNull(mixed $value): ?string
     {
-        if (!$value) {
+        if (! $value) {
             return null;
         }
 

@@ -63,18 +63,18 @@ return new class extends Migration
 
     private function renameTableIfExists(string $from, string $to): void
     {
-        if (Schema::hasTable($from) && !Schema::hasTable($to)) {
+        if (Schema::hasTable($from) && ! Schema::hasTable($to)) {
             Schema::rename($from, $to);
         }
     }
 
     private function renameWorkspaceId(string $driver, string $table): void
     {
-        if (!Schema::hasTable($table)) {
+        if (! Schema::hasTable($table)) {
             return;
         }
 
-        if (!Schema::hasColumn($table, 'workspace_id') || Schema::hasColumn($table, 'account_id')) {
+        if (! Schema::hasColumn($table, 'workspace_id') || Schema::hasColumn($table, 'account_id')) {
             return;
         }
 
@@ -84,6 +84,7 @@ return new class extends Migration
             if ($definition) {
                 DB::statement("ALTER TABLE `{$table}` CHANGE `workspace_id` `account_id` {$definition}");
             }
+
             return;
         }
 
@@ -92,11 +93,11 @@ return new class extends Migration
 
     private function renameAccountId(string $driver, string $table): void
     {
-        if (!Schema::hasTable($table)) {
+        if (! Schema::hasTable($table)) {
             return;
         }
 
-        if (!Schema::hasColumn($table, 'account_id') || Schema::hasColumn($table, 'workspace_id')) {
+        if (! Schema::hasColumn($table, 'account_id') || Schema::hasColumn($table, 'workspace_id')) {
             return;
         }
 
@@ -106,6 +107,7 @@ return new class extends Migration
             if ($definition) {
                 DB::statement("ALTER TABLE `{$table}` CHANGE `account_id` `workspace_id` {$definition}");
             }
+
             return;
         }
 
@@ -115,15 +117,15 @@ return new class extends Migration
     private function getMysqlColumnDefinition(string $table, string $column): ?string
     {
         $row = DB::selectOne(
-            "SELECT COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA
+            'SELECT COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA
              FROM information_schema.COLUMNS
              WHERE TABLE_SCHEMA = DATABASE()
                AND TABLE_NAME = ?
-               AND COLUMN_NAME = ?",
+               AND COLUMN_NAME = ?',
             [$table, $column]
         );
 
-        if (!$row) {
+        if (! $row) {
             return null;
         }
 
@@ -135,7 +137,7 @@ return new class extends Migration
             $definition .= " DEFAULT {$default}";
         }
 
-        if (!empty($row->EXTRA)) {
+        if (! empty($row->EXTRA)) {
             $definition .= " {$row->EXTRA}";
         }
 
@@ -145,12 +147,12 @@ return new class extends Migration
     private function dropForeignKeysForColumn(string $table, string $column): void
     {
         $constraints = DB::select(
-            "SELECT CONSTRAINT_NAME
+            'SELECT CONSTRAINT_NAME
              FROM information_schema.KEY_COLUMN_USAGE
              WHERE TABLE_SCHEMA = DATABASE()
                AND TABLE_NAME = ?
                AND COLUMN_NAME = ?
-               AND REFERENCED_TABLE_NAME IS NOT NULL",
+               AND REFERENCED_TABLE_NAME IS NOT NULL',
             [$table, $column]
         );
 
@@ -165,12 +167,12 @@ return new class extends Migration
             return;
         }
 
-        if (!Schema::hasTable('accounts')) {
+        if (! Schema::hasTable('accounts')) {
             return;
         }
 
         foreach ($tables as $table) {
-            if (!Schema::hasTable($table) || !Schema::hasColumn($table, 'account_id')) {
+            if (! Schema::hasTable($table) || ! Schema::hasColumn($table, 'account_id')) {
                 continue;
             }
 
@@ -202,13 +204,13 @@ return new class extends Migration
     private function hasForeignKey(string $table, string $column): bool
     {
         $row = DB::selectOne(
-            "SELECT 1
+            'SELECT 1
              FROM information_schema.KEY_COLUMN_USAGE
              WHERE TABLE_SCHEMA = DATABASE()
                AND TABLE_NAME = ?
                AND COLUMN_NAME = ?
                AND REFERENCED_TABLE_NAME IS NOT NULL
-             LIMIT 1",
+             LIMIT 1',
             [$table, $column]
         );
 
@@ -237,10 +239,10 @@ return new class extends Migration
     {
         if ($driver === 'mysql') {
             $rows = DB::select(
-                "SELECT TABLE_NAME
+                'SELECT TABLE_NAME
                  FROM information_schema.COLUMNS
                  WHERE TABLE_SCHEMA = DATABASE()
-                   AND COLUMN_NAME = ?",
+                   AND COLUMN_NAME = ?',
                 [$column]
             );
 
@@ -256,6 +258,7 @@ return new class extends Migration
                     $tableNames[] = $name;
                 }
             }
+
             return $tableNames;
         }
 
@@ -303,7 +306,7 @@ return new class extends Migration
         $rules = [];
         foreach ($tables as $table) {
             $row = DB::selectOne(
-                "SELECT rc.DELETE_RULE
+                'SELECT rc.DELETE_RULE
                  FROM information_schema.KEY_COLUMN_USAGE kcu
                  JOIN information_schema.REFERENTIAL_CONSTRAINTS rc
                    ON kcu.CONSTRAINT_SCHEMA = rc.CONSTRAINT_SCHEMA
@@ -312,11 +315,11 @@ return new class extends Migration
                    AND kcu.TABLE_NAME = ?
                    AND kcu.COLUMN_NAME = ?
                    AND kcu.REFERENCED_TABLE_NAME IS NOT NULL
-                 LIMIT 1",
+                 LIMIT 1',
                 [$table, $column]
             );
 
-            if ($row && !empty($row->DELETE_RULE)) {
+            if ($row && ! empty($row->DELETE_RULE)) {
                 $rules[$table] = ['delete_rule' => $row->DELETE_RULE];
             }
         }
@@ -326,11 +329,11 @@ return new class extends Migration
 
     private function renameColumnSafe(string $table, string $from, string $to): void
     {
-        if (!Schema::hasTable($table) || !Schema::hasColumn($table, $from) || Schema::hasColumn($table, $to)) {
+        if (! Schema::hasTable($table) || ! Schema::hasColumn($table, $from) || Schema::hasColumn($table, $to)) {
             return;
         }
 
-        if (!class_exists(\Doctrine\DBAL\DriverManager::class)) {
+        if (! class_exists(\Doctrine\DBAL\DriverManager::class)) {
             throw new RuntimeException("doctrine/dbal is required to rename columns on this driver. Please install it to rename {$table}.{$from}.");
         }
 

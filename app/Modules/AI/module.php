@@ -13,4 +13,3 @@ return [
             'href' => 'app.ai.index',
             'icon' => 'Sparkles',
             'group' => 'ai']]];
-

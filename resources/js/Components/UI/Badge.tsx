@@ -8,24 +8,24 @@ interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 export function Badge({ className, variant = 'default', children, ...props }: BadgeProps) {
     const variants = {
         default:
-            'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
+            'bg-gray-100 text-gray-800 ring-1 ring-inset ring-gray-200 dark:bg-slate-700/70 dark:text-slate-100 dark:ring-slate-500/30',
         success:
-            'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+            'bg-emerald-100 text-emerald-800 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-100 dark:ring-emerald-400/25',
         warning:
-            'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+            'bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/20 dark:text-amber-100 dark:ring-amber-400/25',
         danger:
-            'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+            'bg-red-100 text-red-800 ring-1 ring-inset ring-red-200 dark:bg-red-500/20 dark:text-red-100 dark:ring-red-400/25',
         info:
-            'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+            'bg-sky-100 text-sky-800 ring-1 ring-inset ring-sky-200 dark:bg-sky-500/20 dark:text-sky-100 dark:ring-sky-400/25',
         secondary:
-            'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+            'bg-white text-gray-700 ring-1 ring-inset ring-gray-200 dark:bg-waify-dark-surface-2 dark:text-waify-dark-text dark:ring-waify-dark-border',
         outline:
-            'bg-transparent border border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-300'};
+            'bg-transparent text-gray-700 ring-1 ring-inset ring-gray-300 dark:text-waify-dark-text dark:ring-waify-dark-border'};
 
     return (
         <span
             className={cn(
-                'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
+                'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium',
                 variants[variant],
                 className
             )}
@@ -35,4 +35,3 @@ export function Badge({ className, variant = 'default', children, ...props }: Ba
         </span>
     );
 }
-

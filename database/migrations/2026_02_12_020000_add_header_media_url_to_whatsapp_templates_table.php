@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (!Schema::hasColumn('whatsapp_templates', 'header_media_url')) {
+        if (! Schema::hasColumn('whatsapp_templates', 'header_media_url')) {
             Schema::table('whatsapp_templates', function (Blueprint $table): void {
                 $table->text('header_media_url')->nullable()->after('header_text');
             });
@@ -24,4 +24,3 @@ return new class extends Migration
         }
     }
 };
-

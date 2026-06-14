@@ -11,15 +11,38 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Account extends Model
 {
     use HasFactory;
+
+    protected $appends = [
+        'workspace_type_label',
+    ];
+
     protected $fillable = [
         'name',
         'slug',
+        'workspace_type',
+        'industry',
+        'timezone',
+        'logo_path',
+        'billing_name',
+        'billing_email',
+        'billing_gstin',
+        'billing_address_line1',
+        'billing_address_line2',
+        'billing_city',
+        'billing_state',
+        'billing_state_code',
+        'billing_postal_code',
+        'billing_country',
         'owner_id',
         'status',
         'disabled_reason',
         'disabled_at',
         'auto_assign_enabled',
-        'auto_assign_strategy'];
+        'auto_assign_strategy',
+        'welcome_message_enabled',
+        'welcome_message_body',
+        'auto_close_conversations_enabled',
+        'auto_close_after_hours'];
 
     /**
      * Get the owner of the account.
@@ -39,6 +62,11 @@ class Account extends Model
             ->withTimestamps();
     }
 
+    public function roles(): HasMany
+    {
+        return $this->hasMany(AccountRole::class);
+    }
+
     /**
      * Get all modules for this account.
      */
@@ -53,6 +81,11 @@ class Account extends Model
     public function subscription()
     {
         return $this->hasOne(Subscription::class);
+    }
+
+    public function billingEvents(): HasMany
+    {
+        return $this->hasMany(BillingEvent::class);
     }
 
     /**
@@ -81,6 +114,66 @@ class Account extends Model
         return $this->hasMany(WalletTransaction::class);
     }
 
+    public function integrations()
+    {
+        return $this->hasMany(AccountIntegration::class);
+    }
+
+    public function apiKeys()
+    {
+        return $this->hasMany(AccountApiKey::class);
+    }
+
+    public function apiRequestLogs()
+    {
+        return $this->hasMany(AccountApiRequestLog::class);
+    }
+
+    public function webhookEndpoints()
+    {
+        return $this->hasMany(AccountWebhookEndpoint::class);
+    }
+
+    public function webhookDeliveries()
+    {
+        return $this->hasMany(AccountWebhookDelivery::class);
+    }
+
+    public function catalogProducts()
+    {
+        return $this->hasMany(AccountCatalogProduct::class);
+    }
+
+    public function mediaAssets()
+    {
+        return $this->hasMany(AccountMediaAsset::class);
+    }
+
+    public function ecommerceOrders()
+    {
+        return $this->hasMany(AccountEcommerceOrder::class);
+    }
+
+    public function surveys()
+    {
+        return $this->hasMany(AccountSurvey::class);
+    }
+
+    public function appointments()
+    {
+        return $this->hasMany(AccountAppointment::class);
+    }
+
+    public function metaLeads()
+    {
+        return $this->hasMany(AccountMetaLead::class);
+    }
+
+    public function deals()
+    {
+        return $this->hasMany(AccountDeal::class);
+    }
+
     /**
      * Get the attributes that should be cast.
      */
@@ -88,7 +181,31 @@ class Account extends Model
     {
         return [
             'disabled_at' => 'datetime',
-            'auto_assign_enabled' => 'boolean'];
+            'auto_assign_enabled' => 'boolean',
+            'welcome_message_enabled' => 'boolean',
+            'auto_close_conversations_enabled' => 'boolean',
+            'auto_close_after_hours' => 'integer'];
+    }
+
+    public static function workspaceTypes(): array
+    {
+        return [
+            'business' => 'Business',
+            'agency' => 'Agency',
+            'client' => 'Client',
+            'branch' => 'Branch',
+            'project' => 'Project',
+        ];
+    }
+
+    public function workspaceTypeLabel(): string
+    {
+        return static::workspaceTypes()[$this->workspace_type ?: 'business'] ?? 'Business';
+    }
+
+    public function getWorkspaceTypeLabelAttribute(): string
+    {
+        return $this->workspaceTypeLabel();
     }
 
     /**
@@ -109,7 +226,7 @@ class Account extends Model
             return true;
         }
 
-        // Fallback: Check account_users for legacy accounts (owner might be in pivot table)
+        // Fallback for accounts where ownership is recorded only in the pivot table.
         $accountUser = \App\Models\AccountUser::where('account_id', $this->id)
             ->where('user_id', $user->id)
             ->where('role', 'owner')
@@ -117,9 +234,10 @@ class Account extends Model
 
         if ($accountUser) {
             // Fix: Set owner_id if it's missing
-            if (!$this->owner_id) {
+            if (! $this->owner_id) {
                 $this->update(['owner_id' => $user->id]);
             }
+
             return true;
         }
 
@@ -172,7 +290,7 @@ class Account extends Model
     {
         $agents = collect();
 
-        if ($this->owner_id && $this->owner) {
+        if ($this->owner_id && $this->owner && ! $this->owner->isSuperAdmin()) {
             $agents->push([
                 'id' => $this->owner->id,
                 'name' => $this->owner->name,
@@ -182,7 +300,7 @@ class Account extends Model
         }
 
         $members = $this->users()
-            ->whereIn('account_users.role', ['admin', 'member'])
+            ->where('users.is_platform_admin', false)
             ->get(['users.id', 'users.name', 'users.email', 'account_users.role'])
             ->map(fn ($user) => [
                 'id' => $user->id,
@@ -212,7 +330,7 @@ class Account extends Model
         $counter = 1;
 
         while (static::where('slug', $slug)->exists()) {
-            $slug = $originalSlug . '-' . $counter;
+            $slug = $originalSlug.'-'.$counter;
             $counter++;
         }
 

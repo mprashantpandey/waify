@@ -54,4 +54,3 @@ class NotificationOutbox extends Model
         return $this->morphTo();
     }
 }
-

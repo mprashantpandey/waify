@@ -44,7 +44,7 @@ export function TabsList({ children, className }: TabsListProps) {
     return (
         <div
             className={cn(
-                'inline-flex h-10 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 p-1 text-gray-500 dark:text-gray-400',
+                'inline-flex h-10 items-center justify-center rounded-btn bg-gray-100 p-1 text-gray-500 dark:bg-waify-dark-surface-2 dark:text-waify-dark-text-muted',
                 className
             )}
             role="tablist"
@@ -73,10 +73,10 @@ export function TabsTrigger({ value, children, className, ...props }: TabsTrigge
             type="button"
             onClick={() => context.onValueChange(value)}
             className={cn(
-                'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 dark:ring-offset-gray-950',
+                'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-waify-green focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 dark:ring-offset-waify-dark-bg',
                 isActive
-                    ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-900 dark:text-gray-100'
-                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100',
+                    ? 'bg-white text-waify-text shadow-sm dark:bg-waify-dark-surface dark:text-waify-dark-text'
+                    : 'text-gray-600 hover:text-waify-text dark:text-waify-dark-text-muted dark:hover:text-waify-dark-text',
                 className
             )}
             {...props}
@@ -105,7 +105,7 @@ export function TabsContent({ value, children, className }: TabsContentProps) {
     return (
         <div
             className={cn(
-                'mt-4 ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:ring-offset-gray-950',
+                'mt-4 ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-waify-green focus-visible:ring-offset-2 dark:ring-offset-waify-dark-bg',
                 className
             )}
         >
@@ -119,4 +119,3 @@ export function useTabs(defaultValue: string) {
     const [value, setValue] = useState(defaultValue);
     return { value, setValue };
 }
-

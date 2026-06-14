@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Components/UI/Card';
-import { Activity, AlertTriangle, CheckCircle2, Mail, MessageSquare, Radio, ServerCog } from 'lucide-react';
+import { Activity, AlertTriangle, Mail, MessageSquare, Radio, ServerCog } from 'lucide-react';
 
 interface DeliveryProps {
     delivery: {
@@ -210,18 +210,13 @@ export default function DeliveryTab({ delivery }: DeliveryProps) {
                 </Card>
             </div>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-base">Recent Failures</CardTitle>
-                    <CardDescription>Latest failed jobs from queue workers.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {delivery.recent_failures.length === 0 ? (
-                        <div className="flex items-center gap-2 rounded-lg bg-green-50 p-3 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-300">
-                            <CheckCircle2 className="h-4 w-4" />
-                            No recent failures.
-                        </div>
-                    ) : (
+            {delivery.recent_failures.length > 0 && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-base">Recent Failures</CardTitle>
+                        <CardDescription>Latest failed jobs from queue workers.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
                         <div className="space-y-2">
                             {delivery.recent_failures.map((failure) => (
                                 <div key={failure.id} className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm dark:border-red-900/40 dark:bg-red-900/20">
@@ -236,22 +231,17 @@ export default function DeliveryTab({ delivery }: DeliveryProps) {
                                 </div>
                             ))}
                         </div>
-                    )}
-                </CardContent>
-            </Card>
+                    </CardContent>
+                </Card>
+            )}
 
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-base">Recent Email Delivery Failures</CardTitle>
-                    <CardDescription>Template-level diagnostics from notification outbox.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {delivery.mail.recent_outbox_failures.length === 0 ? (
-                        <div className="flex items-center gap-2 rounded-lg bg-green-50 p-3 text-sm text-green-700 dark:bg-green-900/20 dark:text-green-300">
-                            <CheckCircle2 className="h-4 w-4" />
-                            No recent email delivery failures.
-                        </div>
-                    ) : (
+            {delivery.mail.recent_outbox_failures.length > 0 && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-base">Recent Email Delivery Failures</CardTitle>
+                        <CardDescription>Template-level diagnostics from notification outbox.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
                         <div className="space-y-2">
                             {delivery.mail.recent_outbox_failures.map((failure, idx) => (
                                 <div key={`${failure.template_key}-${failure.failed_at}-${idx}`} className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900/40 dark:bg-amber-900/20">
@@ -270,9 +260,9 @@ export default function DeliveryTab({ delivery }: DeliveryProps) {
                                 </div>
                             ))}
                         </div>
-                    )}
-                </CardContent>
-            </Card>
+                    </CardContent>
+                </Card>
+            )}
 
             <Card>
                 <CardHeader>

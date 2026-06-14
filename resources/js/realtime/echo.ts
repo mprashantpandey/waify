@@ -10,6 +10,7 @@ declare global {
 }
 
 let echoInstance: Echo<any> | null = null;
+const realtimeDebug = import.meta.env.VITE_REALTIME_DEBUG === 'true';
 
 export function initializeEcho(config: {
     pusherKey: string;
@@ -75,16 +76,17 @@ export function initializeEcho(config: {
                     )
                     .then((response) => callback(null, response.data))
                     .catch((error) => {
-                        // Log detailed error information for debugging
-                        console.error('[Echo] Channel authorization failed', {
-                            channel: channel.name,
-                            status: error.response?.status,
-                            statusText: error.response?.statusText,
-                            data: error.response?.data,
-                            message: error.message,
-                            hasCsrfToken: !!currentCsrfToken,
-                            hasXsrfToken: !!currentXsrfToken,
-                        });
+                        if (realtimeDebug) {
+                            console.error('[Echo] Channel authorization failed', {
+                                channel: channel.name,
+                                status: error.response?.status,
+                                statusText: error.response?.statusText,
+                                data: error.response?.data,
+                                message: error.message,
+                                hasCsrfToken: !!currentCsrfToken,
+                                hasXsrfToken: !!currentXsrfToken,
+                            });
+                        }
                         
                         // Return error to Pusher
                         callback(error, null);
@@ -95,14 +97,19 @@ export function initializeEcho(config: {
 
     // Handle connection events
     echoInstance.connector.pusher.connection.bind('connected', () => {
-        console.log('[Echo] Connected to Pusher');
+        if (realtimeDebug) {
+            console.log('[Echo] Connected to Pusher');
+        }
     });
 
     echoInstance.connector.pusher.connection.bind('disconnected', () => {
-        console.log('[Echo] Disconnected from Pusher');
+        if (realtimeDebug) {
+            console.log('[Echo] Disconnected from Pusher');
+        }
     });
 
     echoInstance.connector.pusher.connection.bind('error', (err: any) => {
+        if (!realtimeDebug) return;
         const detail = err?.error?.data || err?.error || err;
         console.error('[Echo] Connection error:', detail);
     });

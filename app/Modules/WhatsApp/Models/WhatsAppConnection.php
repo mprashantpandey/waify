@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Crypt;
 class WhatsAppConnection extends Model
 {
     use HasFactory;
+
     protected $table = 'whatsapp_connections';
 
     protected $fillable = [
@@ -19,12 +20,51 @@ class WhatsAppConnection extends Model
         'name',
         'slug',
         'waba_id',
+        'meta_business_id',
+        'meta_waba_name',
+        'meta_account_review_status',
+        'meta_business_verification_status',
+        'meta_timezone_id',
+        'meta_template_namespace',
+        'meta_subscribed_apps',
         'phone_number_id',
         'business_phone',
+        'meta_verified_name',
+        'phone_number_status',
+        'quality_rating',
+        'code_verification_status',
+        'business_category',
+        'business_about',
+        'business_address',
+        'business_description',
+        'business_email',
+        'business_websites',
+        'business_vertical',
+        'profile_picture_url',
+        'profile_picture_handle',
+        'profile_synced_at',
+        'profile_sync_error',
+        'setup_method',
+        'connection_mode',
+        'qr_session_id',
+        'qr_status',
+        'qr_last_seen_at',
+        'qr_last_error',
+        'qr_safety_settings',
+        'coexistence_status',
+        'coexistence_metadata',
+        'coexistence_last_checked_at',
+        'coexistence_last_error',
         'access_token_encrypted',
         'api_version',
         'webhook_verify_token',
         'webhook_subscribed',
+        'calling_status',
+        'calling_enabled',
+        'calling_webhook_subscribed',
+        'calling_settings',
+        'calling_last_checked_at',
+        'calling_last_error',
         'webhook_last_received_at',
         'webhook_last_error',
         'is_active',
@@ -38,14 +78,14 @@ class WhatsAppConnection extends Model
         parent::boot();
 
         static::creating(function ($connection) {
-            if (!$connection->slug) {
+            if (! $connection->slug) {
                 $connection->slug = static::generateSlug($connection);
             }
         });
 
         static::updating(function ($connection) {
             // Regenerate slug if name changes
-            if ($connection->isDirty('name') && !$connection->isDirty('slug')) {
+            if ($connection->isDirty('name') && ! $connection->isDirty('slug')) {
                 $connection->slug = static::generateSlug($connection);
             }
         });
@@ -62,10 +102,9 @@ class WhatsAppConnection extends Model
         $counter = 1;
 
         while (static::where('slug', $slug)
-            ->where('account_id', $connection->account_id ?? 0)
             ->where('id', '!=', $connection->id ?? 0)
             ->exists()) {
-            $slug = $originalSlug . '-' . $counter;
+            $slug = $originalSlug.'-'.$counter;
             $counter++;
         }
 
@@ -82,8 +121,19 @@ class WhatsAppConnection extends Model
 
     protected $casts = [
         'webhook_subscribed' => 'boolean',
+        'calling_enabled' => 'boolean',
+        'calling_webhook_subscribed' => 'boolean',
+        'calling_settings' => 'array',
+        'calling_last_checked_at' => 'datetime',
+        'qr_last_seen_at' => 'datetime',
+        'qr_safety_settings' => 'array',
+        'coexistence_metadata' => 'array',
+        'coexistence_last_checked_at' => 'datetime',
         'is_active' => 'boolean',
         'webhook_last_received_at' => 'datetime',
+        'meta_subscribed_apps' => 'array',
+        'business_websites' => 'array',
+        'profile_synced_at' => 'datetime',
         'throughput_cap_per_minute' => 'integer'];
 
     /**
@@ -91,7 +141,7 @@ class WhatsAppConnection extends Model
      */
     public function getAccessTokenAttribute(): ?string
     {
-        if (!$this->access_token_encrypted) {
+        if (! $this->access_token_encrypted) {
             return null;
         }
 

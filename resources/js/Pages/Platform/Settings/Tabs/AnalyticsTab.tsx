@@ -1,150 +1,101 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/Components/UI/Card';
-import TextInput from '@/Components/TextInput';
-import InputLabel from '@/Components/InputLabel';
-import InputError from '@/Components/InputError';
-import { BarChart3, Bug, FileText } from 'lucide-react';
+import { BarChart3, FileText, MousePointerClick } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Components/UI/Card';
+import { Input } from '@/Components/UI/Input';
+import { Label } from '@/Components/UI/Label';
+import { Switch } from '@/Components/UI/Switch';
 
 interface AnalyticsTabProps {
     data: any;
     setData: (key: string, value: any) => void;
-    errors: any;
+    errors: Record<string, string>;
+}
+
+function FieldError({ message }: { message?: string }) {
+    if (!message) return null;
+
+    return <p className="mt-1 text-sm text-red-600 dark:text-red-300">{message}</p>;
+}
+
+function ToggleRow({
+    label,
+    description,
+    checked,
+    onChange,
+}: {
+    label: string;
+    description: string;
+    checked: boolean;
+    onChange: (value: boolean) => void;
+}) {
+    return (
+        <div className="flex items-center justify-between gap-4 rounded-card border border-gray-100 bg-white p-4 dark:border-waify-dark-border dark:bg-waify-dark-surface">
+            <div className="min-w-0">
+                <p className="text-sm font-semibold text-waify-text dark:text-waify-dark-text">{label}</p>
+                <p className="mt-1 text-sm text-waify-text-muted dark:text-waify-dark-text-muted">{description}</p>
+            </div>
+            <Switch checked={checked} onCheckedChange={onChange} />
+        </div>
+    );
 }
 
 export default function AnalyticsTab({ data, setData, errors }: AnalyticsTabProps) {
+    const analytics = data.analytics || {};
+
     return (
         <div className="space-y-6">
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <BarChart3 className="h-5 w-5" />
-                        Analytics Providers
+                        Product Analytics
                     </CardTitle>
+                    <CardDescription>Connect visitor and product analytics used by public pages and app events.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                    {/* Google Analytics */}
-                    <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Google Analytics</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <InputLabel htmlFor="analytics.google_analytics_id" value="Tracking ID" />
-                                <TextInput
-                                    id="analytics.google_analytics_id"
-                                    type="text"
-                                    value={data.analytics?.google_analytics_id || ''}
-                                    onChange={(e) => setData('analytics.google_analytics_id', e.target.value)}
-                                    className="mt-1"
-                                    placeholder="G-XXXXXXXXXX"
-                                />
-                                <InputError message={errors['analytics.google_analytics_id']} />
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <InputLabel value="Enable Google Analytics" />
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">Track user behavior</p>
-                                </div>
-                                <label className="relative inline-flex items-center cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={data.analytics?.google_analytics_enabled || false}
-                                        onChange={(e) => setData('analytics.google_analytics_enabled', e.target.checked)}
-                                        className="sr-only peer"
-                                    />
-                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                                </label>
-                            </div>
+                <CardContent className="grid gap-4 xl:grid-cols-2">
+                    <div className="space-y-3 rounded-card border border-gray-100 p-4 dark:border-waify-dark-border">
+                        <div className="flex items-center gap-2">
+                            <MousePointerClick className="h-4 w-4 text-waify-green dark:text-emerald-300" />
+                            <h3 className="text-sm font-semibold text-waify-text dark:text-waify-dark-text">Google Analytics</h3>
                         </div>
+                        <div>
+                            <Label htmlFor="analytics.google_analytics_id">Measurement ID</Label>
+                            <Input
+                                id="analytics.google_analytics_id"
+                                value={analytics.google_analytics_id || ''}
+                                onChange={(event) => setData('analytics.google_analytics_id', event.target.value)}
+                                placeholder="G-XXXXXXXXXX"
+                            />
+                            <FieldError message={errors['analytics.google_analytics_id']} />
+                        </div>
+                        <ToggleRow
+                            label="Enable tracking"
+                            description="Inject Google Analytics on public pages when a measurement ID is present."
+                            checked={analytics.google_analytics_enabled || false}
+                            onChange={(checked) => setData('analytics.google_analytics_enabled', checked)}
+                        />
                     </div>
 
-                    {/* Mixpanel */}
-                    <div>
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Mixpanel</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <InputLabel htmlFor="analytics.mixpanel_token" value="Project Token" />
-                                <TextInput
-                                    id="analytics.mixpanel_token"
-                                    type="text"
-                                    value={data.analytics?.mixpanel_token || ''}
-                                    onChange={(e) => setData('analytics.mixpanel_token', e.target.value)}
-                                    className="mt-1"
-                                    placeholder="xxxxxxxxxxxxxxxxxxxxxxxx"
-                                />
-                                <InputError message={errors['analytics.mixpanel_token']} />
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <InputLabel value="Enable Mixpanel" />
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">Event tracking and analytics</p>
-                                </div>
-                                <label className="relative inline-flex items-center cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={data.analytics?.mixpanel_enabled || false}
-                                        onChange={(e) => setData('analytics.mixpanel_enabled', e.target.checked)}
-                                        className="sr-only peer"
-                                    />
-                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                                </label>
-                            </div>
+                    <div className="space-y-3 rounded-card border border-gray-100 p-4 dark:border-waify-dark-border">
+                        <div className="flex items-center gap-2">
+                            <BarChart3 className="h-4 w-4 text-waify-green dark:text-emerald-300" />
+                            <h3 className="text-sm font-semibold text-waify-text dark:text-waify-dark-text">Mixpanel</h3>
                         </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <Bug className="h-5 w-5" />
-                        Error Tracking
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    {/* Sentry */}
-                    <div>
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Sentry</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <InputLabel htmlFor="analytics.sentry_dsn" value="DSN" />
-                                <TextInput
-                                    id="analytics.sentry_dsn"
-                                    type="text"
-                                    value={data.analytics?.sentry_dsn || ''}
-                                    onChange={(e) => setData('analytics.sentry_dsn', e.target.value)}
-                                    className="mt-1"
-                                    placeholder="https://xxx@xxx.ingest.sentry.io/xxx"
-                                />
-                                <InputError message={errors['analytics.sentry_dsn']} />
-                            </div>
-                            <div>
-                                <InputLabel htmlFor="analytics.sentry_environment" value="Environment" />
-                                <select
-                                    id="analytics.sentry_environment"
-                                    value={data.analytics?.sentry_environment || 'production'}
-                                    onChange={(e) => setData('analytics.sentry_environment', e.target.value)}
-                                    className="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-500"
-                                >
-                                    <option value="production">Production</option>
-                                    <option value="staging">Staging</option>
-                                    <option value="development">Development</option>
-                                </select>
-                                <InputError message={errors['analytics.sentry_environment']} />
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <InputLabel value="Enable Sentry" />
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">Track and monitor errors</p>
-                                </div>
-                                <label className="relative inline-flex items-center cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={data.analytics?.sentry_enabled || false}
-                                        onChange={(e) => setData('analytics.sentry_enabled', e.target.checked)}
-                                        className="sr-only peer"
-                                    />
-                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                                </label>
-                            </div>
+                        <div>
+                            <Label htmlFor="analytics.mixpanel_token">Project Token</Label>
+                            <Input
+                                id="analytics.mixpanel_token"
+                                value={analytics.mixpanel_token || ''}
+                                onChange={(event) => setData('analytics.mixpanel_token', event.target.value)}
+                                placeholder="xxxxxxxxxxxxxxxxxxxxxxxx"
+                            />
+                            <FieldError message={errors['analytics.mixpanel_token']} />
                         </div>
+                        <ToggleRow
+                            label="Enable product events"
+                            description="Use Mixpanel for app events and funnel analytics when a token is configured."
+                            checked={analytics.mixpanel_enabled || false}
+                            onChange={(checked) => setData('analytics.mixpanel_enabled', checked)}
+                        />
                     </div>
                 </CardContent>
             </Card>
@@ -153,43 +104,35 @@ export default function AnalyticsTab({ data, setData, errors }: AnalyticsTabProp
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <FileText className="h-5 w-5" />
-                        Logging
+                        Application Logging
                     </CardTitle>
+                    <CardDescription>Control local application logs without exposing unused third-party error tracking settings.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                     <div>
-                        <InputLabel htmlFor="analytics.log_level" value="Log Level" />
+                        <Label htmlFor="analytics.log_level">Log Level</Label>
                         <select
                             id="analytics.log_level"
-                            value={data.analytics?.log_level || 'info'}
-                            onChange={(e) => setData('analytics.log_level', e.target.value)}
-                            className="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-500"
+                            value={analytics.log_level || 'info'}
+                            onChange={(event) => setData('analytics.log_level', event.target.value)}
+                            className="mt-1 h-10 w-full rounded-btn border border-gray-200 bg-white px-3 text-sm text-waify-text shadow-sm focus:border-waify-green focus:outline-none focus:ring-2 focus:ring-waify-green/20 dark:border-waify-dark-border dark:bg-waify-dark-surface dark:text-waify-dark-text"
                         >
                             <option value="debug">Debug</option>
                             <option value="info">Info</option>
                             <option value="warning">Warning</option>
                             <option value="error">Error</option>
                         </select>
-                        <InputError message={errors['analytics.log_level']} />
+                        <FieldError message={errors['analytics.log_level']} />
                     </div>
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <InputLabel value="Log API Requests" />
-                            <p className="text-sm text-gray-500 dark:text-gray-400">Log all API requests and responses</p>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={data.analytics?.log_api_requests || false}
-                                onChange={(e) => setData('analytics.log_api_requests', e.target.checked)}
-                                className="sr-only peer"
-                            />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                        </label>
-                    </div>
+
+                    <ToggleRow
+                        label="Log API requests"
+                        description="Record API request metadata for troubleshooting. Avoid enabling this permanently on high traffic installs."
+                        checked={analytics.log_api_requests || false}
+                        onChange={(checked) => setData('analytics.log_api_requests', checked)}
+                    />
                 </CardContent>
             </Card>
         </div>
     );
 }
-

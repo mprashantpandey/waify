@@ -13,8 +13,7 @@ class TemplateSyncController extends Controller
 {
     public function __construct(
         protected TemplateSyncService $syncService
-    ) {
-    }
+    ) {}
 
     /**
      * Sync templates from Meta for a connection.
@@ -40,12 +39,18 @@ class TemplateSyncController extends Controller
                 $result['total'],
                 $result['created'],
                 $result['updated']
-            ));
+            ))->with('sync_report', [
+                'total' => $result['total'],
+                'created' => $result['created'],
+                'updated' => $result['updated'],
+                'errors_count' => count($result['errors'] ?? []),
+                'errors' => array_slice($result['errors'] ?? [], 0, 5),
+            ]);
         } catch (AuthorizationException $e) {
             throw $e;
         } catch (\Exception $e) {
             return redirect()->back()->withErrors([
-                'sync' => 'Failed to sync templates: ' . $e->getMessage()]);
+                'sync' => 'Failed to sync templates: '.$e->getMessage()]);
         }
     }
 }

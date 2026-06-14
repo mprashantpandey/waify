@@ -1,85 +1,318 @@
+import { FormEvent, ReactNode, useState } from 'react';
+import { Head, useForm } from '@inertiajs/react';
+import { Bell, Building2, CreditCard, ImagePlus, Inbox, Save, ShieldCheck, User } from 'lucide-react';
 import AppShell from '@/Layouts/AppShell';
-import { Card, CardContent } from '@/Components/UI/Card';
-import { Tabs, TabsList, TabsTrigger, TabsContent, useTabs } from '@/Components/UI/Tabs';
-import { User, CreditCard, Bell, Shield, Inbox } from 'lucide-react';
+import { Card } from '@/Components/UI/Card';
+import { Input } from '@/Components/UI/Input';
+import { Alert } from '@/Components/UI/Alert';
 import ProfileTab from './Tabs/ProfileTab';
-import BillingTab from './Tabs/BillingTab';
 import SecurityTab from './Tabs/SecurityTab';
+import BillingTab from './Tabs/BillingTab';
 import NotificationsTab from './Tabs/NotificationsTab';
 import InboxTab from './Tabs/InboxTab';
-import { Head } from '@inertiajs/react';
 
-export default function SettingsIndex() {
-    const { value: activeTab, setValue: setActiveTab } = useTabs('profile');
+interface Workspace {
+    id: number;
+    name: string;
+    slug: string;
+    workspace_type: string;
+    workspace_type_label: string;
+    industry: string | null;
+    timezone: string;
+    logo_url: string | null;
+    status: string;
+    billing_name?: string | null;
+    billing_email?: string | null;
+    billing_gstin?: string | null;
+    billing_address_line1?: string | null;
+    billing_address_line2?: string | null;
+    billing_city?: string | null;
+    billing_state?: string | null;
+    billing_state_code?: string | null;
+    billing_postal_code?: string | null;
+    billing_country?: string | null;
+}
 
+interface SettingsIndexProps {
+    workspace?: Workspace | null;
+    workspaceTypes?: Record<string, string>;
+    timezones?: string[];
+    initialTab?: string;
+}
+
+function PageHeader({ title, subtitle }: { title: string; subtitle: string }) {
+    return (
+        <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+                <h2 className="text-xl font-bold tracking-tight text-waify-text dark:text-waify-dark-text">{title}</h2>
+                <p className="mt-1 text-sm text-waify-text-muted dark:text-waify-dark-text-muted">{subtitle}</p>
+            </div>
+        </div>
+    );
+}
+
+function SettingsSection({ title, description, children }: { title?: string; description?: string; children?: ReactNode }) {
+    return (
+        <section>
+            {(title || description) && (
+                <div className="mb-4">
+                    {title && <h3 className="text-base font-semibold text-waify-text dark:text-waify-dark-text">{title}</h3>}
+                    {description && <p className="mt-0.5 text-sm text-waify-text-muted dark:text-waify-dark-text-muted">{description}</p>}
+                </div>
+            )}
+            {children}
+        </section>
+    );
+}
+
+function Avatar({ name, src, size = 88 }: { name: string; src?: string | null; size?: number }) {
+    const palette = ['#00A548', '#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#14B8A6', '#EF4444', '#6366F1'];
+    const initial = (name || '?').trim().split(/\s+/).map((word) => word[0]).slice(0, 2).join('').toUpperCase();
+    let hash = 0;
+    for (let index = 0; index < name.length; index += 1) {
+        hash = name.charCodeAt(index) + ((hash << 5) - hash);
+    }
+
+    return (
+        <div
+            className="inline-flex flex-shrink-0 select-none items-center justify-center rounded-full font-semibold text-white"
+            style={{ width: size, height: size, background: palette[Math.abs(hash) % palette.length], fontSize: size * 0.38 }}
+        >
+            {src ? <img src={src} alt={name || 'Workspace'} className="h-full w-full object-cover" /> : initial}
+        </div>
+    );
+}
+
+function WorkspaceTab({ workspace, workspaceTypes = {}, timezones = [] }: SettingsIndexProps) {
+    const [logoPreview, setLogoPreview] = useState<string | null>(workspace?.logo_url || null);
+    const form = useForm({
+        name: workspace?.name || '',
+        workspace_type: workspace?.workspace_type || 'business',
+        industry: workspace?.industry || '',
+        timezone: workspace?.timezone || 'UTC',
+        billing_name: workspace?.billing_name || '',
+        billing_email: workspace?.billing_email || '',
+        billing_gstin: workspace?.billing_gstin || '',
+        billing_address_line1: workspace?.billing_address_line1 || '',
+        billing_address_line2: workspace?.billing_address_line2 || '',
+        billing_city: workspace?.billing_city || '',
+        billing_state: workspace?.billing_state || '',
+        billing_state_code: workspace?.billing_state_code || '',
+        billing_postal_code: workspace?.billing_postal_code || '',
+        billing_country: workspace?.billing_country || 'IN',
+        logo: null as File | null,
+    });
+
+    const submit = (event: FormEvent) => {
+        event.preventDefault();
+        form.transform((data) => ({ ...data, _method: 'patch' }));
+        form.post(route('app.settings.workspace.upload') as string, {
+            preserveScroll: true,
+            forceFormData: true,
+            onSuccess: () => form.setData('logo', null),
+        });
+    };
+
+    if (!workspace) {
+        return (
+            <Alert variant="info" title="No active workspace">
+                Select or create a workspace before changing workspace profile settings.
+            </Alert>
+        );
+    }
+
+    return (
+        <form onSubmit={submit} className="space-y-6">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_1fr]">
+                <Card className="flex flex-col items-center p-5 text-center lg:items-start lg:text-left">
+                    <Avatar name={form.data.name || workspace.name} src={logoPreview} />
+                    <div className="mt-3 font-semibold text-waify-text dark:text-waify-dark-text">{form.data.name || workspace.name}</div>
+                    <div className="mt-0.5 max-w-full truncate text-xs text-waify-text-muted dark:text-waify-dark-text-muted">{workspace.slug}</div>
+                    <label className="mt-4 inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-btn border border-gray-200 bg-white px-3 text-sm font-medium text-waify-text transition hover:bg-gray-50 dark:border-waify-dark-border dark:bg-waify-dark-surface dark:text-waify-dark-text dark:hover:bg-waify-dark-surface-2">
+                        <ImagePlus className="h-4 w-4" />
+                        Upload image
+                        <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/gif"
+                            className="sr-only"
+                            onChange={(event) => {
+                                const file = event.target.files?.[0] || null;
+                                form.setData('logo', file);
+                                setLogoPreview(file ? URL.createObjectURL(file) : workspace.logo_url);
+                            }}
+                        />
+                    </label>
+                    <p className="mt-2 text-xs text-waify-text-muted dark:text-waify-dark-text-muted">PNG, JPG, WebP or GIF up to 2MB.</p>
+                    {form.errors.logo && <p className="mt-2 text-xs text-red-600">{form.errors.logo}</p>}
+                </Card>
+
+                <Card className="p-5">
+                    <SettingsSection>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div className="sm:col-span-2">
+                                <label className="mb-1 block text-xs font-medium text-waify-text dark:text-waify-dark-text">Workspace name</label>
+                                <Input value={form.data.name} onChange={(event) => form.setData('name', event.target.value)} />
+                                {form.errors.name && <p className="mt-2 text-xs text-red-600">{form.errors.name}</p>}
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-medium text-waify-text dark:text-waify-dark-text">Workspace type</label>
+                                <select
+                                    value={form.data.workspace_type}
+                                    onChange={(event) => form.setData('workspace_type', event.target.value)}
+                                    className="h-9 w-full rounded-btn border border-gray-200 bg-white px-3 text-sm text-waify-text outline-none transition focus:border-waify-green focus:ring-2 focus:ring-waify-green/15 dark:border-slate-600 dark:bg-slate-900 dark:text-waify-dark-text"
+                                >
+                                    {Object.entries(workspaceTypes).map(([key, label]) => (
+                                        <option key={key} value={key}>{label}</option>
+                                    ))}
+                                </select>
+                                {form.errors.workspace_type && <p className="mt-2 text-xs text-red-600">{form.errors.workspace_type}</p>}
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-medium text-waify-text dark:text-waify-dark-text">Industry</label>
+                                <Input value={form.data.industry} onChange={(event) => form.setData('industry', event.target.value)} placeholder="Retail, healthcare, education" />
+                                {form.errors.industry && <p className="mt-2 text-xs text-red-600">{form.errors.industry}</p>}
+                            </div>
+                            <div className="sm:col-span-2">
+                                <label className="mb-1 block text-xs font-medium text-waify-text dark:text-waify-dark-text">Timezone</label>
+                                <select
+                                    value={form.data.timezone}
+                                    onChange={(event) => form.setData('timezone', event.target.value)}
+                                    className="h-9 w-full rounded-btn border border-gray-200 bg-white px-3 text-sm text-waify-text outline-none transition focus:border-waify-green focus:ring-2 focus:ring-waify-green/15 dark:border-slate-600 dark:bg-slate-900 dark:text-waify-dark-text"
+                                >
+                                    {timezones.map((timezone) => (
+                                        <option key={timezone} value={timezone}>{timezone}</option>
+                                    ))}
+                                </select>
+                                {form.errors.timezone && <p className="mt-2 text-xs text-red-600">{form.errors.timezone}</p>}
+                            </div>
+                        </div>
+                    </SettingsSection>
+                </Card>
+
+                <Card className="p-5 lg:col-start-2">
+                    <SettingsSection title="Billing Profile" description="Used for tax invoices and payment receipts.">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div>
+                                <label className="mb-1 block text-xs font-medium text-waify-text dark:text-waify-dark-text">Billing name</label>
+                                <Input value={form.data.billing_name} onChange={(event) => form.setData('billing_name', event.target.value)} />
+                                {form.errors.billing_name && <p className="mt-2 text-xs text-red-600">{form.errors.billing_name}</p>}
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-medium text-waify-text dark:text-waify-dark-text">Billing email</label>
+                                <Input value={form.data.billing_email} onChange={(event) => form.setData('billing_email', event.target.value)} />
+                                {form.errors.billing_email && <p className="mt-2 text-xs text-red-600">{form.errors.billing_email}</p>}
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-medium text-waify-text dark:text-waify-dark-text">GSTIN</label>
+                                <Input value={form.data.billing_gstin} onChange={(event) => form.setData('billing_gstin', event.target.value.toUpperCase())} />
+                                {form.errors.billing_gstin && <p className="mt-2 text-xs text-red-600">{form.errors.billing_gstin}</p>}
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-medium text-waify-text dark:text-waify-dark-text">Country</label>
+                                <Input value={form.data.billing_country} onChange={(event) => form.setData('billing_country', event.target.value.toUpperCase())} />
+                                {form.errors.billing_country && <p className="mt-2 text-xs text-red-600">{form.errors.billing_country}</p>}
+                            </div>
+                            <div className="sm:col-span-2">
+                                <label className="mb-1 block text-xs font-medium text-waify-text dark:text-waify-dark-text">Address line 1</label>
+                                <Input value={form.data.billing_address_line1} onChange={(event) => form.setData('billing_address_line1', event.target.value)} />
+                                {form.errors.billing_address_line1 && <p className="mt-2 text-xs text-red-600">{form.errors.billing_address_line1}</p>}
+                            </div>
+                            <div className="sm:col-span-2">
+                                <label className="mb-1 block text-xs font-medium text-waify-text dark:text-waify-dark-text">Address line 2</label>
+                                <Input value={form.data.billing_address_line2} onChange={(event) => form.setData('billing_address_line2', event.target.value)} />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-medium text-waify-text dark:text-waify-dark-text">City</label>
+                                <Input value={form.data.billing_city} onChange={(event) => form.setData('billing_city', event.target.value)} />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-medium text-waify-text dark:text-waify-dark-text">State</label>
+                                <Input value={form.data.billing_state} onChange={(event) => form.setData('billing_state', event.target.value)} />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-medium text-waify-text dark:text-waify-dark-text">State code</label>
+                                <Input value={form.data.billing_state_code} onChange={(event) => form.setData('billing_state_code', event.target.value.toUpperCase())} placeholder="MH, DL, KA" />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-medium text-waify-text dark:text-waify-dark-text">Postal code</label>
+                                <Input value={form.data.billing_postal_code} onChange={(event) => form.setData('billing_postal_code', event.target.value)} />
+                            </div>
+                        </div>
+                    </SettingsSection>
+                </Card>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-gray-100 pt-2 dark:border-slate-700">
+                <button type="submit" disabled={form.processing || !form.data.name.trim()} className="inline-flex h-9 items-center justify-center gap-2 rounded-btn bg-waify-green px-3.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-waify-green-dark disabled:cursor-not-allowed disabled:opacity-50">
+                    <Save className="h-4 w-4" />
+                    {form.processing ? 'Saving...' : 'Save changes'}
+                </button>
+            </div>
+        </form>
+    );
+}
+
+export default function SettingsIndex({ workspace, workspaceTypes = {}, timezones = [], initialTab = 'workspace' }: SettingsIndexProps) {
+    const [activeTab, setActiveTab] = useState(initialTab);
     const tabs = [
-        {
-            id: 'profile',
-            label: 'Profile',
-            icon: User,
-            component: <ProfileTab />},
-        {
-            id: 'billing',
-            label: 'Billing',
-            icon: CreditCard,
-            component: <BillingTab />},
-        {
-            id: 'security',
-            label: 'Security',
-            icon: Shield,
-            component: <SecurityTab />},
-        {
-            id: 'notifications',
-            label: 'Notifications',
-            icon: Bell,
-            component: <NotificationsTab />},
-        {
-            id: 'inbox',
-            label: 'Inbox',
-            icon: Inbox,
-            component: <InboxTab />},
+        { id: 'workspace', label: 'Workspace', icon: Building2, desc: 'Workspace details', component: <WorkspaceTab workspace={workspace} workspaceTypes={workspaceTypes} timezones={timezones} /> },
+        { id: 'profile', label: 'Profile', icon: User, desc: 'Your account details', component: <ProfileTab /> },
+        { id: 'security', label: 'Security', icon: ShieldCheck, desc: 'Password, 2FA & sessions', component: <SecurityTab /> },
+        { id: 'billing', label: 'Billing', icon: CreditCard, desc: 'Plan & usage', component: <BillingTab /> },
+        { id: 'notifications', label: 'Notifications', icon: Bell, desc: 'Email & alerts', component: <NotificationsTab /> },
+        { id: 'inbox', label: 'Inbox', icon: Inbox, desc: 'Routing preferences', component: <InboxTab /> },
     ];
+    const active = tabs.find((tab) => tab.id === activeTab) || tabs[0];
 
     return (
         <AppShell>
             <Head title="Settings" />
-            <div className="space-y-8">
-                <div>
-                    <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
-                        Settings
-                    </h1>
-                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                        Manage your account settings
-                    </p>
-                </div>
+            <div className="mx-auto w-full max-w-[1400px] p-6">
+                <PageHeader title="Settings" subtitle="Manage your workspace, profile, billing, notifications, and inbox preferences." />
 
-                <Card className="border-0 shadow-lg">
-                    <CardContent className="p-0">
-                        <Tabs value={activeTab} onValueChange={setActiveTab}>
-                            <TabsList className="w-full justify-start p-4 border-b border-gray-200 dark:border-gray-700 overflow-x-auto bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900">
+                <div className="mt-6 flex flex-col items-start gap-6 lg:flex-row">
+                    <nav className="w-full flex-shrink-0 lg:w-[240px]">
+                        <Card className="p-2 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:self-start lg:overflow-y-auto">
+                            <div className="scrollbar-none flex gap-1 overflow-x-auto lg:flex-col lg:overflow-visible">
                                 {tabs.map((tab) => {
                                     const Icon = tab.icon;
+                                    const isActive = activeTab === tab.id;
+
                                     return (
-                                        <TabsTrigger 
-                                            key={tab.id} 
-                                            value={tab.id}
-                                            className="rounded-xl px-4 py-2.5 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-blue-600 data-[state=active]:text-white"
+                                        <button
+                                            key={tab.id}
+                                            type="button"
+                                            onClick={() => setActiveTab(tab.id)}
+                                            className={`flex flex-shrink-0 items-center gap-3 rounded-btn px-3 py-2.5 text-left transition lg:w-full ${
+                                                isActive
+                                                    ? 'bg-waify-green-soft text-waify-green-dark dark:bg-emerald-950/40 dark:text-emerald-400'
+                                                    : 'text-waify-text-muted hover:bg-gray-50 hover:text-waify-text dark:text-waify-dark-text-muted dark:hover:bg-slate-700/50 dark:hover:text-waify-dark-text'
+                                            }`}
                                         >
-                                            <Icon className="h-4 w-4 mr-2" />
-                                            {tab.label}
-                                        </TabsTrigger>
+                                            <span className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg ${isActive ? 'bg-white/80 dark:bg-slate-800' : 'bg-gray-100 dark:bg-slate-700'}`}>
+                                                <Icon className="h-4 w-4" />
+                                            </span>
+                                            <span className="hidden min-w-0 sm:block lg:block">
+                                                <span className="block truncate text-sm font-medium">{tab.label}</span>
+                                                <span className="block truncate text-[11px] opacity-80">{tab.desc}</span>
+                                            </span>
+                                        </button>
                                     );
                                 })}
-                            </TabsList>
+                            </div>
+                        </Card>
+                    </nav>
 
-                            {tabs.map((tab) => (
-                                <TabsContent key={tab.id} value={tab.id} className="p-6">
-                                    {tab.component}
-                                </TabsContent>
-                            ))}
-                        </Tabs>
-                    </CardContent>
-                </Card>
+                    <div className="min-w-0 flex-1 w-full">
+                        <Card className="overflow-hidden p-0">
+                            <div className="border-b border-gray-100 bg-gray-50/50 px-6 py-4 dark:border-slate-700 dark:bg-slate-800/50">
+                                <h2 className="text-lg font-semibold text-waify-text dark:text-waify-dark-text">{active.label}</h2>
+                                <p className="mt-0.5 text-sm text-waify-text-muted dark:text-waify-dark-text-muted">{active.desc}</p>
+                            </div>
+                            <div className="p-6">{active.component}</div>
+                        </Card>
+                    </div>
+                </div>
             </div>
         </AppShell>
     );

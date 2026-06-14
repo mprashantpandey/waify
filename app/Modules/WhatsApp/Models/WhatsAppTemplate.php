@@ -40,14 +40,14 @@ class WhatsAppTemplate extends Model
         parent::boot();
 
         static::creating(function ($template) {
-            if (!$template->slug) {
+            if (! $template->slug) {
                 $template->slug = static::generateSlug($template);
             }
         });
 
         static::updating(function ($template) {
             // Regenerate slug if name or connection changes
-            if ($template->isDirty(['name', 'whatsapp_connection_id']) && !$template->isDirty('slug')) {
+            if ($template->isDirty(['name', 'whatsapp_connection_id']) && ! $template->isDirty('slug')) {
                 $template->slug = static::generateSlug($template);
             }
         });
@@ -58,13 +58,13 @@ class WhatsAppTemplate extends Model
      */
     public static function generateSlug($template): string
     {
-        $baseSlug = \Illuminate\Support\Str::slug($template->name ?? 'template') . '-' . ($template->whatsapp_connection_id ?? '');
+        $baseSlug = \Illuminate\Support\Str::slug($template->name ?? 'template').'-'.($template->whatsapp_connection_id ?? '');
         $slug = $baseSlug;
         $originalSlug = $slug;
         $counter = 1;
 
         while (static::where('slug', $slug)->where('id', '!=', $template->id ?? 0)->exists()) {
-            $slug = $originalSlug . '-' . $counter;
+            $slug = $originalSlug.'-'.$counter;
             $counter++;
         }
 
@@ -114,7 +114,7 @@ class WhatsAppTemplate extends Model
      */
     public function sends(): HasMany
     {
-        return $this->hasMany(WhatsAppTemplateSend::class);
+        return $this->hasMany(WhatsAppTemplateSend::class, 'whatsapp_template_id');
     }
 
     /**
@@ -122,11 +122,12 @@ class WhatsAppTemplate extends Model
      */
     public function getVariableCountAttribute(): int
     {
-        if (!$this->body_text) {
+        if (! $this->body_text) {
             return 0;
         }
 
         preg_match_all('/\{\{(\d+)\}\}/', $this->body_text, $matches);
+
         return count($matches[0] ?? []);
     }
 
@@ -135,6 +136,6 @@ class WhatsAppTemplate extends Model
      */
     public function getHasButtonsAttribute(): bool
     {
-        return !empty($this->buttons) && is_array($this->buttons) && count($this->buttons) > 0;
+        return ! empty($this->buttons) && is_array($this->buttons) && count($this->buttons) > 0;
     }
 }

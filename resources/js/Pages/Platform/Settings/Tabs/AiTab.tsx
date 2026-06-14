@@ -2,8 +2,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Com
 import { Label } from '@/Components/UI/Label';
 import TextInput from '@/Components/TextInput';
 import { Switch } from '@/Components/UI/Switch';
+import Button from '@/Components/UI/Button';
+import { router } from '@inertiajs/react';
 
 type AiProvider = 'openai' | 'anthropic' | 'gemini';
+type VoiceProvider = 'elevenlabs' | 'openai';
 
 interface AiTabProps {
     data: any;
@@ -14,9 +17,19 @@ interface AiTabProps {
 export default function AiTab({ data, setData, errors }: AiTabProps) {
     const ai = data.ai || {};
     const provider: AiProvider = (ai.provider || 'openai') as AiProvider;
+    const sttProvider: VoiceProvider = (ai.voice_stt_provider || 'elevenlabs') as VoiceProvider;
+    const ttsProvider: VoiceProvider = (ai.voice_tts_provider || 'elevenlabs') as VoiceProvider;
 
     const setProvider = (value: AiProvider) => {
         setData('ai', { ...ai, provider: value });
+    };
+
+    const testVoice = () => {
+        router.post(route('platform.settings.voice.test'), {
+            text: 'This is a Zyptos voice test.',
+        }, {
+            preserveScroll: true,
+        });
     };
 
     return (
@@ -237,6 +250,156 @@ export default function AiTab({ data, setData, errors }: AiTabProps) {
                     {errors?.['ai.system_prompt'] && (
                         <p className="text-sm text-red-600 mt-1">{errors['ai.system_prompt']}</p>
                     )}
+                </div>
+
+                <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4 space-y-5 dark:border-gray-700 dark:bg-gray-800/30">
+                    <div className="flex items-center justify-between gap-4">
+                        <div>
+                            <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Voice AI</h4>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                Central speech-to-text and text-to-speech for WhatsApp calling.
+                            </p>
+                        </div>
+                        <Switch
+                            checked={ai.voice_enabled || false}
+                            onCheckedChange={(checked) => setData('ai', { ...ai, voice_enabled: checked })}
+                        />
+                    </div>
+                    <div className="flex justify-end">
+                        <Button type="button" variant="secondary" onClick={testVoice} disabled={!ai.voice_enabled}>
+                            Test voice
+                        </Button>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-3">
+                        <div>
+                            <Label htmlFor="ai.voice_stt_provider">Speech-to-text</Label>
+                            <select
+                                id="ai.voice_stt_provider"
+                                value={sttProvider}
+                                onChange={(e) => setData('ai', { ...ai, voice_stt_provider: e.target.value })}
+                                className="mt-1 block h-10 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+                            >
+                                <option value="elevenlabs">ElevenLabs</option>
+                                <option value="openai">OpenAI</option>
+                            </select>
+                        </div>
+                        <div>
+                            <Label htmlFor="ai.voice_tts_provider">Text-to-speech</Label>
+                            <select
+                                id="ai.voice_tts_provider"
+                                value={ttsProvider}
+                                onChange={(e) => setData('ai', { ...ai, voice_tts_provider: e.target.value })}
+                                className="mt-1 block h-10 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+                            >
+                                <option value="elevenlabs">ElevenLabs</option>
+                                <option value="openai">OpenAI</option>
+                            </select>
+                        </div>
+                        <div>
+                            <Label htmlFor="ai.voice_fallback_provider">Fallback</Label>
+                            <select
+                                id="ai.voice_fallback_provider"
+                                value={ai.voice_fallback_provider || 'openai'}
+                                onChange={(e) => setData('ai', { ...ai, voice_fallback_provider: e.target.value })}
+                                className="mt-1 block h-10 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
+                            >
+                                <option value="openai">OpenAI</option>
+                                <option value="elevenlabs">ElevenLabs</option>
+                                <option value="none">None</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/40">
+                            <h5 className="text-sm font-semibold text-gray-900 dark:text-gray-100">ElevenLabs</h5>
+                            <div>
+                                <Label htmlFor="ai.elevenlabs_api_key">API Key</Label>
+                                <TextInput
+                                    id="ai.elevenlabs_api_key"
+                                    type="password"
+                                    value={ai.elevenlabs_api_key || ''}
+                                    onChange={(e) => setData('ai', { ...ai, elevenlabs_api_key: e.target.value })}
+                                    className="mt-1 block w-full"
+                                    placeholder="xi-..."
+                                />
+                            </div>
+                            <div>
+                                <Label htmlFor="ai.elevenlabs_voice_id">Voice ID</Label>
+                                <TextInput
+                                    id="ai.elevenlabs_voice_id"
+                                    value={ai.elevenlabs_voice_id || '21m00Tcm4TlvDq8ikWAM'}
+                                    onChange={(e) => setData('ai', { ...ai, elevenlabs_voice_id: e.target.value })}
+                                    className="mt-1 block w-full"
+                                />
+                            </div>
+                            <div className="grid gap-3 md:grid-cols-2">
+                                <div>
+                                    <Label htmlFor="ai.elevenlabs_stt_model">STT model</Label>
+                                    <TextInput
+                                        id="ai.elevenlabs_stt_model"
+                                        value={ai.elevenlabs_stt_model || 'scribe_v1'}
+                                        onChange={(e) => setData('ai', { ...ai, elevenlabs_stt_model: e.target.value })}
+                                        className="mt-1 block w-full"
+                                    />
+                                </div>
+                                <div>
+                                    <Label htmlFor="ai.elevenlabs_tts_model">TTS model</Label>
+                                    <TextInput
+                                        id="ai.elevenlabs_tts_model"
+                                        value={ai.elevenlabs_tts_model || 'eleven_multilingual_v2'}
+                                        onChange={(e) => setData('ai', { ...ai, elevenlabs_tts_model: e.target.value })}
+                                        className="mt-1 block w-full"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900/40">
+                            <h5 className="text-sm font-semibold text-gray-900 dark:text-gray-100">OpenAI fallback</h5>
+                            <div>
+                                <Label htmlFor="ai.voice_openai_api_key">Voice API key</Label>
+                                <TextInput
+                                    id="ai.voice_openai_api_key"
+                                    type="password"
+                                    value={ai.voice_openai_api_key || ''}
+                                    onChange={(e) => setData('ai', { ...ai, voice_openai_api_key: e.target.value })}
+                                    className="mt-1 block w-full"
+                                    placeholder="Uses main OpenAI key if blank"
+                                />
+                            </div>
+                            <div className="grid gap-3 md:grid-cols-2">
+                                <div>
+                                    <Label htmlFor="ai.openai_stt_model">STT model</Label>
+                                    <TextInput
+                                        id="ai.openai_stt_model"
+                                        value={ai.openai_stt_model || 'whisper-1'}
+                                        onChange={(e) => setData('ai', { ...ai, openai_stt_model: e.target.value })}
+                                        className="mt-1 block w-full"
+                                    />
+                                </div>
+                                <div>
+                                    <Label htmlFor="ai.openai_tts_model">TTS model</Label>
+                                    <TextInput
+                                        id="ai.openai_tts_model"
+                                        value={ai.openai_tts_model || 'tts-1'}
+                                        onChange={(e) => setData('ai', { ...ai, openai_tts_model: e.target.value })}
+                                        className="mt-1 block w-full"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <Label htmlFor="ai.openai_voice">Voice</Label>
+                                <TextInput
+                                    id="ai.openai_voice"
+                                    value={ai.openai_voice || 'alloy'}
+                                    onChange={(e) => setData('ai', { ...ai, openai_voice: e.target.value })}
+                                    className="mt-1 block w-full"
+                                />
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </CardContent>
         </Card>

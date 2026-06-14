@@ -25,7 +25,7 @@ return new class extends Migration
             ->orderBy('id')
             ->chunkById(200, function ($rows) {
                 foreach ($rows as $row) {
-                    if (!empty($row->slug)) {
+                    if (! empty($row->slug)) {
                         continue;
                     }
                     $base = Str::slug($row->name ?? 'campaign');
@@ -37,7 +37,7 @@ return new class extends Migration
                         ->update(['slug' => $base.'-'.$row->id]);
                 }
             });
-        
+
         // Make slug unique and non-nullable after populating
         Schema::table('campaigns', function (Blueprint $table) {
             $table->string('slug')->nullable(false)->unique()->change();

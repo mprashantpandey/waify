@@ -3,8 +3,6 @@
 namespace Tests\Feature\Billing;
 
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
-use App\Models\Plan;
-use App\Models\Account;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -19,10 +17,10 @@ class ConnectionLimitTest extends TestCase
         $this->artisan('db:seed', ['--class' => 'PlanSeeder']);
     }
 
-    public function test_free_plan_allows_one_connection(): void
+    public function test_starter_plan_allows_one_connection(): void
     {
-        
-        $account = $this->createAccountWithPlan('free');
+
+        $account = $this->createAccountWithPlan('starter');
         $user = $this->actingAsAccountOwner($account);
 
         // Create first connection (should succeed)
@@ -42,13 +40,14 @@ class ConnectionLimitTest extends TestCase
             'access_token' => 'test_token_2',
         ]);
 
-        $response->assertStatus(402);
+        $response->assertRedirect(route('app.whatsapp.connections.index'));
+        $response->assertSessionHas('error', 'Only one WABA account can be connected to a workspace.');
         $this->assertEquals(1, WhatsAppConnection::where('account_id', $account->id)->count());
     }
 
-    public function test_starter_plan_allows_two_connections(): void
+    public function test_starter_plan_still_allows_only_one_workspace_waba(): void
     {
-        
+
         $account = $this->createAccountWithPlan('starter');
         $user = $this->actingAsAccountOwner($account);
 
@@ -59,23 +58,14 @@ class ConnectionLimitTest extends TestCase
             'access_token' => 'token1',
         ]);
 
-        // Create second connection
-        $this->post(route('app.whatsapp.connections.store', ['account' => $account->slug]), [
+        $response = $this->post(route('app.whatsapp.connections.store', ['account' => $account->slug]), [
             'name' => 'Connection 2',
             'phone_number_id' => '222',
             'access_token' => 'token2',
         ]);
 
-        $this->assertEquals(2, WhatsAppConnection::where('account_id', $account->id)->count());
-
-        // Try third (should fail)
-        $response = $this->post(route('app.whatsapp.connections.store', ['account' => $account->slug]), [
-            'name' => 'Connection 3',
-            'phone_number_id' => '333',
-            'access_token' => 'token3',
-        ]);
-
-        $response->assertStatus(402);
-        $this->assertEquals(2, WhatsAppConnection::where('account_id', $account->id)->count());
+        $response->assertRedirect(route('app.whatsapp.connections.index'));
+        $response->assertSessionHas('error', 'Only one WABA account can be connected to a workspace.');
+        $this->assertEquals(1, WhatsAppConnection::where('account_id', $account->id)->count());
     }
 }

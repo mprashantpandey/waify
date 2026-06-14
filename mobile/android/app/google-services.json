@@ -1,0 +1,226 @@
+{
+  "project_info": {
+    "project_number": "930709255787",
+    "project_id": "studio-8062470255-fcdb7",
+    "storage_bucket": "studio-8062470255-fcdb7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:930709255787:android:4b7f29075aefd4cf24e32e",
+        "android_client_info": {
+          "package_name": "com.bookademy.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "930709255787-uflgnmep35tk33hl9up3r9lem5vk851h.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDxgpSL5Qsiu8bwZx-wXjHBEmrkrTD8S8A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "930709255787-ldk8qqp7heichr0b3tpd3mlvfr0oia5m.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "930709255787-1ce905juut5ldl6ams87vitinnubk2ai.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.zyptos.zyptosMobile"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:930709255787:android:62aa2b805e7e660824e32e",
+        "android_client_info": {
+          "package_name": "com.way2mosque.userApp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "930709255787-uflgnmep35tk33hl9up3r9lem5vk851h.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDxgpSL5Qsiu8bwZx-wXjHBEmrkrTD8S8A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "930709255787-ldk8qqp7heichr0b3tpd3mlvfr0oia5m.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "930709255787-1ce905juut5ldl6ams87vitinnubk2ai.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.zyptos.zyptosMobile"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:930709255787:android:1cba85e3c1ac276c24e32e",
+        "android_client_info": {
+          "package_name": "com.zypcrm.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "930709255787-uflgnmep35tk33hl9up3r9lem5vk851h.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDxgpSL5Qsiu8bwZx-wXjHBEmrkrTD8S8A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "930709255787-ldk8qqp7heichr0b3tpd3mlvfr0oia5m.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "930709255787-1ce905juut5ldl6ams87vitinnubk2ai.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.zyptos.zyptosMobile"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:930709255787:android:7f508ad2d364f5a024e32e",
+        "android_client_info": {
+          "package_name": "com.zyppie.space"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "930709255787-uflgnmep35tk33hl9up3r9lem5vk851h.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDxgpSL5Qsiu8bwZx-wXjHBEmrkrTD8S8A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "930709255787-ldk8qqp7heichr0b3tpd3mlvfr0oia5m.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "930709255787-1ce905juut5ldl6ams87vitinnubk2ai.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.zyptos.zyptosMobile"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:930709255787:android:e31af25b224194a624e32e",
+        "android_client_info": {
+          "package_name": "com.zyptos.mobile"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "930709255787-uflgnmep35tk33hl9up3r9lem5vk851h.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDxgpSL5Qsiu8bwZx-wXjHBEmrkrTD8S8A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "930709255787-ldk8qqp7heichr0b3tpd3mlvfr0oia5m.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "930709255787-1ce905juut5ldl6ams87vitinnubk2ai.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.zyptos.zyptosMobile"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:930709255787:android:94b152e227df001524e32e",
+        "android_client_info": {
+          "package_name": "com.zyptos.zyptos_mobile"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "930709255787-uflgnmep35tk33hl9up3r9lem5vk851h.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDxgpSL5Qsiu8bwZx-wXjHBEmrkrTD8S8A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "930709255787-ldk8qqp7heichr0b3tpd3mlvfr0oia5m.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "930709255787-1ce905juut5ldl6ams87vitinnubk2ai.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.zyptos.zyptosMobile"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

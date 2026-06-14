@@ -10,23 +10,22 @@ class TrackMailDelivery
 {
     public function __construct(
         protected NotificationOutboxService $outboxService
-    ) {
-    }
+    ) {}
 
     public function handle(MessageSent $event): void
     {
         $message = $event->message;
         $headers = $message->getHeaders();
-        $outboxHeader = $headers->has('X-Waify-Outbox-Id')
-            ? $headers->get('X-Waify-Outbox-Id')->getBodyAsString()
+        $outboxHeader = $headers->has('X-Zyptos-Outbox-Id')
+            ? $headers->get('X-Zyptos-Outbox-Id')->getBodyAsString()
             : null;
 
-        if (!$outboxHeader || !is_numeric($outboxHeader)) {
+        if (! $outboxHeader || ! is_numeric($outboxHeader)) {
             return;
         }
 
         $outbox = NotificationOutbox::find((int) $outboxHeader);
-        if (!$outbox || !in_array($outbox->status, ['queued', 'retrying'], true)) {
+        if (! $outbox || ! in_array($outbox->status, ['queued', 'retrying'], true)) {
             return;
         }
 
@@ -43,4 +42,3 @@ class TrackMailDelivery
         ]);
     }
 }
-

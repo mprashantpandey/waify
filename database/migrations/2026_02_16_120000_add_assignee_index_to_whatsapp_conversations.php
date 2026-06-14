@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (!Schema::hasColumn('whatsapp_conversations', 'assigned_to')) {
+        if (! Schema::hasColumn('whatsapp_conversations', 'assigned_to')) {
             return;
         }
 

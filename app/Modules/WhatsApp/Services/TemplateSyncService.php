@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Schema;
 class TemplateSyncService
 {
     protected string $baseUrl;
+
     protected ?bool $connectionHasSyncColumns = null;
 
     public function __construct()
@@ -30,7 +31,7 @@ class TemplateSyncService
         $lockKey = "template_sync:connection:{$connection->id}";
         $lock = Cache::lock($lockKey, 300); // 5 minute lock
 
-        if (!$lock->get()) {
+        if (! $lock->get()) {
             throw new \Exception('Template sync is already in progress for this connection. Please wait.');
         }
 
@@ -47,14 +48,14 @@ class TemplateSyncService
     protected function performSync(WhatsAppConnection $connection): array
     {
         $wabaId = $connection->waba_id;
-        if (!$wabaId) {
+        if (! $wabaId) {
             throw new \Exception('WABA ID is required to sync templates');
         }
 
         $url = sprintf(
             '%s/%s/%s/message_templates',
             $this->baseUrl,
-            $connection->api_version ?: config('whatsapp.meta.api_version', 'v21.0'),
+            $connection->api_version ?: config('whatsapp.meta.api_version', 'v25.0'),
             $wabaId
         );
 
@@ -75,7 +76,7 @@ class TemplateSyncService
                 $response = Http::withToken($connection->access_token)->get($url, $params);
                 $responseData = $response->json();
 
-                if (!$response->successful()) {
+                if (! $response->successful()) {
                     $errorMessage = $responseData['error']['message'] ?? 'Unknown error from WhatsApp API';
                     $errorCode = $responseData['error']['code'] ?? $response->status();
 
@@ -84,7 +85,7 @@ class TemplateSyncService
                         Log::channel('whatsapp')->warning('Rate limit hit during template sync', [
                             'connection_id' => $connection->id]);
                         throw new WhatsAppApiException(
-                            "Rate limit exceeded. Please wait before syncing again.",
+                            'Rate limit exceeded. Please wait before syncing again.',
                             $responseData,
                             $errorCode
                         );
@@ -143,7 +144,7 @@ class TemplateSyncService
                         ->first();
 
                     $this->upsertTemplate($connection, $templateData);
-                    
+
                     if ($existing) {
                         $updated++;
                     } else {
@@ -177,16 +178,16 @@ class TemplateSyncService
     {
         $rateLimitKey = "template_sync_rate_limit:connection:{$connectionId}";
         $requests = Cache::get($rateLimitKey, 0);
-        
+
         // Allow max 10 requests per minute per connection
         if ($requests >= 10) {
-            $ttl = Cache::get($rateLimitKey . ':ttl', 60);
+            $ttl = Cache::get($rateLimitKey.':ttl', 60);
             throw new \Exception("Rate limit: Maximum 10 sync requests per minute. Please wait {$ttl} seconds.");
         }
 
         // Increment counter
         Cache::put($rateLimitKey, $requests + 1, 60);
-        Cache::put($rateLimitKey . ':ttl', 60 - (now()->second), 60);
+        Cache::put($rateLimitKey.':ttl', 60 - (now()->second), 60);
     }
 
     /**
@@ -269,7 +270,7 @@ class TemplateSyncService
                 && Schema::hasColumn('whatsapp_connections', 'last_meta_error');
         }
 
-        if (!$this->connectionHasSyncColumns) {
+        if (! $this->connectionHasSyncColumns) {
             return;
         }
 

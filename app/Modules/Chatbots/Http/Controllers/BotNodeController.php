@@ -22,7 +22,7 @@ class BotNodeController extends Controller
 
         Gate::authorize('manage', [Bot::class, $account]);
 
-        if (!account_ids_match($flow->account_id, $account->id)) {
+        if (! account_ids_match($flow->account_id, $account->id)) {
             abort(404);
         }
 
@@ -52,7 +52,7 @@ class BotNodeController extends Controller
 
         Gate::authorize('manage', [Bot::class, $account]);
 
-        if (!account_ids_match($node->account_id, $account->id)) {
+        if (! account_ids_match($node->account_id, $account->id)) {
             abort(404);
         }
 
@@ -91,7 +91,7 @@ class BotNodeController extends Controller
 
         Gate::authorize('manage', [Bot::class, $account]);
 
-        if (!account_ids_match($node->account_id, $account->id)) {
+        if (! account_ids_match($node->account_id, $account->id)) {
             abort(404);
         }
 
@@ -126,7 +126,7 @@ class BotNodeController extends Controller
         ]);
 
         $validator->after(function ($validator) use ($request, $type) {
-            if (!$request->has('config')) {
+            if (! $request->has('config')) {
                 return;
             }
 
@@ -134,14 +134,14 @@ class BotNodeController extends Controller
 
             if ($type === 'action') {
                 $actionType = $config['action_type'] ?? null;
-                $allowed = ['send_text', 'send_template', 'send_buttons', 'send_list', 'assign_agent', 'add_tag', 'set_status', 'set_priority'];
-                if (!$actionType || !in_array($actionType, $allowed, true)) {
+                $allowed = ['send_text', 'send_template', 'send_buttons', 'send_list', 'send_media', 'send_flow', 'assign_agent', 'add_tag', 'add_segment', 'update_contact', 'create_deal', 'create_appointment', 'sync_integration', 'set_status', 'set_priority', 'handoff', 'send_payment_link', 'ai_agent_reply'];
+                if (! $actionType || ! in_array($actionType, $allowed, true)) {
                     $validator->errors()->add('config.action_type', 'Invalid action type.');
                 }
 
                 if ($actionType === 'send_buttons') {
                     $buttons = $config['buttons'] ?? [];
-                    if (!is_array($buttons) || count($buttons) < 1 || count($buttons) > 3) {
+                    if (! is_array($buttons) || count($buttons) < 1 || count($buttons) > 3) {
                         $validator->errors()->add('config.buttons', 'Buttons must be an array with 1 to 3 items.');
                     }
                     $bodyText = isset($config['body_text']) ? trim((string) $config['body_text']) : '';
@@ -152,30 +152,68 @@ class BotNodeController extends Controller
 
                 if ($actionType === 'send_list') {
                     $listId = $config['list_id'] ?? null;
-                    if (!is_numeric($listId) || (int) $listId <= 0) {
+                    if (! is_numeric($listId) || (int) $listId <= 0) {
                         $validator->errors()->add('config.list_id', 'list_id is required for send_list.');
                     }
+                }
+
+                if ($actionType === 'send_payment_link') {
+                    $paymentUrl = $config['payment_url'] ?? null;
+                    if (empty($config['create_razorpay_link']) && (! $paymentUrl || ! filter_var($paymentUrl, FILTER_VALIDATE_URL))) {
+                        $validator->errors()->add('config.payment_url', 'A valid payment URL is required.');
+                    }
+                }
+
+                if ($actionType === 'send_media') {
+                    $mediaUrl = $config['media_url'] ?? $config['url'] ?? null;
+                    if (! $mediaUrl || ! filter_var($mediaUrl, FILTER_VALIDATE_URL)) {
+                        $validator->errors()->add('config.media_url', 'A public media URL is required.');
+                    }
+                }
+
+                if ($actionType === 'send_flow') {
+                    $flowId = $config['flow_id'] ?? null;
+                    $metaFlowId = isset($config['meta_flow_id']) ? trim((string) $config['meta_flow_id']) : '';
+                    if ((! is_numeric($flowId) || (int) $flowId <= 0) && $metaFlowId === '') {
+                        $validator->errors()->add('config.flow_id', 'WhatsApp Flow ID is required.');
+                    }
+                }
+
+                if ($actionType === 'add_segment') {
+                    $segmentId = $config['segment_id'] ?? null;
+                    $segmentName = trim((string) ($config['segment_name'] ?? $config['segment'] ?? ''));
+                    if ((! is_numeric($segmentId) || (int) $segmentId <= 0) && $segmentName === '') {
+                        $validator->errors()->add('config.segment_id', 'Segment ID or name is required.');
+                    }
+                }
+
+                if ($actionType === 'sync_integration' && trim((string) ($config['provider'] ?? '')) === '') {
+                    $validator->errors()->add('config.provider', 'Integration provider is required.');
+                }
+
+                if ($actionType === 'create_deal' && trim((string) ($config['title'] ?? '')) === '') {
+                    $validator->errors()->add('config.title', 'Deal title is required.');
                 }
             }
 
             if ($type === 'condition') {
                 $conditionType = $config['type'] ?? null;
                 $allowed = ['text_contains', 'text_equals', 'text_starts_with', 'regex_match', 'time_window', 'connection_is', 'conversation_status', 'tags_contains'];
-                if (!$conditionType || !in_array($conditionType, $allowed, true)) {
+                if (! $conditionType || ! in_array($conditionType, $allowed, true)) {
                     $validator->errors()->add('config.type', 'Invalid condition type.');
                 }
             }
 
             if ($type === 'delay') {
                 $seconds = $config['seconds'] ?? null;
-                if (!is_numeric($seconds) || (int) $seconds < 1) {
+                if (! is_numeric($seconds) || (int) $seconds < 1) {
                     $validator->errors()->add('config.seconds', 'Delay seconds must be at least 1.');
                 }
             }
 
             if ($type === 'webhook') {
                 $url = $config['url'] ?? null;
-                if (!$url || !filter_var($url, FILTER_VALIDATE_URL)) {
+                if (! $url || ! filter_var($url, FILTER_VALIDATE_URL)) {
                     $validator->errors()->add('config.url', 'Valid webhook URL required.');
                 }
             }

@@ -5,8 +5,8 @@ namespace App\Notifications;
 use App\Modules\Support\Models\SupportThread;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Notification;
 use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Notifications\Notification;
 
 class SupportAgentReplied extends Notification implements ShouldQueue
 {
@@ -16,9 +16,7 @@ class SupportAgentReplied extends Notification implements ShouldQueue
 
     public array $backoff = [30, 120, 300];
 
-    public function __construct(protected SupportThread $thread)
-    {
-    }
+    public function __construct(protected SupportThread $thread) {}
 
     public function via(object $notifiable): array
     {
@@ -32,7 +30,7 @@ class SupportAgentReplied extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
-        $subject = 'Support replied: ' . $this->thread->subject;
+        $subject = 'Support replied: '.$this->thread->subject;
         $url = route('app.support.show', [
             'thread' => $this->thread->slug ?? $this->thread->id]);
 
@@ -40,7 +38,7 @@ class SupportAgentReplied extends Notification implements ShouldQueue
             ->subject($subject)
             ->greeting('Hello!')
             ->line('Support has replied to your request.')
-            ->line('Subject: ' . $this->thread->subject)
+            ->line('Subject: '.$this->thread->subject)
             ->action('View Reply', $url)
             ->line('If you need more help, reply to the thread.');
     }

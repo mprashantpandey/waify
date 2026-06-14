@@ -2,12 +2,13 @@
 
 namespace App\Core\Billing;
 
+use App\Models\Account;
+use App\Models\AccountUser;
+use App\Models\BillingEvent;
 use App\Models\Plan;
+use App\Models\PlatformSetting;
 use App\Models\Subscription;
 use App\Models\User;
-use App\Models\Account;
-use App\Models\BillingEvent;
-use App\Models\AccountUser;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Services\WalletService;
 use Carbon\Carbon;
@@ -26,12 +27,18 @@ class SubscriptionService
      */
     public function startTrial(Account $account, Plan $plan, ?User $actor = null, ?string $providerKey = null): Subscription
     {
+        $this->assertAdminApprovalForEnterprise($plan, $actor);
+
         if ($plan->trial_days <= 0) {
             throw new \InvalidArgumentException('Plan does not support trials.');
         }
 
+        if (! $this->canStartSelfServiceTrial($account, $actor)) {
+            throw new \InvalidArgumentException('A free trial has already been used for this email account.');
+        }
+
         $provider = $providerKey ? $this->providerManager->get($providerKey) : $this->providerManager->getDefault();
-        if (!$provider) {
+        if (! $provider) {
             throw new \InvalidArgumentException("Billing provider '{$providerKey}' not found.");
         }
 
@@ -46,32 +53,59 @@ class SubscriptionService
         return $subscription;
     }
 
+    public function canStartSelfServiceTrial(Account $account, ?User $actor = null): bool
+    {
+        if ($actor?->isSuperAdmin()) {
+            return true;
+        }
+
+        $owner = $account->owner ?: $actor;
+        $email = strtolower(trim((string) $owner?->email));
+        if ($email === '') {
+            return true;
+        }
+
+        return ! Account::query()
+            ->whereHas('owner', fn ($query) => $query->whereRaw('LOWER(email) = ?', [$email]))
+            ->where(function ($query) {
+                $query
+                    ->whereHas('subscription', fn ($subscription) => $subscription
+                        ->where(function ($inner) {
+                            $inner->where('status', 'trialing')
+                                ->orWhereNotNull('trial_ends_at');
+                        }))
+                    ->orWhereHas('billingEvents', fn ($events) => $events->where('type', 'trial_started'));
+            })
+            ->exists();
+    }
+
     /**
      * Change account plan.
      */
     public function changePlan(Account $account, Plan $newPlan, ?User $actor = null, ?string $providerKey = null, array $metadata = []): Subscription
     {
         $oldPlan = $this->planResolver->getAccountPlan($account);
+        $this->assertAdminApprovalForEnterprise($newPlan, $actor);
         $this->assertPlanChangeAllowed($account, $newPlan, $oldPlan);
 
         $subscription = $account->subscription;
-        $shouldApplyWalletProration = (!$providerKey && !($metadata['skip_proration'] ?? false)) || ($metadata['force_proration'] ?? false);
+        $shouldApplyWalletProration = (! $providerKey && ! ($metadata['skip_proration'] ?? false)) || ($metadata['force_proration'] ?? false);
         $proration = $shouldApplyWalletProration
             ? $this->calculateProration($subscription, $oldPlan, $newPlan)
             : ['applied' => false, 'amount_minor' => 0, 'remaining_ratio' => 0];
         $this->assertProrationChargeAffordable($account, $proration);
 
-        if (!$subscription) {
+        if (! $subscription) {
             // Create new subscription
             $provider = $providerKey ? $this->providerManager->get($providerKey) : $this->providerManager->getDefault();
-            if (!$provider) {
+            if (! $provider) {
                 throw new \InvalidArgumentException("Billing provider '{$providerKey}' not found.");
             }
             $subscription = $provider->createSubscription($account, $newPlan, $actor ?? $account->owner, $metadata);
         } else {
             // Update existing subscription using specified provider or current provider
             $provider = $providerKey ? $this->providerManager->get($providerKey) : $this->providerManager->getForSubscription($subscription);
-            if (!$provider) {
+            if (! $provider) {
                 throw new \InvalidArgumentException("Billing provider '{$providerKey}' not found.");
             }
             $subscription = $provider->updateSubscription($subscription, $newPlan, $actor ?? $account->owner, $metadata);
@@ -90,13 +124,65 @@ class SubscriptionService
     }
 
     /**
+     * Restart the current plan after a trial, billing period, or canceled subscription ended.
+     */
+    public function renew(Account $account, Plan $plan, ?User $actor = null, ?string $providerKey = null, array $metadata = []): Subscription
+    {
+        $this->assertAdminApprovalForEnterprise($plan, $actor);
+
+        $subscription = $account->subscription;
+
+        if (! $subscription) {
+            return $this->changePlan($account, $plan, $actor, $providerKey, $metadata + ['skip_proration' => true]);
+        }
+
+        $provider = $providerKey
+            ? $this->providerManager->get($providerKey)
+            : $this->providerManager->getForSubscription($subscription);
+        if (! $provider) {
+            throw new \InvalidArgumentException("Billing provider '{$providerKey}' not found.");
+        }
+
+        $now = now();
+        $billingCycle = $metadata['billing_cycle'] ?? 'monthly';
+        $periodEnd = $billingCycle === 'yearly' ? $now->copy()->addYear() : $now->copy()->addMonth();
+        $isPaidPlan = (int) (($billingCycle === 'yearly' ? $plan->price_yearly : $plan->price_monthly) ?? 0) > 0;
+
+        $subscription->update([
+            'plan_id' => $plan->id,
+            'status' => 'active',
+            'started_at' => $subscription->started_at ?: $now,
+            'trial_ends_at' => null,
+            'current_period_start' => $now,
+            'current_period_end' => $periodEnd,
+            'provider' => $provider->getName(),
+            'provider_ref' => $metadata['payment_id'] ?? $metadata['order_id'] ?? $subscription->provider_ref,
+            'last_payment_at' => $metadata['paid_at'] ?? ($isPaidPlan ? $now : $subscription->last_payment_at),
+            'last_payment_failed_at' => null,
+            'last_error' => null,
+            'cancel_at_period_end' => false,
+            'canceled_at' => null,
+        ]);
+
+        $this->logEvent($account, 'subscription_renewed', [
+            'plan_key' => $plan->key,
+            'provider' => $provider->getName(),
+            'period_start' => $now->toIso8601String(),
+            'period_end' => $periodEnd->toIso8601String(),
+            'metadata' => $metadata,
+        ], $actor);
+
+        return $subscription->fresh();
+    }
+
+    /**
      * Cancel subscription at period end.
      */
     public function cancelAtPeriodEnd(Account $account, ?User $actor = null, bool $immediately = false): Subscription
     {
         $subscription = $account->subscription;
 
-        if (!$subscription) {
+        if (! $subscription) {
             throw new \InvalidArgumentException('Account has no subscription.');
         }
 
@@ -104,11 +190,22 @@ class SubscriptionService
         $subscription = $provider->cancelSubscription($subscription, $actor ?? $account->owner, $immediately);
 
         $this->logEvent($account, 'subscription_canceled', [
-            'cancel_at_period_end' => !$immediately,
+            'cancel_at_period_end' => ! $immediately,
             'immediately' => $immediately,
             'provider' => $provider->getName()], $actor);
 
         return $subscription->fresh();
+    }
+
+    public function pause(Account $account, ?User $actor = null, bool $atPeriodEnd = false): Subscription
+    {
+        $subscription = $account->subscription;
+
+        if (! $subscription) {
+            throw new \InvalidArgumentException('Account has no subscription.');
+        }
+
+        throw new \InvalidArgumentException('Subscription pause is disabled while recurring gateway subscriptions are disabled.');
     }
 
     /**
@@ -118,7 +215,7 @@ class SubscriptionService
     {
         $subscription = $account->subscription;
 
-        if (!$subscription) {
+        if (! $subscription) {
             throw new \InvalidArgumentException('Account has no subscription.');
         }
 
@@ -138,7 +235,7 @@ class SubscriptionService
     {
         $subscription = $account->subscription;
 
-        if (!$subscription) {
+        if (! $subscription) {
             throw new \InvalidArgumentException('Account has no subscription.');
         }
 
@@ -160,12 +257,12 @@ class SubscriptionService
     {
         $subscription = $account->subscription;
 
-        if (!$subscription) {
+        if (! $subscription) {
             throw new \InvalidArgumentException('Account has no subscription.');
         }
 
         // Extend period by 1 month
-        $periodEnd = $subscription->current_period_end 
+        $periodEnd = $subscription->current_period_end
             ? Carbon::parse($subscription->current_period_end)->addMonth()
             : now()->addMonth();
 
@@ -232,6 +329,11 @@ class SubscriptionService
             && $subscription->current_period_end
             && $subscription->current_period_end->isPast()
         ) {
+            $graceDays = (int) PlatformSetting::get('payment.subscription_grace_days', 3);
+            if ($subscription->current_period_end->copy()->addDays($graceDays)->isFuture()) {
+                return $subscription->fresh();
+            }
+
             $subscription->update([
                 'status' => 'past_due',
                 'last_payment_failed_at' => now(),
@@ -256,7 +358,7 @@ class SubscriptionService
 
     protected function calculateProration(?Subscription $subscription, ?Plan $oldPlan, Plan $newPlan): array
     {
-        if (!$subscription || !$oldPlan) {
+        if (! $subscription || ! $oldPlan) {
             return ['applied' => false, 'amount_minor' => 0, 'remaining_ratio' => 0];
         }
 
@@ -304,7 +406,7 @@ class SubscriptionService
 
     protected function applyProrationToWallet(Account $account, array $proration, ?User $actor, Subscription $subscription): void
     {
-        if (!($proration['applied'] ?? false)) {
+        if (! ($proration['applied'] ?? false)) {
             return;
         }
 
@@ -344,12 +446,12 @@ class SubscriptionService
 
     protected function assertPlanChangeAllowed(Account $account, Plan $newPlan, ?Plan $oldPlan): void
     {
-        if (!$oldPlan || (int) $oldPlan->id === (int) $newPlan->id) {
+        if (! $oldPlan || (int) $oldPlan->id === (int) $newPlan->id) {
             return;
         }
 
         $targetLimits = $newPlan->limits ?? [];
-        if (!$targetLimits) {
+        if (! $targetLimits) {
             return;
         }
 
@@ -376,6 +478,7 @@ class SubscriptionService
         $agentsLimit = $targetLimits['agents'] ?? null;
         if ($agentsLimit !== null && (int) $agentsLimit !== -1) {
             $activeAgents = AccountUser::where('account_id', $account->id)
+                ->whereHas('user', fn ($query) => $query->where('is_platform_admin', false))
                 ->whereIn('role', ['admin', 'member'])
                 ->count();
             if ($activeAgents > (int) $agentsLimit) {
@@ -393,16 +496,29 @@ class SubscriptionService
             }
         }
 
-        if (!empty($violations)) {
+        if (! empty($violations)) {
             throw new \InvalidArgumentException(
                 'Cannot switch to this plan because your account currently exceeds one or more limits: '.implode('; ', $violations)
             );
         }
     }
 
+    protected function assertAdminApprovalForEnterprise(Plan $plan, ?User $actor = null): void
+    {
+        if (! $plan->requiresAdminApproval()) {
+            return;
+        }
+
+        if ($actor?->isSuperAdmin()) {
+            return;
+        }
+
+        throw new \InvalidArgumentException('Enterprise plan activation requires platform admin approval.');
+    }
+
     protected function assertProrationChargeAffordable(Account $account, array $proration): void
     {
-        if (!($proration['applied'] ?? false)) {
+        if (! ($proration['applied'] ?? false)) {
             return;
         }
 
@@ -428,11 +544,12 @@ class SubscriptionService
         $start = $subscription->current_period_start;
         $end = $subscription->current_period_end;
 
-        if (!$start || !$end) {
+        if (! $start || ! $end) {
             return 'monthly';
         }
 
         $days = max(1, $start->diffInDays($end));
+
         return $days > 45 ? 'yearly' : 'monthly';
     }
 

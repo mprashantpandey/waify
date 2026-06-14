@@ -33,7 +33,7 @@ class ConditionEvaluator
         $search = $config['value'] ?? '';
         $caseSensitive = $config['case_sensitive'] ?? false;
 
-        if (!$caseSensitive) {
+        if (! $caseSensitive) {
             $text = mb_strtolower($text);
             $search = mb_strtolower($search);
         }
@@ -47,7 +47,7 @@ class ConditionEvaluator
         $expected = $config['value'] ?? '';
         $caseSensitive = $config['case_sensitive'] ?? false;
 
-        if (!$caseSensitive) {
+        if (! $caseSensitive) {
             $text = mb_strtolower($text);
             $expected = mb_strtolower($expected);
         }
@@ -61,7 +61,7 @@ class ConditionEvaluator
         $prefix = $config['value'] ?? '';
         $caseSensitive = $config['case_sensitive'] ?? false;
 
-        if (!$caseSensitive) {
+        if (! $caseSensitive) {
             $text = mb_strtolower($text);
             $prefix = mb_strtolower($prefix);
         }
@@ -91,7 +91,7 @@ class ConditionEvaluator
         $startTime = $config['start_time'] ?? '00:00';
         $endTime = $config['end_time'] ?? '23:59';
         $days = $config['days'] ?? [0, 1, 2, 3, 4, 5, 6]; // 0 = Sunday
-        if (!is_array($days)) {
+        if (! is_array($days)) {
             $days = [];
         }
         $days = array_values(array_unique(array_map(
@@ -103,7 +103,7 @@ class ConditionEvaluator
         $currentDay = (int) $now->format('w');
         $currentTime = $now->format('H:i');
 
-        if (!in_array($currentDay, $days, true)) {
+        if (! in_array($currentDay, $days, true)) {
             return false;
         }
 
@@ -113,44 +113,46 @@ class ConditionEvaluator
     protected function connectionIs(array $config, BotContext $context): bool
     {
         $connectionIds = $config['connection_ids'] ?? [];
-        if (!is_array($connectionIds)) {
+        if (! is_array($connectionIds)) {
             $connectionIds = [$connectionIds];
         }
         $connectionIds = array_values(array_unique(array_map(
             static fn ($id) => (int) $id,
             array_filter($connectionIds, static fn ($id) => is_numeric($id))
         )));
+
         return in_array((int) $context->getConnectionId(), $connectionIds, true);
     }
 
     protected function conversationStatus(array $config, BotContext $context): bool
     {
         $expectedStatus = $config['status'] ?? 'open';
+
         return $context->getConversationStatus() === $expectedStatus;
     }
 
     protected function tagsContains(array $config, BotContext $context): bool
     {
         $contact = $context->conversation->contact;
-        if (!$contact) {
+        if (! $contact) {
             return false;
         }
 
         $tagIds = $config['tag_ids'] ?? [];
         $tagNames = $config['tags'] ?? $config['tag_names'] ?? [];
 
-        if (!is_array($tagIds)) {
+        if (! is_array($tagIds)) {
             $tagIds = [$tagIds];
         }
-        if (!is_array($tagNames)) {
+        if (! is_array($tagNames)) {
             $tagNames = [$tagNames];
         }
 
-        if (!empty($tagIds)) {
+        if (! empty($tagIds)) {
             return $contact->tags()->whereIn('contact_tags.id', $tagIds)->exists();
         }
 
-        if (!empty($tagNames)) {
+        if (! empty($tagNames)) {
             return $contact->tags()->whereIn('contact_tags.name', $tagNames)->exists();
         }
 

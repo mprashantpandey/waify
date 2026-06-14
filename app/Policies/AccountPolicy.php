@@ -2,9 +2,9 @@
 
 namespace App\Policies;
 
-use App\Models\User;
 use App\Models\Account;
 use App\Models\AccountUser;
+use App\Models\User;
 
 class AccountPolicy
 {

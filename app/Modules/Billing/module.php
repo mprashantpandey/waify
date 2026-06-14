@@ -13,4 +13,3 @@ return [
             'href' => 'app.billing.index',
             'icon' => 'CreditCard',
             'group' => 'billing']]];
-

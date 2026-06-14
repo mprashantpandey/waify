@@ -15,8 +15,7 @@ class NotificationDispatchService
     public function __construct(
         protected Dispatcher $dispatcher,
         protected NotificationOutboxService $outboxService
-    ) {
-    }
+    ) {}
 
     /**
      * Dispatch notifications with best-effort dedupe.
@@ -32,12 +31,12 @@ class NotificationDispatchService
 
         $sent = 0;
         foreach ($targets as $notifiable) {
-            if (!$this->isDeliverable($notifiable)) {
+            if (! $this->isDeliverable($notifiable)) {
                 continue;
             }
 
             $cacheKey = $this->buildDedupeKey($notifiable, $notification);
-            if (!Cache::add($cacheKey, now()->timestamp, now()->addSeconds(max(1, $dedupeSeconds)))) {
+            if (! Cache::add($cacheKey, now()->timestamp, now()->addSeconds(max(1, $dedupeSeconds)))) {
                 continue;
             }
 
@@ -82,6 +81,7 @@ class NotificationDispatchService
     {
         if (is_object($notifiable) && method_exists($notifiable, 'routeNotificationFor')) {
             $mailRoute = $notifiable->routeNotificationFor('mail');
+
             return filled($mailRoute);
         }
 
@@ -101,6 +101,6 @@ class NotificationDispatchService
             ? (string) $notification->fingerprint()
             : sha1($notification::class);
 
-        return 'notif:dedupe:' . sha1($notification::class . '|' . $recipient . '|' . $fingerprint);
+        return 'notif:dedupe:'.sha1($notification::class.'|'.$recipient.'|'.$fingerprint);
     }
 }

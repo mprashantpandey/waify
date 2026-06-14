@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            if (!Schema::hasColumn('users', 'ai_prompts')) {
+            if (! Schema::hasColumn('users', 'ai_prompts')) {
                 $table->json('ai_prompts')->nullable()->after('ai_suggestions_enabled');
             }
         });

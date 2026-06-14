@@ -3,10 +3,10 @@
 namespace Tests;
 
 use App\Core\Billing\SubscriptionService;
-use App\Models\Plan;
-use App\Models\User;
 use App\Models\Account;
 use App\Models\AccountUsage;
+use App\Models\Plan;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 
@@ -20,6 +20,7 @@ abstract class TestCase extends BaseTestCase
         $user = $account->owner;
         $this->actingAs($user);
         $this->withSession(['current_account_id' => $account->id]);
+
         return $user;
     }
 
@@ -30,15 +31,15 @@ abstract class TestCase extends BaseTestCase
     {
         $plan = Plan::where('key', $planKey)->firstOrFail();
         $account = Account::factory()->create();
-        
+
         $subscriptionService = app(SubscriptionService::class);
-        
+
         if ($status === 'trialing' && $plan->trial_days > 0) {
             $subscriptionService->startTrial($account, $plan);
         } else {
             $subscriptionService->changePlan($account, $plan);
         }
-        
+
         return $account->fresh();
     }
 

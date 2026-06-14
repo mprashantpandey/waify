@@ -3,9 +3,6 @@
 namespace Tests\Feature\Billing;
 
 use App\Core\Billing\UsageService;
-use App\Models\BillingEvent;
-use App\Models\Plan;
-use App\Models\Account;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -22,8 +19,8 @@ class MessageLimitTest extends TestCase
 
     public function test_message_sending_increments_usage_on_success(): void
     {
-        
-        $account = $this->createAccountWithPlan('free');
+
+        $account = $this->createAccountWithPlan('starter');
         $user = $this->actingAsAccountOwner($account);
 
         // Create connection and conversation
@@ -53,12 +50,12 @@ class MessageLimitTest extends TestCase
 
     public function test_message_sending_blocked_when_limit_exceeded(): void
     {
-        
-        $account = $this->createAccountWithPlan('free'); // 500 messages limit
+
+        $account = $this->createAccountWithPlan('starter');
         $user = $this->actingAsAccountOwner($account);
 
         // Set usage near limit
-        $this->setUsage($account, now()->format('Y-m'), 500, 0);
+        $this->setUsage($account, now()->format('Y-m'), 5000, 0);
 
         // Try to send message (should be blocked)
         $connection = \App\Modules\WhatsApp\Models\WhatsAppConnection::factory()->create([

@@ -21,7 +21,7 @@ class FloaterWidgetPolicy
     public function create(User $user): bool
     {
         $account = current_account();
-        if (!$account) {
+        if (! $account) {
             return false;
         }
 

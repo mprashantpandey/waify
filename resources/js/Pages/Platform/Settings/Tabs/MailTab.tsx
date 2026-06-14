@@ -105,6 +105,7 @@ export default function MailTab({ data, setData, errors }: MailTabProps) {
                         >
                             <option value="tls">TLS</option>
                             <option value="ssl">SSL</option>
+                            <option value="none">None</option>
                         </select>
                         <InputError message={errors['mail.encryption']} />
                     </div>
@@ -159,7 +160,7 @@ export default function MailTab({ data, setData, errors }: MailTabProps) {
                             value={data.mail?.from_name || ''}
                             onChange={(e) => setData('mail.from_name', e.target.value)}
                             className="mt-1"
-                            placeholder="WACP Platform"
+                            placeholder="Zyptos"
                         />
                         <InputError message={errors['mail.from_name']} />
                     </div>

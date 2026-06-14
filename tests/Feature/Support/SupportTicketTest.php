@@ -8,6 +8,7 @@ use App\Modules\Support\Models\SupportThread;
 use App\Notifications\SupportTicketCreated;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class SupportTicketTest extends TestCase
@@ -26,7 +27,7 @@ class SupportTicketTest extends TestCase
     {
         Notification::fake();
 
-        $account = $this->createAccountWithPlan('free');
+        $account = $this->createAccountWithPlan('starter');
         $owner = $this->actingAsAccountOwner($account);
 
         $admin = User::factory()->create([
@@ -51,5 +52,51 @@ class SupportTicketTest extends TestCase
         $this->assertSame($owner->id, $thread->created_by);
 
         Notification::assertSentTo($admin, SupportTicketCreated::class);
+    }
+
+    public function test_platform_support_index_paginates_and_loads_selected_ticket_drawer_data(): void
+    {
+        $account = $this->createAccountWithPlan('starter');
+        $admin = User::factory()->create(['is_platform_admin' => true]);
+
+        $thread = SupportThread::create([
+            'account_id' => $account->id,
+            'created_by' => $account->owner_id,
+            'subject' => 'Billing question',
+            'status' => 'open',
+            'priority' => 'normal',
+            'category' => 'Billing',
+            'tags' => ['billing'],
+            'last_message_at' => now(),
+        ]);
+
+        $response = $this->actingAs($admin)->get(route('platform.support.index', [
+            'ticket' => $thread->fresh()->slug,
+            'per_page' => 10,
+        ]));
+
+        $response->assertOk();
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Platform/Support/Index')
+            ->where('threads.per_page', 10)
+            ->where('selectedThread.id', $thread->id)
+            ->has('messages')
+            ->has('admins'));
+    }
+
+    public function test_platform_support_show_route_redirects_to_drawer_index(): void
+    {
+        $account = $this->createAccountWithPlan('starter');
+        $admin = User::factory()->create(['is_platform_admin' => true]);
+        $thread = SupportThread::create([
+            'account_id' => $account->id,
+            'created_by' => $account->owner_id,
+            'subject' => 'Legacy route',
+            'status' => 'open',
+        ])->fresh();
+
+        $response = $this->actingAs($admin)->get(route('platform.support.show', ['thread' => $thread->slug]));
+
+        $response->assertRedirect(route('platform.support.index', ['ticket' => $thread->slug]));
     }
 }

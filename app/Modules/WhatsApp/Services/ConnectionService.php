@@ -2,9 +2,9 @@
 
 namespace App\Modules\WhatsApp\Services;
 
-use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Models\Account;
-use Illuminate\Support\Str;
+use App\Modules\WhatsApp\Models\WhatsAppConnection;
+use Illuminate\Validation\ValidationException;
 
 class ConnectionService
 {
@@ -15,18 +15,54 @@ class ConnectionService
     {
         $data['account_id'] = $account->id;
         $data['webhook_verify_token'] = WhatsAppConnection::generateVerifyToken();
-        $data['api_version'] = $data['api_version'] ?? config('whatsapp.meta.api_version', 'v21.0');
+        $data['api_version'] = $data['api_version'] ?? config('whatsapp.meta.api_version', 'v25.0');
         $data = $this->normalizeCampaignSafetySettings($data);
 
         // Encrypt access token if provided
         if (isset($data['access_token'])) {
-            $connection = new WhatsAppConnection();
+            $connection = new WhatsAppConnection;
             $connection->access_token = $data['access_token'];
             unset($data['access_token']);
             $data['access_token_encrypted'] = $connection->access_token_encrypted;
         }
 
         return WhatsAppConnection::create($data);
+    }
+
+    /**
+     * Prevent one active WhatsApp phone/Meta phone number from being attached
+     * to multiple workspaces. Meta routes webhooks by phone_number_id, so a
+     * duplicate active row can misroute inbox messages, calls, and automation.
+     */
+    public function ensurePhoneAvailable(Account $account, ?string $phoneNumberId, ?string $businessPhone = null, ?WhatsAppConnection $ignore = null): void
+    {
+        $phoneNumberId = trim((string) $phoneNumberId);
+        $normalizedPhone = $this->normalizePhone($businessPhone);
+
+        if ($phoneNumberId === '' && $normalizedPhone === '') {
+            return;
+        }
+
+        $duplicate = WhatsAppConnection::query()
+            ->with('account:id,name')
+            ->where('is_active', true)
+            ->when($ignore, fn ($query) => $query->whereKeyNot($ignore->getKey()))
+            ->where('account_id', '!=', $account->id)
+            ->get()
+            ->first(function (WhatsAppConnection $connection) use ($phoneNumberId, $normalizedPhone) {
+                if ($phoneNumberId !== '' && (string) $connection->phone_number_id === $phoneNumberId) {
+                    return true;
+                }
+
+                return $normalizedPhone !== '' && $this->normalizePhone($connection->business_phone) === $normalizedPhone;
+            });
+
+        if ($duplicate) {
+            $workspace = $duplicate->account?->name ?: 'another workspace';
+            throw ValidationException::withMessages([
+                'phone_number_id' => "This WhatsApp number is already connected in {$workspace}. Disconnect it there before connecting it to another workspace.",
+            ]);
+        }
     }
 
     /**
@@ -61,7 +97,7 @@ class ConnectionService
             $end = $end === '' ? null : $end;
         }
 
-        if (($start && !$end) || (!$start && $end)) {
+        if (($start && ! $end) || (! $start && $end)) {
             $data['quiet_hours_start'] = null;
             $data['quiet_hours_end'] = null;
         } else {
@@ -79,6 +115,11 @@ class ConnectionService
         }
 
         return $data;
+    }
+
+    protected function normalizePhone(?string $phone): string
+    {
+        return preg_replace('/\D+/', '', (string) $phone) ?: '';
     }
 
     /**
@@ -104,15 +145,15 @@ class ConnectionService
             $connection->slug = WhatsAppConnection::generateSlug($connection);
             $connection->save();
         }
-        
+
         // Use slug for webhook URL (more secure and user-friendly)
         // Fallback to ID if slug is still empty (shouldn't happen)
         $identifier = $connection->slug ?? (string) $connection->id;
-        
+
         // Generate full URL
         $url = route('webhooks.whatsapp.receive', [
             'connection' => $identifier]);
-        
+
         // Log the generated URL for debugging
         \Log::channel('whatsapp')->debug('Webhook URL generated', [
             'connection_id' => $connection->id,
@@ -120,7 +161,7 @@ class ConnectionService
             'identifier_used' => $identifier,
             'url' => $url,
         ]);
-        
+
         return $url;
     }
 }

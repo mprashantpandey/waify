@@ -1,39 +1,39 @@
 <?php
 
-if (!function_exists('module_enabled')) {
+if (! function_exists('module_enabled')) {
     /**
      * Check if a module is enabled for a account.
      */
     function module_enabled($account, string $moduleKey): bool
     {
-        if (!$account) {
+        if (! $account) {
             return false;
         }
+
+        $moduleAliases = [
+            'ai.voice' => 'whatsapp.calling',
+            'whatsapp.calling' => 'ai.voice',
+        ];
+        $candidateKeys = array_values(array_unique(array_filter([
+            $moduleKey,
+            $moduleAliases[$moduleKey] ?? null,
+        ])));
 
         // First check: module must be enabled at platform level
-        $module = \App\Models\Module::where('key', $moduleKey)->first();
-        if (!$module || !$module->is_enabled) {
+        $module = \App\Models\Module::whereIn('key', $candidateKeys)
+            ->where('is_enabled', true)
+            ->first();
+        if (! $module || ! $module->is_enabled) {
             return false;
         }
 
-        $accountModule = \App\Models\AccountModule::where('account_id', $account->id)
-            ->where('module_key', $moduleKey)
-            ->first();
+        $effectiveModules = app(\App\Core\Billing\PlanResolver::class)->getEffectiveModules($account);
 
-        if ($accountModule) {
-            return $accountModule->enabled;
-        }
-
-        // Check if module is enabled by default (core modules)
-        if ($module && $module->is_core) {
-            return true; // Core modules are enabled by default
-        }
-
-        return false;
+        return count(array_intersect($candidateKeys, $effectiveModules)) > 0;
     }
 }
 
-if (!function_exists('current_account')) {
+if (! function_exists('current_account')) {
     /**
      * Get the current account from session.
      */
@@ -45,7 +45,7 @@ if (!function_exists('current_account')) {
         }
 
         $user = auth()->user();
-        if (!$user) {
+        if (! $user) {
             return null;
         }
 
@@ -61,18 +61,19 @@ if (!function_exists('current_account')) {
     }
 }
 
-if (!function_exists('is_super_admin')) {
+if (! function_exists('is_super_admin')) {
     /**
      * Check if the current user is a super admin (platform owner).
      */
     function is_super_admin(): bool
     {
         $user = auth()->user();
+
         return $user && $user->isSuperAdmin();
     }
 }
 
-if (!function_exists('is_platform_admin')) {
+if (! function_exists('is_platform_admin')) {
     /**
      * Alias for is_super_admin (backward compatibility).
      */
@@ -82,7 +83,7 @@ if (!function_exists('is_platform_admin')) {
     }
 }
 
-if (!function_exists('account_ids_match')) {
+if (! function_exists('account_ids_match')) {
     /**
      * Compare account ids safely (string vs int).
      */

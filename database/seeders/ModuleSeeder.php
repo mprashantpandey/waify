@@ -49,6 +49,13 @@ class ModuleSeeder extends Seeder
                 'is_enabled' => true,
             ],
             [
+                'key' => 'whatsapp.calling',
+                'name' => 'WhatsApp Calling',
+                'description' => 'AI-assisted WhatsApp Business calling workflows',
+                'is_core' => false,
+                'is_enabled' => true,
+            ],
+            [
                 'key' => 'floaters',
                 'name' => 'Floaters & Widgets',
                 'description' => 'Floating widgets and chat widgets',
@@ -72,7 +79,7 @@ class ModuleSeeder extends Seeder
             [
                 'key' => 'support',
                 'name' => 'Support',
-                'description' => 'Support requests and live chat',
+                'description' => 'Support tickets and customer assistance',
                 'is_core' => true,
                 'is_enabled' => true,
             ],

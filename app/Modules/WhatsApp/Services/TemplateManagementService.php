@@ -25,19 +25,19 @@ class TemplateManagementService
     public function createTemplate(WhatsAppConnection $connection, array $templateData): array
     {
         $wabaId = $connection->waba_id;
-        if (!$wabaId) {
+        if (! $wabaId) {
             throw new \Exception('WABA ID is required to create templates');
         }
 
         $url = sprintf(
             '%s/%s/%s/message_templates',
             $this->baseUrl,
-            $connection->api_version ?: config('whatsapp.meta.api_version', 'v21.0'),
+            $connection->api_version ?: config('whatsapp.meta.api_version', 'v25.0'),
             $wabaId
         );
 
         // If header is media (IMAGE/VIDEO/DOCUMENT), we must provide an example. Prefer Meta upload handle over URL.
-        if (!empty($templateData['header_type']) && in_array($templateData['header_type'], ['IMAGE', 'VIDEO', 'DOCUMENT'])) {
+        if (! empty($templateData['header_type']) && in_array($templateData['header_type'], ['IMAGE', 'VIDEO', 'DOCUMENT'])) {
             $mediaUrl = trim((string) ($templateData['header_media_url'] ?? ''));
             if ($mediaUrl !== '') {
                 try {
@@ -53,10 +53,10 @@ class TemplateManagementService
                 }
             }
             // Meta requires a valid example for IMAGE/VIDEO/DOCUMENT headers
-            $hasExample = !empty($templateData['header_media_handle']) || !empty(trim((string) ($templateData['header_media_url'] ?? '')));
-            if (!$hasExample) {
+            $hasExample = ! empty($templateData['header_media_handle']) || ! empty(trim((string) ($templateData['header_media_url'] ?? '')));
+            if (! $hasExample) {
                 throw new \InvalidArgumentException(
-                    'Templates with ' . $templateData['header_type'] . ' header require a sample. Please upload a header image (or provide a public image URL) and try again.'
+                    'Templates with '.$templateData['header_type'].' header require a sample. Please upload a header image (or provide a public image URL) and try again.'
                 );
             }
         }
@@ -73,13 +73,13 @@ class TemplateManagementService
 
             $responseData = $response->json();
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 $err = $responseData['error'] ?? [];
                 $errorMessage = $err['message'] ?? 'Unknown error from WhatsApp API';
                 $errorCode = $err['code'] ?? $response->status();
                 $userMsg = $err['error_user_msg'] ?? $err['error_user_title'] ?? null;
                 if ($userMsg && $userMsg !== $errorMessage) {
-                    $errorMessage = $errorMessage . ' (' . $userMsg . ')';
+                    $errorMessage = $errorMessage.' ('.$userMsg.')';
                 }
                 // When Meta says IMAGE header needs example/valid example: URL may be unreachable by Meta; suggest upload
                 if (stripos($errorMessage, 'IMAGE header') !== false && (stripos($errorMessage, 'example') !== false || stripos($errorMessage, 'sample') !== false)) {
@@ -131,6 +131,7 @@ class TemplateManagementService
     {
         // For updates, we create a new version with the same name
         $templateData['name'] = $template->name;
+
         return $this->createTemplate($connection, $templateData);
     }
 
@@ -140,14 +141,14 @@ class TemplateManagementService
     public function deleteTemplate(WhatsAppConnection $connection, string $metaTemplateId): bool
     {
         $wabaId = $connection->waba_id;
-        if (!$wabaId) {
+        if (! $wabaId) {
             throw new \Exception('WABA ID is required to delete templates');
         }
 
         $url = sprintf(
             '%s/%s/%s/message_templates?hsm_id=%s',
             $this->baseUrl,
-            $connection->api_version ?: config('whatsapp.meta.api_version', 'v21.0'),
+            $connection->api_version ?: config('whatsapp.meta.api_version', 'v25.0'),
             $wabaId,
             $metaTemplateId
         );
@@ -158,10 +159,10 @@ class TemplateManagementService
             $response = Http::withToken($connection->access_token)
                 ->delete($url);
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 $responseData = $response->json();
                 $errorMessage = $responseData['error']['message'] ?? 'Unknown error from WhatsApp API';
-                
+
                 throw new WhatsAppApiException(
                     "Failed to delete template: {$errorMessage}",
                     $responseData,
@@ -193,16 +194,15 @@ class TemplateManagementService
     public function getTemplateStatus(WhatsAppConnection $connection, string $metaTemplateId): array
     {
         $wabaId = $connection->waba_id;
-        if (!$wabaId) {
+        if (! $wabaId) {
             throw new \Exception('WABA ID is required to check template status');
         }
 
         $url = sprintf(
-            '%s/%s/%s/message_templates?name=%s',
+            '%s/%s/%s/message_templates',
             $this->baseUrl,
-            $connection->api_version ?: config('whatsapp.meta.api_version', 'v21.0'),
-            $wabaId,
-            urlencode($metaTemplateId)
+            $connection->api_version ?: config('whatsapp.meta.api_version', 'v25.0'),
+            $wabaId
         );
 
         try {
@@ -213,7 +213,7 @@ class TemplateManagementService
 
             $responseData = $response->json();
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 $errorMessage = $responseData['error']['message'] ?? 'Unknown error from WhatsApp API';
                 throw new WhatsAppApiException(
                     "Failed to get template status: {$errorMessage}",
@@ -261,14 +261,36 @@ class TemplateManagementService
             'components' => [],
         ];
 
+        if (strtoupper($data['category']) === 'AUTHENTICATION') {
+            $payload['components'][] = [
+                'type' => 'BODY',
+                'add_security_recommendation' => true,
+            ];
+
+            $payload['components'][] = [
+                'type' => 'FOOTER',
+                'code_expiration_minutes' => 10,
+            ];
+
+            $payload['components'][] = [
+                'type' => 'BUTTONS',
+                'buttons' => [[
+                    'type' => 'OTP',
+                    'otp_type' => 'COPY_CODE',
+                ]],
+            ];
+
+            return $payload;
+        }
+
         // Header component
-        if (!empty($data['header_type']) && $data['header_type'] !== 'NONE') {
+        if (! empty($data['header_type']) && $data['header_type'] !== 'NONE') {
             $header = [
                 'type' => 'HEADER',
                 'format' => strtoupper($data['header_type']),
             ];
 
-            if ($data['header_type'] === 'TEXT' && !empty($data['header_text'])) {
+            if ($data['header_type'] === 'TEXT' && ! empty($data['header_text'])) {
                 $header['text'] = $data['header_text'];
             } elseif (in_array($data['header_type'], ['IMAGE', 'VIDEO', 'DOCUMENT'])) {
                 // Meta requires example for media headers. Use handle from Resumable Upload when available, else public URL.
@@ -276,7 +298,7 @@ class TemplateManagementService
                 $mediaRef = is_string($mediaRef) ? trim($mediaRef) : $mediaRef;
                 if (empty($mediaRef)) {
                     throw new \InvalidArgumentException(
-                        'Templates with ' . $data['header_type'] . ' header need a sample image. Please upload a file or provide a public image URL.'
+                        'Templates with '.$data['header_type'].' header need a sample image. Please upload a file or provide a public image URL.'
                     );
                 }
                 $header['example'] = [
@@ -288,7 +310,7 @@ class TemplateManagementService
         }
 
         // Body component (required)
-        if (!empty($data['body_text'])) {
+        if (! empty($data['body_text'])) {
             $body = [
                 'type' => 'BODY',
                 'text' => $data['body_text'],
@@ -296,9 +318,18 @@ class TemplateManagementService
 
             // Only add example when body contains variables ({{1}}, {{2}}, etc.); otherwise Meta returns "Invalid parameter"
             $hasBodyVariables = (bool) preg_match('/\{\{\d+\}\}/', $data['body_text']);
-            if ($hasBodyVariables && !empty($data['body_examples']) && is_array($data['body_examples'])) {
+            if ($hasBodyVariables) {
+                $examples = array_values(array_filter($data['body_examples'] ?? [], fn ($example) => trim((string) $example) !== ''));
+                preg_match_all('/\{\{(\d+)\}\}/', $data['body_text'], $matches);
+                $variables = array_values(array_unique(array_map('intval', $matches[1] ?? [])));
+                sort($variables);
+
+                if (count($examples) < count($variables)) {
+                    throw new \InvalidArgumentException('Add one sample value for each body variable before submitting to Meta.');
+                }
+
                 $body['example'] = [
-                    'body_text' => [array_values($data['body_examples'])],
+                    'body_text' => [$examples],
                 ];
             }
 
@@ -306,7 +337,7 @@ class TemplateManagementService
         }
 
         // Buttons (Meta expects BUTTONS before FOOTER)
-        if (!empty($data['buttons']) && is_array($data['buttons'])) {
+        if (! empty($data['buttons']) && is_array($data['buttons'])) {
             $buttonComponents = [];
             foreach ($data['buttons'] as $button) {
                 $buttonType = strtoupper($button['type'] ?? '');
@@ -315,20 +346,20 @@ class TemplateManagementService
                     'text' => $button['text'] ?? '',
                 ];
 
-                if ($buttonType === 'URL' && !empty($button['url'])) {
+                if ($buttonType === 'URL' && ! empty($button['url'])) {
                     $buttonData['url'] = $button['url'];
                     // Only add example for dynamic URL (Meta requires URL to contain {{1}} when using example)
-                    if (!empty($button['url_example']) && preg_match('/\{\{\d+\}\}/', $button['url'])) {
+                    if (! empty($button['url_example']) && preg_match('/\{\{\d+\}\}/', $button['url'])) {
                         $buttonData['example'] = [$button['url_example']];
                     }
-                } elseif ($buttonType === 'PHONE_NUMBER' && !empty($button['phone_number'])) {
+                } elseif ($buttonType === 'PHONE_NUMBER' && ! empty($button['phone_number'])) {
                     $buttonData['phone_number'] = $button['phone_number'];
                 }
 
                 $buttonComponents[] = $buttonData;
             }
 
-            if (!empty($buttonComponents)) {
+            if (! empty($buttonComponents)) {
                 $payload['components'][] = [
                     'type' => 'BUTTONS',
                     'buttons' => $buttonComponents,
@@ -337,7 +368,7 @@ class TemplateManagementService
         }
 
         // Footer component
-        if (!empty($data['footer_text'])) {
+        if (! empty($data['footer_text'])) {
             $payload['components'][] = [
                 'type' => 'FOOTER',
                 'text' => $data['footer_text'],
@@ -358,7 +389,7 @@ class TemplateManagementService
     ): WhatsAppTemplate {
         // Meta create response often omits components; use our request payload components as fallback.
         $components = $metaResponse['components'] ?? $this->buildTemplatePayload($templateData)['components'] ?? [];
-        
+
         $bodyText = null;
         $headerType = null;
         $headerText = null;
@@ -367,9 +398,9 @@ class TemplateManagementService
 
         foreach ($components as $component) {
             $type = strtoupper($component['type'] ?? '');
-            
+
             if ($type === 'BODY') {
-                $bodyText = $component['text'] ?? '';
+                $bodyText = $component['text'] ?? $templateData['body_text'] ?? '';
             } elseif ($type === 'HEADER') {
                 $headerType = strtoupper($component['format'] ?? 'TEXT');
                 if ($headerType === 'TEXT') {
@@ -394,6 +425,7 @@ class TemplateManagementService
             'body_text' => $bodyText,
             'header_type' => $headerType,
             'header_text' => $headerText,
+            'header_media_url' => $templateData['header_media_url'] ?? null,
             'footer_text' => $footerText,
             'buttons' => $buttons,
             'components' => $components,
@@ -408,12 +440,12 @@ class TemplateManagementService
     protected function uploadHeaderMediaToMeta(WhatsAppConnection $connection, string $mediaUrl, string $headerType): ?string
     {
         $appId = config('whatsapp.meta.app_id');
-        if (!$appId) {
+        if (! $appId) {
             return null;
         }
 
         $response = Http::timeout(30)->get($mediaUrl);
-        if (!$response->successful()) {
+        if (! $response->successful()) {
             throw new \RuntimeException("Could not fetch media: HTTP {$response->status()}");
         }
 
@@ -431,11 +463,11 @@ class TemplateManagementService
         $fileType = $mimeMap[$headerType] ?? 'image/png';
         // Meta only accepts: image/jpeg, image/jpg, image/png, video/mp4, application/pdf
         $allowed = ['image/jpeg', 'image/jpg', 'image/png', 'video/mp4', 'application/pdf'];
-        if (!in_array(strtolower(explode(';', $fileType)[0]), $allowed)) {
+        if (! in_array(strtolower(explode(';', $fileType)[0]), $allowed)) {
             $fileType = $headerType === 'VIDEO' ? 'video/mp4' : 'image/png';
         }
 
-        $fileName = 'template_header_' . substr(md5($mediaUrl), 0, 8);
+        $fileName = 'template_header_'.substr(md5($mediaUrl), 0, 8);
         if (str_starts_with($fileType, 'image/')) {
             $fileName .= '.png';
         } elseif (str_starts_with($fileType, 'video/')) {
@@ -444,12 +476,12 @@ class TemplateManagementService
             $fileName .= '.pdf';
         }
 
-        $version = $connection->api_version ?: config('whatsapp.meta.api_version', 'v21.0');
+        $version = $connection->api_version ?: config('whatsapp.meta.api_version', 'v25.0');
         $createUrl = sprintf('%s/%s/%s/uploads', $this->baseUrl, $version, $appId);
 
         // Meta Resumable Upload: create session (API accepts query or form params)
         $sessionResponse = Http::withToken($connection->access_token)
-            ->post($createUrl . '?' . http_build_query([
+            ->post($createUrl.'?'.http_build_query([
                 'file_name' => $fileName,
                 'file_length' => $fileLength,
                 'file_type' => $fileType,
@@ -457,17 +489,18 @@ class TemplateManagementService
 
         $sessionData = $sessionResponse->json();
         $sessionId = $sessionData['id'] ?? null;
-        if (!$sessionId || !str_starts_with((string) $sessionId, 'upload:')) {
+        if (! $sessionId || ! str_starts_with((string) $sessionId, 'upload:')) {
             Log::channel('whatsapp')->warning('Meta upload session failed', [
                 'response' => $sessionData,
                 'status' => $sessionResponse->status(),
             ]);
+
             return null;
         }
 
         $uploadUrl = sprintf('%s/%s/%s', $this->baseUrl, $version, $sessionId);
         $uploadResponse = Http::withHeaders([
-            'Authorization' => 'OAuth ' . $connection->access_token,
+            'Authorization' => 'OAuth '.$connection->access_token,
             'file_offset' => '0',
         ])->withBody($content, 'application/octet-stream')
             ->timeout(60)
@@ -475,11 +508,12 @@ class TemplateManagementService
 
         $uploadData = $uploadResponse->json();
         $handle = $uploadData['h'] ?? null;
-        if (!$handle) {
+        if (! $handle) {
             Log::channel('whatsapp')->warning('Meta file upload failed', [
                 'response' => $uploadData,
                 'status' => $uploadResponse->status(),
             ]);
+
             return null;
         }
 
@@ -493,15 +527,15 @@ class TemplateManagementService
     {
         $rateLimitKey = "template_management_rate_limit:connection:{$connectionId}";
         $requests = Cache::get($rateLimitKey, 0);
-        
+
         // Allow max 20 requests per minute per connection
         if ($requests >= 20) {
-            $ttl = Cache::get($rateLimitKey . ':ttl', 60);
+            $ttl = Cache::get($rateLimitKey.':ttl', 60);
             throw new \Exception("Rate limit: Maximum 20 template operations per minute. Please wait {$ttl} seconds.");
         }
 
         // Increment counter
         Cache::put($rateLimitKey, $requests + 1, 60);
-        Cache::put($rateLimitKey . ':ttl', 60 - (now()->second), 60);
+        Cache::put($rateLimitKey.':ttl', 60 - (now()->second), 60);
     }
 }

@@ -33,6 +33,16 @@ interface DailyActivity {
     count: number;
 }
 
+const toNumber = (value: number | string | null | undefined) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : 0;
+};
+
+const clampRate = (value: number | string | null | undefined) => {
+    const numeric = toNumber(value);
+    return Math.max(0, Math.min(100, numeric));
+};
+
 export default function AnalyticsIndex({
     account,
     date_range,
@@ -67,11 +77,22 @@ export default function AnalyticsIndex({
             preserveScroll: true});
     };
 
-    const formatNumber = (num: number) => {
-        if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-        if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-        return num.toString();
+    const formatNumber = (value: number | string | null | undefined) => {
+        const num = toNumber(value);
+        if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+        if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+        return num.toLocaleString('en-IN');
     };
+
+    const messageTotals = message_trends.reduce(
+        (totals, trend) => ({
+            total: totals.total + toNumber(trend.total),
+            inbound: totals.inbound + toNumber(trend.inbound),
+            outbound: totals.outbound + toNumber(trend.outbound),
+        }),
+        { total: 0, inbound: 0, outbound: 0 }
+    );
+    const averageDailyMessages = Math.round(messageTotals.total / Math.max(message_trends.length, 1));
 
     const getUsagePercentage = (current: number, limit: number) => {
         if (limit === -1) return 0; // Unlimited
@@ -82,21 +103,18 @@ export default function AnalyticsIndex({
     return (
         <AppShell>
             <Head title="Analytics" />
-            <div className="space-y-6">
-                <div className="flex items-center justify-between">
+            <div className="module-page">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                        <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
-                            Analytics
-                        </h1>
-                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                            Insights into your WhatsApp messaging activity
-                        </p>
+                        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-waify-green-dark">Insights</p>
+                        <h1 className="module-heading">Analytics</h1>
+                        <p className="module-subheading">Track conversations, templates, usage, and messaging performance.</p>
                     </div>
                     <div className="flex items-center gap-2">
                         <select
                             value={selectedRange}
                             onChange={(e) => handleRangeChange(e.target.value)}
-                            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="rounded-btn border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-waify-green focus:outline-none focus:ring-2 focus:ring-waify-green/20 dark:border-gray-600 dark:bg-gray-800"
                         >
                             <option value="7">Last 7 days</option>
                             <option value="30">Last 30 days</option>
@@ -126,7 +144,7 @@ export default function AnalyticsIndex({
                                 {usage.messages_limit !== -1 && (
                                     <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                                         <div
-                                            className="bg-blue-600 h-2 rounded-full transition-all"
+                                            className="h-2 rounded-full bg-waify-green transition-all"
                                             style={{ width: `${getUsagePercentage(usage.messages_sent, usage.messages_limit)}%` }}
                                         />
                                     </div>
@@ -172,7 +190,7 @@ export default function AnalyticsIndex({
                                     <p className="text-sm text-gray-600 dark:text-gray-400">Total Conversations</p>
                                     <p className="text-2xl font-bold">{conversation_stats.total}</p>
                                 </div>
-                                <Users className="h-8 w-8 text-blue-500" />
+                                <Users className="h-8 w-8 text-waify-green-dark" />
                             </div>
                             <div className="mt-4 flex gap-2 text-xs">
                                 <Badge variant="success">{conversation_stats.open} Open</Badge>
@@ -187,18 +205,20 @@ export default function AnalyticsIndex({
                                 <div>
                                     <p className="text-sm text-gray-600 dark:text-gray-400">Total Messages</p>
                                     <p className="text-2xl font-bold">
-                                        {formatNumber(message_trends.reduce((sum, t) => sum + t.total, 0))}
+                                        {formatNumber(messageTotals.total)}
                                     </p>
                                 </div>
                                 <MessageSquare className="h-8 w-8 text-green-500" />
                             </div>
-                            <div className="mt-4 flex gap-2 text-xs">
-                                <Badge variant="info">
-                                    {formatNumber(message_trends.reduce((sum, t) => sum + t.inbound, 0))} Inbound
-                                </Badge>
-                                <Badge variant="default">
-                                    {formatNumber(message_trends.reduce((sum, t) => sum + t.outbound, 0))} Outbound
-                                </Badge>
+                            <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                                <div className="rounded-lg bg-blue-50 px-2.5 py-2 text-blue-700 ring-1 ring-blue-100 dark:bg-blue-500/10 dark:text-blue-200 dark:ring-blue-500/20">
+                                    <span className="block text-[10px] font-medium uppercase tracking-wide opacity-75">Inbound</span>
+                                    <span className="mt-0.5 block font-semibold tabular-nums">{formatNumber(messageTotals.inbound)}</span>
+                                </div>
+                                <div className="rounded-lg bg-slate-100 px-2.5 py-2 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700">
+                                    <span className="block text-[10px] font-medium uppercase tracking-wide opacity-75">Outbound</span>
+                                    <span className="mt-0.5 block font-semibold tabular-nums">{formatNumber(messageTotals.outbound)}</span>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
@@ -209,7 +229,7 @@ export default function AnalyticsIndex({
                                 <div>
                                     <p className="text-sm text-gray-600 dark:text-gray-400">Avg Daily Messages</p>
                                     <p className="text-2xl font-bold">
-                                        {formatNumber(Math.round(message_trends.reduce((sum, t) => sum + t.total, 0) / Math.max(message_trends.length, 1)))}
+                                        {formatNumber(averageDailyMessages)}
                                     </p>
                                 </div>
                                 <TrendingUp className="h-8 w-8 text-purple-500" />
@@ -221,8 +241,8 @@ export default function AnalyticsIndex({
                         <CardContent className="pt-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">Top Templates</p>
-                                    <p className="text-2xl font-bold">{template_performance.length}</p>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">Template Activity</p>
+                                    <p className="text-2xl font-bold">{template_performance.length > 0 ? template_performance.length : 'No sends'}</p>
                                 </div>
                                 <FileText className="h-8 w-8 text-orange-500" />
                             </div>
@@ -240,19 +260,21 @@ export default function AnalyticsIndex({
                         <div className="h-64 flex items-end justify-between gap-1">
                             {message_trends.length > 0 ? (
                                 message_trends.map((trend, index) => {
-                                    const maxValue = Math.max(...message_trends.map(t => Math.max(t.inbound, t.outbound, 1)));
+                                    const inbound = toNumber(trend.inbound);
+                                    const outbound = toNumber(trend.outbound);
+                                    const maxValue = Math.max(...message_trends.map(t => Math.max(toNumber(t.inbound), toNumber(t.outbound), 1)));
                                     return (
                                         <div key={index} className="flex-1 flex flex-col items-center gap-1">
                                             <div className="w-full flex flex-col-reverse gap-0.5 h-48">
                                                 <div
-                                                    className="bg-blue-500 rounded-t"
-                                                    style={{ height: `${(trend.outbound / maxValue) * 100}%` }}
-                                                    title={`Outbound: ${trend.outbound}`}
+                                                    className="rounded-t bg-waify-green-dark"
+                                                    style={{ height: `${(outbound / maxValue) * 100}%` }}
+                                                    title={`Outbound: ${outbound}`}
                                                 />
                                                 <div
                                                     className="bg-green-500 rounded-t"
-                                                    style={{ height: `${(trend.inbound / maxValue) * 100}%` }}
-                                                    title={`Inbound: ${trend.inbound}`}
+                                                    style={{ height: `${(inbound / maxValue) * 100}%` }}
+                                                    title={`Inbound: ${inbound}`}
                                                 />
                                             </div>
                                             <span className="text-xs text-gray-500 dark:text-gray-400">
@@ -290,13 +312,26 @@ export default function AnalyticsIndex({
                                             </div>
                                         </div>
                                         <div className="text-right">
-                                            <Badge variant="success">{template.delivery_rate.toFixed(1)}% Delivery</Badge>
+                                            <Badge variant="success">{clampRate(template.delivery_rate).toFixed(1)}% Delivery</Badge>
                                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                {template.read_rate.toFixed(1)}% Read Rate
+                                                {clampRate(template.read_rate).toFixed(1)}% Read Rate
                                             </p>
                                         </div>
                                     </div>
                                 ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+                {template_performance.length === 0 && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Template Performance</CardTitle>
+                            <CardDescription>Delivery and read rates will appear after approved templates are sent.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="rounded-lg border border-dashed border-gray-200 px-4 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                                No template sends in this period. Try a wider date range or send a campaign with an approved template.
                             </div>
                         </CardContent>
                     </Card>
@@ -317,7 +352,7 @@ export default function AnalyticsIndex({
                                     return (
                                         <div key={hour} className="flex-1 flex flex-col items-center gap-1">
                                             <div
-                                                className="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t"
+                                                className="w-full rounded-t bg-waify-green"
                                                 style={{ height: `${((hourData?.count || 0) / maxCount) * 100}%` }}
                                                 title={`${hour}:00 - ${hourData?.count || 0} messages`}
                                             />
@@ -335,4 +370,3 @@ export default function AnalyticsIndex({
         </AppShell>
     );
 }
-

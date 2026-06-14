@@ -13,4 +13,3 @@ return [
             'href' => 'app.broadcasts.index',
             'icon' => 'Megaphone',
             'group' => 'messaging']]];
-

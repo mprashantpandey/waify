@@ -11,6 +11,7 @@ import { Head } from '@inertiajs/react';
 import { useState } from 'react';
 import { useToast } from '@/hooks/useToast';
 import { EmptyState } from '@/Components/UI/EmptyState';
+import { useConfirm } from '@/hooks/useConfirm';
 
 interface TagRow {
     id: number;
@@ -29,6 +30,7 @@ export default function TagsIndex({
     tags: TagRow[];
 }) {
     const { toast } = useToast();
+    const confirm = useConfirm();
     const [editingId, setEditingId] = useState<number | null>(null);
     const [showCreate, setShowCreate] = useState(false);
 
@@ -50,8 +52,14 @@ export default function TagsIndex({
         });
     };
 
-    const handleDelete = (tag: TagRow) => {
-        if (!confirm(`Delete tag "${tag.name}"? Contacts will keep their data but this tag will be removed.`)) return;
+    const handleDelete = async (tag: TagRow) => {
+        const confirmed = await confirm({
+            title: 'Delete tag',
+            message: `Delete tag "${tag.name}"? Contacts keep their data, but this tag is removed from the workspace.`,
+            confirmText: 'Delete tag',
+            variant: 'danger',
+        });
+        if (!confirmed) return;
         router.delete(route('app.contacts.tags.destroy', { tag: tag.id }), {
             onSuccess: () => toast.success('Tag deleted'),
             onError: () => toast.error('Failed to delete tag'),
@@ -97,7 +105,7 @@ export default function TagsIndex({
                     </Link>
                     <div className="flex items-center justify-between">
                         <div>
-                            <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
+                            <h1 className="text-3xl font-bold text-waify-text">
                                 Contact Tags
                             </h1>
                             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">

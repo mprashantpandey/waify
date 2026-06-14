@@ -1,132 +1,48 @@
-import PublicLayout from '@/Layouts/PublicLayout';
-import { FileText, Scale, AlertCircle, CheckCircle, Sparkles } from 'lucide-react';
+import { Head } from '@inertiajs/react';
+import { Card, MarketingLayout } from '@/Components/Public/Marketing';
 
 export default function Terms() {
     return (
-        <PublicLayout>
-            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-                {/* Header with attractive design */}
-                <div className="text-center mb-12">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-full mb-6">
-                        <Scale className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                        <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-                            Legal Information
-                        </span>
-                    </div>
-                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-r from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 mb-6">
-                        <Scale className="h-10 w-10 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-gray-100 mb-4 bg-gradient-to-r from-gray-900 via-blue-600 to-purple-600 dark:from-gray-100 dark:via-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
-                        Terms of Service
-                    </h1>
-                    <p className="text-gray-600 dark:text-gray-400">
-                        Last updated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-                    </p>
-                </div>
+        <MarketingLayout page="terms">
+            <Head title="Terms of Service" />
+            <Card className="space-y-2 p-6 sm:p-8">
+                <LegalSection title="Acceptance">
+                    By using Zyptos you agree to these terms, workspace policies configured by your organization, and Meta&apos;s WhatsApp Business Platform requirements.
+                </LegalSection>
+                <LegalSection title="Acceptable use">
+                    You are responsible for opt-in consent, lawful messaging, template accuracy, opt-out handling, and avoiding spam, prohibited industries, misleading offers, or policy violations. See the Acceptable Use Policy for practical rules.
+                </LegalSection>
+                <LegalSection title="Billing">
+                    Plans are billed per workspace and renew according to the selected cycle. Bank/UPI payments require proof upload and admin approval. Razorpay is used for one-time Zyptos checkout where enabled. Discounts, trials, cancellations, overdue status, and renewals determine access to paid actions.
+                </LegalSection>
+                <LegalSection title="Refunds and cancellations">
+                    Refund and cancellation requests are reviewed under the Refund and Cancellation Policy. Meta conversation charges, third-party provider costs, consumed usage, and completed custom work are generally separate from Zyptos subscription refunds.
+                </LegalSection>
+                <LegalSection title="Trials and Enterprise">
+                    Self-service trials are limited per email account. Enterprise plans, custom limits, and special activations require platform admin approval and may require additional onboarding or commercial review.
+                </LegalSection>
+                <LegalSection title="Platform and Meta APIs">
+                    Zyptos helps connect Meta APIs, but Meta may independently review, limit, pause, or reject apps, templates, numbers, and WABAs. Your business remains responsible for Meta Business Platform requirements and content compliance.
+                </LegalSection>
+                <LegalSection title="Unofficial QR connection">
+                    QR-based WhatsApp login is marked unofficial. It is not the Meta Cloud API and may carry account limitations or enforcement risk. Use Cloud API for production where possible and read the QR WhatsApp Disclaimer before enabling QR mode.
+                </LegalSection>
+                <LegalSection title="AI and automation">
+                    Automation and AI-agent features must be configured with approved knowledge, reasonable limits, and human handoff rules. Zyptos may throttle or pause automation that creates duplicate replies, policy risk, excessive sending, or support escalation risk.
+                </LegalSection>
+                <LegalSection title="Suspension">
+                    We may restrict sending, billing actions, or admin operations when accounts violate policy, payment fails, or security risk is detected.
+                </LegalSection>
+            </Card>
+        </MarketingLayout>
+    );
+}
 
-                {/* Content Sections */}
-                <div className="space-y-6">
-                    <section className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-shadow">
-                        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
-                            <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg mr-3">
-                                <FileText className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                            </div>
-                            1. Acceptance of Terms
-                        </h2>
-                        <p className="text-gray-700 dark:text-gray-300 mb-4">
-                            By accessing and using our services, you accept and agree to be bound by the terms and provision of this agreement.
-                        </p>
-                    </section>
-
-                    <section className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-shadow">
-                        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
-                            <div className="bg-green-50 dark:bg-green-900/20 p-2 rounded-lg mr-3">
-                                <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
-                            </div>
-                            2. Use License
-                        </h2>
-                        <p className="text-gray-700 dark:text-gray-300 mb-4">
-                            Permission is granted to temporarily use our services for personal or commercial purposes. This is the grant of a license, not a transfer of title, and under this license you may not:
-                        </p>
-                        <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300 ml-4">
-                            <li>Modify or copy the materials</li>
-                            <li>Use the materials for any commercial purpose or for any public display</li>
-                            <li>Attempt to reverse engineer any software contained in our services</li>
-                            <li>Remove any copyright or other proprietary notations from the materials</li>
-                        </ul>
-                    </section>
-
-                    <section className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-shadow">
-                        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center">
-                            <div className="bg-red-50 dark:bg-red-900/20 p-2 rounded-lg mr-3">
-                                <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
-                            </div>
-                            3. Acceptable Use
-                        </h2>
-                        <p className="text-gray-700 dark:text-gray-300 mb-4">
-                            You agree not to use our services to:
-                        </p>
-                        <ul className="list-disc list-inside space-y-2 text-gray-700 dark:text-gray-300 ml-4">
-                            <li>Send spam, unsolicited messages, or engage in any form of harassment</li>
-                            <li>Violate any applicable laws or regulations</li>
-                            <li>Infringe upon the rights of others</li>
-                            <li>Transmit any malicious code or viruses</li>
-                            <li>Interfere with or disrupt the services</li>
-                        </ul>
-                    </section>
-
-                    <section className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-shadow">
-                        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-                            4. Payment Terms
-                        </h2>
-                        <p className="text-gray-700 dark:text-gray-300 mb-4">
-                            Subscription fees are billed in advance on a monthly or annual basis. All fees are non-refundable except as required by law. You are responsible for any taxes applicable to your use of our services.
-                        </p>
-                    </section>
-
-                    <section className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-shadow">
-                        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-                            5. Service Availability
-                        </h2>
-                        <p className="text-gray-700 dark:text-gray-300 mb-4">
-                            We strive to maintain high availability of our services but do not guarantee uninterrupted access. We reserve the right to modify, suspend, or discontinue any part of our services at any time.
-                        </p>
-                    </section>
-
-                    <section className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-shadow">
-                        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-                            6. Limitation of Liability
-                        </h2>
-                        <p className="text-gray-700 dark:text-gray-300 mb-4">
-                            In no event shall we be liable for any indirect, incidental, special, consequential, or punitive damages, including without limitation, loss of profits, data, use, goodwill, or other intangible losses.
-                        </p>
-                    </section>
-
-                    <section className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-shadow">
-                        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-                            7. Termination
-                        </h2>
-                        <p className="text-gray-700 dark:text-gray-300 mb-4">
-                            We may terminate or suspend your account and access to our services immediately, without prior notice, for any breach of these Terms of Service.
-                        </p>
-                    </section>
-
-                    <section className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-shadow">
-                        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-                            8. Contact Information
-                        </h2>
-                        <p className="text-gray-700 dark:text-gray-300 mb-4">
-                            If you have any questions about these Terms of Service, please contact us at:
-                        </p>
-                        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
-                            <p className="text-gray-900 dark:text-gray-100 font-medium">
-                                Email: legal@example.com<br />
-                                Address: [Your Company Address]
-                            </p>
-                        </div>
-                    </section>
-                </div>
-            </div>
-        </PublicLayout>
+function LegalSection({ title, children }: { title: string; children: React.ReactNode }) {
+    return (
+        <section className="mb-8 last:mb-0">
+            <h2 className="mb-3 text-lg font-semibold text-waify-text dark:text-waify-dark-text">{title}</h2>
+            <div className="text-sm leading-relaxed text-waify-text-muted dark:text-waify-dark-text-muted">{children}</div>
+        </section>
     );
 }

@@ -24,11 +24,11 @@ return new class extends Migration
 
         foreach ($plans as $plan) {
             $modules = $plan->modules ?? [];
-            if (!is_array($modules)) {
+            if (! is_array($modules)) {
                 $modules = json_decode($modules, true) ?? [];
             }
 
-            if (!in_array('broadcasts', $modules, true)) {
+            if (! in_array('broadcasts', $modules, true)) {
                 $modules[] = 'broadcasts';
                 $plan->modules = array_values(array_unique($modules));
                 $plan->save();
@@ -51,7 +51,7 @@ return new class extends Migration
 
         foreach ($plans as $plan) {
             $modules = $plan->modules ?? [];
-            if (!is_array($modules)) {
+            if (! is_array($modules)) {
                 $modules = json_decode($modules, true) ?? [];
             }
 

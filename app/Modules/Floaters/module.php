@@ -13,4 +13,3 @@ return [
             'href' => 'app.floaters',
             'icon' => 'Zap',
             'group' => 'growth']]];
-

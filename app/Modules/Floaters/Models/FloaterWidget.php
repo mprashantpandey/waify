@@ -36,19 +36,19 @@ class FloaterWidget extends Model
     protected static function booted(): void
     {
         static::creating(function (FloaterWidget $widget) {
-            if (!$widget->public_id) {
+            if (! $widget->public_id) {
                 $widget->public_id = (string) Str::uuid();
             }
-            if (!$widget->slug || trim((string) $widget->slug) === '') {
+            if (! $widget->slug || trim((string) $widget->slug) === '') {
                 $widget->slug = static::generateSlug($widget);
             }
         });
 
         static::updating(function (FloaterWidget $widget) {
-            if ($widget->isDirty('name') && !$widget->isDirty('slug')) {
+            if ($widget->isDirty('name') && ! $widget->isDirty('slug')) {
                 $widget->slug = static::generateSlug($widget);
             }
-            if ((!$widget->slug || trim((string) $widget->slug) === '') && !$widget->isDirty('slug')) {
+            if ((! $widget->slug || trim((string) $widget->slug) === '') && ! $widget->isDirty('slug')) {
                 $widget->slug = static::generateSlug($widget);
             }
         });

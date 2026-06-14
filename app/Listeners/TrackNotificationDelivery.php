@@ -12,13 +12,12 @@ class TrackNotificationDelivery
 {
     public function __construct(
         protected NotificationOutboxService $outboxService
-    ) {
-    }
+    ) {}
 
     public function handleSent(NotificationSent $event): void
     {
         $outbox = $this->resolveOutbox($event->notification, $event->notifiable, $event->channel);
-        if (!$outbox) {
+        if (! $outbox) {
             return;
         }
 
@@ -29,7 +28,7 @@ class TrackNotificationDelivery
     public function handleFailed(NotificationFailed $event): void
     {
         $outbox = $this->resolveOutbox($event->notification, $event->notifiable, $event->channel);
-        if (!$outbox) {
+        if (! $outbox) {
             return;
         }
 
@@ -40,6 +39,7 @@ class TrackNotificationDelivery
 
         if ($nextAttempt < max(1, $tries)) {
             $this->outboxService->markRetrying($outbox, (string) $reason, $provider);
+
             return;
         }
 
@@ -55,7 +55,7 @@ class TrackNotificationDelivery
 
         $notifiableType = $notifiable::class;
         $notifiableId = method_exists($notifiable, 'getKey') ? (string) $notifiable->getKey() : null;
-        if (!$notifiableId) {
+        if (! $notifiableId) {
             return null;
         }
 
@@ -71,7 +71,7 @@ class TrackNotificationDelivery
 
     protected function extractProviderInfo(mixed $response): array
     {
-        if (!$response) {
+        if (! $response) {
             return [];
         }
 
@@ -109,4 +109,3 @@ class TrackNotificationDelivery
         return $result;
     }
 }
-

@@ -2,22 +2,21 @@ import { ReactNode, useState, useEffect } from 'react';
 import { usePage } from '@inertiajs/react';
 import { Sidebar } from '@/Components/Layout/Sidebar';
 import { Topbar } from '@/Components/Layout/Topbar';
-import { Toaster } from '@/Components/UI/Toaster';
 import { BrandingWrapper } from '@/Components/Branding/BrandingWrapper';
-import { GlobalFlashHandler } from '@/Components/Notifications/GlobalFlashHandler';
-import LiveChatWidget from '@/Components/Support/LiveChatWidget';
-import ProfileIncompleteModal from '@/Components/Profile/ProfileIncompleteModal';
 import AnalyticsScripts from '@/Components/Analytics/AnalyticsScripts';
 import CookieConsentBanner from '@/Components/Compliance/CookieConsentBanner';
+import RealtimeInboxAlerts from '@/Components/Notifications/RealtimeInboxAlerts';
 
 interface AppShellProps {
     children: ReactNode;
+    fullscreen?: boolean;
 }
 
-export default function AppShell({ children }: AppShellProps) {
+export default function AppShell({ children, fullscreen = false }: AppShellProps) {
     const { account, navigation, auth, ziggy } = usePage().props as any;
     const currentRoute = window.location.pathname;
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     // Close sidebar when route changes on mobile
     useEffect(() => {
@@ -43,27 +42,29 @@ export default function AppShell({ children }: AppShellProps) {
 
     return (
         <BrandingWrapper>
-            <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-                <Sidebar
-                    navigation={navigation || []}
-                    currentRoute={currentRoute}
-                    account={account}
-                    isOpen={sidebarOpen}
-                    onClose={() => setSidebarOpen(false)}
-                />
-                <div className="lg:pl-72">
-                    <Topbar
-                        user={auth?.user}
-                        onMenuClick={() => setSidebarOpen(!sidebarOpen)}
+            <div className="flex h-[100dvh] overflow-hidden bg-waify-bg text-waify-text dark:bg-waify-dark-bg dark:text-waify-dark-text">
+                {!fullscreen && (
+                    <Sidebar
+                        navigation={navigation || []}
+                        currentRoute={currentRoute}
+                        account={account}
+                        isOpen={sidebarOpen}
+                        onClose={() => setSidebarOpen(false)}
+                        onCollapseChange={setSidebarCollapsed}
                     />
-                    <main className="p-4 lg:p-6">{children}</main>
+                )}
+                <div className={`flex-1 flex flex-col min-w-0 transition-[padding] duration-300 ${fullscreen ? '' : (sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-60')}`}>
+                    {!fullscreen && (
+                        <Topbar
+                            user={auth?.user}
+                            onMenuClick={() => setSidebarOpen(!sidebarOpen)}
+                        />
+                    )}
+                    <main className={fullscreen ? 'flex-1 overflow-hidden' : 'waify-scrollbar flex-1 overflow-y-auto p-4 lg:p-6'}>{children}</main>
                 </div>
-                <Toaster />
-                <GlobalFlashHandler />
-                <LiveChatWidget />
-                <ProfileIncompleteModal />
                 <CookieConsentBanner />
                 <AnalyticsScripts />
+                <RealtimeInboxAlerts />
             </div>
         </BrandingWrapper>
     );

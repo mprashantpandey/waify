@@ -1,104 +1,120 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/Components/UI/Card';
-import TextInput from '@/Components/TextInput';
-import InputLabel from '@/Components/InputLabel';
-import InputError from '@/Components/InputError';
-import { Globe, Wrench } from 'lucide-react';
+import { Globe, Link2, Wrench } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Components/UI/Card';
+import { Input } from '@/Components/UI/Input';
+import { Label } from '@/Components/UI/Label';
+import { Switch } from '@/Components/UI/Switch';
 
 interface GeneralTabProps {
     data: any;
     setData: (key: string, value: any) => void;
-    errors: any;
+    errors: Record<string, string>;
+}
+
+function FieldError({ message }: { message?: string }) {
+    if (!message) return null;
+
+    return <p className="mt-1 text-sm text-red-600 dark:text-red-300">{message}</p>;
 }
 
 export default function GeneralTab({ data, setData, errors }: GeneralTabProps) {
-    const updateField = (field: string, value: any) => {
-        setData(`general.${field}`, value);
-    };
+    const general = data.general || {};
+    const updateField = (field: string, value: any) => setData(`general.${field}`, value);
 
     return (
         <div className="space-y-6">
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
+                        <Link2 className="h-5 w-5" />
+                        Platform URL
+                    </CardTitle>
+                    <CardDescription>Used for callbacks, invoices, hosted widgets, webhook examples, and public links.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Label htmlFor="general.platform_url">Canonical URL</Label>
+                    <Input
+                        id="general.platform_url"
+                        type="url"
+                        value={general.platform_url || ''}
+                        onChange={(event) => updateField('platform_url', event.target.value)}
+                        placeholder="https://app.zyptos.com"
+                    />
+                    <FieldError message={errors['general.platform_url']} />
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
                         <Globe className="h-5 w-5" />
                         Localization
                     </CardTitle>
+                    <CardDescription>Default formatting for admin views, billing documents, and workspace fallbacks.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <InputLabel htmlFor="general.timezone" value="Default Timezone" />
-                            <select
-                                id="general.timezone"
-                                value={data.general?.timezone || 'UTC'}
-                                onChange={(e) => updateField('timezone', e.target.value)}
-                                className="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-500"
-                            >
-                                <option value="UTC">UTC</option>
-                                <option value="America/New_York">America/New_York (EST)</option>
-                                <option value="America/Chicago">America/Chicago (CST)</option>
-                                <option value="America/Denver">America/Denver (MST)</option>
-                                <option value="America/Los_Angeles">America/Los_Angeles (PST)</option>
-                                <option value="Europe/London">Europe/London (GMT)</option>
-                                <option value="Europe/Paris">Europe/Paris (CET)</option>
-                                <option value="Asia/Dubai">Asia/Dubai (GST)</option>
-                                <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
-                                <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
-                                <option value="Australia/Sydney">Australia/Sydney (AEDT)</option>
-                            </select>
-                            <InputError message={errors['general.timezone']} />
-                        </div>
-                        <div>
-                            <InputLabel htmlFor="general.locale" value="Default Locale" />
-                            <select
-                                id="general.locale"
-                                value={data.general?.locale || 'en'}
-                                onChange={(e) => updateField('locale', e.target.value)}
-                                className="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-500"
-                            >
-                                <option value="en">English</option>
-                                <option value="es">Spanish</option>
-                                <option value="fr">French</option>
-                                <option value="de">German</option>
-                                <option value="it">Italian</option>
-                                <option value="pt">Portuguese</option>
-                                <option value="zh">Chinese</option>
-                                <option value="ja">Japanese</option>
-                                <option value="ko">Korean</option>
-                                <option value="ar">Arabic</option>
-                                <option value="hi">Hindi</option>
-                            </select>
-                            <InputError message={errors['general.locale']} />
-                        </div>
-                        <div>
-                            <InputLabel htmlFor="general.date_format" value="Date Format" />
-                            <select
-                                id="general.date_format"
-                                value={data.general?.date_format || 'Y-m-d'}
-                                onChange={(e) => updateField('date_format', e.target.value)}
-                                className="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-500"
-                            >
-                                <option value="Y-m-d">YYYY-MM-DD (2024-01-15)</option>
-                                <option value="m/d/Y">MM/DD/YYYY (01/15/2024)</option>
-                                <option value="d/m/Y">DD/MM/YYYY (15/01/2024)</option>
-                                <option value="M d, Y">MMM DD, YYYY (Jan 15, 2024)</option>
-                                <option value="d M Y">DD MMM YYYY (15 Jan 2024)</option>
-                            </select>
-                            <InputError message={errors['general.date_format']} />
-                        </div>
-                        <div>
-                            <InputLabel htmlFor="general.time_format" value="Time Format" />
-                            <select
-                                id="general.time_format"
-                                value={data.general?.time_format || '24'}
-                                onChange={(e) => updateField('time_format', e.target.value)}
-                                className="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 dark:focus:border-indigo-500 dark:focus:ring-indigo-500"
-                            >
-                                <option value="24">24-hour (14:30)</option>
-                                <option value="12">12-hour (2:30 PM)</option>
-                            </select>
-                            <InputError message={errors['general.time_format']} />
-                        </div>
+                <CardContent className="grid gap-4 md:grid-cols-2">
+                    <div>
+                        <Label htmlFor="general.timezone">Default Timezone</Label>
+                        <select
+                            id="general.timezone"
+                            value={general.timezone || 'Asia/Kolkata'}
+                            onChange={(event) => updateField('timezone', event.target.value)}
+                            className="mt-1 h-10 w-full rounded-btn border border-gray-200 bg-white px-3 text-sm text-waify-text shadow-sm focus:border-waify-green focus:outline-none focus:ring-2 focus:ring-waify-green/20 dark:border-waify-dark-border dark:bg-waify-dark-surface dark:text-waify-dark-text"
+                        >
+                            <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
+                            <option value="UTC">UTC</option>
+                            <option value="Asia/Dubai">Asia/Dubai (GST)</option>
+                            <option value="Europe/London">Europe/London (GMT)</option>
+                            <option value="Europe/Paris">Europe/Paris (CET)</option>
+                            <option value="America/New_York">America/New_York (ET)</option>
+                            <option value="America/Los_Angeles">America/Los_Angeles (PT)</option>
+                            <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+                            <option value="Australia/Sydney">Australia/Sydney (AEDT)</option>
+                        </select>
+                        <FieldError message={errors['general.timezone']} />
+                    </div>
+
+                    <div>
+                        <Label htmlFor="general.locale">Default Locale</Label>
+                        <select
+                            id="general.locale"
+                            value={general.locale || 'en'}
+                            onChange={(event) => updateField('locale', event.target.value)}
+                            className="mt-1 h-10 w-full rounded-btn border border-gray-200 bg-white px-3 text-sm text-waify-text shadow-sm focus:border-waify-green focus:outline-none focus:ring-2 focus:ring-waify-green/20 dark:border-waify-dark-border dark:bg-waify-dark-surface dark:text-waify-dark-text"
+                        >
+                            <option value="en">English</option>
+                            <option value="hi">Hindi</option>
+                        </select>
+                        <FieldError message={errors['general.locale']} />
+                    </div>
+
+                    <div>
+                        <Label htmlFor="general.date_format">Date Format</Label>
+                        <select
+                            id="general.date_format"
+                            value={general.date_format || 'd/m/Y'}
+                            onChange={(event) => updateField('date_format', event.target.value)}
+                            className="mt-1 h-10 w-full rounded-btn border border-gray-200 bg-white px-3 text-sm text-waify-text shadow-sm focus:border-waify-green focus:outline-none focus:ring-2 focus:ring-waify-green/20 dark:border-waify-dark-border dark:bg-waify-dark-surface dark:text-waify-dark-text"
+                        >
+                            <option value="d/m/Y">DD/MM/YYYY (17/05/2026)</option>
+                            <option value="Y-m-d">YYYY-MM-DD (2026-05-17)</option>
+                            <option value="m/d/Y">MM/DD/YYYY (05/17/2026)</option>
+                            <option value="d M Y">DD MMM YYYY (17 May 2026)</option>
+                        </select>
+                        <FieldError message={errors['general.date_format']} />
+                    </div>
+
+                    <div>
+                        <Label htmlFor="general.time_format">Time Format</Label>
+                        <select
+                            id="general.time_format"
+                            value={general.time_format || '12'}
+                            onChange={(event) => updateField('time_format', event.target.value)}
+                            className="mt-1 h-10 w-full rounded-btn border border-gray-200 bg-white px-3 text-sm text-waify-text shadow-sm focus:border-waify-green focus:outline-none focus:ring-2 focus:ring-waify-green/20 dark:border-waify-dark-border dark:bg-waify-dark-surface dark:text-waify-dark-text"
+                        >
+                            <option value="12">12-hour (2:30 PM)</option>
+                            <option value="24">24-hour (14:30)</option>
+                        </select>
+                        <FieldError message={errors['general.time_format']} />
                     </div>
                 </CardContent>
             </Card>
@@ -107,39 +123,29 @@ export default function GeneralTab({ data, setData, errors }: GeneralTabProps) {
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <Wrench className="h-5 w-5" />
-                        System Status
+                        Maintenance
                     </CardTitle>
+                    <CardDescription>Temporarily restrict platform access while keeping super admin recovery available.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-4 rounded-card border border-gray-100 p-4 dark:border-waify-dark-border">
                         <div>
-                            <InputLabel value="Maintenance Mode" />
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                When enabled, only super admins can access the platform
-                            </p>
+                            <p className="text-sm font-semibold text-waify-text dark:text-waify-dark-text">Maintenance Mode</p>
+                            <p className="mt-1 text-sm text-waify-text-muted dark:text-waify-dark-text-muted">Only super admins can access the platform when enabled.</p>
                         </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={data.general?.maintenance_mode || false}
-                                onChange={(e) => updateField('maintenance_mode', e.target.checked)}
-                                className="sr-only peer"
-                            />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                        </label>
+                        <Switch checked={general.maintenance_mode || false} onCheckedChange={(checked) => updateField('maintenance_mode', checked)} />
                     </div>
-                    {data.general?.maintenance_mode && (
+
+                    {general.maintenance_mode && (
                         <div>
-                            <InputLabel htmlFor="general.maintenance_message" value="Maintenance Message" />
-                            <TextInput
+                            <Label htmlFor="general.maintenance_message">Maintenance Message</Label>
+                            <Input
                                 id="general.maintenance_message"
-                                type="text"
-                                value={data.general?.maintenance_message || ''}
-                                onChange={(e) => updateField('maintenance_message', e.target.value)}
-                                className="mt-1"
+                                value={general.maintenance_message || ''}
+                                onChange={(event) => updateField('maintenance_message', event.target.value)}
                                 placeholder="We're performing scheduled maintenance. We'll be back shortly."
                             />
-                            <InputError message={errors['general.maintenance_message']} />
+                            <FieldError message={errors['general.maintenance_message']} />
                         </div>
                     )}
                 </CardContent>
@@ -147,4 +153,3 @@ export default function GeneralTab({ data, setData, errors }: GeneralTabProps) {
         </div>
     );
 }
-

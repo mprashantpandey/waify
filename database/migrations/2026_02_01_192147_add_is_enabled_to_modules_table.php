@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::table('modules', function (Blueprint $table) {
             $table->boolean('is_enabled')->default(true)->after('is_core');
         });
-        
+
         // Enable all existing modules by default
         \DB::table('modules')->update(['is_enabled' => true]);
     }

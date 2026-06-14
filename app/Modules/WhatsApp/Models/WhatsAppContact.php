@@ -13,6 +13,7 @@ class WhatsAppContact extends Model
 {
     use HasFactory;
     use SoftDeletes;
+
     protected $table = 'whatsapp_contacts';
 
     protected $fillable = [
@@ -45,14 +46,20 @@ class WhatsAppContact extends Model
         parent::boot();
 
         static::creating(function ($contact) {
-            if (!$contact->slug) {
+            if (! $contact->phone && $contact->wa_id) {
+                $contact->phone = $contact->wa_id;
+            }
+            if (! $contact->status) {
+                $contact->status = 'active';
+            }
+            if (! $contact->slug) {
                 $contact->slug = static::generateSlug($contact);
             }
         });
 
         static::updating(function ($contact) {
             // Regenerate slug if wa_id or name changes
-            if (($contact->isDirty('wa_id') || $contact->isDirty('name')) && !$contact->isDirty('slug')) {
+            if (($contact->isDirty('wa_id') || $contact->isDirty('name')) && ! $contact->isDirty('slug')) {
                 $contact->slug = static::generateSlug($contact);
             }
         });
@@ -64,15 +71,19 @@ class WhatsAppContact extends Model
     public static function generateSlug($contact): string
     {
         $baseSlug = \Illuminate\Support\Str::slug($contact->wa_id ?? $contact->name ?? 'contact');
+        if ($baseSlug === '') {
+            $baseSlug = 'contact';
+        }
+
         $slug = $baseSlug;
         $originalSlug = $slug;
         $counter = 1;
 
-        while (static::where('slug', $slug)
-            ->where('account_id', $contact->account_id ?? 0)
+        while (static::withTrashed()
+            ->where('slug', $slug)
             ->where('id', '!=', $contact->id ?? 0)
             ->exists()) {
-            $slug = $originalSlug . '-' . $counter;
+            $slug = $originalSlug.'-'.$counter;
             $counter++;
         }
 

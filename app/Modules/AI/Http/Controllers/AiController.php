@@ -3,6 +3,8 @@
 namespace App\Modules\AI\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\AiAgent;
+use App\Models\AiAgentRun;
 use App\Models\AiUsageLog;
 use App\Models\PlatformSetting;
 use App\Models\User;
@@ -15,9 +17,6 @@ use Inertia\Response;
 
 class AiController extends Controller
 {
-    /**
-     * Show the AI module page: settings, prompts, and usage.
-     */
     public function index(Request $request): Response
     {
         $account = $request->attributes->get('account') ?? current_account();
@@ -28,44 +27,25 @@ class AiController extends Controller
         return Inertia::render('Ai/Index', [
             'account' => $account,
             'ai_suggestions_enabled' => (bool) ($user->ai_suggestions_enabled ?? false),
-            'ai_prompts' => is_array($user->ai_prompts) ? $user->ai_prompts : [],
+            'ai_agents' => $this->agentsForAccount($account),
+            'ai_agent_runs' => $this->recentAgentRuns($account),
             'platform_ai_enabled' => $this->toBoolean(PlatformSetting::get('ai.enabled', false)),
             'platform_ai_provider' => PlatformSetting::get('ai.provider', 'openai'),
             'usage' => $usage,
         ]);
     }
 
-    /**
-     * Update AI settings (toggle + prompts).
-     */
     public function updateSettings(Request $request)
     {
         $user = $request->user();
 
         $validated = $request->validate([
             'ai_suggestions_enabled' => 'required|boolean',
-            'ai_prompts' => 'nullable|array',
-            'ai_prompts.*.purpose' => 'nullable|string|max:100',
-            'ai_prompts.*.label' => 'nullable|string|max:255',
-            'ai_prompts.*.prompt' => 'nullable|string|max:10000',
         ]);
-
-        $normalizedPrompts = collect($validated['ai_prompts'] ?? [])
-            ->map(function ($prompt) {
-                return [
-                    'purpose' => trim((string) ($prompt['purpose'] ?? '')),
-                    'label' => trim((string) ($prompt['label'] ?? '')),
-                    'prompt' => trim((string) ($prompt['prompt'] ?? '')),
-                ];
-            })
-            ->filter(fn ($prompt) => $prompt['purpose'] !== '' && $prompt['label'] !== '' && $prompt['prompt'] !== '')
-            ->values()
-            ->all();
 
         try {
             $user->update([
                 'ai_suggestions_enabled' => $validated['ai_suggestions_enabled'],
-                'ai_prompts' => $normalizedPrompts,
             ]);
         } catch (QueryException $e) {
             Log::warning('AI settings update failed due to schema mismatch', [
@@ -81,11 +61,11 @@ class AiController extends Controller
 
     protected function getUsageStats(User $user, $account): array
     {
-        if (!$account) {
+        if (! $account) {
             return $this->emptyUsageStats();
         }
 
-        if (!Schema::hasTable('ai_usage_logs')) {
+        if (! Schema::hasTable('ai_usage_logs')) {
             return $this->emptyUsageStats();
         }
 
@@ -122,6 +102,74 @@ class AiController extends Controller
         ];
     }
 
+    protected function agentsForAccount($account): array
+    {
+        if (! $account || ! Schema::hasTable('ai_agents')) {
+            return [];
+        }
+
+        return AiAgent::where('account_id', $account->id)
+            ->latest()
+            ->get()
+            ->map(fn (AiAgent $agent) => [
+                'id' => $agent->id,
+                'name' => $agent->name,
+                'slug' => $agent->slug,
+                'avatar' => $agent->avatar,
+                'role' => $agent->role,
+                'language' => $agent->language,
+                'tone' => $agent->tone,
+                'mode' => $agent->mode,
+                'is_active' => $agent->is_active,
+                'instructions' => $agent->instructions,
+                'goal' => $agent->goal,
+                'knowledge_sources' => $agent->knowledge_sources ?? [],
+                'allowed_actions' => $agent->allowed_actions ?? [],
+                'qualification_fields' => $agent->qualification_fields ?? [],
+                'guardrails' => $agent->guardrails ?? [],
+                'escalation_rules' => $agent->escalation_rules ?? ['keywords' => []],
+                'handoff_rules' => $agent->handoff_rules ?? ['keywords' => [], 'after_invalid_replies' => 2],
+                'fallback_reply' => $agent->fallback_reply,
+                'working_hours' => $agent->working_hours ?? [],
+                'max_auto_replies_per_conversation' => $agent->max_auto_replies_per_conversation,
+                'max_reply_chars' => $agent->max_reply_chars,
+                'confidence_threshold' => $agent->confidence_threshold,
+                'last_used_at' => $agent->last_used_at?->toIso8601String(),
+                'created_at' => $agent->created_at?->toIso8601String(),
+            ])
+            ->values()
+            ->all();
+    }
+
+    protected function recentAgentRuns($account): array
+    {
+        if (! $account || ! Schema::hasTable('ai_agent_runs')) {
+            return [];
+        }
+
+        return AiAgentRun::with(['agent:id,name,avatar'])
+            ->where('account_id', $account->id)
+            ->latest()
+            ->limit(12)
+            ->get()
+            ->map(fn (AiAgentRun $run) => [
+                'id' => $run->id,
+                'status' => $run->status,
+                'reason' => $run->reason,
+                'agent' => $run->agent ? [
+                    'id' => $run->agent->id,
+                    'name' => $run->agent->name,
+                    'avatar' => $run->agent->avatar,
+                ] : null,
+                'conversation_id' => $run->whatsapp_conversation_id,
+                'inbound_message_id' => $run->inbound_message_id,
+                'outbound_message_id' => $run->outbound_message_id,
+                'created_at' => $run->created_at?->toIso8601String(),
+            ])
+            ->values()
+            ->all();
+    }
+
     protected function emptyUsageStats($startOfMonth = null): array
     {
         $period = $startOfMonth ?: now()->startOfMonth();
@@ -145,6 +193,7 @@ class AiController extends Controller
 
         if (is_string($value)) {
             $normalized = strtolower(trim($value));
+
             return in_array($normalized, ['1', 'true', 'yes', 'on'], true);
         }
 

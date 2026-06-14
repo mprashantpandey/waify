@@ -15,8 +15,10 @@ let toasts: Toast[] = [];
 const recentToastSignatures: Map<string, { id: string; at: number }> = new Map();
 const TOAST_DEDUPE_WINDOW_MS = 6000;
 const TOAST_EVENT_DEDUPE_WINDOW_MS = 10000;
+const FLASH_AFTER_LOCAL_SUPPRESS_MS = 3500;
 const GENERIC_TITLES = new Set(['success', 'error', 'warning', 'info', 'status']);
 const recentEventSignatures: Map<string, number> = new Map();
+const recentLocalVariantAt: Map<string, number> = new Map();
 
 function normalizeToastMessage(toast: Omit<Toast, 'id'>): string {
     const normalize = (value: string): string => value
@@ -53,9 +55,27 @@ export function useToast() {
 
     const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
         const now = Date.now();
+        const variant = toast.variant || 'info';
+
+        if (toast.source === 'flash') {
+            const recentLocalAt = recentLocalVariantAt.get(variant);
+            if (recentLocalAt && now - recentLocalAt < FLASH_AFTER_LOCAL_SUPPRESS_MS) {
+                return `guarded-flash-${variant}`;
+            }
+        } else {
+            recentLocalVariantAt.set(variant, now);
+            if (recentLocalVariantAt.size > 20) {
+                for (const [key, at] of recentLocalVariantAt.entries()) {
+                    if (now - at > FLASH_AFTER_LOCAL_SUPPRESS_MS * 2) {
+                        recentLocalVariantAt.delete(key);
+                    }
+                }
+            }
+        }
+
         const canonicalMessage = normalizeToastMessage(toast);
-        const signature = canonicalMessage || `${toast.variant || 'info'}|${toast.title || ''}|${toast.description || ''}`;
-        const eventSignature = `${toast.variant || 'info'}|${signature}`;
+        const signature = canonicalMessage || `${variant}|${toast.title || ''}|${toast.description || ''}`;
+        const eventSignature = `${variant}|${signature}`;
 
         // Global duplicate-toast guard middleware (event-level)
         // Prevents duplicate toasts from mixed sources (flash + local handlers).

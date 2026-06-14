@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 import { usePage } from '@inertiajs/react';
+import { useTheme } from '@/Providers/ThemeProvider';
+import { GlobalFlashHandler } from '@/Components/Notifications/GlobalFlashHandler';
 
 /**
  * BrandingWrapper Component
@@ -9,6 +11,7 @@ import { usePage } from '@inertiajs/react';
  */
 export function BrandingWrapper({ children }: { children: React.ReactNode }) {
     const { branding } = usePage().props as any;
+    const { resolvedTheme } = useTheme();
 
     useEffect(() => {
         if (!branding) {
@@ -47,7 +50,11 @@ export function BrandingWrapper({ children }: { children: React.ReactNode }) {
         }
 
         // Update favicon
-        if (branding.favicon_url) {
+        const faviconUrl = resolvedTheme === 'dark'
+            ? (branding.favicon_dark_url || branding.favicon_url)
+            : (branding.favicon_url || branding.favicon_dark_url);
+
+        if (faviconUrl) {
             // Remove existing favicon links
             const existingLinks = document.querySelectorAll("link[rel*='icon']");
             existingLinks.forEach(link => link.remove());
@@ -55,8 +62,8 @@ export function BrandingWrapper({ children }: { children: React.ReactNode }) {
             // Add new favicon
             const link = document.createElement('link');
             link.rel = 'icon';
-            link.type = branding.favicon_url.endsWith('.ico') ? 'image/x-icon' : 'image/png';
-            link.href = branding.favicon_url;
+            link.type = faviconUrl.endsWith('.ico') ? 'image/x-icon' : 'image/png';
+            link.href = faviconUrl;
             document.getElementsByTagName('head')[0].appendChild(link);
         }
 
@@ -67,8 +74,12 @@ export function BrandingWrapper({ children }: { children: React.ReactNode }) {
         if (branding.secondary_color) {
             document.documentElement.style.setProperty('--brand-secondary', branding.secondary_color);
         }
-    }, [branding]);
+    }, [branding, resolvedTheme]);
 
-    return <>{children}</>;
+    return (
+        <>
+            {children}
+            <GlobalFlashHandler />
+        </>
+    );
 }
-

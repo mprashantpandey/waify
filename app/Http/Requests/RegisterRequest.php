@@ -2,9 +2,9 @@
 
 namespace App\Http\Requests;
 
-use Illuminate\Foundation\Http\FormRequest;
 use App\Models\User;
 use App\Services\PlatformSettingsService;
+use Illuminate\Foundation\Http\FormRequest;
 
 class RegisterRequest extends FormRequest
 {
@@ -14,6 +14,7 @@ class RegisterRequest extends FormRequest
     public function authorize(): bool
     {
         $settingsService = app(PlatformSettingsService::class);
+
         return $settingsService->isFeatureEnabled('user_registration');
     }
 
@@ -25,7 +26,7 @@ class RegisterRequest extends FormRequest
     public function rules(): array
     {
         $settingsService = app(PlatformSettingsService::class);
-        
+
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],

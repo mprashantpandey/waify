@@ -18,20 +18,23 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             \App\Http\Middleware\ApplyPlatformSettings::class,
             \App\Http\Middleware\EnforceRateLimits::class,
+            \App\Http\Middleware\EnforcePasswordPolicy::class,
+            \App\Http\Middleware\EnsureTwoFactorVerified::class,
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
-        
+
         // Request correlation ID first (so all logs can include it)
         $middleware->web(prepend: [
             \App\Http\Middleware\AddRequestCorrelationId::class,
             \App\Http\Middleware\EnsureMaintenanceMode::class,
         ]);
-        
+
         // Exclude broadcasting/auth and webhooks from CSRF verification
         // Broadcasting uses its own authentication mechanism
         // Webhooks are verified via signature/token
         $middleware->validateCsrfTokens(except: [
+            'api/*',
             'broadcasting/auth',
             'webhooks/*',
         ]);
@@ -48,6 +51,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'feature.enabled' => \App\Http\Middleware\EnsureFeatureEnabled::class,
             'webhooks.enabled' => \App\Http\Middleware\EnsureWebhooksEnabled::class,
             'public-api.enabled' => \App\Http\Middleware\EnsurePublicApiEnabled::class,
+            'public-api.auth' => \App\Http\Middleware\AuthenticatePublicApiKey::class,
+            'mobile.auth' => \App\Http\Middleware\AuthenticateMobileToken::class,
             'log.api' => \App\Http\Middleware\LogApiRequests::class,
             'restrict.chat.agent' => \App\Http\Middleware\RestrictChatAgentAccess::class,
         ]);
@@ -60,7 +65,14 @@ return Application::configure(basePath: dirname(__DIR__))
                 if ($request->header('X-Inertia')) {
                     return \Inertia\Inertia::location('/login');
                 }
+
                 // For non-Inertia requests, let Laravel handle it (will return JSON or redirect)
+                return null;
+            }
+
+            // Validation failures are expected form responses. Let Laravel/Inertia
+            // redirect back with the error bag instead of converting them to 500s.
+            if ($e instanceof \Illuminate\Validation\ValidationException) {
                 return null;
             }
 
@@ -82,7 +94,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
             // Return Inertia 500 page for Inertia requests so users see a friendly message
             $statusCode = method_exists($e, 'getStatusCode') ? $e->getStatusCode() : 500;
-            $is500 = $statusCode >= 500 || !method_exists($e, 'getStatusCode');
+            $is500 = $statusCode >= 500 || ! method_exists($e, 'getStatusCode');
             if ($request->header('X-Inertia') && $is500) {
                 $context = [
                     'path' => $request->path(),
@@ -106,9 +118,10 @@ return Application::configure(basePath: dirname(__DIR__))
                     'file' => $e->getFile(),
                     'line' => $e->getLine(),
                 ]));
+
                 return \Inertia\Inertia::render('Error/ServerError')->toResponse($request)->setStatusCode(500);
             }
-            
+
             // Don't leak stack traces in production
             if (app()->environment('production')) {
                 // For webhook routes, always return generic errors
@@ -121,15 +134,16 @@ return Application::configure(basePath: dirname(__DIR__))
 
                 // For API routes, return JSON errors without stack traces
                 // Only handle if it's not already handled by Laravel's default handler
-                if ($request->expectsJson() && !$request->header('X-Inertia')) {
+                if ($request->expectsJson() && ! $request->header('X-Inertia')) {
                     $statusCode = method_exists($e, 'getStatusCode') ? $e->getStatusCode() : 500;
+
                     return response()->json([
                         'message' => $e->getMessage() ?: 'Server error',
                         'error' => 'Server error',
                     ], $statusCode);
                 }
             }
-            
+
             return null; // Let Laravel handle other exceptions
         });
     })->create();

@@ -2,14 +2,14 @@
 
 namespace App\Modules\Contacts\Models;
 
-use App\Models\User;
 use App\Models\Account;
+use App\Models\User;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Builder;
 
 class ContactSegment extends Model
 {
@@ -62,7 +62,7 @@ class ContactSegment extends Model
     {
         $query = WhatsAppContact::where('account_id', $this->account_id);
 
-        if (!empty($this->filters)) {
+        if (! empty($this->filters)) {
             return $this->applyFilters($query, $this->filters);
         }
 
@@ -84,7 +84,7 @@ class ContactSegment extends Model
         $lockKey = "segment_calculate:{$this->id}";
         $lock = \Illuminate\Support\Facades\Cache::lock($lockKey, 60); // 1 minute lock
 
-        if (!$lock->get()) {
+        if (! $lock->get()) {
             // Return cached count if calculation is in progress
             return $this->contact_count;
         }
@@ -123,10 +123,10 @@ class ContactSegment extends Model
             $operator = $filter['operator'] ?? 'equals';
             $value = $filter['value'] ?? null;
 
-            if (!$field || !isset($allowedFields[$field])) {
+            if (! $field || ! isset($allowedFields[$field])) {
                 continue;
             }
-            if ($value === null && !in_array($operator, ['is_empty', 'is_not_empty'], true)) {
+            if ($value === null && ! in_array($operator, ['is_empty', 'is_not_empty'], true)) {
                 continue;
             }
 

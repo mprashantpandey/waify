@@ -13,17 +13,15 @@ class SupportMessageCreated implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public function __construct(public SupportMessage $message)
-    {
-    }
+    public function __construct(public SupportMessage $message) {}
 
     public function broadcastOn(): array
     {
         // Ensure thread relationship is loaded
-        if (!$this->message->relationLoaded('thread')) {
+        if (! $this->message->relationLoaded('thread')) {
             $this->message->load('thread');
         }
-        
+
         $thread = $this->message->thread;
         $accountId = $thread?->account_id;
         $threadId = $thread?->id;
@@ -52,10 +50,10 @@ class SupportMessageCreated implements ShouldBroadcastNow
     public function broadcastWith(): array
     {
         // Ensure thread relationship is loaded
-        if (!$this->message->relationLoaded('thread')) {
+        if (! $this->message->relationLoaded('thread')) {
             $this->message->load('thread');
         }
-        
+
         $thread = $this->message->thread;
         $this->message->loadMissing('attachments');
         $attachments = $this->message->attachments->map(function ($attachment) {
@@ -77,7 +75,7 @@ class SupportMessageCreated implements ShouldBroadcastNow
             'body' => $this->message->body,
             'created_at' => $this->message->created_at?->toIso8601String(),
             'attachments' => $attachments];
-        
+
         \Log::debug('SupportMessageCreated broadcastWith', [
             'message_id' => $this->message->id,
             'data' => $data,

@@ -3,9 +3,7 @@
 namespace App\Modules\Chatbots\Jobs;
 
 use App\Modules\Chatbots\Models\BotActionJob;
-use App\Modules\Chatbots\Models\BotNode;
 use App\Modules\Chatbots\Services\ActionExecutor;
-use App\Modules\Chatbots\Services\BotContext;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -29,7 +27,7 @@ class ProcessDelayedAction implements ShouldQueue
     public function handle(ActionExecutor $actionExecutor): void
     {
         $actionJob = BotActionJob::find($this->actionJobId);
-        if (!$actionJob || $actionJob->status !== 'queued') {
+        if (! $actionJob || $actionJob->status !== 'queued') {
             return;
         }
 
@@ -46,7 +44,7 @@ class ProcessDelayedAction implements ShouldQueue
                 ->latest()
                 ->first();
 
-            if (!$inboundMessage) {
+            if (! $inboundMessage) {
                 throw new \Exception('Inbound message not found');
             }
 

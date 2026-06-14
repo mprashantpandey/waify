@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class ProfileTest extends TestCase
@@ -18,7 +19,21 @@ class ProfileTest extends TestCase
             ->actingAs($user)
             ->get('/profile');
 
-        $response->assertOk();
+        $response->assertRedirect(route('app.settings', ['tab' => 'profile']));
+    }
+
+    public function test_platform_admin_profile_page_is_displayed(): void
+    {
+        $user = User::factory()->create([
+            'is_platform_admin' => true,
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->get('/profile');
+
+        $response->assertInertia(fn (Assert $page) => $page
+            ->component('Profile/Manage'));
     }
 
     public function test_profile_information_can_be_updated(): void

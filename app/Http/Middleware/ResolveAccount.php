@@ -17,7 +17,7 @@ class ResolveAccount
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
-        if (!$user) {
+        if (! $user) {
             return $next($request);
         }
 
@@ -27,20 +27,20 @@ class ResolveAccount
             $account = Account::find($accountId);
         }
 
-        if (!$account) {
+        if (! $account) {
             $account = $user->ownedAccounts()->first();
         }
 
-        if (!$account) {
+        if (! $account) {
             $account = $user->accounts()->first();
         }
 
-        if (!$account) {
+        if (! $account) {
             return redirect()->route('onboarding');
         }
 
         // Ensure user has access to resolved account
-        if (!$user->canAccessAccount($account)) {
+        if (! $user->canAccessAccount($account)) {
             abort(403, 'You do not have access to this account');
         }
 

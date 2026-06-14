@@ -2,15 +2,17 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Account;
-use App\Models\User;
-use App\Models\AccountUser;
-use App\Models\AccountInvitation;
-use App\Mail\AccountInvitationMail;
 use App\Core\Billing\EntitlementService;
+use App\Mail\AccountInvitationMail;
+use App\Models\Account;
+use App\Models\AccountInvitation;
+use App\Models\AccountRole;
+use App\Models\AccountUser;
+use App\Models\User;
 use App\Services\MailDeliveryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -19,8 +21,7 @@ class TeamController extends Controller
     public function __construct(
         protected EntitlementService $entitlementService,
         protected MailDeliveryService $mailDeliveryService
-    ) {
-    }
+    ) {}
 
     /**
      * Use direct SMTP for invite flows when default mailer is failover.
@@ -67,7 +68,84 @@ class TeamController extends Controller
             ->where('user_id', $user->id)
             ->first();
 
-        return $accountUser && $accountUser->role === 'admin';
+        if (! $accountUser) {
+            return false;
+        }
+
+        return $this->roleHasPermission($account, $accountUser->role, 'team')
+            || $this->roleHasPermission($account, $accountUser->role, 'roles');
+    }
+
+    private function canManageRoles(User $user, Account $account): bool
+    {
+        if ((int) $account->owner_id === (int) $user->id) {
+            return true;
+        }
+
+        $accountUser = AccountUser::where('account_id', $account->id)
+            ->where('user_id', $user->id)
+            ->first();
+
+        return $accountUser
+            ? $this->roleHasPermission($account, $accountUser->role, 'roles')
+            : false;
+    }
+
+    private function roleHasPermission(Account $account, ?string $role, string $permission): bool
+    {
+        if ($role === 'owner' || $role === 'admin') {
+            return true;
+        }
+
+        if ($role === 'member' || ! $role) {
+            return $permission === 'inbox';
+        }
+
+        $customRole = AccountRole::where('account_id', $account->id)
+            ->where('key', $role)
+            ->first();
+
+        return $customRole
+            ? in_array($permission, $customRole->permissions ?? [], true)
+            : false;
+    }
+
+    private function roleDefinitions(Account $account): array
+    {
+        $customRoles = AccountRole::where('account_id', $account->id)
+            ->orderBy('name')
+            ->get()
+            ->map(function (AccountRole $role) use ($account) {
+                return [
+                    'id' => $role->id,
+                    'name' => $role->name,
+                    'key' => $role->key,
+                    'description' => $role->description,
+                    'permissions' => $role->permissions ?? [],
+                    'is_system' => false,
+                    'is_owner' => false,
+                    'members_count' => $account->users()
+                        ->where('users.is_platform_admin', false)
+                        ->wherePivot('role', $role->key)
+                        ->count(),
+                    'pending_invites_count' => AccountInvitation::where('account_id', $account->id)
+                        ->where('role', $role->key)
+                        ->whereNull('accepted_at')
+                        ->count(),
+                ];
+            })
+            ->all();
+
+        return array_merge(AccountRole::defaultRoles($account), $customRoles);
+    }
+
+    private function assignableRoleKeys(Account $account): array
+    {
+        return collect($this->roleDefinitions($account))
+            ->reject(fn ($role) => (bool) ($role['is_owner'] ?? false))
+            ->pluck('key')
+            ->values()
+            ->all();
     }
 
     /**
@@ -76,21 +154,21 @@ class TeamController extends Controller
     public function index(Request $request): Response
     {
         $account = $request->attributes->get('account') ?? current_account();
-        if (!$account) {
+        if (! $account) {
             abort(404, 'Account not found.');
         }
         $user = $request->user();
-        
+
         // Check if user can view team
-        if (!$this->canViewTeam($user, $account)) {
+        if (! $this->canViewTeam($user, $account)) {
             abort(403, 'You do not have permission to view team members.');
         }
 
         // Get all members including owner
         $members = collect();
-        
+
         // Add owner
-        if ($account->owner) {
+        if ($account->owner && ! $account->owner->isSuperAdmin()) {
             $members->push([
                 'id' => $account->owner->id,
                 'name' => $account->owner->name,
@@ -102,13 +180,14 @@ class TeamController extends Controller
 
         // Add account users (exclude owner to avoid duplicates)
         $accountUsersQuery = AccountUser::where('account_id', $account->id)
+            ->whereHas('user', fn ($query) => $query->where('is_platform_admin', false))
             ->with('user');
-            
+
         // Exclude owner if owner_id exists
         if ($account->owner_id) {
             $accountUsersQuery->where('user_id', '!=', $account->owner_id);
         }
-        
+
         $accountUsers = $accountUsersQuery->get()
             ->map(function ($accountUser) {
                 return [
@@ -143,8 +222,20 @@ class TeamController extends Controller
             'account' => $account,
             'members' => $members->values(),
             'can_manage' => $canManage,
+            'can_manage_roles' => $this->canManageRoles($currentUser, $account),
             'current_user_id' => $currentUser->id,
-            'pending_invites' => $pendingInvites->values()]);
+            'pending_invites' => $pendingInvites->values(),
+            'roles' => $this->roleDefinitions($account),
+            'permissions' => collect(AccountRole::PERMISSIONS)
+                ->map(fn ($label, $key) => [
+                    'key' => $key,
+                    'label' => $label,
+                    'group' => str_contains($key, '.') ? str($key)->before('.')->headline()->toString() : 'Core',
+                    'owner_only' => str_ends_with($key, '.owner'),
+                    'sensitive' => in_array($key, ['chats.delete', 'payments.approve', 'contacts.export', 'api_keys.owner'], true),
+                ])
+                ->values(),
+        ]);
     }
 
     /**
@@ -153,22 +244,21 @@ class TeamController extends Controller
     public function invite(Request $request): \Illuminate\Http\RedirectResponse
     {
         $account = $request->attributes->get('account') ?? current_account();
-        if (!$account) {
+        if (! $account) {
             abort(404, 'Account not found.');
         }
         $user = $request->user();
-        
-        if (!$this->canManageTeam($user, $account)) {
+
+        if (! $this->canManageTeam($user, $account)) {
             abort(403, 'You do not have permission to manage team members.');
         }
 
         $request->validate([
             'email' => 'required|email:rfc,dns',
-            // New invites are chat-agent only for now.
-            'role' => 'nullable|in:member']);
+            'role' => ['nullable', Rule::in($this->assignableRoleKeys($account))]]);
 
         $inviteEmail = strtolower(trim($request->email));
-        $inviteRole = 'member';
+        $inviteRole = $request->input('role') ?: 'member';
         $existingUser = User::where('email', $inviteEmail)->first();
 
         if ($existingUser && $existingUser->isSuperAdmin()) {
@@ -185,7 +275,7 @@ class TeamController extends Controller
             return back()->with('error', 'User is already the owner of this account.');
         }
 
-        if (!$this->entitlementService->canCreateAgent($account)) {
+        if (! $this->entitlementService->canCreateAgent($account)) {
             return back()->with('error', 'Your plan team limit has been reached. Upgrade to add more members.');
         }
 
@@ -253,6 +343,7 @@ class TeamController extends Controller
                 'account_id' => $account->id,
                 'mailer' => $this->resolveInviteMailer(),
                 'error' => $e->getMessage()]);
+
             return back()
                 ->with('warning', 'Invitation created, but email could not be sent. Share the invite link manually.')
                 ->with('info', $inviteUrl);
@@ -267,17 +358,17 @@ class TeamController extends Controller
     public function updateRole(Request $request, $user): \Illuminate\Http\RedirectResponse
     {
         $account = $request->attributes->get('account') ?? current_account();
-        if (!$account) {
+        if (! $account) {
             abort(404, 'Account not found.');
         }
         $currentUser = $request->user();
-        
+
         // Resolve user if not already a User instance
-        if (!$user instanceof User) {
+        if (! $user instanceof User) {
             $user = User::findOrFail($user);
         }
-        
-        if (!$this->canManageTeam($currentUser, $account)) {
+
+        if (! $this->canManageTeam($currentUser, $account)) {
             abort(403, 'You do not have permission to manage team members.');
         }
 
@@ -290,10 +381,9 @@ class TeamController extends Controller
         }
 
         $request->validate([
-            // Team members are chat agents only.
-            'role' => 'required|in:member']);
+            'role' => ['required', Rule::in($this->assignableRoleKeys($account))]]);
 
-        if (!$account->users()->where('user_id', $user->id)->exists()) {
+        if (! $account->users()->where('user_id', $user->id)->exists()) {
             return back()->with('error', 'User is not a member of this account.');
         }
 
@@ -301,6 +391,104 @@ class TeamController extends Controller
             'role' => $request->role]);
 
         return back()->with('success', 'Member role updated successfully.');
+    }
+
+    public function storeRole(Request $request): \Illuminate\Http\RedirectResponse
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+        if (! $account) {
+            abort(404, 'Account not found.');
+        }
+
+        if (! $this->canManageRoles($request->user(), $account)) {
+            abort(403, 'You do not have permission to manage roles.');
+        }
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:80'],
+            'description' => ['nullable', 'string', 'max:500'],
+            'permissions' => ['nullable', 'array'],
+            'permissions.*' => ['string', Rule::in(array_keys(AccountRole::PERMISSIONS))],
+        ]);
+
+        $baseKey = AccountRole::normalizeKey($validated['name']);
+        if (in_array($baseKey, ['owner', 'admin', 'member'], true)) {
+            $baseKey = 'custom_'.$baseKey;
+        }
+
+        $key = $baseKey;
+        $counter = 2;
+        while (AccountRole::where('account_id', $account->id)->where('key', $key)->exists()) {
+            $key = $baseKey.'_'.$counter;
+            $counter++;
+        }
+
+        AccountRole::create([
+            'account_id' => $account->id,
+            'name' => $validated['name'],
+            'key' => $key,
+            'description' => $validated['description'] ?? null,
+            'permissions' => array_values(array_unique($validated['permissions'] ?? ['inbox'])),
+            'is_system' => false,
+        ]);
+
+        return back()->with('success', 'Role created successfully.');
+    }
+
+    public function updateRoleDefinition(Request $request, AccountRole $role): \Illuminate\Http\RedirectResponse
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+        if (! $account || ! account_ids_match($role->account_id, $account->id)) {
+            abort(404, 'Role not found.');
+        }
+
+        if (! $this->canManageRoles($request->user(), $account)) {
+            abort(403, 'You do not have permission to manage roles.');
+        }
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:80'],
+            'description' => ['nullable', 'string', 'max:500'],
+            'permissions' => ['nullable', 'array'],
+            'permissions.*' => ['string', Rule::in(array_keys(AccountRole::PERMISSIONS))],
+        ]);
+
+        $role->update([
+            'name' => $validated['name'],
+            'description' => $validated['description'] ?? null,
+            'permissions' => array_values(array_unique($validated['permissions'] ?? ['inbox'])),
+        ]);
+
+        return back()->with('success', 'Role updated successfully.');
+    }
+
+    public function deleteRole(Request $request, AccountRole $role): \Illuminate\Http\RedirectResponse
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+        if (! $account || ! account_ids_match($role->account_id, $account->id)) {
+            abort(404, 'Role not found.');
+        }
+
+        if (! $this->canManageRoles($request->user(), $account)) {
+            abort(403, 'You do not have permission to manage roles.');
+        }
+
+        $hasMembers = $account->users()
+            ->where('users.is_platform_admin', false)
+            ->wherePivot('role', $role->key)
+            ->exists();
+        $hasInvites = AccountInvitation::where('account_id', $account->id)
+            ->where('role', $role->key)
+            ->whereNull('accepted_at')
+            ->exists();
+
+        if ($hasMembers || $hasInvites) {
+            return back()->with('error', 'Move members and revoke pending invites before deleting this role.');
+        }
+
+        $role->delete();
+
+        return back()->with('success', 'Role deleted successfully.');
     }
 
     /**
@@ -311,18 +499,18 @@ class TeamController extends Controller
         $account = null;
         try {
             $account = $request->attributes->get('account') ?? current_account();
-            if (!$account) {
+            if (! $account) {
                 abort(404, 'Account not found.');
             }
             $currentUser = $request->user();
-            
+
             // Resolve user if not already a User instance
-            if (!$user instanceof User) {
+            if (! $user instanceof User) {
                 $userId = is_numeric($user) ? (int) $user : $user;
                 $user = User::findOrFail($userId);
             }
-            
-            if (!$this->canManageTeam($currentUser, $account)) {
+
+            if (! $this->canManageTeam($currentUser, $account)) {
                 abort(403, 'You do not have permission to manage team members.');
             }
 
@@ -339,7 +527,7 @@ class TeamController extends Controller
                 return back()->with('error', 'Cannot remove yourself from the account.');
             }
 
-            if (!$account->users()->where('user_id', $user->id)->exists()) {
+            if (! $account->users()->where('user_id', $user->id)->exists()) {
                 return back()->with('error', 'User is not a member of this account.');
             }
 
@@ -360,8 +548,8 @@ class TeamController extends Controller
                 'trace' => $e->getTraceAsString(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine()]);
-            
-            return back()->with('error', 'Failed to remove member: ' . $e->getMessage());
+
+            return back()->with('error', 'Failed to remove member: '.$e->getMessage());
         }
     }
 
@@ -371,16 +559,16 @@ class TeamController extends Controller
     public function revokeInvite(Request $request, AccountInvitation $invitation): \Illuminate\Http\RedirectResponse
     {
         $account = $request->attributes->get('account') ?? current_account();
-        if (!$account) {
+        if (! $account) {
             abort(404, 'Account not found.');
         }
         $currentUser = $request->user();
 
-        if (!$this->canManageTeam($currentUser, $account)) {
+        if (! $this->canManageTeam($currentUser, $account)) {
             abort(403, 'You do not have permission to manage team members.');
         }
 
-        if (!account_ids_match($invitation->account_id, $account->id)) {
+        if (! account_ids_match($invitation->account_id, $account->id)) {
             abort(403, 'Invite does not belong to this account.');
         }
 
@@ -399,16 +587,16 @@ class TeamController extends Controller
     public function resendInvite(Request $request, AccountInvitation $invitation): \Illuminate\Http\RedirectResponse
     {
         $account = $request->attributes->get('account') ?? current_account();
-        if (!$account) {
+        if (! $account) {
             abort(404, 'Account not found.');
         }
         $currentUser = $request->user();
 
-        if (!$this->canManageTeam($currentUser, $account)) {
+        if (! $this->canManageTeam($currentUser, $account)) {
             abort(403, 'You do not have permission to manage team members.');
         }
 
-        if (!account_ids_match($invitation->account_id, $account->id)) {
+        if (! account_ids_match($invitation->account_id, $account->id)) {
             abort(403, 'Invite does not belong to this account.');
         }
 
@@ -447,6 +635,7 @@ class TeamController extends Controller
                 'account_id' => $account->id,
                 'mailer' => $this->resolveInviteMailer(),
                 'error' => $e->getMessage()]);
+
             return back()
                 ->with('warning', 'Invite refreshed, but email could not be sent. Share the invite link manually.')
                 ->with('info', $inviteUrl);

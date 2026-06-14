@@ -12,8 +12,7 @@ class GeminiProvider implements AiProviderInterface
         protected string $apiKey,
         protected string $model = 'gemini-2.0-flash',
         protected int $timeout = 30
-    ) {
-    }
+    ) {}
 
     public function generate(string $systemPrompt, string $userPrompt, float $temperature, int $maxTokens): string
     {
@@ -22,7 +21,7 @@ class GeminiProvider implements AiProviderInterface
                 [
                     'role' => 'user',
                     'parts' => [
-                        ['text' => $systemPrompt . "\n\n" . $userPrompt],
+                        ['text' => $systemPrompt."\n\n".$userPrompt],
                     ],
                 ],
             ],
@@ -39,17 +38,29 @@ class GeminiProvider implements AiProviderInterface
             $url = "https://generativelanguage.googleapis.com/{$apiVersion}/models/{$model}:generateContent";
             $response = Http::timeout($this->timeout)
                 ->withQueryParameters(['key' => $this->apiKey])
-                ->post($url, $payload);
+                ->post($url, $this->payloadForModel($payload, $model));
 
             if ($response->successful()) {
                 $content = $response->json('candidates.0.content.parts.0.text', '');
+
                 return Str::of($content)->trim()->toString();
             }
 
             $lastError = $response->json('error.message') ?? $response->body();
         }
 
-        throw new \RuntimeException('Gemini request failed: ' . ($lastError ?: 'Unknown Gemini error.'));
+        throw new \RuntimeException('Gemini request failed: '.($lastError ?: 'Unknown Gemini error.'));
+    }
+
+    protected function payloadForModel(array $payload, string $model): array
+    {
+        if (Str::contains($model, '2.5-flash')) {
+            $payload['generationConfig']['thinkingConfig'] = [
+                'thinkingBudget' => 0,
+            ];
+        }
+
+        return $payload;
     }
 
     protected function buildAttempts(string $requestedModel): array

@@ -42,10 +42,10 @@ class LoginRequest extends FormRequest
 
         if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
             $settingsService = app(\App\Services\PlatformSettingsService::class);
-        $security = $settingsService->getSecurity();
-        $lockoutDuration = ($security['lockout_duration'] ?? 15) * 60; // Convert to seconds
-        
-        RateLimiter::hit($this->throttleKey(), $lockoutDuration);
+            $security = $settingsService->getSecurity();
+            $lockoutDuration = ($security['lockout_duration'] ?? 15) * 60; // Convert to seconds
+
+            RateLimiter::hit($this->throttleKey(), $lockoutDuration);
 
             throw ValidationException::withMessages([
                 'email' => trans('auth.failed')]);
@@ -65,7 +65,7 @@ class LoginRequest extends FormRequest
         $security = $settingsService->getSecurity();
         $maxAttempts = $security['max_login_attempts'] ?? 5;
         $lockoutDuration = ($security['lockout_duration'] ?? 15) * 60; // Convert to seconds
-        
+
         if (! RateLimiter::tooManyAttempts($this->throttleKey(), $maxAttempts)) {
             return;
         }

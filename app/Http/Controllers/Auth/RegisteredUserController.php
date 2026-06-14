@@ -9,7 +9,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rules;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -21,18 +20,19 @@ class RegisteredUserController extends Controller
     public function create(Request $request): Response
     {
         $settingsService = app(\App\Services\PlatformSettingsService::class);
-        
-        if (!$settingsService->isFeatureEnabled('user_registration')) {
+
+        if (! $settingsService->isFeatureEnabled('user_registration')) {
             abort(403, 'User registration is currently disabled.');
         }
-        
+
         $selectedPlanKey = $request->query('plan');
         $selectedPlan = null;
-        
+
         if ($selectedPlanKey) {
             $selectedPlan = \App\Models\Plan::where('key', $selectedPlanKey)
                 ->where('is_active', true)
                 ->where('is_public', true)
+                ->where('key', '!=', 'enterprise')
                 ->first();
         }
 
@@ -50,7 +50,7 @@ class RegisteredUserController extends Controller
                     'role' => $invitation->role];
             }
         }
-        
+
         return Inertia::render('Auth/Register', [
             'selectedPlan' => $selectedPlan ? [
                 'id' => $selectedPlan->id,
@@ -59,7 +59,9 @@ class RegisteredUserController extends Controller
                 'description' => $selectedPlan->description,
                 'price_monthly' => $selectedPlan->price_monthly,
                 'trial_days' => $selectedPlan->trial_days ?? 0] : null,
-            'invite' => $invite]);
+            'invite' => $invite,
+            'googleOAuthEnabled' => $this->googleOAuthEnabled(),
+        ]);
     }
 
     /**
@@ -81,12 +83,12 @@ class RegisteredUserController extends Controller
         Auth::login($user);
 
         // Store selected plan in session for onboarding
-        if ($request->has('plan_key')) {
+        if ($request->has('plan_key') && $request->input('plan_key') !== 'enterprise') {
             session(['selected_plan_key' => $request->input('plan_key')]);
         }
 
         // Accept account invite if present
-        if (!empty($validated['invite_token'])) {
+        if (! empty($validated['invite_token'])) {
             $invitation = \App\Models\AccountInvitation::where('token', $validated['invite_token'])
                 ->whereNull('accepted_at')
                 ->first();
@@ -98,6 +100,7 @@ class RegisteredUserController extends Controller
                 }
                 $invitation->update([
                     'accepted_at' => now()]);
+
                 return redirect()->route('app.dashboard');
             }
             if ($invitation && $invitation->isExpired()) {
@@ -108,5 +111,13 @@ class RegisteredUserController extends Controller
 
         // Redirect to onboarding since new users don't have a account yet
         return redirect(route('onboarding'));
+    }
+
+    private function googleOAuthEnabled(): bool
+    {
+        return (bool) \App\Models\PlatformSetting::get('integrations.google_oauth_enabled', false)
+            && filled(config('services.google.client_id'))
+            && filled(config('services.google.client_secret'))
+            && filled(config('services.google.redirect'));
     }
 }

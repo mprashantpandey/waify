@@ -5,7 +5,6 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
-use App\Services\PlatformSettingsService;
 
 class EnforcePasswordPolicy
 {
@@ -16,10 +15,27 @@ class EnforcePasswordPolicy
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // This middleware can be used to check password expiry, etc.
-        // Password validation rules are applied in form requests/controllers
-        
+        $user = $request->user();
+        $route = $request->route()?->getName();
+
+        if ($request->session()->has('impersonator_id')) {
+            return $next($request);
+        }
+
+        if ($user?->force_password_reset_at && ! in_array($route, [
+            'password.update',
+            'logout',
+            'profile.edit',
+            'profile.update',
+            'app.settings',
+        ], true)) {
+            $target = $user->isSuperAdmin()
+                ? route('profile.edit')
+                : route('app.settings', ['tab' => 'profile']);
+
+            return redirect($target)->with('warning', 'Update your password before continuing.');
+        }
+
         return $next($request);
     }
 }
-

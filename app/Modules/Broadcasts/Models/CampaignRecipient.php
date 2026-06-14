@@ -92,4 +92,3 @@ class CampaignRecipient extends Model
         return $this->status === 'failed';
     }
 }
-

@@ -39,4 +39,3 @@ class WhatsAppContactFactory extends Factory
         ];
     }
 }
-

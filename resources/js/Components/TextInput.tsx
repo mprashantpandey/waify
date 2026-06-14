@@ -35,9 +35,9 @@ export default forwardRef(function TextInput(
             type={type}
             value={safeValue}
             className={
-                'w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 ' +
-                'dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 dark:placeholder-gray-400 ' +
-                'dark:focus:border-indigo-500 dark:focus:ring-indigo-500 ' +
+                'flex h-10 w-full rounded-btn border border-gray-200 bg-white px-3 py-2 text-sm text-waify-text shadow-sm ' +
+                'placeholder:text-gray-400 focus:border-waify-green focus:outline-none focus:ring-2 focus:ring-waify-green/20 disabled:cursor-not-allowed disabled:opacity-50 ' +
+                'dark:border-waify-dark-border dark:bg-waify-dark-surface dark:text-waify-dark-text dark:placeholder:text-waify-dark-text-muted dark:focus:ring-waify-green/30 ' +
                 className
             }
             ref={localRef}

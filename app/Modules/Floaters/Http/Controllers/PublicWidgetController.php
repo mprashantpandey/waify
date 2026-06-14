@@ -7,16 +7,17 @@ use App\Modules\Floaters\Models\FloaterWidget;
 use App\Modules\Floaters\Models\FloaterWidgetEvent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 
 class PublicWidgetController extends Controller
 {
     public function script(Request $request, string $widget)
     {
         $widgetModel = FloaterWidget::where('public_id', $widget)->where('is_active', true)->first();
-        if (!$widgetModel) {
+        if (! $widgetModel) {
             return response('// widget disabled', 200, ['Content-Type' => 'application/javascript']);
         }
+
+        $baseUrl = $request->getSchemeAndHttpHost();
 
         $config = [
             'id' => $widgetModel->public_id,
@@ -24,9 +25,9 @@ class PublicWidgetController extends Controller
             'position' => $widgetModel->position,
             'welcome_message' => $widgetModel->welcome_message ?? 'Hello! How can we help?',
             'whatsapp_phone' => $widgetModel->whatsapp_phone,
-            'theme' => $widgetModel->theme ?? ['primary' => '#25D366', 'background' => '#075E54'],
+            'theme' => $widgetModel->theme ?? ['primary' => '#00A548', 'background' => '#075E54'],
             'show_on' => $widgetModel->show_on ?? ['include' => [], 'exclude' => []],
-            'endpoint' => rtrim(config('app.url'), '/')."/widgets/{$widgetModel->public_id}/event"];
+            'endpoint' => rtrim($baseUrl, '/')."/widgets/{$widgetModel->public_id}/event"];
 
         $js = $this->buildScript($config);
 
@@ -38,7 +39,7 @@ class PublicWidgetController extends Controller
     public function event(Request $request, string $widget)
     {
         $widgetModel = FloaterWidget::where('public_id', $widget)->first();
-        if (!$widgetModel) {
+        if (! $widgetModel) {
             return response()->json(['ok' => false], 404, ['Access-Control-Allow-Origin' => '*']);
         }
 
@@ -70,7 +71,7 @@ class PublicWidgetController extends Controller
 
     protected function hashIp(?string $ip): ?string
     {
-        if (!$ip) {
+        if (! $ip) {
             return null;
         }
 
@@ -84,6 +85,8 @@ class PublicWidgetController extends Controller
 (function() {
   var config = __CONFIG__;
   if (!config || !config.whatsapp_phone) { return; }
+  config.whatsapp_phone = String(config.whatsapp_phone).replace(/\D/g, '');
+  if (!config.whatsapp_phone) { return; }
 
   var normalize = function(pattern) {
     return pattern.replace(/[.+^${}()|[\\]\\\\]/g, '\\\\$&').replace(/\\*/g, '.*');
@@ -149,7 +152,7 @@ class PublicWidgetController extends Controller
   panel.className = 'waify-widget__panel';
   panel.innerHTML = '<div class="waify-widget__header">WhatsApp Support<button class="waify-widget__close">×</button></div>' +
     '<div class="waify-widget__body">' + config.welcome_message +
-    '<br/><a class="waify-widget__cta" target="_blank" rel="noopener" href="https://wa.me/' + encodeURIComponent(config.whatsapp_phone) + '">Chat on WhatsApp</a>' +
+    '<br/><a class="waify-widget__cta" target="_blank" rel="noopener" href="https://wa.me/' + config.whatsapp_phone + '">Chat on WhatsApp</a>' +
     '</div>';
 
   container.appendChild(panel);
@@ -175,6 +178,7 @@ class PublicWidgetController extends Controller
   sendEvent('impression');
 })();
 JS;
+
         return str_replace('__CONFIG__', $json, $template);
     }
 }

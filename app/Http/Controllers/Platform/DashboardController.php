@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Platform;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
 use App\Models\Account;
 use App\Models\Subscription;
-use App\Modules\WhatsApp\Models\WhatsAppMessage;
+use App\Models\User;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
+use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use App\Services\PlatformSettingsValidationService;
 use Illuminate\Http\Request;
@@ -36,10 +36,10 @@ class DashboardController extends Controller
         $messagesThisMonth = WhatsAppMessage::whereMonth('created_at', now()->month)
             ->whereYear('created_at', now()->year)
             ->count();
-        
+
         $inboundMessages = WhatsAppMessage::where('direction', 'inbound')->count();
         $outboundMessages = WhatsAppMessage::where('direction', 'outbound')->count();
-        
+
         // Message status breakdown
         $messageStatuses = WhatsAppMessage::select('status', DB::raw('count(*) as count'))
             ->groupBy('status')

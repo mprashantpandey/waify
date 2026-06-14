@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ContactRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Services\SeoService;
 
 class PublicPagesController extends Controller
 {
@@ -29,58 +31,11 @@ class PublicPagesController extends Controller
      */
     public function pricing(): Response
     {
-        // Fetch all modules from database to get accurate names
-        $modules = \App\Models\Module::all()->keyBy('key');
-        $moduleNames = $modules->mapWithKeys(function ($module) {
-            return [$module->key => $module->name];
-        })->toArray();
-
         $plans = \App\Models\Plan::where('is_active', true)
             ->orderBy('price_monthly', 'asc')
             ->get()
-            ->map(function ($plan) use ($moduleNames) {
-                $features = [];
-                
-                // Normalize old module keys to new ones
+            ->map(function ($plan) {
                 $normalizedModules = $this->normalizeModuleKeys($plan->modules ?? []);
-                
-                // Add modules as features using actual module names from database
-                if (!empty($normalizedModules)) {
-                    foreach ($normalizedModules as $moduleKey) {
-                        // Use database module name, fallback to formatted key
-                        $moduleName = $moduleNames[$moduleKey] ?? ucfirst(str_replace(['.', '_'], ' ', $moduleKey));
-                        $features[] = $moduleName;
-                    }
-                }
-                
-                // Add limits as features
-                if ($plan->limits && is_array($plan->limits)) {
-                    if (isset($plan->limits['whatsapp_connections'])) {
-                        $conn = $plan->limits['whatsapp_connections'];
-                        $features[] = $conn === -1 ? 'Unlimited WhatsApp Connections' : "{$conn} WhatsApp Connection" . ($conn > 1 ? 's' : '');
-                    }
-                    if (isset($plan->limits['agents'])) {
-                        $agents = $plan->limits['agents'];
-                        $features[] = $agents === -1 ? 'Unlimited Agents' : "{$agents} Agent" . ($agents > 1 ? 's' : '');
-                    }
-                    if (isset($plan->limits['messages_monthly'])) {
-                        $msgs = $plan->limits['messages_monthly'];
-                        $features[] = $msgs === -1 ? 'Unlimited Messages' : number_format($msgs) . ' Messages/Month';
-                    }
-                    if (isset($plan->limits['template_sends_monthly'])) {
-                        $templates = $plan->limits['template_sends_monthly'];
-                        $features[] = $templates === -1 ? 'Unlimited Template Sends' : number_format($templates) . ' Template Sends/Month';
-                    }
-                    if (isset($plan->limits['retention_days'])) {
-                        $retention = $plan->limits['retention_days'];
-                        $features[] = $retention === -1 ? 'Unlimited Data Retention' : "{$retention} Days Data Retention";
-                    }
-                }
-                
-                // Add trial days if available
-                if ($plan->trial_days > 0) {
-                    $features[] = "{$plan->trial_days}-Day Free Trial";
-                }
 
                 return [
                     'id' => $plan->id,
@@ -89,14 +44,14 @@ class PublicPagesController extends Controller
                     'description' => $plan->description,
                     'price_monthly' => $plan->price_monthly,
                     'price_yearly' => $plan->price_yearly,
-                    'currency' => app(\App\Services\PlatformSettingsService::class)->get('payment.default_currency', 'USD'), // Use platform default currency
+                    'currency' => strtoupper((string) ($plan->currency ?: app(\App\Services\PlatformSettingsService::class)->get('payment.default_currency', 'INR'))),
                     'trial_days' => $plan->trial_days ?? 0,
-                    'features' => $features,
+                    'features' => $plan->publicFeatures(),
                     'modules' => $normalizedModules,
                     'limits' => $plan->limits ?? []];
             });
 
-        return Inertia::render('Public/Pricing', [
+        return $this->renderPublic('Public/Pricing', 'pricing', [
             'plans' => $plans,
             'canRegister' => \Route::has('register')]);
     }
@@ -106,7 +61,7 @@ class PublicPagesController extends Controller
      */
     public function privacy(): Response
     {
-        return Inertia::render('Public/Privacy');
+        return $this->renderPublic('Public/Privacy', 'privacy');
     }
 
     /**
@@ -114,7 +69,37 @@ class PublicPagesController extends Controller
      */
     public function terms(): Response
     {
-        return Inertia::render('Public/Terms');
+        return $this->renderPublic('Public/Terms', 'terms');
+    }
+
+    public function refundPolicy(): Response
+    {
+        return $this->renderPublic('Public/RefundPolicy', 'refund');
+    }
+
+    public function acceptableUse(): Response
+    {
+        return $this->renderPublic('Public/AcceptableUse', 'acceptableUse');
+    }
+
+    public function qrDisclaimer(): Response
+    {
+        return $this->renderPublic('Public/QrDisclaimer', 'qrDisclaimer');
+    }
+
+    public function gdpr(): Response
+    {
+        return $this->renderPublic('Public/GDPR', 'gdpr');
+    }
+
+    public function cookies(): Response
+    {
+        return $this->renderPublic('Public/Cookies', 'cookies');
+    }
+
+    public function security(): Response
+    {
+        return $this->renderPublic('Public/Security', 'security');
     }
 
     /**
@@ -122,7 +107,7 @@ class PublicPagesController extends Controller
      */
     public function help(): Response
     {
-        return Inertia::render('Public/Help');
+        return $this->renderPublic('Public/Help', 'help');
     }
 
     /**
@@ -131,9 +116,24 @@ class PublicPagesController extends Controller
     public function faqs(): Response
     {
         $faqs = \App\Models\PlatformSetting::get('support.faqs', []);
-        
-        return Inertia::render('Public/FAQs', [
+
+        return $this->renderPublic('Public/FAQs', 'faqs', [
             'faqs' => is_array($faqs) ? $faqs : []]);
+    }
+
+    public function knowledgebase(): Response
+    {
+        return $this->renderPublic('Public/KnowledgeBase', 'knowledgebase');
+    }
+
+    public function roadmap(): Response
+    {
+        return $this->renderPublic('Public/Roadmap', 'roadmap');
+    }
+
+    public function docs(): Response
+    {
+        return $this->renderPublic('Public/Docs', 'docs');
     }
 
     /**
@@ -141,7 +141,7 @@ class PublicPagesController extends Controller
      */
     public function about(): Response
     {
-        return Inertia::render('Public/About');
+        return $this->renderPublic('Public/About', 'about');
     }
 
     /**
@@ -149,7 +149,7 @@ class PublicPagesController extends Controller
      */
     public function contact(): Response
     {
-        return Inertia::render('Public/Contact');
+        return $this->renderPublic('Public/Contact', 'contact');
     }
 
     /**
@@ -162,6 +162,14 @@ class PublicPagesController extends Controller
             'email' => 'required|email|max:255',
             'subject' => 'required|string|max:255',
             'message' => 'required|string|max:5000']);
+
+        ContactRequest::create([
+            ...$validated,
+            'status' => ContactRequest::STATUS_NEW,
+            'source' => 'public_contact',
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
 
         $supportEmail = \App\Models\PlatformSetting::get('branding.support_email')
             ?: \App\Models\PlatformSetting::get('general.support_email')
@@ -192,5 +200,13 @@ class PublicPagesController extends Controller
         }
 
         return back()->with('success', 'Thank you for contacting us! We will get back to you soon.');
+    }
+
+    protected function renderPublic(string $component, string $seoKey, array $props = []): Response
+    {
+        return Inertia::render($component, [
+            'seo' => app(SeoService::class)->page($seoKey),
+            ...$props,
+        ]);
     }
 }

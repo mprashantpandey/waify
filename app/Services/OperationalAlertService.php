@@ -11,9 +11,9 @@ class OperationalAlertService
 {
     public function send(string $eventKey, string $title, array $context = [], string $severity = 'warning'): void
     {
-        $dedupeKey = 'ops-alert:' . sha1($eventKey . '|' . ($context['scope'] ?? 'global'));
+        $dedupeKey = 'ops-alert:'.sha1($eventKey.'|'.($context['scope'] ?? 'global'));
         $ttlMinutes = max(1, (int) PlatformSetting::get('alerts.dedupe_minutes', 15));
-        if (!cache()->add($dedupeKey, now()->timestamp, now()->addMinutes($ttlMinutes))) {
+        if (! cache()->add($dedupeKey, now()->timestamp, now()->addMinutes($ttlMinutes))) {
             return;
         }
 
@@ -34,11 +34,11 @@ class OperationalAlertService
         $to = PlatformSetting::get('alerts.email_to')
             ?: PlatformSetting::get('branding.support_email')
             ?: PlatformSetting::get('general.support_email');
-        if (!$to || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
+        if (! $to || ! filter_var($to, FILTER_VALIDATE_EMAIL)) {
             return;
         }
 
-        $subject = "[Waify Alert] {$payload['title']}";
+        $subject = "[Zyptos Alert] {$payload['title']}";
         $body = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 
         try {
@@ -52,8 +52,7 @@ class OperationalAlertService
 
     protected function sendWebhookAlert(array $payload): void
     {
-        $webhookUrl = PlatformSetting::get('alerts.webhook_url')
-            ?: PlatformSetting::get('integrations.webhook_url');
+        $webhookUrl = PlatformSetting::get('alerts.webhook_url');
         $slackWebhook = PlatformSetting::get('alerts.slack_webhook_url');
 
         if ($webhookUrl) {
@@ -67,7 +66,7 @@ class OperationalAlertService
         if ($slackWebhook) {
             try {
                 Http::timeout(8)->post((string) $slackWebhook, [
-                    'text' => "{$payload['title']} ({$payload['severity']})\n" . json_encode($payload['context'], JSON_UNESCAPED_SLASHES),
+                    'text' => "{$payload['title']} ({$payload['severity']})\n".json_encode($payload['context'], JSON_UNESCAPED_SLASHES),
                 ]);
             } catch (\Throwable $e) {
                 Log::warning('Failed to send Slack operational alert', ['error' => $e->getMessage()]);
@@ -75,4 +74,3 @@ class OperationalAlertService
         }
     }
 }
-

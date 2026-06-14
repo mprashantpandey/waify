@@ -1,9 +1,8 @@
 <?php
 
 use App\Modules\Chatbots\Http\Controllers\BotController;
-use App\Modules\Chatbots\Http\Controllers\BotExecutionController;
-use App\Modules\Chatbots\Http\Controllers\BotFlowController;
 use App\Modules\Chatbots\Http\Controllers\BotEdgeController;
+use App\Modules\Chatbots\Http\Controllers\BotFlowController;
 use App\Modules\Chatbots\Http\Controllers\BotNodeController;
 use Illuminate\Support\Facades\Route;
 
@@ -12,16 +11,12 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['module.entitled:automation.chatbots'])->group(function () {
     // Bots
     Route::get('/chatbots', [BotController::class, 'index'])->name('chatbots.index');
-    // Legacy route-name compatibility: older frontends may call route('app.chatbots').
-    // Use a redirect to avoid registering two identical GET /chatbots routes.
-    Route::get('/chatbots/legacy', fn () => redirect()->route('app.chatbots.index'))->name('chatbots');
-    Route::get('/chatbots/create', [BotController::class, 'create'])->name('chatbots.create');
+    Route::get('/chatbots/{bot}/builder', [BotController::class, 'builder'])->name('chatbots.builder');
     Route::post('/chatbots', [BotController::class, 'store'])->name('chatbots.store');
-    // Executions (must be before /chatbots/{bot} so "executions" is not matched as a bot)
-    Route::get('/chatbots/executions', [BotExecutionController::class, 'index'])->name('chatbots.executions.index');
-    Route::get('/chatbots/executions/{execution}', [BotExecutionController::class, 'show'])->name('chatbots.executions.show');
-    Route::get('/chatbots/{bot}', [BotController::class, 'show'])->name('chatbots.show');
+    Route::get('/chatbots/executions', fn () => redirect('/app/chatbots?panel=executions'))->name('chatbots.executions.index');
     Route::patch('/chatbots/{bot}', [BotController::class, 'update'])->name('chatbots.update');
+    Route::post('/chatbots/{bot}/test', [BotController::class, 'test'])->name('chatbots.test');
+    Route::post('/chatbots/{bot}/simulate', [BotController::class, 'simulate'])->name('chatbots.simulate');
     Route::delete('/chatbots/{bot}', [BotController::class, 'destroy'])->name('chatbots.destroy');
     Route::post('/chatbots/{bot}/delete', [BotController::class, 'destroy'])->name('chatbots.destroy.post');
 

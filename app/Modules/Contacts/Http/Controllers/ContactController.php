@@ -3,15 +3,14 @@
 namespace App\Modules\Contacts\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Contacts\Jobs\ImportContactsCsvJob;
 use App\Modules\Contacts\Models\ContactActivity;
+use App\Modules\Contacts\Models\ContactImportBatch;
 use App\Modules\Contacts\Models\ContactSegment;
 use App\Modules\Contacts\Models\ContactTag;
 use App\Modules\Contacts\Services\ContactService;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
-use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -19,8 +18,7 @@ class ContactController extends Controller
 {
     public function __construct(
         protected ContactService $contactService
-    ) {
-    }
+    ) {}
 
     /**
      * Display a listing of contacts.
@@ -50,14 +48,14 @@ class ContactController extends Controller
         }
 
         // Filter by tags
-        if ($request->has('tags') && !empty($request->tags)) {
+        if ($request->has('tags') && ! empty($request->tags)) {
             $query->whereHas('tags', function ($q) use ($request) {
                 $q->whereIn('contact_tags.id', $request->tags);
             });
         }
 
         // Filter by segments
-        if ($request->has('segments') && !empty($request->segments)) {
+        if ($request->has('segments') && ! empty($request->segments)) {
             $query->whereHas('segments', function ($q) use ($request) {
                 $q->whereIn('contact_segments.id', $request->segments);
             });
@@ -74,6 +72,7 @@ class ContactController extends Controller
                     'email' => $contact->email,
                     'phone' => $contact->phone,
                     'company' => $contact->company,
+                    'notes' => $contact->notes,
                     'status' => $contact->status ?? 'active',
                     'message_count' => $contact->message_count ?? 0,
                     'last_seen_at' => $contact->last_seen_at?->toIso8601String(),
@@ -104,8 +103,21 @@ class ContactController extends Controller
         return Inertia::render('Contacts/Index', [
             'account' => $account,
             'contacts' => $contacts,
+            'selectedContact' => $this->selectedContactPayload($request, $account),
+            'contactStats' => [
+                'total' => WhatsAppContact::where('account_id', $account->id)->count(),
+                'active' => WhatsAppContact::where('account_id', $account->id)->where('status', 'active')->count(),
+                'inactive' => WhatsAppContact::where('account_id', $account->id)->where('status', 'inactive')->count(),
+                'blocked' => WhatsAppContact::where('account_id', $account->id)->where('status', 'blocked')->count(),
+                'opt_out' => WhatsAppContact::where('account_id', $account->id)->where('status', 'opt_out')->count(),
+            ],
             'tags' => $tags,
             'segments' => $segments,
+            'importBatches' => ContactImportBatch::where('account_id', $account->id)
+                ->latest()
+                ->limit(5)
+                ->get()
+                ->map(fn (ContactImportBatch $batch) => $this->importBatchPayload($batch)),
             'filters' => [
                 'search' => $request->search,
                 'status' => $request->status,
@@ -113,20 +125,52 @@ class ContactController extends Controller
                 'segments' => $request->segments ?? []]]);
     }
 
-    /**
-     * Show the form for creating a new contact.
-     */
-    public function create(Request $request): Response
+    protected function selectedContactPayload(Request $request, $account): ?array
     {
-        $account = $request->attributes->get('account') ?? current_account();
+        $selected = $request->query('contact');
+        if (! $selected) {
+            return null;
+        }
 
-        $tags = ContactTag::where('account_id', $account->id)
-            ->orderBy('name')
-            ->get(['id', 'name', 'color']);
+        $contact = WhatsAppContact::where('account_id', $account->id)
+            ->where(function ($query) use ($selected) {
+                $query->where('slug', $selected)
+                    ->orWhere('wa_id', $selected);
+                if (is_numeric($selected)) {
+                    $query->orWhere('id', (int) $selected);
+                }
+            })
+            ->with(['tags', 'segments'])
+            ->first();
 
-        return Inertia::render('Contacts/Create', [
-            'account' => $account,
-            'tags' => $tags]);
+        if (! $contact) {
+            return null;
+        }
+
+        return [
+            'id' => $contact->id,
+            'slug' => $contact->slug ?? $contact->wa_id ?? (string) $contact->id,
+            'wa_id' => $contact->wa_id,
+            'name' => $contact->name,
+            'email' => $contact->email,
+            'phone' => $contact->phone,
+            'company' => $contact->company,
+            'notes' => $contact->notes,
+            'status' => $contact->status ?? 'active',
+            'message_count' => $contact->message_count ?? 0,
+            'last_seen_at' => $contact->last_seen_at?->toIso8601String(),
+            'last_contacted_at' => $contact->last_contacted_at?->toIso8601String(),
+            'tags' => $contact->tags->map(fn ($tag) => [
+                'id' => $tag->id,
+                'name' => $tag->name,
+                'color' => $tag->color,
+            ]),
+            'segments' => $contact->segments->map(fn ($segment) => [
+                'id' => $segment->id,
+                'name' => $segment->name,
+            ]),
+            'created_at' => $contact->created_at->toIso8601String(),
+        ];
     }
 
     /**
@@ -154,127 +198,12 @@ class ContactController extends Controller
         );
 
         // Add tags if provided
-        if (isset($validated['tags']) && !empty($validated['tags'])) {
+        if (isset($validated['tags']) && ! empty($validated['tags'])) {
             $this->contactService->addTags($contact, $validated['tags']);
         }
 
-        return redirect()->route('app.contacts.show', [
+        return redirect()->route('app.contacts.index', [
             'contact' => $contact->slug])->with('success', 'Contact created successfully.');
-    }
-
-    /**
-     * Display the specified contact.
-     */
-    public function show(Request $request, WhatsAppContact $contact): Response
-    {
-        $account = $request->attributes->get('account') ?? current_account();
-
-        if (!account_ids_match($contact->account_id, $account->id)) {
-            abort(404);
-        }
-
-        $contact->load(['tags', 'segments', 'conversations' => function ($query) {
-            $query->orderBy('last_message_at', 'desc')->limit(10);
-        }]);
-
-        $messageStats = WhatsAppMessage::whereHas('conversation', function ($query) use ($contact) {
-            $query->where('whatsapp_contact_id', $contact->id);
-        })->selectRaw('count(*) as total, max(received_at) as last_seen, max(sent_at) as last_contacted, max(created_at) as last_message')
-            ->first();
-
-        $computedMessageCount = $contact->message_count ?? 0;
-        $computedLastSeenAt = $contact->last_seen_at;
-        $computedLastContactedAt = $contact->last_contacted_at;
-        $updates = [];
-
-        if ($messageStats && (int) $messageStats->total > 0) {
-            if ($computedMessageCount === 0) {
-                $computedMessageCount = (int) $messageStats->total;
-                $updates['message_count'] = $computedMessageCount;
-            }
-
-            if (!$computedLastSeenAt && $messageStats->last_seen) {
-                $computedLastSeenAt = $messageStats->last_seen;
-                $updates['last_seen_at'] = $computedLastSeenAt;
-            }
-
-            if (!$computedLastContactedAt && $messageStats->last_contacted) {
-                $computedLastContactedAt = $messageStats->last_contacted;
-                $updates['last_contacted_at'] = $computedLastContactedAt;
-            }
-
-            if (!$computedLastSeenAt && $messageStats->last_message) {
-                $computedLastSeenAt = $messageStats->last_message;
-            }
-        }
-
-        if (!empty($updates)) {
-            $contact->forceFill($updates)->save();
-        }
-
-        if ($computedLastSeenAt && !$computedLastSeenAt instanceof Carbon) {
-            $computedLastSeenAt = Carbon::parse($computedLastSeenAt);
-        }
-        if ($computedLastContactedAt && !$computedLastContactedAt instanceof Carbon) {
-            $computedLastContactedAt = Carbon::parse($computedLastContactedAt);
-        }
-
-        $activities = ContactActivity::where('contact_id', $contact->id)
-            ->with('user')
-            ->orderBy('created_at', 'desc')
-            ->limit(50)
-            ->get()
-            ->map(function ($activity) {
-                return [
-                    'id' => $activity->id,
-                    'type' => $activity->type,
-                    'title' => $activity->title,
-                    'description' => $activity->description,
-                    'user' => $activity->user ? [
-                        'id' => $activity->user->id,
-                        'name' => $activity->user->name] : null,
-                    'created_at' => $activity->created_at->toIso8601String()];
-            });
-
-        $tags = ContactTag::where('account_id', $account->id)
-            ->orderBy('name')
-            ->get(['id', 'name', 'color']);
-
-        $segments = ContactSegment::where('account_id', $account->id)
-            ->orderBy('name')
-            ->get(['id', 'name']);
-
-        return Inertia::render('Contacts/Show', [
-            'account' => $account,
-            'contact' => [
-                'id' => $contact->id,
-                'slug' => $contact->slug,
-                'wa_id' => $contact->wa_id,
-                'name' => $contact->name,
-                'email' => $contact->email,
-                'phone' => $contact->phone,
-                'company' => $contact->company,
-                'notes' => $contact->notes,
-                'status' => $contact->status ?? 'active',
-                'source' => $contact->source,
-                'message_count' => $computedMessageCount,
-                'last_seen_at' => $computedLastSeenAt?->toIso8601String(),
-                'last_contacted_at' => $computedLastContactedAt?->toIso8601String(),
-                'tags' => $contact->tags->map(function ($tag) {
-                    return [
-                        'id' => $tag->id,
-                        'name' => $tag->name,
-                        'color' => $tag->color];
-                }),
-                'segments' => $contact->segments->map(function ($segment) {
-                    return [
-                        'id' => $segment->id,
-                        'name' => $segment->name];
-                }),
-                'created_at' => $contact->created_at->toIso8601String()],
-            'activities' => $activities,
-            'tags' => $tags,
-            'segments' => $segments]);
     }
 
     /**
@@ -284,7 +213,7 @@ class ContactController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($contact->account_id, $account->id)) {
+        if (! account_ids_match($contact->account_id, $account->id)) {
             abort(404);
         }
 
@@ -330,7 +259,7 @@ class ContactController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($contact->account_id, $account->id)) {
+        if (! account_ids_match($contact->account_id, $account->id)) {
             abort(404);
         }
 
@@ -340,7 +269,7 @@ class ContactController extends Controller
 
         if ($hasConversations) {
             return redirect()
-                ->route('app.contacts.show', ['contact' => $contact->slug ?? $contact->id])
+                ->route('app.contacts.index', ['contact' => $contact->slug ?? $contact->id])
                 ->with('error', 'Contact cannot be deleted because conversation history exists. Archive or clear conversations first.');
         }
 
@@ -366,13 +295,121 @@ class ContactController extends Controller
     }
 
     /**
+     * Move multiple contacts to the recovery bin.
+     */
+    public function bulkDestroy(Request $request)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1|max:500',
+            'ids.*' => 'integer',
+        ]);
+
+        $contacts = WhatsAppContact::where('account_id', $account->id)
+            ->whereIn('id', $validated['ids'])
+            ->withExists(['conversations as has_conversations' => function ($query) use ($account) {
+                $query->where('account_id', $account->id);
+            }])
+            ->get();
+
+        $deletable = $contacts->where('has_conversations', false)->values();
+        $skipped = $contacts->count() - $deletable->count();
+        $recoveryDays = max(1, (int) \App\Models\PlatformSetting::get('compliance.recovery_window_days', 30));
+
+        if ($deletable->isNotEmpty()) {
+            \DB::transaction(function () use ($account, $request, $deletable, $recoveryDays): void {
+                foreach ($deletable as $contact) {
+                    ContactActivity::create([
+                        'account_id' => $account->id,
+                        'contact_id' => $contact->id,
+                        'user_id' => $request->user()->id,
+                        'type' => 'contact_deleted',
+                        'title' => 'Contact deleted',
+                        'description' => 'Contact '.($contact->name ?: $contact->wa_id).' was deleted in bulk',
+                    ]);
+
+                    $contact->purge_after_at = now()->addDays($recoveryDays);
+                    $contact->save();
+                    $contact->delete();
+                }
+            });
+        }
+
+        $message = $deletable->count()." contact(s) moved to recovery bin for {$recoveryDays} days.";
+        if ($skipped > 0) {
+            $message .= " {$skipped} contact(s) with conversation history were skipped.";
+        }
+
+        return redirect()->route('app.contacts.index')->with($deletable->isNotEmpty() ? 'success' : 'error', $message);
+    }
+
+    /**
+     * Add, replace, or remove tags on multiple contacts.
+     */
+    public function bulkUpdateTags(Request $request)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1|max:500',
+            'ids.*' => 'integer',
+            'tags' => 'required|array|min:1',
+            'tags.*' => 'integer',
+            'mode' => 'required|in:add,replace,remove',
+        ]);
+
+        $tagIds = ContactTag::where('account_id', $account->id)
+            ->whereIn('id', $validated['tags'])
+            ->pluck('id')
+            ->all();
+
+        if (count($tagIds) !== count(array_unique($validated['tags']))) {
+            return back()->withErrors(['tags' => 'One or more selected tags are not available in this workspace.']);
+        }
+
+        $contacts = WhatsAppContact::where('account_id', $account->id)
+            ->whereIn('id', $validated['ids'])
+            ->get();
+
+        if ($contacts->isEmpty()) {
+            return back()->withErrors(['ids' => 'No matching contacts were found in this workspace.']);
+        }
+
+        foreach ($contacts as $contact) {
+            match ($validated['mode']) {
+                'replace' => $contact->tags()->sync($tagIds),
+                'remove' => $contact->tags()->detach($tagIds),
+                default => $contact->tags()->syncWithoutDetaching($tagIds),
+            };
+        }
+
+        $action = match ($validated['mode']) {
+            'replace' => 'replaced on',
+            'remove' => 'removed from',
+            default => 'added to',
+        };
+
+        ContactActivity::create([
+            'account_id' => $account->id,
+            'contact_id' => $contacts->first()?->id,
+            'user_id' => $request->user()->id,
+            'type' => 'contacts_bulk_tagged',
+            'title' => 'Bulk tags updated',
+            'description' => count($tagIds).' tag(s) '.$action.' '.$contacts->count().' contact(s)',
+        ]);
+
+        return back()->with('success', 'Tags updated for '.$contacts->count().' contact(s).');
+    }
+
+    /**
      * Add note to contact.
      */
     public function addNote(Request $request, WhatsAppContact $contact)
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($contact->account_id, $account->id)) {
+        if (! account_ids_match($contact->account_id, $account->id)) {
             abort(404);
         }
 
@@ -392,25 +429,61 @@ class ContactController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         $request->validate([
-            'file' => 'required|file|mimes:csv,txt|max:10240']);
+            'file' => 'required|file|mimes:csv,txt|max:10240',
+            'tags' => 'nullable|array',
+            'tags.*' => 'integer|exists:contact_tags,id']);
 
         $file = $request->file('file');
-        $path = $file->store('imports');
+        $path = $file->store('contact-imports');
 
-        try {
-            $result = $this->contactService->importFromCsv(
-                storage_path("app/{$path}"),
-                $account->id,
-                $request->user()->id
-            );
+        $batch = ContactImportBatch::create([
+            'account_id' => $account->id,
+            'user_id' => $request->user()?->id,
+            'original_filename' => $file->getClientOriginalName(),
+            'storage_path' => $path,
+            'status' => 'queued',
+            'default_tag_ids' => array_values($request->input('tags', [])),
+        ]);
 
-            Storage::delete($path);
+        ImportContactsCsvJob::dispatch($batch->id);
 
-            return back()->with('success', "Import completed: {$result['imported']} imported, {$result['updated']} updated.");
-        } catch (\Exception $e) {
-            Storage::delete($path);
-            return back()->withErrors(['error' => 'Import failed: ' . $e->getMessage()]);
+        return back()->with('success', 'Contact import queued. Progress will update on this page.');
+    }
+
+    public function importStatus(Request $request, ContactImportBatch $batch)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if (! account_ids_match($batch->account_id, $account->id)) {
+            abort(404);
         }
+
+        return response()->json([
+            'data' => $this->importBatchPayload($batch->fresh()),
+        ]);
+    }
+
+    public function importErrors(Request $request, ContactImportBatch $batch)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if (! account_ids_match($batch->account_id, $account->id)) {
+            abort(404);
+        }
+
+        $filename = 'contact-import-errors-'.$batch->id.'.csv';
+
+        return response()->streamDownload(function () use ($batch) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, ['error']);
+            foreach (($batch->errors ?? []) as $error) {
+                fputcsv($handle, [$error]);
+            }
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Cache-Control' => 'no-store, no-cache',
+        ]);
     }
 
     /**
@@ -419,15 +492,31 @@ class ContactController extends Controller
     public function export(Request $request)
     {
         $account = $request->attributes->get('account') ?? current_account();
+        app(\App\Services\WorkspacePermissionService::class)->assert($request->user(), $account, 'contacts.export');
 
         $filters = [
             'tags' => $request->tags ?? [],
             'segments' => $request->segments ?? [],
             'status' => $request->status];
 
-        $filename = $this->contactService->exportToCsv($account->id, $filters);
+        app(\App\Services\AppNotificationService::class)->auditDestructive(
+            'contacts_exported',
+            'Contacts exported to CSV',
+            $request->user(),
+            $account,
+            null,
+            ['filters' => $filters],
+            $request
+        );
 
-        return response()->download($filename)->deleteFileAfterSend();
+        $filename = 'zyptos-contacts-'.now()->format('Ymd-His').'.csv';
+
+        return response()->streamDownload(function () use ($account, $filters) {
+            $this->contactService->streamCsvExport($account->id, $filters);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Cache-Control' => 'no-store, no-cache',
+        ]);
     }
 
     /**
@@ -437,7 +526,7 @@ class ContactController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($contact->account_id, $account->id)) {
+        if (! account_ids_match($contact->account_id, $account->id)) {
             abort(404);
         }
 
@@ -448,10 +537,31 @@ class ContactController extends Controller
         try {
             $this->contactService->mergeContacts($contact, $validated['duplicate_ids']);
 
-            return redirect()->route('app.contacts.show', [
+            return redirect()->route('app.contacts.index', [
                 'contact' => $contact->slug])->with('success', 'Contacts merged successfully.');
         } catch (\Exception $e) {
-            return back()->withErrors(['error' => 'Failed to merge contacts: ' . $e->getMessage()]);
+            return back()->withErrors(['error' => 'Failed to merge contacts: '.$e->getMessage()]);
         }
+    }
+
+    protected function importBatchPayload(ContactImportBatch $batch): array
+    {
+        return [
+            'id' => $batch->id,
+            'filename' => $batch->original_filename,
+            'status' => $batch->status,
+            'total_rows' => $batch->total_rows,
+            'processed_rows' => $batch->processed_rows,
+            'progress' => $batch->progressPercent(),
+            'imported_count' => $batch->imported_count,
+            'updated_count' => $batch->updated_count,
+            'skipped_count' => $batch->skipped_count,
+            'error_count' => $batch->error_count,
+            'errors' => $batch->errors ?? [],
+            'created_at' => $batch->created_at?->toIso8601String(),
+            'started_at' => $batch->started_at?->toIso8601String(),
+            'completed_at' => $batch->completed_at?->toIso8601String(),
+            'failed_at' => $batch->failed_at?->toIso8601String(),
+        ];
     }
 }

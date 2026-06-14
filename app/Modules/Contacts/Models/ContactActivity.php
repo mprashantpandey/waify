@@ -2,8 +2,8 @@
 
 namespace App\Modules\Contacts\Models;
 
-use App\Models\User;
 use App\Models\Account;
+use App\Models\User;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -51,4 +51,3 @@ class ContactActivity extends Model
         return $this->belongsTo(User::class);
     }
 }
-

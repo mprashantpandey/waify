@@ -2,17 +2,17 @@
 
 namespace App\Modules\Analytics\Http\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Core\Billing\UsageService;
-use App\Modules\WhatsApp\Models\WhatsAppMessage;
+use App\Http\Controllers\Controller;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
-use App\Modules\WhatsApp\Models\WhatsAppTemplateSend;
 use App\Modules\WhatsApp\Models\WhatsAppConversationAuditEvent;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Carbon;
+use App\Modules\WhatsApp\Models\WhatsAppMessage;
+use App\Modules\WhatsApp\Models\WhatsAppTemplateSend;
 use Carbon\CarbonPeriod;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -28,10 +28,10 @@ class AnalyticsController extends Controller
     public function index(Request $request): Response
     {
         $account = $request->attributes->get('account') ?? current_account();
-        if (!$account) {
+        if (! $account) {
             abort(404);
         }
-        
+
         $dateRange = (int) $request->get('range', 30); // days
         if ($dateRange <= 0) {
             $dateRange = 30;
@@ -71,7 +71,7 @@ class AnalyticsController extends Controller
                 'whatsapp_templates.id as template_id',
                 'whatsapp_templates.name as template_name',
                 DB::raw('COUNT(whatsapp_template_sends.id) as total_sends'),
-                DB::raw('SUM(CASE WHEN whatsapp_messages.status = "delivered" OR whatsapp_messages.delivered_at IS NOT NULL THEN 1 ELSE 0 END) as delivered_count'),
+                DB::raw('SUM(CASE WHEN whatsapp_messages.status IN ("delivered", "read") OR whatsapp_messages.delivered_at IS NOT NULL OR whatsapp_messages.read_at IS NOT NULL THEN 1 ELSE 0 END) as delivered_count'),
                 DB::raw('SUM(CASE WHEN whatsapp_messages.status = "read" OR whatsapp_messages.read_at IS NOT NULL THEN 1 ELSE 0 END) as read_count'),
                 DB::raw('SUM(CASE WHEN whatsapp_template_sends.status = "failed" OR whatsapp_messages.status = "failed" THEN 1 ELSE 0 END) as failed')
             )
@@ -81,15 +81,19 @@ class AnalyticsController extends Controller
             ->limit(10)
             ->get()
             ->map(function ($send) {
+                $totalSends = max(0, (int) $send->total_sends);
+                $delivered = min($totalSends, max(0, (int) $send->delivered_count));
+                $read = min($delivered, max(0, (int) $send->read_count));
+
                 return [
                     'template_id' => $send->template_id,
                     'template_name' => $send->template_name ?? 'Unknown',
-                    'total_sends' => (int) $send->total_sends,
-                    'delivered' => (int) $send->delivered_count,
-                    'read' => (int) $send->read_count,
+                    'total_sends' => $totalSends,
+                    'delivered' => $delivered,
+                    'read' => $read,
                     'failed' => (int) $send->failed,
-                    'delivery_rate' => $send->total_sends > 0 ? round(($send->delivered_count / $send->total_sends) * 100, 2) : 0,
-                    'read_rate' => $send->total_sends > 0 ? round(($send->read_count / $send->total_sends) * 100, 2) : 0];
+                    'delivery_rate' => $totalSends > 0 ? min(100, round(($delivered / $totalSends) * 100, 2)) : 0,
+                    'read_rate' => $delivered > 0 ? min(100, round(($read / $delivered) * 100, 2)) : 0];
             });
 
         // Conversation Stats
@@ -172,6 +176,7 @@ class AnalyticsController extends Controller
             $agentMap->put($account->owner->id, $account->owner->name ?? 'Owner');
         }
         $accountUsers = $account->users()
+            ->where('users.is_platform_admin', false)
             ->get(['users.id', 'users.name', 'account_users.role']);
         foreach ($accountUsers as $user) {
             $agentMap->put($user->id, $user->name ?? 'Agent');
@@ -183,7 +188,7 @@ class AnalyticsController extends Controller
         $overallResponseCount = 0;
 
         foreach ($firstResponseRows as $row) {
-            if (!$row->first_inbound_at || !$row->first_outbound_at) {
+            if (! $row->first_inbound_at || ! $row->first_outbound_at) {
                 continue;
             }
             $inboundAt = Carbon::parse($row->first_inbound_at);
@@ -248,11 +253,11 @@ class AnalyticsController extends Controller
 
         foreach ($closedMap as $closed) {
             $conv = $conversationMap->get($closed['conversation_id']);
-            if (!$conv) {
+            if (! $conv) {
                 $conv = WhatsAppConversation::where('account_id', $account->id)
                     ->find($closed['conversation_id']);
             }
-            if (!$conv) {
+            if (! $conv) {
                 continue;
             }
             $createdAt = Carbon::parse($conv->created_at);

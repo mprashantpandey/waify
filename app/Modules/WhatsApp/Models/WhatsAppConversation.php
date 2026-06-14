@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class WhatsAppConversation extends Model
 {
     use HasFactory;
+
     protected $table = 'whatsapp_conversations';
 
     protected $fillable = [

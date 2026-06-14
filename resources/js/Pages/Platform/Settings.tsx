@@ -1,28 +1,36 @@
-import { usePage, useForm } from '@inertiajs/react';
-import { useState, useEffect } from 'react';
+import { Head, useForm, usePage } from '@inertiajs/react';
+import { useEffect, useState, type FormEvent } from 'react';
+import {
+    Bot,
+    Building2,
+    CreditCard,
+    HardDrive,
+    Mail,
+    Palette,
+    Radio,
+    Save,
+    Shield,
+    ToggleLeft,
+    Webhook,
+    XCircle,
+} from 'lucide-react';
 import PlatformShell from '@/Layouts/PlatformShell';
 import Button from '@/Components/UI/Button';
-import { Tabs, TabsList, TabsTrigger, TabsContent, useTabs } from '@/Components/UI/Tabs';
-import { Save, Radio, Mail, HardDrive, Globe, Shield, CreditCard, Webhook, BarChart3, Scale, Zap, ToggleLeft, Palette, Bot, LifeBuoy, XCircle, Clock3, Activity } from 'lucide-react';
+import { Badge } from '@/Components/UI/Badge';
+import { Card, CardContent } from '@/Components/UI/Card';
 import MisconfiguredSettingsAlert from '@/Components/Platform/MisconfiguredSettingsAlert';
-import { useToast } from '@/hooks/useToast';
 import { useNotifications } from '@/hooks/useNotifications';
+import { cn } from '@/lib/utils';
 import GeneralTab from './Settings/Tabs/GeneralTab';
 import SecurityTab from './Settings/Tabs/SecurityTab';
 import PaymentTab from './Settings/Tabs/PaymentTab';
 import IntegrationsTab from './Settings/Tabs/IntegrationsTab';
-import AnalyticsTab from './Settings/Tabs/AnalyticsTab';
-import ComplianceTab from './Settings/Tabs/ComplianceTab';
-import PerformanceTab from './Settings/Tabs/PerformanceTab';
 import FeaturesTab from './Settings/Tabs/FeaturesTab';
 import PusherTab from './Settings/Tabs/PusherTab';
 import MailTab from './Settings/Tabs/MailTab';
 import StorageTab from './Settings/Tabs/StorageTab';
 import BrandingTab from './Settings/Tabs/BrandingTab';
 import AiTab from './Settings/Tabs/AiTab';
-import SupportTab from './Settings/Tabs/SupportTab';
-import CronTab from './Settings/Tabs/CronTab';
-import DeliveryTab from './Settings/Tabs/DeliveryTab';
 
 export default function PlatformSettings({
     pusher,
@@ -39,13 +47,11 @@ export default function PlatformSettings({
     branding,
     ai,
     whatsapp,
-    support,
-    cron,
-    delivery,
-    misconfigured_settings}: any) {
+    misconfigured_settings,
+}: any) {
     const { auth } = usePage().props as any;
-    
-    // Get initial tab from URL query parameter or default to 'general'
+    const { confirm, toast } = useNotifications();
+
     const getInitialTab = () => {
         if (typeof window !== 'undefined') {
             const urlParams = new URLSearchParams(window.location.search);
@@ -53,23 +59,8 @@ export default function PlatformSettings({
         }
         return 'general';
     };
-    
-    const { value: activeTab, setValue: setActiveTab } = useTabs(getInitialTab());
-    
-    // Update tab when URL query changes
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const urlParams = new URLSearchParams(window.location.search);
-            const tabFromUrl = urlParams.get('tab');
-            if (tabFromUrl && tabFromUrl !== activeTab) {
-                setActiveTab(tabFromUrl);
-            }
-        }
-    }, [activeTab, setActiveTab]);
-    const { addToast } = useToast();
-    const { confirm } = useNotifications();
 
-    const { data, setData, post, processing, errors } = useForm({
+    const { data, setData: setFormData, post, processing, errors } = useForm({
         general: general || {},
         security: security || {},
         payment: payment || {},
@@ -84,90 +75,139 @@ export default function PlatformSettings({
         branding: branding || {},
         ai: ai || {},
         whatsapp: whatsapp || {},
-        support: support || {}});
+    });
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const [activeTab, setActiveTab] = useState(getInitialTab());
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const urlParams = new URLSearchParams(window.location.search);
+        const tabFromUrl = urlParams.get('tab');
+        if (tabFromUrl && tabFromUrl !== activeTab) {
+            setActiveTab(tabFromUrl);
+        }
+    }, [activeTab, setActiveTab]);
+
+    const switchTab = (tab: string) => {
+        setActiveTab(tab);
+        if (typeof window !== 'undefined') {
+            const url = new URL(window.location.href);
+            url.searchParams.set('tab', tab);
+            window.history.replaceState({}, '', url.toString());
+        }
+    };
+
+    const setData = (key: string, value: any) => {
+        if (!key.includes('.')) {
+            setFormData(key as any, value);
+            return;
+        }
+
+        const [group, field] = key.split('.', 2);
+        const currentGroup = ((data as any)[group] || {}) as Record<string, any>;
+        setFormData(group as any, {
+            ...currentGroup,
+            [field]: value,
+        });
+    };
+
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
-        
-        // Check if Razorpay is being disabled
+
         const currentPayment = payment || {};
         const newPayment = data.payment || {};
-        
+
         if (currentPayment.razorpay_enabled && !newPayment.razorpay_enabled) {
             const confirmed = await confirm({
                 title: 'Disable Razorpay?',
-                message: 'You are about to disable Razorpay. This will prevent users from making payments. Are you sure?',
-                variant: 'warning'});
-            
-            if (!confirmed) {
-                return;
-            }
+                message: 'You are about to disable Razorpay. This will prevent users from making payments.',
+                variant: 'warning',
+            });
+
+            if (!confirmed) return;
         }
-        
+
         post(route('platform.settings.update'), {
             preserveScroll: false,
-            forceFormData: true, // Required for file uploads
-            only: ['general', 'security', 'payment', 'integrations', 'analytics', 'compliance', 'performance', 'features', 'pusher', 'mail', 'storage', 'branding', 'ai', 'whatsapp', 'support', 'flash'],
-            onError: (errors) => {
-                const errorMessages = Object.values(errors).flat();
-                addToast({
-                    title: 'Error Saving Settings',
-                    description: errorMessages.length > 0 ? errorMessages[0] : 'Failed to save settings. Please try again.',
-                    variant: 'error'});
-            }});
+            forceFormData: true,
+            only: ['general', 'security', 'payment', 'integrations', 'analytics', 'compliance', 'performance', 'features', 'pusher', 'mail', 'storage', 'branding', 'ai', 'whatsapp', 'flash'],
+            onError: (formErrors) => {
+                const errorMessages = Object.values(formErrors).flat();
+                toast.error(
+                    'Error saving settings',
+                    errorMessages.length > 0 ? String(errorMessages[0]) : 'Failed to save settings. Please try again.'
+                );
+            },
+        });
     };
 
     const tabs = [
-        { id: 'general', label: 'General', icon: Globe },
-        { id: 'support', label: 'Support', icon: LifeBuoy },
+        { id: 'general', label: 'General', icon: Building2 },
         { id: 'branding', label: 'Branding', icon: Palette },
         { id: 'security', label: 'Security', icon: Shield },
         { id: 'payment', label: 'Payment', icon: CreditCard },
         { id: 'integrations', label: 'Integrations', icon: Webhook },
-        { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-        { id: 'compliance', label: 'Compliance', icon: Scale },
-        { id: 'performance', label: 'Performance', icon: Zap },
-        { id: 'cron', label: 'Cron', icon: Clock3 },
-        { id: 'delivery', label: 'Delivery', icon: Activity },
         { id: 'features', label: 'Features', icon: ToggleLeft },
-        { id: 'ai', label: 'AI', icon: Bot },
-        { id: 'pusher', label: 'Pusher', icon: Radio },
         { id: 'mail', label: 'Mail', icon: Mail },
+        { id: 'pusher', label: 'Pusher', icon: Radio },
+        { id: 'ai', label: 'AI', icon: Bot },
         { id: 'storage', label: 'Storage', icon: HardDrive },
     ];
 
+    const active = tabs.find((tab) => tab.id === activeTab) || tabs[0];
+
+    const renderActiveTab = () => {
+        switch (active.id) {
+            case 'general':
+                return <GeneralTab data={data} setData={setData} errors={errors} />;
+            case 'branding':
+                return <BrandingTab data={data} setData={setData} errors={errors} />;
+            case 'security':
+                return <SecurityTab data={data} setData={setData} errors={errors} />;
+            case 'payment':
+                return <PaymentTab data={data} setData={setData} errors={errors} />;
+            case 'integrations':
+                return <IntegrationsTab data={data} setData={setData} errors={errors} />;
+            case 'features':
+                return <FeaturesTab data={data} setData={setData} errors={errors} />;
+            case 'pusher':
+                return <PusherTab data={data} setData={setData} errors={errors} />;
+            case 'ai':
+                return <AiTab data={data} setData={setData} errors={errors} />;
+            case 'mail':
+                return <MailTab data={data} setData={setData} errors={errors} />;
+            case 'storage':
+                return <StorageTab data={data} setData={setData} errors={errors} />;
+            default:
+                return null;
+        }
+    };
+
     return (
         <PlatformShell auth={auth}>
-            <div className="space-y-6">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Platform Settings</h1>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                        Configure all platform-wide settings and integrations
-                    </p>
+            <Head title="Platform Settings" />
+
+            <div className="mx-auto w-full max-w-[1400px] space-y-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <h1 className="mt-2 text-2xl font-bold text-waify-text dark:text-waify-dark-text">Platform settings</h1>
+                    </div>
+                    <Badge variant="success">Production</Badge>
                 </div>
 
-                {/* Misconfiguration Alerts */}
                 {misconfigured_settings && misconfigured_settings.length > 0 && (
-                    <MisconfiguredSettingsAlert 
-                        misconfiguredSettings={misconfigured_settings}
-                        variant="settings"
-                    />
+                    <MisconfiguredSettingsAlert misconfiguredSettings={misconfigured_settings} variant="settings" />
                 )}
 
-                {/* Error Messages */}
                 {Object.keys(errors).length > 0 && (
-                    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                    <div className="rounded-card border border-red-200 bg-red-50 p-4 dark:border-red-400/25 dark:bg-red-500/10">
                         <div className="flex items-start gap-3">
-                            <XCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                            <div className="flex-1">
-                                <h3 className="text-sm font-semibold text-red-800 dark:text-red-200 mb-1">
-                                    Validation Errors
-                                </h3>
-                                <ul className="list-disc list-inside text-sm text-red-700 dark:text-red-300 space-y-1">
+                            <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600 dark:text-red-300" />
+                            <div className="min-w-0 flex-1">
+                                <h3 className="text-sm font-semibold text-red-800 dark:text-red-100">Validation errors</h3>
+                                <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-red-700 dark:text-red-200">
                                     {Object.entries(errors).map(([key, messages]) => (
-                                        <li key={key}>
-                                            {Array.isArray(messages) ? messages.join(', ') : messages}
-                                        </li>
+                                        <li key={key}>{Array.isArray(messages) ? messages.join(', ') : String(messages)}</li>
                                     ))}
                                 </ul>
                             </div>
@@ -175,92 +215,65 @@ export default function PlatformSettings({
                     </div>
                 )}
 
-                <Tabs value={activeTab} onValueChange={setActiveTab}>
-                    <TabsList className="w-full justify-start mb-6 overflow-x-auto">
-                        {tabs.map((tab) => {
-                            const Icon = tab.icon;
-                            return (
-                                <TabsTrigger key={tab.id} value={tab.id}>
-                                    <Icon className="h-4 w-4 mr-2" />
-                                    {tab.label}
-                                </TabsTrigger>
-                            );
-                        })}
-                    </TabsList>
+                <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+                    <nav className="min-w-0">
+                        <Card className="p-2 lg:sticky lg:top-6 lg:max-h-[calc(100vh-9rem)] lg:overflow-hidden">
+                            <div className="waify-scrollbar flex gap-1 overflow-x-auto pb-1 lg:max-h-[calc(100vh-10rem)] lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden lg:pb-0">
+                                {tabs.map((tab) => {
+                                    const Icon = tab.icon;
+                                    const isActive = active.id === tab.id;
+                                    return (
+                                        <button
+                                            key={tab.id}
+                                            type="button"
+                                            onClick={() => switchTab(tab.id)}
+                                            className={cn(
+                                                'flex shrink-0 items-center gap-3 rounded-btn px-3 py-2.5 text-left transition lg:w-full',
+                                                isActive
+                                                    ? 'bg-waify-green-soft text-waify-green-dark dark:bg-emerald-950/40 dark:text-emerald-300'
+                                                    : 'text-waify-text-muted hover:bg-gray-50 hover:text-waify-text dark:text-waify-dark-text-muted dark:hover:bg-slate-700/50 dark:hover:text-waify-dark-text'
+                                            )}
+                                        >
+                                            <span
+                                                className={cn(
+                                                    'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                                                    isActive ? 'bg-white/80 dark:bg-waify-dark-surface' : 'bg-gray-100 dark:bg-waify-dark-surface-2'
+                                                )}
+                                            >
+                                                <Icon className="h-4 w-4" />
+                                            </span>
+                                            <span className="hidden min-w-0 sm:block">
+                                                <span className="block truncate text-sm font-medium">{tab.label}</span>
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </Card>
+                    </nav>
 
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                        <TabsContent value="general">
-                            <GeneralTab data={data} setData={setData} errors={errors} />
-                        </TabsContent>
-
-                        <TabsContent value="support">
-                            <SupportTab data={data} setData={setData} errors={errors} />
-                        </TabsContent>
-
-                        <TabsContent value="branding">
-                            <BrandingTab data={data} setData={setData} errors={errors} />
-                        </TabsContent>
-
-                        <TabsContent value="security">
-                            <SecurityTab data={data} setData={setData} errors={errors} />
-                        </TabsContent>
-
-                        <TabsContent value="payment">
-                            <PaymentTab data={data} setData={setData} errors={errors} />
-                        </TabsContent>
-
-                        <TabsContent value="integrations">
-                            <IntegrationsTab data={data} setData={setData} errors={errors} />
-                        </TabsContent>
-
-                        <TabsContent value="analytics">
-                            <AnalyticsTab data={data} setData={setData} errors={errors} />
-                        </TabsContent>
-
-                        <TabsContent value="compliance">
-                            <ComplianceTab data={data} setData={setData} errors={errors} />
-                        </TabsContent>
-
-                        <TabsContent value="performance">
-                            <PerformanceTab data={data} setData={setData} errors={errors} />
-                        </TabsContent>
-
-                        <TabsContent value="features">
-                            <FeaturesTab data={data} setData={setData} errors={errors} />
-                        </TabsContent>
-
-                        <TabsContent value="cron">
-                            <CronTab cron={cron} />
-                        </TabsContent>
-
-                        <TabsContent value="delivery">
-                            <DeliveryTab delivery={delivery} />
-                        </TabsContent>
-
-                        <TabsContent value="pusher">
-                            <PusherTab data={data} setData={setData} errors={errors} />
-                        </TabsContent>
-
-                        <TabsContent value="ai">
-                            <AiTab data={data} setData={setData} errors={errors} />
-                        </TabsContent>
-
-                        <TabsContent value="mail">
-                            <MailTab data={data} setData={setData} errors={errors} />
-                        </TabsContent>
-
-                        <TabsContent value="storage">
-                            <StorageTab data={data} setData={setData} errors={errors} />
-                        </TabsContent>
-
-                        <div className="flex items-center justify-end gap-4 pt-6 border-t border-gray-200 dark:border-gray-800">
-                            <Button type="submit" disabled={processing}>
-                                <Save className="h-4 w-4 mr-2" />
-                                {processing ? 'Saving...' : 'Save All Settings'}
-                            </Button>
-                        </div>
-                    </form>
-                </Tabs>
+                    <div className="min-w-0">
+                        <Card className="overflow-hidden">
+                            <div className="border-b border-gray-100 bg-gray-50/50 px-6 py-4 dark:border-waify-dark-border dark:bg-waify-dark-surface-2/50">
+                                <h2 className="text-lg font-semibold text-waify-text dark:text-waify-dark-text">{active.label}</h2>
+                            </div>
+                            <form onSubmit={handleSubmit}>
+                                <CardContent className="p-6">
+                                    {renderActiveTab()}
+                                </CardContent>
+                                <div className="flex justify-end gap-2 border-t border-gray-100 bg-gray-50/60 px-6 py-4 dark:border-waify-dark-border dark:bg-waify-dark-surface-2/60">
+                                    <Button type="button" variant="ghost" onClick={() => window.location.reload()}>
+                                        Cancel
+                                    </Button>
+                                    <Button type="submit" disabled={processing}>
+                                        <Save className="h-4 w-4" />
+                                        {processing ? 'Saving...' : 'Save changes'}
+                                    </Button>
+                                </div>
+                            </form>
+                        </Card>
+                    </div>
+                </div>
             </div>
         </PlatformShell>
     );

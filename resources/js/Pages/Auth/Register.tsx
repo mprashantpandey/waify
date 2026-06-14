@@ -1,11 +1,9 @@
-import InputError from '@/Components/InputError';
-import InputLabel from '@/Components/InputLabel';
-import Button from '@/Components/UI/Button';
-import TextInput from '@/Components/TextInput';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
-import { User, Mail, Lock, ArrowRight, CheckCircle, Sparkles, Star } from 'lucide-react';
+import { Mail, ArrowRight, Sparkles, Star } from 'lucide-react';
+import Button from '@/Components/UI/Button';
+import { AuthDivider, AuthField, AuthInput, PasswordField, SocialAuthButtons } from '@/Components/Auth/AuthParts';
 
 interface SelectedPlan {
     id: number;
@@ -23,7 +21,15 @@ interface InviteInfo {
     role?: string | null;
 }
 
-export default function Register({ selectedPlan, invite }: { selectedPlan?: SelectedPlan | null; invite?: InviteInfo | null }) {
+export default function Register({
+    selectedPlan,
+    invite,
+    googleOAuthEnabled = false,
+}: {
+    selectedPlan?: SelectedPlan | null;
+    invite?: InviteInfo | null;
+    googleOAuthEnabled?: boolean;
+}) {
     const { data, setData, post, processing, errors, reset } = useForm({
         name: '',
         email: invite?.email || '',
@@ -40,7 +46,7 @@ export default function Register({ selectedPlan, invite }: { selectedPlan?: Sele
     };
 
     const formatPrice = (amount: number) => {
-        if (amount === 0) return 'Free';
+        if (amount === 0) return '₹0';
         const major = amount / 100;
         return new Intl.NumberFormat('en-IN', {
             style: 'currency',
@@ -48,31 +54,39 @@ export default function Register({ selectedPlan, invite }: { selectedPlan?: Sele
             minimumFractionDigits: 0}).format(major);
     };
 
+    const googleSignupHref = googleOAuthEnabled
+        ? route('auth.google.redirect', {
+            intent: 'signup',
+            ...(selectedPlan?.key ? { plan: selectedPlan.key } : {}),
+            ...(invite?.token ? { invite: invite.token } : {}),
+        })
+        : undefined;
+
     return (
-        <GuestLayout>
+        <GuestLayout headerLabel="Already have an account?" headerLinkText="Sign in" headerLinkHref={route('login')}>
             <Head title="Create Your Account" />
 
             <div className="mb-6">
-                <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+                <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-waify-text dark:text-waify-dark-text">
                     {invite?.account_name
                         ? `Join ${invite.account_name}`
                         : selectedPlan
                             ? `Start Your ${selectedPlan.trial_days > 0 ? selectedPlan.trial_days + '-Day ' : ''}Trial`
-                            : 'Create your account'}
-                </h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                            : 'Start your Zyptos trial'}
+                </h1>
+                <p className="mt-2 text-waify-text-muted dark:text-waify-dark-text-muted">
                     {invite?.account_name
                         ? `You've been invited as a ${invite.role || 'member'}. Create your account to join the team.`
                         : selectedPlan 
                             ? `Get started with ${selectedPlan.name} plan. ${selectedPlan.trial_days > 0 ? 'No credit card required!' : ''}`
-                            : 'Get started with your free account today'
+                            : 'Choose a paid plan with a trial window. Cancel anytime.'
                     }
                 </p>
             </div>
 
             {/* Selected Plan Badge */}
             {selectedPlan && (
-                <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
+                <div className="mb-6 rounded-xl border border-waify-green/20 bg-waify-green-soft p-4 dark:bg-waify-dark-green-soft">
                     <div className="flex items-center justify-between">
                         <div>
                             <div className="flex items-center gap-2 mb-1">
@@ -80,27 +94,27 @@ export default function Register({ selectedPlan, invite }: { selectedPlan?: Sele
                                     {selectedPlan.name} Plan
                                 </h3>
                                 {selectedPlan.trial_days > 0 && (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold rounded-full">
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-white text-waify-green-dark text-xs font-bold rounded-full">
                                         <Star className="h-3 w-3" />
                                         {selectedPlan.trial_days}-Day Trial
                                     </span>
                                 )}
                             </div>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                            <p className="text-sm text-waify-text-muted">
                                 {selectedPlan.description}
                             </p>
-                            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mt-1">
+                            <p className="text-sm font-semibold text-waify-text mt-1">
                                 {formatPrice(selectedPlan.price_monthly)}/month
                                 {selectedPlan.trial_days > 0 && (
-                                    <span className="text-green-600 dark:text-green-400 ml-2">
-                                        • Free for {selectedPlan.trial_days} days
+                                    <span className="text-waify-green-dark ml-2">
+                                        - Free for {selectedPlan.trial_days} days
                                     </span>
                                 )}
                             </p>
                         </div>
                         <Link
                             href={route('pricing')}
-                            className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                            className="text-xs text-waify-green-dark hover:underline"
                         >
                             Change Plan
                         </Link>
@@ -108,117 +122,82 @@ export default function Register({ selectedPlan, invite }: { selectedPlan?: Sele
                 </div>
             )}
 
-            <form onSubmit={submit} className="space-y-5">
-                <div>
-                    <InputLabel htmlFor="name" value="Full Name" className="text-sm font-semibold mb-2" />
+            <SocialAuthButtons googleEnabled={googleOAuthEnabled} googleHref={googleSignupHref} />
+            <AuthDivider label="Or sign up with email" />
 
+            <form onSubmit={submit} className="space-y-4">
+                <AuthField label="Full name" error={errors.name}>
+                    <AuthInput
+                        id="name"
+                        name="name"
+                        value={data.name}
+                        autoComplete="name"
+                        autoFocus
+                        onChange={(e) => setData('name', e.target.value)}
+                        placeholder="Rohan Mehta"
+                        required
+                    />
+                </AuthField>
+
+                <AuthField label="Work email" error={errors.email}>
                     <div className="relative">
-                        <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                        <TextInput
-                            id="name"
-                            name="name"
-                            value={data.name}
-                            className="mt-1 block w-full pl-10 rounded-xl"
-                            autoComplete="name"
-                            isFocused={true}
-                            onChange={(e) => setData('name', e.target.value)}
-                            placeholder="John Doe"
-                            required
-                        />
-                    </div>
-
-                    <InputError message={errors.name} className="mt-2" />
-                </div>
-
-                <div>
-                    <InputLabel htmlFor="email" value="Email Address" className="text-sm font-semibold mb-2" />
-
-                    <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                            <TextInput
+                        <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            <AuthInput
                                 id="email"
                                 type="email"
                                 name="email"
                                 value={data.email}
-                                className="mt-1 block w-full pl-10 rounded-xl"
+                                className="pl-10"
                                 autoComplete="username"
                                 onChange={(e) => setData('email', e.target.value)}
-                                placeholder="you@example.com"
+                                placeholder="rohan@company.com"
                                 required
                                 readOnly={Boolean(invite?.email)}
                             />
                     </div>
+                </AuthField>
 
-                    <InputError message={errors.email} className="mt-2" />
-                </div>
+                <PasswordField
+                    id="password"
+                    label="Create password"
+                    value={data.password}
+                    onChange={(e) => setData('password', e.target.value)}
+                    autoComplete="new-password"
+                    placeholder="At least 8 characters"
+                    error={errors.password}
+                />
 
-                <div>
-                    <InputLabel htmlFor="password" value="Password" className="text-sm font-semibold mb-2" />
+                <PasswordField
+                    id="password_confirmation"
+                    label="Confirm password"
+                    value={data.password_confirmation}
+                    onChange={(e) => setData('password_confirmation', e.target.value)}
+                    autoComplete="new-password"
+                    placeholder="Confirm your password"
+                    error={errors.password_confirmation}
+                />
 
-                    <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                        <TextInput
-                            id="password"
-                            type="password"
-                            name="password"
-                            value={data.password}
-                            className="mt-1 block w-full pl-10 rounded-xl"
-                            autoComplete="new-password"
-                            onChange={(e) => setData('password', e.target.value)}
-                            placeholder="Create a strong password"
-                            required
-                        />
-                    </div>
+                <label className="flex items-start gap-2 text-xs text-waify-text-muted dark:text-waify-dark-text-muted">
+                    <input type="checkbox" className="mt-0.5 h-4 w-4 rounded accent-waify-green" required />
+                    I agree to the Terms and Privacy Policy and consent to WhatsApp Business API onboarding.
+                </label>
 
-                    <InputError message={errors.password} className="mt-2" />
-                </div>
-
-                <div>
-                    <InputLabel
-                        htmlFor="password_confirmation"
-                        value="Confirm Password"
-                        className="text-sm font-semibold mb-2"
-                    />
-
-                    <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                        <TextInput
-                            id="password_confirmation"
-                            type="password"
-                            name="password_confirmation"
-                            value={data.password_confirmation}
-                            className="mt-1 block w-full pl-10 rounded-xl"
-                            autoComplete="new-password"
-                            onChange={(e) =>
-                                setData('password_confirmation', e.target.value)
-                            }
-                            placeholder="Confirm your password"
-                            required
-                        />
-                    </div>
-
-                    <InputError
-                        message={errors.password_confirmation}
-                        className="mt-2"
-                    />
-                </div>
-
-                <Button 
+                <Button
                     type="submit" 
                     disabled={processing}
-                    className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/50 rounded-xl"
+                    className="w-full h-11"
                 >
                     {processing ? 'Creating account...' : (
                         <>
                             {(selectedPlan?.trial_days ?? 0) > 0 ? (
                                 <>
                                     Start Free Trial
-                                    <Sparkles className="h-4 w-4 ml-2" />
+                                    <Sparkles className="h-4 w-4" />
                                 </>
                             ) : (
                                 <>
                                     Create Account
-                                    <ArrowRight className="h-4 w-4 ml-2" />
+                                    <ArrowRight className="h-4 w-4" />
                                 </>
                             )}
                         </>
@@ -227,17 +206,17 @@ export default function Register({ selectedPlan, invite }: { selectedPlan?: Sele
             </form>
 
             <div className="mt-6 text-center space-y-2">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-waify-text-muted">
                     Already have an account?{' '}
                     <Link
                         href={route('login')}
-                        className="font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+                        className="font-semibold text-waify-green-dark hover:underline"
                     >
                         Sign in
                     </Link>
                 </p>
                 {selectedPlan && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <p className="text-xs text-waify-text-muted">
                         By signing up, you agree to our{' '}
                         <Link href={route('terms')} className="underline">Terms of Service</Link>
                         {' '}and{' '}

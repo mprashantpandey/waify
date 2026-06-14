@@ -1,191 +1,179 @@
-import PublicLayout from '@/Layouts/PublicLayout';
-import { Link } from '@inertiajs/react';
-import { 
-    BookOpen, 
-    Video, 
-    MessageSquare, 
-    FileText, 
+import { Head, Link } from '@inertiajs/react';
+import { useMemo, useState } from 'react';
+import {
+    BookOpen,
+    ChevronDown,
+    ChevronUp,
+    CreditCard,
+    FileText,
+    LifeBuoy,
+    MessageCircle,
+    PlugZap,
+    Rocket,
     Search,
-    HelpCircle,
-    ArrowRight,
-    ExternalLink,
-    Sparkles
+    Users,
+    Video,
+    Workflow,
 } from 'lucide-react';
-import Button from '@/Components/UI/Button';
-import { useState } from 'react';
+import { Button, Card, MarketingLayout } from '@/Components/Public/Marketing';
+import { cn } from '@/lib/utils';
+
+const categories = [
+    { id: 'all', label: 'All topics', icon: BookOpen },
+    { id: 'getting-started', label: 'Getting started', icon: Rocket },
+    { id: 'campaigns', label: 'Campaigns', icon: MessageCircle },
+    { id: 'templates', label: 'Templates & Meta', icon: FileText },
+    { id: 'automation', label: 'Automation', icon: Workflow },
+    { id: 'billing', label: 'Billing', icon: CreditCard },
+    { id: 'integrations', label: 'Integrations', icon: PlugZap },
+    { id: 'mobile', label: 'Mobile & alerts', icon: LifeBuoy },
+];
+
+const articles = [
+    { id: 'h1', category: 'getting-started', title: 'Connect your WhatsApp Business API', excerpt: 'Link one WABA number to a workspace using embedded signup, coexistence where eligible, or QR unofficial mode.', steps: ['Confirm Meta Business access and WABA permission.', 'Connect one number to the workspace.', 'Sync templates and check webhook diagnostics.', 'Send a test message before campaign traffic.'] },
+    { id: 'h2', category: 'campaigns', title: 'Send your first broadcast campaign', excerpt: 'Choose contacts, segments, templates, schedule time, preview recipients, and retry failed sends.', steps: ['Import or segment opted-in contacts.', 'Select an approved template and media if needed.', 'Preview recipients and excluded contacts.', 'After sending, retry only failed recipients.'] },
+    { id: 'h3', category: 'templates', title: 'Why was my template rejected?', excerpt: 'Review Meta rejection reasons, examples, variable formatting, button rules, and resubmission.', steps: ['Open the rejected template and read Meta feedback.', 'Fix category, language, examples, variables, or buttons.', 'Avoid misleading offers or unsupported claims.', 'Resubmit and wait for Meta review.'] },
+    { id: 'h4', category: 'automation', title: 'Build a lead qualification flow', excerpt: 'Use triggers, wait nodes, quick replies, tags, assignment, AI-agent replies, and human handoff.', steps: ['Start with one trigger and one clean journey.', 'Use deterministic nodes for tags, waits, templates, and assignment.', 'Use AI-agent nodes only where flexible replies are needed.', 'Set pause, timeout, and handoff rules before publishing.'] },
+    { id: 'h5', category: 'billing', title: 'Invoices, discounts, and payments', excerpt: 'Create Zyptos invoices, apply promo codes, use bank/UPI or Razorpay one-time payment, and download GST invoice PDFs.', steps: ['Open billing and choose a plan cycle.', 'Apply a promo code in checkout preview.', 'Pay with Razorpay or create a bank/UPI invoice.', 'Download the GST invoice after payment confirmation.'] },
+    { id: 'h6', category: 'getting-started', title: 'Import contacts from CSV', excerpt: 'Format phone numbers, map fields, apply tags, create segments, and validate before import.', steps: ['Use country-aware phone numbers.', 'Map name, phone, email, tags, and custom fields.', 'Review duplicate and invalid rows.', 'Import in the background and confirm segment counts.'] },
+    { id: 'h7', category: 'integrations', title: 'Use API keys and webhooks', excerpt: 'Create workspace API credentials, inspect logs, and subscribe to delivery and automation events.', steps: ['Create workspace API keys as an owner/admin.', 'Use scoped credentials and rotate when needed.', 'Inspect request logs for failures.', 'Replay eligible webhook events from logs.'] },
+    { id: 'h8', category: 'integrations', title: 'Connect Meta Lead Forms', excerpt: 'Use Facebook login to fetch real lead forms, map fields, auto-create contacts, and trigger follow-up automation.', steps: ['Connect Meta Leads from Integrations.', 'Select the page and lead form.', 'Map form fields to contact fields.', 'Enable alerts and automation trigger for new leads.'] },
+    { id: 'h9', category: 'integrations', title: 'Sync Google Sheets and Calendar', excerpt: 'Use Google OAuth after enabling the required APIs in Google Cloud, then map rows, appointments, and reminders.', steps: ['Enable Sheets and Calendar APIs in Google Cloud.', 'Connect Google from the workspace.', 'Select the sheet or calendar.', 'Review integration logs after every sync.'] },
+    { id: 'h10', category: 'mobile', title: 'Enable browser and mobile notifications', excerpt: 'Turn on in-app, sound, browser push, and mobile push alerts for new messages, assigned leads, failed automation, and calls.', steps: ['Allow browser notification permission.', 'Set user notification preferences.', 'Keep the queue worker and push service healthy.', 'Test with a new inbound WhatsApp message.'] },
+    { id: 'h11', category: 'billing', title: 'Cancel, void, or correct an invoice', excerpt: 'Use platform billing tools to close stale unpaid invoices, approve payment proof, or correct customer billing details before payment.', steps: ['Find the invoice in platform transactions.', 'Void stale unpaid invoices when needed.', 'Update billing profile before creating a new invoice.', 'Keep paid invoices immutable for audit history.'] },
+];
 
 export default function Help() {
-    const [searchQuery, setSearchQuery] = useState('');
+    const [query, setQuery] = useState('');
+    const [category, setCategory] = useState('all');
+    const [expanded, setExpanded] = useState<string | null>(null);
 
-    const helpCategories = [
-        {
-            title: 'Getting Started',
-            icon: BookOpen,
-            description: 'Learn the basics and get up and running quickly',
-            articles: [
-                'Creating your first account',
-                'Connecting WhatsApp Business Account',
-                'Setting up your first template',
-                'Sending your first message',
-            ]},
-        {
-            title: 'Templates & Messages',
-            icon: FileText,
-            description: 'Manage templates and send messages effectively',
-            articles: [
-                'Creating message templates',
-                'Template approval process',
-                'Sending template messages',
-                'Message delivery tracking',
-            ]},
-        {
-            title: 'Chatbots & Automation',
-            icon: MessageSquare,
-            description: 'Build and manage automated conversations',
-            articles: [
-                'Creating your first chatbot',
-                'Setting up flow nodes',
-                'Configuring triggers',
-                'Testing chatbots',
-            ]},
-        {
-            title: 'Billing & Plans',
-            icon: FileText,
-            description: 'Manage your subscription and billing',
-            articles: [
-                'Understanding pricing plans',
-                'Upgrading or downgrading',
-                'Payment methods',
-                'Billing history',
-            ]},
-    ];
-
-    const quickLinks = [
-        { title: 'FAQs', href: route('faqs'), icon: HelpCircle },
-        { title: 'Video Tutorials', href: '#', icon: Video },
-        { title: 'Contact Support', href: route('contact'), icon: MessageSquare },
-    ];
+    const filtered = useMemo(() => {
+        return articles.filter((article) => {
+            if (category !== 'all' && article.category !== category) return false;
+            const haystack = `${article.title} ${article.excerpt}`.toLowerCase();
+            return !query || haystack.includes(query.toLowerCase());
+        });
+    }, [category, query]);
 
     return (
-        <PublicLayout>
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-                {/* Header with attractive design */}
-                <div className="text-center mb-12">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-full mb-6">
-                        <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                        <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-                            Help & Support Center
-                        </span>
-                    </div>
-                    <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-gray-100 mb-4 bg-gradient-to-r from-gray-900 via-blue-600 to-purple-600 dark:from-gray-100 dark:via-blue-400 dark:to-purple-400 bg-clip-text text-transparent">
-                        How can we help you?
-                    </h1>
-                    <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto mb-8">
-                        Find answers, guides, and tutorials to get the most out of our platform.
-                    </p>
+        <MarketingLayout page="help" wide>
+            <Head title="Help Center" />
 
-                    {/* Search Bar */}
-                    <div className="max-w-2xl mx-auto">
-                        <div className="relative">
-                            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                            <input
-                                type="text"
-                                placeholder="Search for help articles..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-12 pr-4 py-4 border-2 border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-lg transition-all"
-                            />
-                        </div>
+            <div className="mx-auto max-w-[1120px] space-y-6">
+                <div className="rounded-[28px] border border-gray-100 bg-waify-green-soft/80 px-5 py-10 text-center shadow-sm dark:border-waify-dark-border dark:bg-waify-dark-green-soft">
+                    <p className="text-sm font-semibold text-waify-green-dark dark:text-emerald-300">Help Center</p>
+                    <h1 className="mt-2 text-3xl font-bold tracking-tight text-waify-text dark:text-waify-dark-text md:text-4xl">How can we help?</h1>
+                    <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-waify-text-muted dark:text-waify-dark-text-muted">
+                        Search guides, tutorials, and answers for WhatsApp setup, campaigns, templates, automation, billing, integrations, alerts, and mobile workflows.
+                    </p>
+                    <div className="relative mx-auto mt-6 max-w-xl">
+                        <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-waify-text-muted dark:text-waify-dark-text-muted" />
+                        <input
+                            type="search"
+                            value={query}
+                            onChange={(event) => setQuery(event.target.value)}
+                            placeholder="Search help articles..."
+                            className="h-12 w-full rounded-xl border border-gray-200 bg-white pl-12 pr-4 text-sm text-waify-text outline-none transition focus:border-waify-green focus:ring-4 focus:ring-waify-green/15 dark:border-waify-dark-border dark:bg-waify-dark-surface dark:text-waify-dark-text"
+                        />
                     </div>
                 </div>
 
-                {/* Quick Links */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-                    {quickLinks.map((link) => (
-                        <Link
-                            key={link.title}
-                            href={link.href}
-                            className="bg-white dark:bg-gray-800 rounded-xl p-6 border-2 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-xl transition-all group"
-                        >
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-4">
-                                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 p-3 rounded-lg group-hover:from-blue-100 group-hover:to-purple-100 dark:group-hover:from-blue-900/30 dark:group-hover:to-purple-900/30 transition-all">
-                                        <link.icon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                <div className="grid gap-5 lg:grid-cols-4">
+                    <Card className="h-fit p-3">
+                        <nav className="space-y-1">
+                            {categories.map((item) => (
+                                <button
+                                    key={item.id}
+                                    type="button"
+                                    onClick={() => setCategory(item.id)}
+                                    className={cn(
+                                        'flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm transition',
+                                        category === item.id
+                                            ? 'bg-waify-green-soft font-semibold text-waify-green-dark dark:bg-waify-dark-green-soft dark:text-emerald-200'
+                                            : 'text-waify-text-muted hover:bg-gray-50 dark:text-waify-dark-text-muted dark:hover:bg-waify-dark-surface-2'
+                                    )}
+                                >
+                                    <item.icon className="h-4 w-4" />
+                                    {item.label}
+                                </button>
+                            ))}
+                        </nav>
+                    </Card>
+
+                    <div className="space-y-3 lg:col-span-3">
+                        {filtered.length === 0 && (
+                            <Card className="p-8 text-center text-sm text-waify-text-muted dark:text-waify-dark-text-muted">
+                                No articles found. Try a different search term or category.
+                            </Card>
+                        )}
+                        {filtered.map((article) => (
+                            <Card key={article.id} className="overflow-hidden p-0">
+                                <button
+                                    type="button"
+                                    onClick={() => setExpanded(expanded === article.id ? null : article.id)}
+                                    className="flex w-full items-start gap-4 px-5 py-4 text-left transition hover:bg-gray-50/70 dark:hover:bg-waify-dark-surface-2/70"
+                                >
+                                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-waify-green-soft text-waify-green-dark dark:bg-waify-dark-green-soft dark:text-emerald-200">
+                                        <FileText className="h-4 w-4" />
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block font-semibold text-waify-text dark:text-waify-dark-text">{article.title}</span>
+                                        <span className="mt-1 line-clamp-1 block text-sm text-waify-text-muted dark:text-waify-dark-text-muted">{article.excerpt}</span>
+                                        <span className="mt-2 inline-flex rounded-full bg-waify-green-soft px-2 py-1 text-[11px] font-medium text-waify-green-dark dark:bg-waify-dark-green-soft dark:text-emerald-200">
+                                            Available in app
+                                        </span>
+                                    </span>
+                                    {expanded === article.id ? <ChevronUp className="mt-1 h-4 w-4 text-waify-text-muted" /> : <ChevronDown className="mt-1 h-4 w-4 text-waify-text-muted" />}
+                                </button>
+                                {expanded === article.id && (
+                                    <div className="border-t border-gray-100 px-5 pb-4 pt-3 dark:border-waify-dark-border">
+                                        <ol className="space-y-2 pl-14 text-sm leading-relaxed text-waify-text-muted dark:text-waify-dark-text-muted">
+                                            {article.steps.map((step, stepIndex) => (
+                                                <li key={step} className="flex gap-2">
+                                                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-waify-green/10 text-[11px] font-semibold text-waify-green-dark">{stepIndex + 1}</span>
+                                                    <span>{step}</span>
+                                                </li>
+                                            ))}
+                                        </ol>
+                                        <div className="mt-3 flex gap-2 pl-14">
+                                            <Button variant="secondary">Helpful</Button>
+                                            <Link href={route('login')}><Button variant="ghost">Open in app</Button></Link>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h3 className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                                            {link.title}
-                                        </h3>
-                                    </div>
-                                </div>
-                                <ArrowRight className="h-5 w-5 text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" />
-                            </div>
-                        </Link>
+                                )}
+                            </Card>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                    {[
+                        { icon: Video, title: 'Video tutorials', desc: 'Short walkthroughs for key workflows.', color: 'bg-purple-50 text-purple-700 dark:bg-purple-500/15 dark:text-purple-100' },
+                        { icon: Users, title: 'Implementation help', desc: 'Get guidance for onboarding and setup.', color: 'bg-sky-50 text-sky-700 dark:bg-sky-500/15 dark:text-sky-100' },
+                        { icon: LifeBuoy, title: 'Support desk', desc: 'Create a ticket from your workspace.', color: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-100' },
+                    ].map((item) => (
+                        <Card key={item.title} className="flex items-start gap-3 p-4">
+                            <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-xl', item.color)}>
+                                <item.icon className="h-5 w-5" />
+                            </span>
+                            <span>
+                                <span className="block text-sm font-semibold text-waify-text dark:text-waify-dark-text">{item.title}</span>
+                                <span className="mt-1 block text-xs text-waify-text-muted dark:text-waify-dark-text-muted">{item.desc}</span>
+                            </span>
+                        </Card>
                     ))}
                 </div>
 
-                {/* Help Categories */}
-                <div className="mb-12">
-                    <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-8">
-                        Browse by Category
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {helpCategories.map((category) => {
-                            const Icon = category.icon;
-                            return (
-                                <div
-                                    key={category.title}
-                                    className="bg-white dark:bg-gray-800 rounded-xl p-6 border-2 border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-xl transition-all"
-                                >
-                                    <div className="flex items-start space-x-4 mb-4">
-                                        <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 p-3 rounded-lg">
-                                            <Icon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                                        </div>
-                                        <div className="flex-1">
-                                            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
-                                                {category.title}
-                                            </h3>
-                                            <p className="text-gray-600 dark:text-gray-400 text-sm">
-                                                {category.description}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <ul className="space-y-2">
-                                        {category.articles.map((article, index) => (
-                                            <li key={index}>
-                                                <a
-                                                    href="#"
-                                                    className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline flex items-center transition-colors"
-                                                >
-                                                    {article}
-                                                    <ExternalLink className="h-3 w-3 ml-1" />
-                                                </a>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                {/* Contact Support CTA */}
-                <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-2xl p-8 text-center text-white shadow-xl relative overflow-hidden">
-                    <div className="absolute inset-0 bg-black/10"></div>
-                    <div className="relative z-10">
-                        <h2 className="text-3xl font-bold mb-4">Still need help?</h2>
-                        <p className="text-blue-100 mb-6 max-w-2xl mx-auto">
-                            Our support team is here to help you. Get in touch and we'll respond as soon as possible.
-                        </p>
-                        <Link href={route('contact')}>
-                            <Button variant="secondary" size="lg" className="bg-white text-blue-600 hover:bg-gray-100 shadow-lg">
-                                Contact Support
-                                <ArrowRight className="h-5 w-5 ml-2" />
-                            </Button>
-                        </Link>
-                    </div>
+                <div className="rounded-[28px] bg-waify-ink p-8 text-center dark:bg-black">
+                    <MessageCircle className="mx-auto mb-4 h-7 w-7 text-waify-green" />
+                    <h2 className="text-2xl font-bold text-white">Still need help?</h2>
+                    <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-slate-300">
+                        Share your workspace, Meta app, WABA, billing, or API issue and we will route it to the right team.
+                    </p>
+                    <Link href={route('contact')}><Button className="mt-6">Contact support</Button></Link>
                 </div>
             </div>
-        </PublicLayout>
+        </MarketingLayout>
     );
 }

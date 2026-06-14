@@ -28,6 +28,7 @@ class ChatbotsDiagnose extends Command
         $bots = $query->orderBy('account_id')->orderBy('id')->get();
         if ($bots->isEmpty()) {
             $this->warn('No bots found for the provided filters.');
+
             return Command::SUCCESS;
         }
 
@@ -61,7 +62,7 @@ class ChatbotsDiagnose extends Command
                     $runnableFlows++;
                 }
 
-                if (!$hasNodes) {
+                if (! $hasNodes) {
                     $issues[] = [
                         'account_id' => (int) $bot->account_id,
                         'bot_id' => (int) $bot->id,
@@ -69,10 +70,11 @@ class ChatbotsDiagnose extends Command
                         'level' => 'ERROR',
                         'issue' => 'Enabled flow has no nodes',
                     ];
+
                     continue;
                 }
 
-                if (!$hasExecutableNode) {
+                if (! $hasExecutableNode) {
                     $issues[] = [
                         'account_id' => (int) $bot->account_id,
                         'bot_id' => (int) $bot->id,
@@ -82,7 +84,7 @@ class ChatbotsDiagnose extends Command
                     ];
                 }
 
-                if ($hasEdges && !$hasStartNode) {
+                if ($hasEdges && ! $hasStartNode) {
                     $issues[] = [
                         'account_id' => (int) $bot->account_id,
                         'bot_id' => (int) $bot->id,
@@ -111,6 +113,7 @@ class ChatbotsDiagnose extends Command
 
         if (empty($issues)) {
             $this->info('No configuration issues detected.');
+
             return Command::SUCCESS;
         }
 
@@ -121,4 +124,3 @@ class ChatbotsDiagnose extends Command
         return Command::FAILURE;
     }
 }
-

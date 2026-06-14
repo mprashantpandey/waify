@@ -143,6 +143,7 @@ class TemplateComposer
     {
         preg_match_all('/\{\{(\d+)\}\}/', $text, $matches);
         $indices = array_map('intval', $matches[1] ?? []);
+
         return array_unique($indices);
     }
 
@@ -199,8 +200,8 @@ class TemplateComposer
     {
         return preg_replace_callback('/\{\{(\d+)\}\}/', function ($matches) use ($variables) {
             $index = (int) $matches[1] - 1;
+
             return $variables[$index] ?? $matches[0];
         }, $text);
     }
 }
-

@@ -16,20 +16,20 @@ return new class extends Migration
             $table->foreignId('campaign_id')->constrained()->onDelete('cascade');
             $table->foreignId('campaign_recipient_id')->constrained('campaign_recipients')->onDelete('cascade');
             $table->foreignId('whatsapp_message_id')->nullable()->constrained('whatsapp_messages')->onDelete('set null');
-            
+
             // Message details
             $table->string('wamid')->nullable(); // WhatsApp message ID from API
             $table->enum('status', ['sent', 'delivered', 'read', 'failed'])->default('sent');
             $table->text('error_message')->nullable();
-            
+
             // Webhook tracking
             $table->timestamp('sent_at')->nullable();
             $table->timestamp('delivered_at')->nullable();
             $table->timestamp('read_at')->nullable();
             $table->timestamp('failed_at')->nullable();
-            
+
             $table->timestamps();
-            
+
             $table->index(['campaign_id', 'status']);
             $table->index('wamid');
             $table->unique('campaign_recipient_id'); // One message per recipient

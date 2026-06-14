@@ -55,4 +55,3 @@ class CampaignMessage extends Model
         return $this->belongsTo(WhatsAppMessage::class, 'whatsapp_message_id');
     }
 }
-

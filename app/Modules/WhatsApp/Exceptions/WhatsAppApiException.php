@@ -19,4 +19,3 @@ class WhatsAppApiException extends Exception
         return $this->responseBody;
     }
 }
-

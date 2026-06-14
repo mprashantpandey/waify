@@ -20,7 +20,7 @@ class EnsurePublicApiEnabled
         $publicApiEnabled = (bool) ($features['public_api'] ?? false);
         $integrationsEnabled = (bool) \App\Models\PlatformSetting::get('integrations.api_enabled', false);
 
-        if (!$publicApiEnabled || !$integrationsEnabled) {
+        if (! $publicApiEnabled || ! $integrationsEnabled) {
             abort(403, 'Public API access is currently disabled.');
         }
 

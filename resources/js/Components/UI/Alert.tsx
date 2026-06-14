@@ -13,16 +13,16 @@ interface AlertProps {
 export function Alert({ variant = 'info', title, children, onClose, className }: AlertProps) {
     const variants = {
         success: {
-            container: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-800 dark:text-green-200',
+            container: 'bg-[#ecfdf5] text-emerald-800 ring-emerald-200 dark:bg-[#052e22] dark:text-emerald-100 dark:ring-emerald-500/30',
             icon: CheckCircle},
         error: {
-            container: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-800 dark:text-red-200',
+            container: 'bg-[#fef2f2] text-red-800 ring-red-200 dark:bg-[#3b0a0a] dark:text-red-100 dark:ring-red-500/30',
             icon: XCircle},
         warning: {
-            container: 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 text-yellow-800 dark:text-yellow-200',
+            container: 'bg-[#fffbeb] text-amber-900 ring-amber-200 dark:bg-[#2a1f0a] dark:text-amber-100 dark:ring-amber-500/35',
             icon: AlertCircle},
         info: {
-            container: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200',
+            container: 'bg-[#eff6ff] text-blue-800 ring-blue-200 dark:bg-[#0b2447] dark:text-blue-100 dark:ring-blue-500/30',
             icon: Info}};
 
     const config = variants[variant];
@@ -31,7 +31,7 @@ export function Alert({ variant = 'info', title, children, onClose, className }:
     return (
         <div
             className={cn(
-                'border rounded-lg p-4 flex items-start gap-3',
+                'flex items-start gap-3 rounded-card p-4 ring-1',
                 config.container,
                 className
             )}
@@ -56,4 +56,3 @@ export function Alert({ variant = 'info', title, children, onClose, className }:
         </div>
     );
 }
-

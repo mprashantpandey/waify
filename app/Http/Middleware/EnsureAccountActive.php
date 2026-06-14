@@ -17,7 +17,7 @@ class EnsureAccountActive
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!$account) {
+        if (! $account) {
             abort(404, 'Account not found.');
         }
 
@@ -30,13 +30,13 @@ class EnsureAccountActive
         // Always allow access to billing routes (needed for payment processing)
         $route = $request->route()?->getName();
         $path = $request->path();
-        if (($route && (str_contains($route, 'billing') || str_contains($route, 'settings'))) 
+        if (($route && (str_contains($route, 'billing') || str_contains($route, 'settings')))
             || str_contains($path, 'billing') || str_contains($path, 'settings')) {
             return $next($request);
         }
 
         // Check if account is active
-        if (!$account->isActive()) {
+        if (! $account->isActive()) {
             return inertia('AccountSuspended', [
                 'account' => [
                     'name' => $account->name,

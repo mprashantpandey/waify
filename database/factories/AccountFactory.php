@@ -24,6 +24,9 @@ class AccountFactory extends Factory
         return [
             'name' => $name,
             'slug' => Account::generateSlug($name),
+            'workspace_type' => 'business',
+            'industry' => $this->faker->randomElement(['Retail', 'Services', 'Healthcare', 'Education', null]),
+            'timezone' => 'UTC',
             'owner_id' => \App\Models\User::factory(),
         ];
     }

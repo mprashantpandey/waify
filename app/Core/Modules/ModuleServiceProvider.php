@@ -12,7 +12,7 @@ class ModuleServiceProvider extends ServiceProvider
     public function __construct($app)
     {
         parent::__construct($app);
-        $this->registry = new ModuleRegistry();
+        $this->registry = new ModuleRegistry;
     }
 
     /**
@@ -42,14 +42,14 @@ class ModuleServiceProvider extends ServiceProvider
     {
         $modulesPath = app_path('Modules');
 
-        if (!File::exists($modulesPath)) {
+        if (! File::exists($modulesPath)) {
             return;
         }
 
         $moduleDirs = File::directories($modulesPath);
 
         foreach ($moduleDirs as $moduleDir) {
-            $moduleFile = $moduleDir . '/module.php';
+            $moduleFile = $moduleDir.'/module.php';
 
             if (File::exists($moduleFile)) {
                 $definition = require $moduleFile;
@@ -72,4 +72,3 @@ class ModuleServiceProvider extends ServiceProvider
         // This method can be used for global module routes if needed in the future
     }
 }
-

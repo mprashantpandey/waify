@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\WhatsApp;
 
-use App\Models\User;
 use App\Models\Account;
 use App\Models\Plan;
+use App\Models\User;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -16,7 +16,9 @@ class TemplateTest extends TestCase
     use RefreshDatabase;
 
     protected User $user;
+
     protected Account $account;
+
     protected WhatsAppConnection $connection;
 
     protected function setUp(): void

@@ -7,7 +7,8 @@ import { createRoot, hydrateRoot } from 'react-dom/client';
 import { RealtimeProvider } from './Providers/RealtimeProvider';
 import { BrandingProvider } from './Components/Branding/BrandingProvider';
 import { ConfirmProvider } from './Components/Notifications/ConfirmProvider';
-import { GlobalFlashHandler } from './Components/Notifications/GlobalFlashHandler';
+import { Toaster } from './Components/UI/Toaster';
+import { ThemeProvider } from './Providers/ThemeProvider';
 
 createInertiaApp({
     title: (title) => {
@@ -32,9 +33,12 @@ createInertiaApp({
         
         const WrappedApp = (
             <RealtimeProvider pusherConfig={pusherConfig}>
-                <ConfirmProvider>
-                    <App {...props} />
-                </ConfirmProvider>
+                <ThemeProvider>
+                    <ConfirmProvider>
+                        <App {...props} />
+                        <Toaster />
+                    </ConfirmProvider>
+                </ThemeProvider>
             </RealtimeProvider>
         );
 

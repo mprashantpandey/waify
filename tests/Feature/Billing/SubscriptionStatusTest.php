@@ -2,8 +2,6 @@
 
 namespace Tests\Feature\Billing;
 
-use App\Models\Plan;
-use App\Models\Subscription;
 use App\Models\Account;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -19,11 +17,11 @@ class SubscriptionStatusTest extends TestCase
         $this->artisan('db:seed', ['--class' => 'PlanSeeder']);
     }
 
-    public function test_past_due_subscription_blocks_app_routes(): void
+    public function test_past_due_subscription_allows_app_pages(): void
     {
-        
-        $account = $this->createAccountWithPlan('free');
-        $user = $this->actingAsAccountOwner($account);
+
+        $account = $this->createAccountWithPlan('starter');
+        $this->actingAsAccountOwner($account);
 
         // Mark subscription as past_due
         $account->subscription->update([
@@ -35,14 +33,36 @@ class SubscriptionStatusTest extends TestCase
         // Try to access dashboard
         $response = $this->get(route('app.dashboard', ['account' => $account->slug]));
 
-        $response->assertStatus(402);
+        $response->assertStatus(200);
+    }
+
+    public function test_past_due_subscription_blocks_actions(): void
+    {
+        $account = $this->createAccountWithPlan('starter');
+        $this->actingAsAccountOwner($account);
+
+        $account->subscription->update([
+            'status' => 'past_due',
+            'last_payment_failed_at' => now(),
+            'last_error' => 'Subscription period ended. Renew to continue.',
+        ]);
+
+        $response = $this->from(route('app.modules', ['account' => $account->slug]))
+            ->post(route('app.modules.toggle', [
+                'account' => $account->slug,
+                'moduleKey' => 'whatsapp.cloud',
+            ]));
+
+        $response->assertRedirect(route('app.billing.index', ['tab' => 'plans']));
+        $response->assertSessionHasErrors('billing');
+        $response->assertSessionHas('error', 'Subscription period ended. Renew to continue.');
     }
 
     public function test_billing_pages_remain_accessible_when_past_due(): void
     {
-        
-        $account = $this->createAccountWithPlan('free');
-        $user = $this->actingAsAccountOwner($account);
+
+        $account = $this->createAccountWithPlan('starter');
+        $this->actingAsAccountOwner($account);
 
         // Mark subscription as past_due
         $account->subscription->update([
@@ -53,15 +73,15 @@ class SubscriptionStatusTest extends TestCase
         $response = $this->get(route('app.billing.index', ['account' => $account->slug]));
         $response->assertStatus(200);
 
-        $response = $this->get(route('app.billing.plans', ['account' => $account->slug]));
+        $response = $this->get(route('app.billing.index', ['account' => $account->slug, 'tab' => 'plans']));
         $response->assertStatus(200);
     }
 
-    public function test_canceled_subscription_blocks_app_routes(): void
+    public function test_canceled_subscription_allows_app_pages(): void
     {
-        
-        $account = $this->createAccountWithPlan('free');
-        $user = $this->actingAsAccountOwner($account);
+
+        $account = $this->createAccountWithPlan('starter');
+        $this->actingAsAccountOwner($account);
 
         // Mark subscription as canceled
         $account->subscription->update([
@@ -72,6 +92,25 @@ class SubscriptionStatusTest extends TestCase
         // Try to access dashboard
         $response = $this->get(route('app.dashboard', ['account' => $account->slug]));
 
-        $response->assertStatus(402);
+        $response->assertStatus(200);
+    }
+
+    public function test_missing_subscription_blocks_actions_but_allows_pages(): void
+    {
+        $account = Account::factory()->create();
+        $this->actingAsAccountOwner($account);
+
+        $this->get(route('app.dashboard', ['account' => $account->slug]))
+            ->assertStatus(200);
+
+        $response = $this->from(route('app.modules', ['account' => $account->slug]))
+            ->post(route('app.modules.toggle', [
+                'account' => $account->slug,
+                'moduleKey' => 'whatsapp.cloud',
+            ]));
+
+        $response->assertRedirect(route('app.billing.index', ['tab' => 'plans']));
+        $response->assertSessionHasErrors('billing');
+        $response->assertSessionHas('error', 'Please select a plan before using this action.');
     }
 }

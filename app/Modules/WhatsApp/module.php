@@ -19,13 +19,17 @@ return [
             'icon' => 'FileText',
             'group' => 'messaging'],
         [
-            'label' => 'Lists',
+            'label' => 'Interactive Lists',
             'href' => 'app.whatsapp.lists.index',
             'icon' => 'List',
             'group' => 'messaging'],
         [
-            'label' => 'Connections',
+            'label' => 'Quick Replies',
+            'href' => 'app.quick-replies.index',
+            'icon' => 'Zap',
+            'group' => 'messaging'],
+        [
+            'label' => 'WABA Account',
             'href' => 'app.whatsapp.connections.index',
             'icon' => 'Settings',
             'group' => 'messaging']]];
-

@@ -3,10 +3,9 @@
 namespace App\Http\Controllers\Platform;
 
 use App\Http\Controllers\Controller;
-use App\Modules\WhatsApp\Models\WhatsAppMessage;
-use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use App\Models\Account;
 use App\Models\Subscription;
+use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -48,7 +47,7 @@ class AnalyticsController extends Controller
                 'whatsapp_templates.name',
                 'whatsapp_templates.status',
                 DB::raw('COUNT(whatsapp_template_sends.id) as send_count'),
-                DB::raw('SUM(CASE WHEN whatsapp_messages.status = "delivered" OR whatsapp_messages.delivered_at IS NOT NULL THEN 1 ELSE 0 END) as delivered'),
+                DB::raw('SUM(CASE WHEN whatsapp_messages.status IN ("delivered", "read") OR whatsapp_messages.delivered_at IS NOT NULL OR whatsapp_messages.read_at IS NOT NULL THEN 1 ELSE 0 END) as delivered'),
                 DB::raw('SUM(CASE WHEN whatsapp_messages.status = "read" OR whatsapp_messages.read_at IS NOT NULL THEN 1 ELSE 0 END) as read_count')
             )
             ->join('whatsapp_templates', 'whatsapp_template_sends.whatsapp_template_id', '=', 'whatsapp_templates.id')
@@ -90,7 +89,7 @@ class AnalyticsController extends Controller
             : 'HOUR(created_at)';
 
         $peakHours = WhatsAppMessage::select(
-            DB::raw($hourExpression . ' as hour'),
+            DB::raw($hourExpression.' as hour'),
             DB::raw('COUNT(*) as count')
         )
             ->whereBetween('created_at', [$startDate, $endDate])
@@ -120,7 +119,7 @@ class AnalyticsController extends Controller
                     'slug' => $account->slug,
                     'message_count' => (int) $account->message_count];
             })
-            ->filter(fn($w) => $w['message_count'] > 0)
+            ->filter(fn ($w) => $w['message_count'] > 0)
             ->values();
 
         return Inertia::render('Platform/Analytics', [

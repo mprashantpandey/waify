@@ -4,7 +4,6 @@ namespace App\Core\Billing;
 
 use App\Models\Account;
 use App\Models\BillingEvent;
-use Symfony\Component\HttpFoundation\Response;
 
 class EntitlementService
 {
@@ -15,28 +14,28 @@ class EntitlementService
 
     /**
      * Assert that a module is enabled for the account.
-     * 
+     *
      * @throws \Symfony\Component\HttpKernel\Exception\HttpException
      */
     public function assertModuleEnabled(Account $account, string $moduleKey): void
     {
         // First check: module must be enabled at platform level
         $module = \App\Models\Module::where('key', $moduleKey)->first();
-        if (!$module || !$module->is_enabled) {
+        if (! $module || ! $module->is_enabled) {
             abort(404, "Module '{$moduleKey}' is currently disabled at the platform level. Please contact support.");
         }
-        
+
         // Second check: module must be available on plan and enabled in account
         $effectiveModules = $this->planResolver->getEffectiveModules($account);
 
-        if (!in_array($moduleKey, $effectiveModules)) {
+        if (! in_array($moduleKey, $effectiveModules)) {
             abort(403, "Module '{$moduleKey}' is not available on your current plan. Please upgrade to access this feature.");
         }
     }
 
     /**
      * Assert that account is within a limit.
-     * 
+     *
      * @throws \Symfony\Component\HttpKernel\Exception\HttpException
      */
     public function assertWithinLimit(Account $account, string $limitKey, int $intendedIncrement = 1): void
@@ -51,7 +50,7 @@ class EntitlementService
 
         // Get current usage
         $usage = $this->usageService->getCurrentUsage($account);
-        
+
         $currentUsage = match ($limitKey) {
             'messages_monthly' => $usage->messages_sent,
             'template_sends_monthly' => $usage->template_sends,
@@ -88,6 +87,7 @@ class EntitlementService
 
         // Count current agents (exclude owner)
         $currentAgents = \App\Models\AccountUser::where('account_id', $account->id)
+            ->whereHas('user', fn ($query) => $query->where('is_platform_admin', false))
             ->whereIn('role', ['admin', 'member'])
             ->count();
 
@@ -106,12 +106,13 @@ class EntitlementService
             return true; // Unlimited
         }
 
-        // Count current connections
+        // Count active connections only. Historical/disconnected rows must not
+        // block a workspace from reconnecting within its plan limit.
         if (class_exists(\App\Modules\WhatsApp\Models\WhatsAppConnection::class)) {
             $currentConnections = \App\Modules\WhatsApp\Models\WhatsAppConnection::where('account_id', $account->id)
                 ->where('is_active', true)
                 ->count();
-            
+
             return $currentConnections < $connectionLimit;
         }
 
@@ -131,6 +132,7 @@ class EntitlementService
         }
 
         $usage = $this->usageService->getCurrentUsage($account);
+
         return $usage->messages_sent < $messageLimit;
     }
 
@@ -147,6 +149,7 @@ class EntitlementService
         }
 
         $usage = $this->usageService->getCurrentUsage($account);
+
         return $usage->template_sends < $templateLimit;
     }
 }

@@ -10,4 +10,3 @@ return [
     // No nav: WhatsApp module already shows "Templates" (app.whatsapp.templates.index). Avoid duplicate sidebar entry.
     'nav' => [],
 ];
-

@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\Platform;
 
-use App\Models\User;
 use App\Models\Account;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -12,7 +12,9 @@ class PlatformAccessTest extends TestCase
     use RefreshDatabase;
 
     protected User $superAdmin;
+
     protected User $regularUser;
+
     protected Account $account;
 
     protected function setUp(): void

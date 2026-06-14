@@ -2,8 +2,8 @@
 
 namespace App\Modules\Chatbots\Policies;
 
-use App\Models\User;
 use App\Models\Account;
+use App\Models\User;
 use App\Modules\Chatbots\Models\Bot;
 
 class ChatbotPolicy
@@ -18,6 +18,7 @@ class ChatbotPolicy
                 return $arg;
             }
         }
+
         return null;
     }
 
@@ -27,9 +28,10 @@ class ChatbotPolicy
     public function viewAny(User $user, mixed ...$args): bool
     {
         $account = $this->account($user, ...$args);
-        if (!$account) {
+        if (! $account) {
             return false;
         }
+
         return (int) $account->owner_id === (int) $user->id ||
                $account->users()->where('user_id', $user->id)->where('role', 'admin')->exists();
     }
@@ -40,9 +42,10 @@ class ChatbotPolicy
     public function manage(User $user, mixed ...$args): bool
     {
         $account = $this->account($user, ...$args);
-        if (!$account) {
+        if (! $account) {
             return false;
         }
+
         return (int) $account->owner_id === (int) $user->id ||
                $account->users()->where('user_id', $user->id)->where('role', 'admin')->exists();
     }

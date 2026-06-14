@@ -1,8 +1,38 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { Moon, Sun, User, LogOut, Shield, Menu, LifeBuoy } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import Button from '@/Components/UI/Button';
+import axios from 'axios';
+import {
+    Bot,
+    Building2,
+    Bell,
+    Check,
+    ChevronDown,
+    ChevronsUpDown,
+    CreditCard,
+    HelpCircle,
+    Keyboard,
+    LifeBuoy,
+    Loader2,
+    LogOut,
+    Megaphone,
+    Menu,
+    MessageCircle,
+    MessageSquareText,
+    Plus,
+    Reply,
+    Search,
+    Settings,
+    Shield,
+    Tags,
+    User,
+    Users,
+    Wand2,
+    X,
+} from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Badge } from '@/Components/UI/Badge';
+import { Avatar } from '@/Components/UI/Elements';
+import { ThemeToggle } from '@/Components/UI/ThemeToggle';
+import { cn } from '@/lib/utils';
 
 interface TopbarProps {
     user: {
@@ -14,102 +44,312 @@ interface TopbarProps {
 }
 
 export function Topbar({ user, onMenuClick }: TopbarProps) {
-    const { impersonation, accounts, account } = usePage().props as any;
-    const [darkMode, setDarkMode] = useState(false);
+    const { flash, impersonation, workspaces, accounts, workspace, account, notification_summary } = usePage().props as any;
+    const workspaceList = Array.isArray(workspaces) ? workspaces : accounts;
+    const currentWorkspace = workspace || account;
+    const showWorkspaceSwitcher = Boolean(currentWorkspace && !user?.is_super_admin);
+    const currentRoute = typeof window !== 'undefined' ? window.location.pathname : '';
+    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost';
     const [showUserMenu, setShowUserMenu] = useState(false);
-    const [showAccountMenu, setShowAccountMenu] = useState(false);
+    const [showNotifications, setShowNotifications] = useState(false);
+    const [showHelpMenu, setShowHelpMenu] = useState(false);
+    const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
-    useEffect(() => {
-        const isDark = localStorage.getItem('darkMode') === 'true' || 
-                      (!localStorage.getItem('darkMode') && window.matchMedia('(prefers-color-scheme: dark)').matches);
-        setDarkMode(isDark);
-        if (isDark) {
-            document.documentElement.classList.add('dark');
-        }
-    }, []);
-
-    const toggleDarkMode = () => {
-        const newDarkMode = !darkMode;
-        setDarkMode(newDarkMode);
-        localStorage.setItem('darkMode', String(newDarkMode));
-        if (newDarkMode) {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
+    const tryRoute = (routeName: string, params: Record<string, unknown> = {}) => {
+        try {
+            return route(routeName, params);
+        } catch (error) {
+            return null;
         }
     };
 
+    const routeTitles = [
+        { route: 'app.dashboard', title: 'Dashboard', subtitle: 'Workspace performance and next actions' },
+        { route: 'app.whatsapp.conversations.index', title: 'Inbox', subtitle: 'Manage customer conversations' },
+        { route: 'app.whatsapp.templates.index', title: 'Templates', subtitle: 'Create and sync Meta message templates' },
+        { route: 'app.whatsapp.templates.library', title: 'Template library', subtitle: 'Start from Meta-ready template structures' },
+        { route: 'app.broadcasts.index', title: 'Campaigns', subtitle: 'Broadcasts, scheduling, and delivery health' },
+        { route: 'app.contacts.index', title: 'Contacts', subtitle: 'Audience records, tags, and segments' },
+        { route: 'app.contacts.segments.index', title: 'Segments', subtitle: 'Dynamic audience groups' },
+        { route: 'app.whatsapp.connections.index', title: 'WABA Account', subtitle: 'Meta WABA, phone numbers, and webhook status' },
+        { route: 'app.billing.index', title: 'Billing', subtitle: 'Plan, usage, wallet, and invoices' },
+        { route: 'app.workspaces.index', title: 'Workspaces', subtitle: 'Switch brands, clients, and teams' },
+        { route: 'app.settings', title: 'Settings', subtitle: 'Workspace preferences and security' },
+        { route: 'app.activity-logs', title: 'Activity', subtitle: 'Recent workspace events' },
+        { route: 'app.notifications.index', title: 'Notifications', subtitle: 'Workspace alerts and operational follow-ups' },
+        { route: 'app.team.index', title: 'Team', subtitle: 'Members, roles, and invitations' },
+        { route: 'app.modules', title: 'Tools', subtitle: 'QR codes, links, validators, and utilities' },
+        { route: 'app.floaters', title: 'Widgets', subtitle: 'WhatsApp floaters and website embeds' },
+        { route: 'app.developer.index', title: 'Developer', subtitle: 'API reference, webhooks, and usage ledger' },
+        { route: 'app.whatsapp-calls.index', title: 'WhatsApp Calls', subtitle: 'Enable, diagnose, and route WABA calls' },
+        { route: 'app.quick-replies.index', title: 'Quick Replies', subtitle: 'Reusable replies for inbox agents' },
+        { route: 'app.whatsapp.flows.index', title: 'WhatsApp Flows', subtitle: 'Create, sync, validate, and publish Meta Flows' },
+        { route: 'app.support.index', title: 'Support', subtitle: 'Tickets and customer support' },
+        { route: 'platform.dashboard', title: 'Platform admin', subtitle: 'System-wide operations and health' },
+        { route: 'platform.accounts.index', title: 'Tenants', subtitle: 'Workspace and tenant management' },
+        { route: 'platform.users.index', title: 'Users', subtitle: 'Platform users and permissions' },
+        { route: 'platform.plans.index', title: 'Plans', subtitle: 'Plan catalog, pricing, and limits' },
+        { route: 'platform.modules.index', title: 'Modules', subtitle: 'Feature modules and availability' },
+        { route: 'platform.subscriptions.index', title: 'Subscriptions', subtitle: 'Customer subscriptions and status' },
+        { route: 'platform.discounts.index', title: 'Discounts', subtitle: 'Promo and billing discount rules' },
+        { route: 'platform.transactions.index', title: 'Transactions', subtitle: 'Wallet, invoices, and payment records' },
+        { route: 'platform.analytics', title: 'Platform analytics', subtitle: 'System usage and growth metrics' },
+        { route: 'platform.templates.index', title: 'Template library', subtitle: 'Platform message template oversight' },
+        { route: 'platform.support.index', title: 'Support inbox', subtitle: 'Customer tickets and assistance' },
+        { route: 'platform.activity-logs', title: 'Audit logs', subtitle: 'System events and admin activity' },
+        { route: 'platform.notifications.index', title: 'Notifications', subtitle: 'Platform alerts and incident signals' },
+        { route: 'platform.system-health', title: 'System health', subtitle: 'Infrastructure and integration status' },
+        { route: 'platform.settings', title: 'Platform settings', subtitle: 'Branding, payments, support, and compliance' },
+    ].map((item) => ({ ...item, href: tryRoute(item.route) })).filter((item) => item.href);
+
+    const activeMeta = routeTitles
+        .sort((a, b) => String(b.href).length - String(a.href).length)
+        .find((item) => {
+            const pathname = new URL(String(item.href), currentOrigin).pathname;
+            return currentRoute === pathname || currentRoute.startsWith(`${pathname}/`);
+        });
+
+    const title = activeMeta?.title || (user?.is_super_admin ? 'Platform admin' : 'Workspace');
+    const subtitle = activeMeta?.subtitle;
+    const hideRouteTitle = activeMeta?.route === 'app.settings' || activeMeta?.route === 'app.whatsapp.connections.index';
+    const notificationHref = user?.is_super_admin ? tryRoute('platform.notifications.index') : tryRoute('app.notifications.index');
+    const notificationItems = [
+        flash?.success ? { tone: 'success', title: flash.success, time: 'Now' } : null,
+        flash?.warning ? { tone: 'warning', title: flash.warning, time: 'Now' } : null,
+        flash?.error ? { tone: 'danger', title: flash.error, time: 'Now' } : null,
+        flash?.info ? { tone: 'info', title: flash.info, time: 'Now' } : null,
+        ...(notification_summary?.latest || []).map((item: any) => ({
+            tone: item.severity === 'critical' ? 'danger' : item.severity === 'warning' ? 'warning' : item.severity === 'success' ? 'success' : 'info',
+            title: item.title,
+            body: item.body,
+            time: item.created_at ? new Date(item.created_at).toLocaleString() : '',
+            href: item.action_url || notificationHref,
+        })),
+    ].filter(Boolean) as Array<{ tone: 'success' | 'warning' | 'danger' | 'info'; title: string; body?: string; time: string; href?: string }>;
+    const unreadNotifications = Number(notification_summary?.unread || 0);
+
+    const campaignIndexHref = tryRoute('app.broadcasts.index');
+    const campaignCreateHref = campaignIndexHref ? `${campaignIndexHref}?panel=create` : null;
+    const helpHref = user?.is_super_admin ? tryRoute('platform.support.index') : tryRoute('app.support.index');
+    const knowledgeBaseHref = tryRoute('knowledgebase') || tryRoute('marketing.knowledge-base') || '/knowledge-base';
+    const contactHref = tryRoute('contact') || tryRoute('marketing.contact') || '/contact';
+    const publicHelpHref = tryRoute('help') || tryRoute('marketing.help') || '/help';
+    const effectiveHelpHref = helpHref || publicHelpHref;
+
     return (
-        <header className="sticky top-0 z-20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-gray-200/50 dark:border-gray-800/50 shadow-sm">
-            <div className="flex items-center justify-between h-16 px-4 lg:pl-80">
-                <div className="flex items-center gap-4 flex-1">
-                    {/* Mobile menu button */}
+        <header className="app-header relative z-[120] h-16 flex-shrink-0 border-b border-waify-border bg-white/95 px-4 backdrop-blur dark:border-waify-dark-border dark:bg-waify-dark-surface/95 sm:px-6">
+            <div className="flex h-full items-center gap-2 sm:gap-4">
+                {mobileSearchOpen && (
+                    <div className="fixed inset-x-0 top-0 z-50 flex h-16 items-center gap-2 border-b border-waify-border bg-white px-4 dark:border-waify-dark-border dark:bg-waify-dark-surface md:hidden">
+                        <Search className="h-4 w-4 shrink-0 text-gray-400" />
+                        <GlobalSearchInput mobile autoFocus onClose={() => setMobileSearchOpen(false)} />
+                        <button
+                            type="button"
+                            onClick={() => setMobileSearchOpen(false)}
+                            className="flex h-9 w-9 items-center justify-center rounded-btn text-waify-text-muted hover:bg-gray-100 dark:hover:bg-waify-dark-surface-2"
+                            aria-label="Close search"
+                        >
+                            <X className="h-4 w-4" />
+                        </button>
+                    </div>
+                )}
+
+                <div className="flex min-w-0 flex-1 items-center gap-3 lg:flex-none">
                     {onMenuClick && (
                         <button
                             onClick={onMenuClick}
-                            className="lg:hidden p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-colors"
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-btn text-waify-text transition-colors hover:bg-gray-100 dark:text-waify-dark-text dark:hover:bg-waify-dark-surface-2 lg:hidden"
                             aria-label="Open menu"
                         >
                             <Menu className="h-5 w-5" aria-hidden />
                         </button>
                     )}
-                    {account && accounts?.length > 1 && (
-                        <div className="relative hidden sm:block">
-                            <button
-                                onClick={() => setShowAccountMenu(!showAccountMenu)}
-                                className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                            >
-                                <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                                <span className="max-w-[160px] truncate">Switch Account</span>
-                            </button>
-                            {showAccountMenu && (
-                                <>
-                                    <div
-                                        className="fixed inset-0 z-10"
-                                        onClick={() => setShowAccountMenu(false)}
+
+                    {!hideRouteTitle && (
+                        <div className="min-w-0">
+                            <div className="flex min-w-0 items-center gap-2">
+                                <h1 className="truncate text-base font-semibold leading-tight text-waify-text dark:text-waify-dark-text sm:text-lg">
+                                    {title}
+                                </h1>
+                                {showWorkspaceSwitcher && (
+                                    <WorkspaceSwitcher
+                                        currentWorkspace={currentWorkspace}
+                                        workspaceList={workspaceList || []}
+                                        compact
+                                        onSwitch={(id) => router.post(route('app.accounts.switch', { account: id }))}
                                     />
-                                    <div className="absolute left-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-2 z-20">
-                                        <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                            Switch Account
-                                        </div>
-                                        {accounts.map((acct: any) => (
-                                            <button
-                                                key={acct.id}
-                                                onClick={() => {
-                                                    setShowAccountMenu(false);
-                                                    router.post(route('app.accounts.switch', { account: acct.id }));
-                                                }}
-                                                className="w-full text-left flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                                            >
-                                                <div className="h-2 w-2 rounded-full bg-emerald-500"></div>
-                                                <span className="flex-1 truncate">{acct.name}</span>
-                                                {account?.id === acct.id && (
-                                                    <Badge variant="success" className="text-xs px-2 py-0.5">Current</Badge>
-                                                )}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </>
+                                )}
+                            </div>
+                            {subtitle && (
+                                <p className="mt-0.5 hidden truncate text-xs text-waify-text-muted dark:text-waify-dark-text-muted sm:block">
+                                    {subtitle}
+                                </p>
                             )}
                         </div>
                     )}
                 </div>
-                <div className="flex items-center gap-2">
+
+                {showWorkspaceSwitcher && (
+                    <WorkspaceSwitcher
+                        currentWorkspace={currentWorkspace}
+                        workspaceList={workspaceList || []}
+                        onSwitch={(id) => router.post(route('app.accounts.switch', { account: id }))}
+                    />
+                )}
+
+                <div className="mx-auto hidden max-w-xl flex-1 md:block">
+                    <GlobalSearchInput />
+                </div>
+
+                <div className="flex-1 md:hidden" />
+
+                <div className="flex shrink-0 items-center gap-1 sm:gap-2">
                     <button
-                        onClick={toggleDarkMode}
-                        className="p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 transition-all duration-200 hover:scale-110"
+                        type="button"
+                        onClick={() => setMobileSearchOpen(true)}
+                        className="flex h-9 w-9 items-center justify-center rounded-btn text-gray-600 transition hover:bg-gray-100 dark:text-waify-dark-text-muted dark:hover:bg-waify-dark-surface-2 md:hidden"
+                        aria-label="Search"
                     >
-                        {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                        <Search className="h-4 w-4" />
                     </button>
-                    {user && (
-                        <div className="relative">
-                            <button
-                                onClick={() => setShowUserMenu(!showUserMenu)}
-                                className="flex items-center gap-2 px-2 py-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200"
-                            >
-                                <div className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold shadow-lg">
-                                    {user.name.charAt(0).toUpperCase()}
+
+                    <div className="relative">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setShowNotifications((value) => !value);
+                                setShowUserMenu(false);
+                                setShowHelpMenu(false);
+                            }}
+                            className="relative flex h-10 w-10 items-center justify-center rounded-btn text-gray-600 transition hover:bg-gray-100 dark:text-waify-dark-text-muted dark:hover:bg-waify-dark-surface-2"
+                            aria-label="Notifications"
+                        >
+                            <Bell className="h-[18px] w-[18px]" />
+                            {unreadNotifications > 0 && (
+                                <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold leading-none text-white ring-2 ring-white dark:ring-waify-dark-surface">
+                                    {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                                </span>
+                            )}
+                        </button>
+                        {showNotifications && (
+                            <>
+                                <div className="fixed inset-0 z-10" onClick={() => setShowNotifications(false)} />
+                                <div className="absolute right-0 top-12 z-20 w-80 overflow-hidden rounded-card border border-gray-100 bg-white shadow-pop dark:border-waify-dark-border dark:bg-waify-dark-surface">
+                                    <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-waify-dark-border">
+                                        <div className="text-sm font-semibold text-waify-text dark:text-waify-dark-text">Notifications</div>
+                                        {notificationHref && (
+                                            <Link
+                                                href={notificationHref}
+                                                className="text-xs font-medium text-waify-green-dark hover:underline dark:text-emerald-200"
+                                            >
+                                                View all
+                                            </Link>
+                                        )}
+                                    </div>
+                                    <div className="max-h-96 overflow-y-auto py-1">
+                                        {notificationItems.length > 0 ? notificationItems.map((notification, index) => (
+                                            <Link href={notification.href || notificationHref || '#'} key={`${notification.tone}-${index}`} className="flex gap-3 px-4 py-3 text-sm hover:bg-gray-50 dark:hover:bg-waify-dark-surface-2">
+                                                <span className={cn(
+                                                    'mt-1 h-2 w-2 shrink-0 rounded-full',
+                                                    notification.tone === 'success' && 'bg-emerald-500',
+                                                    notification.tone === 'warning' && 'bg-amber-500',
+                                                    notification.tone === 'danger' && 'bg-red-500',
+                                                    notification.tone === 'info' && 'bg-waify-green',
+                                                )} />
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="leading-snug text-waify-text dark:text-waify-dark-text">{notification.title}</p>
+                                                    {notification.body && <p className="mt-0.5 line-clamp-2 text-xs text-waify-text-muted dark:text-waify-dark-text-muted">{notification.body}</p>}
+                                                    <p className="mt-0.5 text-[11px] text-waify-text-muted dark:text-waify-dark-text-muted">{notification.time}</p>
+                                                </div>
+                                            </Link>
+                                        )) : (
+                                            <div className="px-4 py-8 text-center">
+                                                <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-waify-green-soft text-waify-green-dark dark:bg-waify-dark-green-soft dark:text-emerald-200">
+                                                    <Bell className="h-4 w-4" />
+                                                </div>
+                                                <p className="mt-3 text-sm font-medium text-waify-text dark:text-waify-dark-text">No new notifications</p>
+                                                <p className="mt-1 text-xs text-waify-text-muted dark:text-waify-dark-text-muted">Recent activity appears here after actions complete.</p>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
+                            </>
+                        )}
+                    </div>
+
+                    <ThemeToggle />
+
+                    <div className="relative hidden md:block">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setShowHelpMenu((value) => !value);
+                                setShowNotifications(false);
+                                setShowUserMenu(false);
+                            }}
+                            className="flex h-10 w-10 items-center justify-center rounded-btn text-gray-600 transition hover:bg-gray-100 dark:text-waify-dark-text-muted dark:hover:bg-waify-dark-surface-2"
+                            aria-label="Help"
+                            aria-haspopup="menu"
+                            aria-expanded={showHelpMenu}
+                        >
+                            <HelpCircle className="h-[18px] w-[18px]" />
+                        </button>
+                        {showHelpMenu && (
+                            <>
+                                <div className="fixed inset-0 z-10" onClick={() => setShowHelpMenu(false)} />
+                                <div className="absolute right-0 top-12 z-20 w-64 overflow-hidden rounded-card border border-gray-100 bg-white shadow-pop dark:border-waify-dark-border dark:bg-waify-dark-surface">
+                                    <div className="border-b border-gray-100 px-4 py-3 dark:border-waify-dark-border">
+                                        <div className="text-sm font-semibold text-waify-text dark:text-waify-dark-text">Help</div>
+                                        <p className="mt-0.5 text-xs text-waify-text-muted dark:text-waify-dark-text-muted">Get support without leaving your workspace.</p>
+                                    </div>
+                                    <div className="py-1">
+                                        <TopbarMenuLink href={effectiveHelpHref} icon={<LifeBuoy className="h-4 w-4" />}>
+                                            Support center
+                                        </TopbarMenuLink>
+                                        <TopbarMenuLink href={knowledgeBaseHref} icon={<MessageSquareText className="h-4 w-4" />}>
+                                            Knowledge base
+                                        </TopbarMenuLink>
+                                        <TopbarMenuLink href={contactHref} icon={<MessageCircle className="h-4 w-4" />}>
+                                            Contact Zyptos
+                                        </TopbarMenuLink>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    {campaignCreateHref && !user?.is_super_admin && (
+                        <>
+                            <Link
+                                href={campaignCreateHref}
+                                className="hidden h-10 items-center gap-2 rounded-btn bg-waify-green px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-waify-green-dark sm:inline-flex"
+                            >
+                                <Plus className="h-4 w-4" />
+                                New Campaign
+                            </Link>
+                            <Link
+                                href={campaignCreateHref}
+                                className="flex h-9 w-9 items-center justify-center rounded-btn bg-waify-green text-white shadow-sm transition hover:bg-waify-green-dark sm:hidden"
+                                aria-label="New campaign"
+                            >
+                                <Plus className="h-4 w-4" />
+                            </Link>
+                        </>
+                    )}
+
+                    {user && (
+                        <div className="relative sm:pl-1">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowUserMenu((value) => !value);
+                                    setShowNotifications(false);
+                                    setShowHelpMenu(false);
+                                }}
+                                className="flex items-center gap-2 rounded-btn p-1 transition hover:bg-gray-100 dark:hover:bg-waify-dark-surface-2 sm:pr-2"
+                            >
+                                <Avatar name={user.name} size="sm" />
+                                <ChevronDown className="hidden h-3.5 w-3.5 text-gray-400 sm:block" />
                             </button>
                             {showUserMenu && (
                                 <>
@@ -117,78 +357,71 @@ export function Topbar({ user, onMenuClick }: TopbarProps) {
                                         className="fixed inset-0 z-10"
                                         onClick={() => setShowUserMenu(false)}
                                     />
-                                    <div className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-2 z-20 backdrop-blur-lg">
-                                        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                                    <div className="absolute right-0 top-12 z-20 w-64 overflow-hidden rounded-card border border-gray-100 bg-white shadow-pop dark:border-waify-dark-border dark:bg-waify-dark-surface">
+                                        <div className="border-b border-gray-100 px-4 py-3 dark:border-waify-dark-border">
                                             <div className="flex items-center gap-3">
-                                                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold shadow-lg">
-                                                    {user.name.charAt(0).toUpperCase()}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
-                                                        {user.name}
-                                                    </p>
-                                                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                                                        {user.email}
-                                                    </p>
+                                                <Avatar name={user.name} />
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="truncate text-sm font-semibold text-waify-text dark:text-waify-dark-text">{user.name}</p>
+                                                    <p className="truncate text-xs text-waify-text-muted dark:text-waify-dark-text-muted">{user.email}</p>
                                                 </div>
                                                 {user.is_super_admin && (
-                                                    <Badge variant="info" className="flex items-center gap-1 text-xs px-2 py-0.5">
+                                                    <Badge variant="info" className="flex items-center gap-1 px-2 py-0.5 text-xs">
                                                         <Shield className="h-3 w-3" />
                                                         Admin
                                                     </Badge>
                                                 )}
                                             </div>
                                         </div>
-                                        {user.is_super_admin && (
-                                            <Link
-                                                href={route('platform.dashboard')}
-                                                className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                                            >
-                                                <Shield className="h-4 w-4" />
-                                                Platform Panel
-                                            </Link>
-                                        )}
-                                        {user.is_super_admin && (
-                                            <Link
-                                                href={route('platform.support.hub')}
-                                                className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                                            >
-                                                <LifeBuoy className="h-4 w-4" />
-                                                Support Inbox
-                                            </Link>
-                                        )}
-                                        <Link
-                                            href={route('app.support.hub', { })}
-                                            className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                                        >
-                                            <LifeBuoy className="h-4 w-4" />
-                                            Support
-                                        </Link>
+                                        <div className="py-1">
+                                            {user.is_super_admin && (
+                                                <TopbarMenuLink href={route('platform.dashboard')} icon={<Shield className="h-4 w-4" />}>
+                                                    Platform Panel
+                                                </TopbarMenuLink>
+                                            )}
+                                            <TopbarMenuLink href={`${route('app.settings')}?tab=profile`} icon={<User className="h-4 w-4" />}>
+                                                Profile
+                                            </TopbarMenuLink>
+                                            {!user.is_super_admin && (
+                                                <>
+                                                    <TopbarMenuLink href={route('app.billing.index')} icon={<CreditCard className="h-4 w-4" />}>
+                                                        Billing
+                                                    </TopbarMenuLink>
+                                                    <TopbarMenuLink href={route('app.team.index')} icon={<Users className="h-4 w-4" />}>
+                                                        Team
+                                                    </TopbarMenuLink>
+                                                </>
+                                            )}
+                                            <button className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-waify-text transition hover:bg-gray-50 dark:text-waify-dark-text dark:hover:bg-waify-dark-surface-2">
+                                                <Keyboard className="h-4 w-4 text-gray-500 dark:text-waify-dark-text-muted" />
+                                                Keyboard shortcuts
+                                            </button>
+                                            <TopbarMenuLink href={effectiveHelpHref} icon={<LifeBuoy className="h-4 w-4" />}>
+                                                Support
+                                            </TopbarMenuLink>
+                                        </div>
                                         {impersonation?.active && (
-                                            <Link
-                                                href={route('impersonate.leave')}
-                                                method="post"
-                                                className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
-                                            >
-                                                <Shield className="h-4 w-4" />
-                                                Stop Impersonation
-                                            </Link>
+                                            <div className="border-t border-gray-100 py-1 dark:border-waify-dark-border">
+                                                <Link
+                                                    href={route('impersonate.leave')}
+                                                    method="post"
+                                                    className="flex items-center gap-3 px-4 py-2 text-sm font-medium text-amber-700 transition hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-900/20"
+                                                >
+                                                    <Shield className="h-4 w-4" />
+                                                    Stop Impersonation
+                                                </Link>
+                                            </div>
                                         )}
-                                        <Link
-                                            href={route('profile.edit')}
-                                            className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                                        >
-                                            <User className="h-4 w-4" />
-                                            Profile
-                                        </Link>
-                                        <Link
-                                            href={route('logout')}
-                                            method="post"
-                                            className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                                        >
-                                            <LogOut className="h-4 w-4" />
-                                            Logout
-                                        </Link>
+                                        <div className="border-t border-gray-100 py-1 dark:border-waify-dark-border">
+                                            <Link
+                                                href={route('logout')}
+                                                method="post"
+                                                className="flex items-center gap-3 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                                            >
+                                                <LogOut className="h-4 w-4" />
+                                                Sign out
+                                            </Link>
+                                        </div>
                                     </div>
                                 </>
                             )}
@@ -198,4 +431,293 @@ export function Topbar({ user, onMenuClick }: TopbarProps) {
             </div>
         </header>
     );
+}
+
+function WorkspaceSwitcher({
+    currentWorkspace,
+    workspaceList,
+    compact = false,
+    onSwitch,
+}: {
+    currentWorkspace: any;
+    workspaceList: any[];
+    compact?: boolean;
+    onSwitch: (id: number | string) => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const workspaceInitial = currentWorkspace?.name?.charAt(0)?.toUpperCase() || 'W';
+
+    return (
+        <div className={cn('relative shrink-0', compact ? 'lg:hidden' : 'hidden lg:block')}>
+            <button
+                type="button"
+                onClick={() => setOpen((value) => !value)}
+                aria-label="Switch workspace"
+                className={cn(
+                    'flex items-center gap-2 rounded-btn border border-waify-border bg-gray-50 transition hover:bg-white dark:border-waify-dark-border dark:bg-waify-dark-surface-2 dark:hover:bg-waify-dark-surface',
+                    compact ? 'h-8 max-w-[140px] pl-1.5 pr-2' : 'h-9 max-w-[220px] pl-2 pr-2.5',
+                )}
+            >
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-waify-green text-[10px] font-bold text-white">
+                    {workspaceInitial}
+                </span>
+                <span className={cn('truncate font-medium text-waify-text dark:text-waify-dark-text', compact ? 'text-xs' : 'text-sm')}>
+                    {currentWorkspace?.name || 'Workspace'}
+                </span>
+                <ChevronsUpDown className={cn('shrink-0 text-gray-400', compact ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
+            </button>
+
+            {open && (
+                <>
+                    <div className="fixed inset-0 z-[125]" onClick={() => setOpen(false)} />
+                    <div className={cn(
+                        'absolute z-[140] overflow-hidden rounded-card border border-gray-100 bg-white shadow-pop dark:border-waify-dark-border dark:bg-waify-dark-surface',
+                        compact ? 'left-0 top-10 w-[min(100vw-2rem,18rem)] origin-top' : 'left-0 top-11 w-72 origin-top-left',
+                    )}>
+                        <div className="border-b border-gray-100 px-3 py-2 dark:border-waify-dark-border">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-waify-text-muted dark:text-waify-dark-text-muted">
+                                Switch workspace
+                            </p>
+                        </div>
+                        <div className="max-h-64 overflow-y-auto py-1">
+                            {workspaceList.map((workspace) => (
+                                <button
+                                    key={workspace.id}
+                                    type="button"
+                                    onClick={() => {
+                                        setOpen(false);
+                                        onSwitch(workspace.id);
+                                    }}
+                                    className={cn(
+                                        'flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-gray-50 dark:hover:bg-waify-dark-surface-2',
+                                        workspace.id === currentWorkspace?.id && 'bg-waify-green/5',
+                                    )}
+                                >
+                                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-waify-green text-xs font-bold text-white">
+                                        {workspace.name?.charAt(0)?.toUpperCase() || 'W'}
+                                    </span>
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block truncate text-sm font-medium text-waify-text dark:text-waify-dark-text">{workspace.name}</span>
+                                        <span className="block truncate text-[11px] text-waify-text-muted dark:text-waify-dark-text-muted">
+                                            {workspace.workspace_type_label || workspace.workspace_type || workspace.industry || 'Workspace'}
+                                        </span>
+                                    </span>
+                                    {workspace.id === currentWorkspace?.id && <Check className="h-4 w-4 shrink-0 text-waify-green" />}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="border-t border-gray-100 p-2 dark:border-waify-dark-border">
+                            <Link
+                                href={route('app.workspaces.index')}
+                                className="flex w-full items-center justify-center gap-2 rounded-btn px-3 py-2 text-sm font-medium text-waify-green-dark transition hover:bg-waify-green/10 dark:text-emerald-200"
+                            >
+                                <Settings className="h-3.5 w-3.5" />
+                                Manage workspaces
+                            </Link>
+                        </div>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
+function TopbarMenuLink({ href, icon, children }: { href: string; icon: ReactNode; children: ReactNode }) {
+    return (
+        <Link
+            href={href}
+            className="flex items-center gap-3 px-4 py-2 text-sm text-waify-text transition hover:bg-gray-50 dark:text-waify-dark-text dark:hover:bg-waify-dark-surface-2"
+        >
+            <span className="text-gray-500 dark:text-waify-dark-text-muted">{icon}</span>
+            {children}
+        </Link>
+    );
+}
+
+type SearchResult = {
+    id: string;
+    type: string;
+    label: string;
+    description?: string;
+    href: string;
+};
+
+function GlobalSearchInput({ mobile = false, autoFocus = false, onClose }: { mobile?: boolean; autoFocus?: boolean; onClose?: () => void }) {
+    const inputRef = useRef<HTMLInputElement>(null);
+    const [query, setQuery] = useState('');
+    const [results, setResults] = useState<SearchResult[]>([]);
+    const [open, setOpen] = useState(false);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (autoFocus) {
+            window.setTimeout(() => {
+                inputRef.current?.focus();
+                setOpen(true);
+            }, 30);
+        }
+    }, [autoFocus]);
+
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+                event.preventDefault();
+                inputRef.current?.focus();
+                setOpen(true);
+            }
+
+            if (event.key === 'Escape') {
+                setOpen(false);
+                inputRef.current?.blur();
+                onClose?.();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [onClose]);
+
+    useEffect(() => {
+        if (!open) {
+            return;
+        }
+
+        const controller = new AbortController();
+        const timer = window.setTimeout(async () => {
+            setLoading(true);
+            try {
+                const response = await axios.get(route('app.search'), {
+                    params: { q: query, limit: 8 },
+                    signal: controller.signal,
+                    headers: { Accept: 'application/json' },
+                });
+                setResults(response.data?.results || []);
+            } catch (error: any) {
+                if (error?.code !== 'ERR_CANCELED' && error?.name !== 'CanceledError') {
+                    setResults([]);
+                }
+            } finally {
+                setLoading(false);
+            }
+        }, query.trim().length >= 2 ? 180 : 0);
+
+        return () => {
+            window.clearTimeout(timer);
+            controller.abort();
+        };
+    }, [query, open]);
+
+    const visit = (href: string) => {
+        setOpen(false);
+        onClose?.();
+        router.visit(href);
+    };
+
+    return (
+        <div className={cn('relative', mobile ? 'min-w-0 flex-1' : 'transition-all focus-within:scale-[1.01]')}>
+            {!mobile && <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />}
+            <input
+                ref={inputRef}
+                value={query}
+                onChange={(event) => {
+                    setQuery(event.target.value);
+                    setOpen(true);
+                }}
+                onClick={() => setOpen(true)}
+                placeholder="Search campaigns, contacts, templates..."
+                className={cn(
+                    'h-10 w-full border-0 text-sm outline-none ring-0 transition placeholder:text-gray-400 focus:ring-0',
+                    mobile
+                        ? 'bg-transparent px-0 text-waify-text dark:text-waify-dark-text'
+                        : 'rounded-btn border border-transparent bg-gray-50 pl-10 pr-16 focus:border-waify-green focus:bg-white focus:ring-2 focus:ring-waify-green/15 dark:bg-waify-dark-surface-2 dark:text-waify-dark-text dark:focus:bg-waify-dark-surface',
+                )}
+            />
+            {!mobile && (
+                <kbd className="absolute right-3 top-1/2 hidden -translate-y-1/2 items-center rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-gray-400 dark:border-waify-dark-border dark:bg-waify-dark-surface sm:flex">
+                    Ctrl K
+                </kbd>
+            )}
+
+            {open && (
+                <>
+                    <div className="fixed inset-0 z-[130]" onClick={() => setOpen(false)} />
+                    <div className={cn(
+                        'absolute z-[150] overflow-hidden rounded-card border border-gray-100 bg-white shadow-pop dark:border-waify-dark-border dark:bg-waify-dark-surface',
+                        mobile ? 'left-[-2rem] right-[-3rem] top-12' : 'left-0 right-0 top-12',
+                    )}>
+                        <div className="flex items-center justify-between border-b border-gray-100 px-4 py-2 dark:border-waify-dark-border">
+                            <span className="text-[11px] font-semibold uppercase tracking-wider text-waify-text-muted dark:text-waify-dark-text-muted">
+                                Global search
+                            </span>
+                            {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-waify-green" />}
+                        </div>
+                        <div className="max-h-[60vh] overflow-y-auto py-1">
+                            {results.length > 0 ? results.map((result) => {
+                                const Icon = resultIcon(result.type);
+                                return (
+                                    <button
+                                        key={`${result.type}-${result.id}`}
+                                        type="button"
+                                        onMouseDown={(event) => event.preventDefault()}
+                                        onClick={() => visit(result.href)}
+                                        className="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-gray-50 dark:hover:bg-waify-dark-surface-2"
+                                    >
+                                        <span className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-waify-green-soft text-waify-green-dark dark:bg-waify-green/10 dark:text-waify-green">
+                                            <Icon className="h-4 w-4" />
+                                        </span>
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block truncate text-sm font-semibold text-waify-text dark:text-waify-dark-text">{result.label}</span>
+                                            {result.description && <span className="mt-0.5 block truncate text-xs text-waify-text-muted dark:text-waify-dark-text-muted">{result.description}</span>}
+                                            <span className="mt-1 block text-[10px] font-medium uppercase tracking-wider text-waify-green-dark dark:text-emerald-300">{resultTypeLabel(result.type)}</span>
+                                        </span>
+                                    </button>
+                                );
+                            }) : (
+                                <div className="px-4 py-8 text-center">
+                                    <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-waify-green-soft text-waify-green-dark dark:bg-waify-green/10 dark:text-waify-green">
+                                        <Search className="h-4 w-4" />
+                                    </div>
+                                    <p className="mt-3 text-sm font-medium text-waify-text dark:text-waify-dark-text">
+                                        {query.trim().length >= 2 ? 'No matching results' : 'Search workspace data'}
+                                    </p>
+                                    <p className="mt-1 text-xs text-waify-text-muted dark:text-waify-dark-text-muted">
+                                        {query.trim().length >= 2 ? 'Try a contact name, phone number, campaign, or template.' : 'Type at least two characters, or choose a common page.'}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
+function resultIcon(type: string) {
+    switch (type) {
+        case 'contact':
+            return Users;
+        case 'conversation':
+            return MessageCircle;
+        case 'template':
+            return MessageSquareText;
+        case 'campaign':
+            return Megaphone;
+        case 'segment':
+            return Tags;
+        case 'quick_reply':
+            return Reply;
+        case 'connection':
+            return Building2;
+        case 'widget':
+            return Wand2;
+        case 'chatbot':
+            return Bot;
+        default:
+            return Search;
+    }
+}
+
+function resultTypeLabel(type: string) {
+    return type.replace('_', ' ');
 }

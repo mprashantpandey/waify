@@ -46,10 +46,10 @@ const SelectTrigger = React.forwardRef<
                 context.setOpen(!context.open);
             }}
             className={cn(
-                'flex h-10 w-full items-center justify-between rounded-md border border-gray-300 bg-white px-3 py-2 text-sm',
-                'ring-offset-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2',
+                'flex h-10 w-full items-center justify-between rounded-btn border border-gray-200 bg-white px-3 py-2 text-sm text-waify-text shadow-sm',
+                'ring-offset-white focus:outline-none focus:ring-2 focus:ring-waify-green/20 focus:ring-offset-0 focus:border-waify-green',
                 'disabled:cursor-not-allowed disabled:opacity-50',
-                'dark:border-gray-700 dark:bg-gray-800 dark:ring-offset-gray-900 dark:focus:ring-blue-400',
+                'dark:border-waify-dark-border dark:bg-waify-dark-surface dark:text-waify-dark-text dark:ring-offset-waify-dark-bg dark:focus:ring-waify-green/30',
                 className
             )}
             {...props}
@@ -108,8 +108,8 @@ const SelectContent = React.forwardRef<
         <div
             ref={ref}
             className={cn(
-                'absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg',
-                'dark:border-gray-700 dark:bg-gray-800',
+                'absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-card border border-gray-100 bg-white py-1 text-sm text-waify-text shadow-pop',
+                'dark:border-waify-dark-border dark:bg-waify-dark-surface dark:text-waify-dark-text',
                 className
             )}
             {...props}
@@ -146,8 +146,8 @@ const SelectItem = React.forwardRef<HTMLDivElement, SelectItemProps>(
                 className={cn(
                     'relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none',
                     'hover:bg-gray-100 focus:bg-gray-100',
-                    'dark:hover:bg-gray-700 dark:focus:bg-gray-700',
-                    isSelected && 'bg-blue-50 dark:bg-blue-900/20 text-blue-900 dark:text-blue-100',
+                    'dark:hover:bg-waify-dark-surface-2 dark:focus:bg-waify-dark-surface-2',
+                    isSelected && 'bg-waify-green-soft text-waify-green-dark dark:bg-waify-dark-green-soft dark:text-emerald-100',
                     className
                 )}
                 {...props}

@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Billing;
 
 use App\Core\Billing\BillingProviderManager;
-use App\Core\Billing\SubscriptionService;
 use App\Http\Controllers\Controller;
 use App\Models\PaymentOrder;
-use App\Models\Plan;
+use App\Services\BillingEmailService;
+use App\Services\SelfHostedBillingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -15,7 +15,8 @@ class RazorpayWebhookController extends Controller
 {
     public function __construct(
         protected BillingProviderManager $providerManager,
-        protected SubscriptionService $subscriptionService
+        protected SelfHostedBillingService $selfHostedBilling,
+        protected BillingEmailService $billingEmail
     ) {
         // Disable CSRF for webhooks
         $this->middleware(\Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class)->except(['handle']);
@@ -24,7 +25,7 @@ class RazorpayWebhookController extends Controller
     public function handle(Request $request)
     {
         $provider = $this->providerManager->get('razorpay');
-        if (!$provider || !$provider->isEnabled() || !method_exists($provider, 'getWebhookSecret')) {
+        if (! $provider || ! $provider->isEnabled() || ! method_exists($provider, 'getWebhookSecret')) {
             return response()->json(['success' => false, 'error' => 'Razorpay not configured'], 400);
         }
 
@@ -33,23 +34,28 @@ class RazorpayWebhookController extends Controller
         $payload = $request->getContent();
         $expected = hash_hmac('sha256', $payload, $secret);
 
-        if (!$signature || !hash_equals($expected, $signature)) {
+        if (! $signature || ! hash_equals($expected, $signature)) {
             Log::channel('stack')->warning('Razorpay webhook signature invalid');
+
             return response()->json(['success' => false, 'error' => 'Invalid signature'], 401);
         }
 
         $data = $request->json()->all();
+        $event = $data['event'] ?? null;
+        $eventId = $request->header('X-Razorpay-Event-Id');
+        $entityId = $data['payload']['order']['entity']['id']
+            ?? $data['payload']['payment']['entity']['id']
+            ?? sha1($payload);
+        $idempotencyKey = 'razorpay_webhook:'.($eventId ?: (($event ?? 'unknown').':'.$entityId));
+        if (! Cache::add($idempotencyKey, true, now()->addDays(7))) {
+            return response()->json(['success' => true]);
+        }
+
         $provider->handleWebhook($data);
 
-        $event = $data['event'] ?? null;
         if ($event === 'payment.captured' || $event === 'order.paid') {
             $orderId = $data['payload']['order']['entity']['id'] ?? $data['payload']['payment']['entity']['order_id'] ?? null;
             $paymentId = $data['payload']['payment']['entity']['id'] ?? null;
-
-            $idempotencyKey = 'razorpay_webhook:' . ($event ?? '') . ':' . ($orderId ?? '') . ':' . ($paymentId ?? '');
-            if (!Cache::add($idempotencyKey, true, now()->addDays(7))) {
-                return response()->json(['success' => true]);
-            }
 
             if ($orderId) {
                 $paymentOrder = PaymentOrder::where('provider', 'razorpay')
@@ -57,20 +63,24 @@ class RazorpayWebhookController extends Controller
                     ->first();
 
                 if ($paymentOrder) {
-                    $plan = Plan::find($paymentOrder->plan_id);
+                    if ($paymentOrder->status !== 'paid') {
+                        $paymentOrder->update([
+                            'status' => 'paid',
+                            'provider_payment_id' => $paymentId ?: $paymentOrder->provider_payment_id,
+                            'paid_at' => $paymentOrder->paid_at ?: now(),
+                        ]);
+                    }
+
+                    $this->selfHostedBilling->recordOrderEvent($paymentOrder, 'razorpay_webhook_paid', 'Razorpay webhook marked payment paid', $paymentOrder->account?->owner, [
+                        'event' => $event,
+                        'payment_id' => $paymentId,
+                    ]);
+
                     $account = $paymentOrder->account;
-                    if ($plan && $account) {
+                    if ($account && $paymentOrder->plan) {
                         try {
-                            $this->subscriptionService->changePlan(
-                                $account,
-                                $plan,
-                                $account->owner,
-                                'razorpay',
-                                [
-                                    'payment_id' => $paymentId,
-                                    'order_id' => $orderId,
-                                    'paid_at' => now()]
-                            );
+                            $this->selfHostedBilling->activateSubscription($paymentOrder->fresh(['account', 'plan']), $account->owner);
+                            $this->billingEmail->paymentReceived($paymentOrder->fresh(['account.owner', 'plan']));
                         } catch (\Throwable $e) {
                             Log::channel('stack')->error('Razorpay webhook plan activation failed', [
                                 'order_id' => $orderId,

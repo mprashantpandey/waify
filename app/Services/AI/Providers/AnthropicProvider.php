@@ -13,8 +13,7 @@ class AnthropicProvider implements AiProviderInterface
         protected string $model = 'claude-3-5-haiku-20241022',
         protected string $version = '2023-06-01',
         protected int $timeout = 30
-    ) {
-    }
+    ) {}
 
     public function generate(string $systemPrompt, string $userPrompt, float $temperature, int $maxTokens): string
     {
@@ -39,10 +38,11 @@ class AnthropicProvider implements AiProviderInterface
 
         if (! $response->successful()) {
             $message = $response->json('error.message') ?? $response->body();
-            throw new \RuntimeException('Anthropic request failed: ' . $message);
+            throw new \RuntimeException('Anthropic request failed: '.$message);
         }
 
         $content = $response->json('content.0.text', '');
+
         return Str::of($content)->trim()->toString();
     }
 }

@@ -9,7 +9,7 @@ return [
     'icon' => 'LifeBuoy',
     'nav' => [
         [
-            'label' => 'Support Hub',
-            'href' => 'app.support.hub',
+            'label' => 'Support',
+            'href' => 'app.support.index',
             'icon' => 'LifeBuoy',
             'group' => 'core']]];

@@ -25,6 +25,7 @@ class SendCampaignMessageJob implements ShouldQueue
      * The number of seconds to wait before retrying the job.
      */
     public $backoff = 60;
+
     public $timeout = 120;
 
     protected int $batchSize = 20;
@@ -48,17 +49,19 @@ class SendCampaignMessageJob implements ShouldQueue
         $lockKey = "campaign_send:{$this->campaignId}";
         $lock = \Illuminate\Support\Facades\Cache::lock($lockKey, 120); // lock while a batch is processed
 
-        if (!$lock->get()) {
+        if (! $lock->get()) {
             // Another job is processing this campaign, retry later
             $this->release(10); // Release back to queue for 10 seconds
+
             return;
         }
 
         try {
             $campaign = Campaign::find($this->campaignId);
 
-            if (!$campaign || !$campaign->isActive()) {
+            if (! $campaign || ! $campaign->isActive()) {
                 Log::info('Campaign not found or not active', ['campaign_id' => $this->campaignId]);
+
                 return;
             }
 
@@ -74,22 +77,30 @@ class SendCampaignMessageJob implements ShouldQueue
                         ->orderBy('id')
                         ->first();
 
+                    if ($next) {
+                        $next->update([
+                            'status' => 'sending',
+                            'failure_reason' => null,
+                        ]);
+                    }
+
                     return $next;
                 });
 
-                if (!$recipient) {
+                if (! $recipient) {
                     break;
                 }
 
                 $processed++;
-                $sent = $campaignService->sendToRecipient($campaign, $recipient);
-                if (!$sent && $campaignService->isConnectionCoolingDown($campaign)) {
+                $sent = $campaignService->sendToRecipient($campaign->fresh() ?? $campaign, $recipient->fresh() ?? $recipient);
+                if (! $sent && $campaignService->isConnectionCoolingDown($campaign)) {
                     break;
                 }
             }
 
             if ($processed === 0) {
                 $campaignService->checkCampaignCompletion($campaign);
+
                 return;
             }
 
@@ -104,6 +115,8 @@ class SendCampaignMessageJob implements ShouldQueue
                     $next->delay(now()->addSeconds($delaySeconds));
                 }
                 dispatch($next);
+            } else {
+                $campaignService->checkCampaignCompletion($campaign->fresh() ?? $campaign);
             }
         } finally {
             $lock->release();

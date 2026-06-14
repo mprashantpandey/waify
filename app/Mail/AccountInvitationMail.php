@@ -15,9 +15,7 @@ class AccountInvitationMail extends Mailable
 
     public array $backoff = [30, 120, 300];
 
-    public function __construct(public AccountInvitation $invitation)
-    {
-    }
+    public function __construct(public AccountInvitation $invitation) {}
 
     public function build(): self
     {

@@ -3,8 +3,6 @@
 namespace Tests\Feature\Billing;
 
 use App\Core\Billing\UsageService;
-use App\Models\Plan;
-use App\Models\Account;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -21,7 +19,7 @@ class TemplateLimitTest extends TestCase
 
     public function test_template_sending_increments_both_counters(): void
     {
-        
+
         $account = $this->createAccountWithPlan('starter'); // Has template sends
         $user = $this->actingAsAccountOwner($account);
 
@@ -41,7 +39,7 @@ class TemplateLimitTest extends TestCase
 
     public function test_template_sending_blocked_when_template_limit_exceeded(): void
     {
-        
+
         $account = $this->createAccountWithPlan('starter'); // 1000 template sends limit
         $user = $this->actingAsAccountOwner($account);
 

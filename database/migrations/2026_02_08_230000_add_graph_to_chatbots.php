@@ -9,10 +9,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('bot_nodes', function (Blueprint $table) {
-            if (!Schema::hasColumn('bot_nodes', 'pos_x')) {
+            if (! Schema::hasColumn('bot_nodes', 'pos_x')) {
                 $table->integer('pos_x')->nullable()->after('sort_order');
             }
-            if (!Schema::hasColumn('bot_nodes', 'pos_y')) {
+            if (! Schema::hasColumn('bot_nodes', 'pos_y')) {
                 $table->integer('pos_y')->nullable()->after('pos_x');
             }
         });

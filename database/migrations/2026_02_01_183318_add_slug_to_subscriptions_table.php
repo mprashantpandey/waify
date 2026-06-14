@@ -15,7 +15,7 @@ return new class extends Migration
         $driver = DB::getDriverName();
 
         // Check if slug column already exists (from failed migration)
-        if (!Schema::hasColumn('subscriptions', 'slug')) {
+        if (! Schema::hasColumn('subscriptions', 'slug')) {
             // Add slug column as nullable first
             Schema::table('subscriptions', function (Blueprint $table) {
                 $table->string('slug')->nullable()->after('id');
@@ -29,7 +29,7 @@ return new class extends Migration
             ->orderBy('id')
             ->chunkById(200, function ($rows) {
                 foreach ($rows as $row) {
-                    if (!empty($row->slug)) {
+                    if (! empty($row->slug)) {
                         continue;
                     }
                     DB::table('subscriptions')
@@ -40,7 +40,7 @@ return new class extends Migration
 
         // Drop any existing slug index before enforcing unique/non-null
         $this->dropSlugIndexes($driver);
-        
+
         // Make slug unique and non-nullable after populating
         Schema::table('subscriptions', function (Blueprint $table) {
             $table->string('slug')->nullable(false)->unique()->change();
@@ -54,7 +54,7 @@ return new class extends Migration
     {
         $driver = DB::getDriverName();
         $this->dropSlugIndexes($driver);
-        
+
         Schema::table('subscriptions', function (Blueprint $table) {
             $table->dropColumn('slug');
         });
@@ -67,6 +67,7 @@ return new class extends Migration
             foreach ($indexes as $index) {
                 DB::statement("DROP INDEX IF EXISTS {$index->name}");
             }
+
             return;
         }
 
@@ -81,6 +82,7 @@ return new class extends Migration
             foreach ($indexes as $index) {
                 DB::statement("ALTER TABLE subscriptions DROP INDEX {$index->name}");
             }
+
             return;
         }
 

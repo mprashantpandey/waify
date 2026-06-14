@@ -9,7 +9,7 @@ use Illuminate\Support\Collection;
 
 /**
  * Billing Provider Manager
- * 
+ *
  * Manages all billing providers and provides access to the active provider.
  */
 class BillingProviderManager
@@ -19,8 +19,8 @@ class BillingProviderManager
     public function __construct()
     {
         // Register default providers
-        $this->register('manual', new ManualBillingProvider());
-        $this->register('razorpay', new RazorpayBillingProvider());
+        $this->register('manual', new ManualBillingProvider);
+        $this->register('razorpay', new RazorpayBillingProvider);
     }
 
     /**
@@ -53,6 +53,7 @@ class BillingProviderManager
     public function getForSubscription(\App\Models\Subscription $subscription): BillingProvider
     {
         $providerKey = $subscription->provider ?? 'manual';
+
         return $this->get($providerKey) ?? $this->getDefault();
     }
 

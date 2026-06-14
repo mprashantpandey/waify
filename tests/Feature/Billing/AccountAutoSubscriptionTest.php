@@ -2,8 +2,9 @@
 
 namespace Tests\Feature\Billing;
 
-use App\Models\Plan;
 use App\Models\Account;
+use App\Models\Plan;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -20,7 +21,7 @@ class AccountAutoSubscriptionTest extends TestCase
 
     public function test_account_auto_subscribes_to_default_plan(): void
     {
-        $defaultPlanKey = env('DEFAULT_PLAN_KEY', 'free');
+        $defaultPlanKey = env('DEFAULT_PLAN_KEY', 'starter');
         $plan = Plan::where('key', $defaultPlanKey)->firstOrFail();
 
         $account = Account::factory()->create();
@@ -41,7 +42,7 @@ class AccountAutoSubscriptionTest extends TestCase
 
         // Auto-subscribe (OnboardingController logic)
         $subscriptionService = app(\App\Core\Billing\SubscriptionService::class);
-        
+
         if ($plan->trial_days > 0) {
             $subscriptionService->startTrial($account, $plan, $user);
         } else {
@@ -52,7 +53,7 @@ class AccountAutoSubscriptionTest extends TestCase
 
         $this->assertNotNull($account->subscription);
         $this->assertEquals($plan->id, $account->subscription->plan_id);
-        
+
         if ($plan->trial_days > 0) {
             $this->assertEquals('trialing', $account->subscription->status);
             $this->assertNotNull($account->subscription->trial_ends_at);
@@ -64,7 +65,7 @@ class AccountAutoSubscriptionTest extends TestCase
     public function test_account_with_trial_plan_has_trial_fields(): void
     {
         $plan = Plan::where('key', 'starter')->firstOrFail();
-        
+
         $account = Account::factory()->create();
         $user = $account->owner;
 
@@ -76,5 +77,22 @@ class AccountAutoSubscriptionTest extends TestCase
         $this->assertEquals('trialing', $account->subscription->status);
         $this->assertNotNull($account->subscription->trial_ends_at);
         $this->assertTrue($account->subscription->trial_ends_at->isFuture());
+    }
+
+    public function test_self_service_trial_is_allowed_once_per_owner_email(): void
+    {
+        $plan = Plan::where('key', 'starter')->firstOrFail();
+        $user = User::factory()->create(['email' => 'trial-owner@example.com']);
+
+        $firstAccount = Account::factory()->create(['owner_id' => $user->id]);
+        $secondAccount = Account::factory()->create(['owner_id' => $user->id]);
+        $subscriptionService = app(\App\Core\Billing\SubscriptionService::class);
+
+        $subscriptionService->startTrial($firstAccount, $plan, $user);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('A free trial has already been used for this email account.');
+
+        $subscriptionService->startTrial($secondAccount, $plan, $user);
     }
 }

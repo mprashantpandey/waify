@@ -9,7 +9,7 @@ export function Card({ className, children, ...props }: CardProps) {
     return (
         <div
             className={cn(
-                'rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900',
+                'surface rounded-card border border-transparent bg-white shadow-card dark:border-slate-700/80 dark:bg-slate-800 dark:shadow-none',
                 className
             )}
             {...props}
@@ -21,7 +21,7 @@ export function Card({ className, children, ...props }: CardProps) {
 
 export function CardHeader({ className, children, ...props }: CardProps) {
     return (
-        <div className={cn('px-6 py-4 border-b border-gray-200 dark:border-gray-800', className)} {...props}>
+        <div className={cn('border-b border-gray-100 px-5 py-4 dark:border-waify-dark-border', className)} {...props}>
             {children}
         </div>
     );
@@ -29,7 +29,7 @@ export function CardHeader({ className, children, ...props }: CardProps) {
 
 export function CardTitle({ className, children, ...props }: CardProps) {
     return (
-        <h3 className={cn('text-lg font-semibold text-gray-900 dark:text-gray-100', className)} {...props}>
+        <h3 className={cn('text-base font-semibold text-waify-text dark:text-waify-dark-text', className)} {...props}>
             {children}
         </h3>
     );
@@ -37,7 +37,7 @@ export function CardTitle({ className, children, ...props }: CardProps) {
 
 export function CardDescription({ className, children, ...props }: CardProps) {
     return (
-        <p className={cn('text-sm text-gray-500 dark:text-gray-400 mt-1', className)} {...props}>
+        <p className={cn('mt-1 text-sm text-waify-text-muted dark:text-waify-dark-text-muted', className)} {...props}>
             {children}
         </p>
     );
@@ -45,9 +45,8 @@ export function CardDescription({ className, children, ...props }: CardProps) {
 
 export function CardContent({ className, children, ...props }: CardProps) {
     return (
-        <div className={cn('px-6 py-4', className)} {...props}>
+        <div className={cn('px-5 py-4', className)} {...props}>
             {children}
         </div>
     );
 }
-

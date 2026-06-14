@@ -57,7 +57,7 @@ class TagController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($tag->account_id, $account->id)) {
+        if (! account_ids_match($tag->account_id, $account->id)) {
             abort(404);
         }
 
@@ -80,7 +80,7 @@ class TagController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($tag->account_id, $account->id)) {
+        if (! account_ids_match($tag->account_id, $account->id)) {
             abort(404);
         }
 
@@ -90,6 +90,7 @@ class TagController extends Controller
             $tag->delete();
         } catch (\Throwable $e) {
             report($e);
+
             return back()->with('error', 'Unable to delete this tag right now. Please try again.');
         }
 

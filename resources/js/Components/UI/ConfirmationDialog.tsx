@@ -38,8 +38,8 @@ export default function ConfirmationDialog({
             icon: 'text-yellow-600 dark:text-yellow-400',
             button: 'bg-yellow-600 hover:bg-yellow-700 text-white'},
         info: {
-            icon: 'text-blue-600 dark:text-blue-400',
-            button: 'bg-blue-600 hover:bg-blue-700 text-white'}};
+            icon: 'text-waify-green-dark',
+            button: 'bg-waify-green hover:bg-waify-green-dark text-white'}};
 
     const styles = variantStyles[variant];
 
@@ -55,7 +55,7 @@ export default function ConfirmationDialog({
                     leaveFrom="opacity-100"
                     leaveTo="opacity-0"
                 >
-                    <div className="fixed inset-0 bg-gray-500/75 dark:bg-gray-900/75" />
+                    <div className="fixed inset-0 bg-waify-ink/50 backdrop-blur-sm dark:bg-black/70" />
                 </TransitionChild>
 
                 <div className="fixed inset-0 overflow-y-auto">
@@ -69,25 +69,25 @@ export default function ConfirmationDialog({
                             leaveFrom="opacity-100 scale-100"
                             leaveTo="opacity-0 scale-95"
                         >
-                            <DialogPanel className="w-full max-w-md transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 shadow-xl transition-all">
+                            <DialogPanel className="w-full max-w-md transform overflow-hidden rounded-card border border-gray-100 bg-white shadow-pop transition-all dark:border-waify-dark-border dark:bg-waify-dark-surface">
                                 <div className="p-6">
                                     <div className="flex items-start gap-4">
                                         <div className={`flex-shrink-0 ${styles.icon}`}>
                                             <AlertTriangle className="h-6 w-6" />
                                         </div>
                                         <div className="flex-1">
-                                            <DialogTitle className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                                            <DialogTitle className="text-lg font-semibold text-waify-text dark:text-waify-dark-text">
                                                 {title}
                                             </DialogTitle>
                                             <div className="mt-2">
-                                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                                <p className="text-sm text-waify-text-muted dark:text-waify-dark-text-muted">
                                                     {message}
                                                 </p>
                                             </div>
                                         </div>
                                         <button
                                             onClick={onClose}
-                                            className="flex-shrink-0 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+                                            className="flex-shrink-0 text-waify-text-muted transition hover:text-waify-text dark:text-waify-dark-text-muted dark:hover:text-waify-dark-text"
                                             disabled={loading}
                                             aria-label="Close"
                                         >
@@ -120,4 +120,3 @@ export default function ConfirmationDialog({
         </Transition>
     );
 }
-

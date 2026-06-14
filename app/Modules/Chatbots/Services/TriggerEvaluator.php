@@ -18,15 +18,31 @@ class TriggerEvaluator
             'inbound_message' => $this->matchesInboundMessage($trigger, $context),
             'keyword' => $this->matchesKeyword($trigger, $context),
             'button_reply' => $this->matchesButtonReply($trigger, $context),
+            'form_submission' => $this->matchesFormSubmission($trigger, $context),
             default => false,
         };
+    }
+
+    protected function matchesFormSubmission(array $trigger, BotContext $context): bool
+    {
+        $payload = is_array($context->inboundMessage->payload) ? $context->inboundMessage->payload : [];
+        if (($payload['source'] ?? null) !== 'public_form') {
+            return false;
+        }
+
+        $surveyId = isset($trigger['survey_id']) ? (int) $trigger['survey_id'] : 0;
+        if ($surveyId > 0 && (int) ($payload['survey_id'] ?? 0) !== $surveyId) {
+            return false;
+        }
+
+        return true;
     }
 
     protected function matchesInboundMessage(array $trigger, BotContext $context): bool
     {
         // Check if only first message
         if ($trigger['first_message_only'] ?? false) {
-            if (!$context->isFirstMessage()) {
+            if (! $context->isFirstMessage()) {
                 return false;
             }
         }
@@ -38,7 +54,7 @@ class TriggerEvaluator
                 array_filter($trigger['connection_ids'], static fn ($id) => is_numeric($id))
             )));
 
-            if (!in_array((int) $context->getConnectionId(), $allowedConnectionIds, true)) {
+            if (! in_array((int) $context->getConnectionId(), $allowedConnectionIds, true)) {
                 return false;
             }
         }
@@ -50,13 +66,52 @@ class TriggerEvaluator
             }
         }
 
+        if (! $this->matchesSourceFilters($trigger, $context)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    protected function matchesSourceFilters(array $trigger, BotContext $context): bool
+    {
+        $requiredSource = $trigger['source'] ?? $trigger['contact_source'] ?? null;
+        if (is_string($requiredSource) && trim($requiredSource) !== '' && trim($requiredSource) !== 'any') {
+            if ($requiredSource === 'ctwa') {
+                if (! $context->getCtwaReferral()) {
+                    return false;
+                }
+            } elseif ($context->getContactSource() !== $requiredSource) {
+                return false;
+            }
+        }
+
+        $allowedCtwaSourceIds = $trigger['ctwa_source_ids'] ?? [];
+        if (is_array($allowedCtwaSourceIds) && $allowedCtwaSourceIds !== []) {
+            $ctwa = $context->getCtwaReferral();
+            if (! $ctwa) {
+                return false;
+            }
+
+            $sourceId = (string) ($ctwa['source_id'] ?? '');
+            $allowed = collect($allowedCtwaSourceIds)
+                ->filter(fn ($id) => is_scalar($id) && trim((string) $id) !== '')
+                ->map(fn ($id) => trim((string) $id))
+                ->values()
+                ->all();
+
+            if ($allowed !== [] && ! in_array($sourceId, $allowed, true)) {
+                return false;
+            }
+        }
+
         return true;
     }
 
     protected function matchesKeyword(array $trigger, BotContext $context): bool
     {
         $keywords = $trigger['keywords'] ?? [];
-        if (!is_array($keywords)) {
+        if (! is_array($keywords)) {
             return false;
         }
         $keywords = array_values(array_filter(array_map(
@@ -72,25 +127,33 @@ class TriggerEvaluator
         $wholeWord = $trigger['whole_word'] ?? false;
         $matchType = $trigger['match_type'] ?? 'any'; // any|all
 
-        if (!$caseSensitive) {
+        if (! $caseSensitive) {
             $text = mb_strtolower($text);
         }
 
         $matches = [];
         foreach ($keywords as $keyword) {
             $searchKeyword = $caseSensitive ? $keyword : mb_strtolower($keyword);
-            
+
             if ($wholeWord) {
-                $pattern = '/\b' . preg_quote($searchKeyword, '/') . '\b/';
+                $pattern = '/\b'.preg_quote($searchKeyword, '/').'\b/';
+                $matches[] = preg_match($pattern, $text) === 1;
+            } elseif ($this->shouldForceWordBoundary($searchKeyword)) {
+                $pattern = '/(?<![\p{L}\p{N}_])'.preg_quote($searchKeyword, '/').'(?![\p{L}\p{N}_])/u';
                 $matches[] = preg_match($pattern, $text) === 1;
             } else {
                 $matches[] = str_contains($text, $searchKeyword);
             }
         }
 
-        return $matchType === 'all' 
+        return $matchType === 'all'
             ? count(array_filter($matches)) === count($keywords)
             : count(array_filter($matches)) > 0;
+    }
+
+    protected function shouldForceWordBoundary(string $keyword): bool
+    {
+        return preg_match('/^[\p{L}\p{N}_]{1,3}$/u', $keyword) === 1;
     }
 
     protected function matchesButtonReply(array $trigger, BotContext $context): bool
@@ -99,7 +162,7 @@ class TriggerEvaluator
         $payload = $context->inboundMessage->payload ?? [];
         $interactive = $payload['interactive'] ?? null;
 
-        if (!$interactive) {
+        if (! $interactive) {
             return false;
         }
 

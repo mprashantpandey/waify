@@ -5,19 +5,18 @@ namespace App\Modules\WhatsApp\Events\Inbox;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class InternalNoteAdded implements ShouldBroadcast
+class InternalNoteAdded implements ShouldBroadcastNow
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
     public function __construct(
         public WhatsAppConversation $conversation,
         public array $note
-    ) {
-    }
+    ) {}
 
     /**
      * Get the channels the event should broadcast on.
@@ -49,4 +48,3 @@ class InternalNoteAdded implements ShouldBroadcast
             'note' => $this->note];
     }
 }
-

@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -26,13 +27,13 @@ Artisan::command('contacts:sync-message-stats {--dry-run}', function () {
     $updated = 0;
 
     foreach ($rows as $row) {
-        if (!$row->contact_id) {
+        if (! $row->contact_id) {
             continue;
         }
 
         $lastSeen = $row->last_seen ?: $row->last_message;
 
-        if (!$dryRun) {
+        if (! $dryRun) {
             DB::table('whatsapp_contacts')
                 ->where('id', $row->contact_id)
                 ->update([
@@ -46,5 +47,29 @@ Artisan::command('contacts:sync-message-stats {--dry-run}', function () {
         $updated++;
     }
 
-    $this->info(($dryRun ? 'Would update' : 'Updated') . " {$updated} contact(s).");
+    $this->info(($dryRun ? 'Would update' : 'Updated')." {$updated} contact(s).");
 })->purpose('Backfill message_count and last seen/last contacted for contacts');
+
+Schedule::command('ops:run-maintenance')
+    ->everyMinute()
+    ->withoutOverlapping();
+
+Schedule::command('integrations:sync --limit=25')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping();
+
+Schedule::command('appointments:send-reminders --limit=100')
+    ->everyFiveMinutes()
+    ->withoutOverlapping();
+
+Schedule::command('conversations:auto-close --limit=500')
+    ->everyThirtyMinutes()
+    ->withoutOverlapping();
+
+Schedule::command('billing:send-renewal-reminders --respect-time')
+    ->everyThirtyMinutes()
+    ->withoutOverlapping();
+
+Schedule::command('billing:enforce-overdue')
+    ->dailyAt('09:20')
+    ->withoutOverlapping();

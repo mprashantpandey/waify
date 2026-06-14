@@ -43,11 +43,11 @@ class ModuleController extends Controller
             return back()->with('error', 'Core modules cannot be disabled at the platform level.');
         }
 
-        $module->is_enabled = !$module->is_enabled;
+        $module->is_enabled = ! $module->is_enabled;
         $module->save();
 
         $action = $module->is_enabled ? 'enabled' : 'disabled';
-        
+
         return back()->with('success', "Module {$module->name} has been {$action} at the platform level.");
     }
 
@@ -62,7 +62,7 @@ class ModuleController extends Controller
             'description' => 'sometimes|nullable|string']);
 
         // Core modules cannot be disabled
-        if ($module->is_core && isset($request->is_enabled) && !$request->is_enabled) {
+        if ($module->is_core && isset($request->is_enabled) && ! $request->is_enabled) {
             return back()->with('error', 'Core modules cannot be disabled at the platform level.');
         }
 

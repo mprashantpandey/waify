@@ -14,9 +14,9 @@ class OpsCleanupRetentionCommand extends Command
     public function handle(OpsMaintenanceService $service): int
     {
         $result = $service->runRetentionCleanup((bool) $this->option('force'));
-        $this->line(($result['status'] ?? 'unknown') . ': ' . ($result['message'] ?? ''));
+        $this->line(($result['status'] ?? 'unknown').': '.($result['message'] ?? ''));
 
-        if (!empty($result['deleted']) && is_array($result['deleted'])) {
+        if (! empty($result['deleted']) && is_array($result['deleted'])) {
             foreach ($result['deleted'] as $key => $count) {
                 $this->line(" - {$key}: {$count}");
             }
@@ -25,4 +25,3 @@ class OpsCleanupRetentionCommand extends Command
         return self::SUCCESS;
     }
 }
-

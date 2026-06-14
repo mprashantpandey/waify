@@ -2,8 +2,6 @@ import ApplicationLogo from '@/Components/ApplicationLogo';
 import Dropdown from '@/Components/Dropdown';
 import NavLink from '@/Components/NavLink';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
-import { Toaster } from '@/Components/UI/Toaster';
-import { GlobalFlashHandler } from '@/Components/Notifications/GlobalFlashHandler';
 import { Link, usePage } from '@inertiajs/react';
 import { PropsWithChildren, ReactNode, useState } from 'react';
 
@@ -81,7 +79,7 @@ export default function Authenticated({
 
                                     <Dropdown.Content>
                                         <Dropdown.Link
-                                            href={route('profile.edit')}
+                                            href={`${route('app.settings')}?tab=profile`}
                                         >
                                             Profile
                                         </Dropdown.Link>
@@ -168,7 +166,7 @@ export default function Authenticated({
                         </div>
 
                         <div className="mt-3 space-y-1">
-                            <ResponsiveNavLink href={route('profile.edit')}>
+                            <ResponsiveNavLink href={`${route('app.settings')}?tab=profile`}>
                                 Profile
                             </ResponsiveNavLink>
                             <ResponsiveNavLink
@@ -192,8 +190,6 @@ export default function Authenticated({
             )}
 
                 <main>{children}</main>
-                <Toaster />
-                <GlobalFlashHandler />
             </div>
         );
     }

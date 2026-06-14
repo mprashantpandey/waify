@@ -12,20 +12,20 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('whatsapp_contacts', function (Blueprint $table) {
-            if (!Schema::hasColumn('whatsapp_contacts', 'purge_after_at')) {
+            if (! Schema::hasColumn('whatsapp_contacts', 'purge_after_at')) {
                 $table->timestamp('purge_after_at')->nullable()->after('updated_at');
             }
-            if (!Schema::hasColumn('whatsapp_contacts', 'deleted_at')) {
+            if (! Schema::hasColumn('whatsapp_contacts', 'deleted_at')) {
                 $table->softDeletes()->after('purge_after_at');
             }
             $table->index('purge_after_at');
         });
 
         Schema::table('campaigns', function (Blueprint $table) {
-            if (!Schema::hasColumn('campaigns', 'purge_after_at')) {
+            if (! Schema::hasColumn('campaigns', 'purge_after_at')) {
                 $table->timestamp('purge_after_at')->nullable()->after('updated_at');
             }
-            if (!Schema::hasColumn('campaigns', 'deleted_at')) {
+            if (! Schema::hasColumn('campaigns', 'deleted_at')) {
                 $table->softDeletes()->after('purge_after_at');
             }
             $table->index('purge_after_at');
@@ -56,4 +56,3 @@ return new class extends Migration
         });
     }
 };
-

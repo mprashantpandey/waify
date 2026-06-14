@@ -17,7 +17,7 @@ class ConversationAssignmentTest extends TestCase
 
     public function test_assigned_to_and_priority_are_mass_assignable(): void
     {
-        if (!Schema::hasColumn('whatsapp_conversations', 'assigned_to') || !Schema::hasColumn('whatsapp_conversations', 'priority')) {
+        if (! Schema::hasColumn('whatsapp_conversations', 'assigned_to') || ! Schema::hasColumn('whatsapp_conversations', 'priority')) {
             $this->markTestSkipped('Conversation assignment columns are not available in this schema.');
         }
 
@@ -53,4 +53,3 @@ class ConversationAssignmentTest extends TestCase
         $this->assertSame('urgent', $conversation->priority);
     }
 }
-

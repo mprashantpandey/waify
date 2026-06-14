@@ -46,4 +46,3 @@ class ContactTag extends Model
         return $this->contacts()->count();
     }
 }
-

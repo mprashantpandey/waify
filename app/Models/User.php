@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -20,14 +21,33 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
+        'google_id',
+        'avatar_url',
         'phone',
+        'country_code',
+        'job_title',
+        'locale',
+        'timezone',
         'password',
         'is_platform_admin',
         'notify_assignment_enabled',
         'notify_mention_enabled',
         'notify_sound_enabled',
+        'notify_billing_enabled',
+        'notify_waba_enabled',
+        'notify_automation_enabled',
+        'notify_leads_enabled',
+        'notify_templates_enabled',
+        'notify_email_enabled',
+        'notify_in_app_enabled',
+        'quiet_hours_enabled',
+        'quiet_hours_start',
+        'quiet_hours_end',
         'ai_suggestions_enabled',
-        'ai_prompts'];
+        'two_factor_secret',
+        'two_factor_enabled_at',
+        'force_password_reset_at',
+        'sessions_revoked_at'];
 
     /**
      * The attributes that should be hidden for serialization.
@@ -36,6 +56,7 @@ class User extends Authenticatable
      */
     protected $hidden = [
         'password',
+        'two_factor_secret',
         'remember_token'];
 
     /**
@@ -52,8 +73,18 @@ class User extends Authenticatable
             'notify_assignment_enabled' => 'boolean',
             'notify_mention_enabled' => 'boolean',
             'notify_sound_enabled' => 'boolean',
+            'notify_billing_enabled' => 'boolean',
+            'notify_waba_enabled' => 'boolean',
+            'notify_automation_enabled' => 'boolean',
+            'notify_leads_enabled' => 'boolean',
+            'notify_templates_enabled' => 'boolean',
+            'notify_email_enabled' => 'boolean',
+            'notify_in_app_enabled' => 'boolean',
+            'quiet_hours_enabled' => 'boolean',
             'ai_suggestions_enabled' => 'boolean',
-            'ai_prompts' => 'array'];
+            'two_factor_enabled_at' => 'datetime',
+            'force_password_reset_at' => 'datetime',
+            'sessions_revoked_at' => 'datetime'];
     }
 
     /**
@@ -88,6 +119,11 @@ class User extends Authenticatable
     public function isPlatformAdmin(): bool
     {
         return $this->isSuperAdmin();
+    }
+
+    public function scopeNotPlatformAdmin(Builder $query): Builder
+    {
+        return $query->where('is_platform_admin', false);
     }
 
     /**

@@ -12,16 +12,16 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('whatsapp_connections', function (Blueprint $table) {
-            if (!Schema::hasColumn('whatsapp_connections', 'throughput_cap_per_minute')) {
+            if (! Schema::hasColumn('whatsapp_connections', 'throughput_cap_per_minute')) {
                 $table->unsignedInteger('throughput_cap_per_minute')->nullable()->after('is_active');
             }
-            if (!Schema::hasColumn('whatsapp_connections', 'quiet_hours_start')) {
+            if (! Schema::hasColumn('whatsapp_connections', 'quiet_hours_start')) {
                 $table->string('quiet_hours_start', 5)->nullable()->after('throughput_cap_per_minute'); // HH:MM
             }
-            if (!Schema::hasColumn('whatsapp_connections', 'quiet_hours_end')) {
+            if (! Schema::hasColumn('whatsapp_connections', 'quiet_hours_end')) {
                 $table->string('quiet_hours_end', 5)->nullable()->after('quiet_hours_start'); // HH:MM
             }
-            if (!Schema::hasColumn('whatsapp_connections', 'quiet_hours_timezone')) {
+            if (! Schema::hasColumn('whatsapp_connections', 'quiet_hours_timezone')) {
                 $table->string('quiet_hours_timezone', 64)->nullable()->after('quiet_hours_end');
             }
         });
@@ -41,4 +41,3 @@ return new class extends Migration
         });
     }
 };
-

@@ -24,7 +24,7 @@ class PlatformSettingsValidationService
 
         // Check Pusher settings (required for real-time features)
         $pusherIssues = $this->validatePusherSettings();
-        if (!empty($pusherIssues)) {
+        if (! empty($pusherIssues)) {
             $misconfigured['pusher'] = [
                 'group' => 'pusher',
                 'name' => 'Real-time Broadcasting (Pusher)',
@@ -38,7 +38,7 @@ class PlatformSettingsValidationService
 
         // Check Mail settings (required for email notifications)
         $mailIssues = $this->validateMailSettings();
-        if (!empty($mailIssues)) {
+        if (! empty($mailIssues)) {
             $misconfigured['mail'] = [
                 'group' => 'mail',
                 'name' => 'Email Configuration',
@@ -54,7 +54,7 @@ class PlatformSettingsValidationService
         $razorpayEnabled = PlatformSetting::get('payment.razorpay_enabled', false);
         if ($razorpayEnabled) {
             $paymentIssues = $this->validatePaymentSettings();
-            if (!empty($paymentIssues)) {
+            if (! empty($paymentIssues)) {
                 $misconfigured['payment'] = [
                     'group' => 'payment',
                     'name' => 'Payment Gateway (Razorpay)',
@@ -69,7 +69,7 @@ class PlatformSettingsValidationService
 
         // Check WhatsApp settings (required for WhatsApp features)
         $whatsappIssues = $this->validateWhatsAppSettings();
-        if (!empty($whatsappIssues)) {
+        if (! empty($whatsappIssues)) {
             $misconfigured['whatsapp'] = [
                 'group' => 'whatsapp',
                 'name' => 'WhatsApp Meta Configuration',
@@ -85,7 +85,7 @@ class PlatformSettingsValidationService
         $storageDefault = PlatformSetting::get('storage.default', 'local');
         if ($storageDefault === 's3') {
             $storageIssues = $this->validateStorageSettings();
-            if (!empty($storageIssues)) {
+            if (! empty($storageIssues)) {
                 $misconfigured['storage'] = [
                     'group' => 'storage',
                     'name' => 'Storage Configuration (S3)',
@@ -102,7 +102,7 @@ class PlatformSettingsValidationService
         $aiEnabled = PlatformSetting::get('ai.enabled', false);
         if ($aiEnabled) {
             $aiIssues = $this->validateAISettings();
-            if (!empty($aiIssues)) {
+            if (! empty($aiIssues)) {
                 $misconfigured['ai'] = [
                     'group' => 'ai',
                     'name' => 'AI Configuration',
@@ -117,7 +117,7 @@ class PlatformSettingsValidationService
 
         // Check Analytics settings (required if enabled)
         $analyticsIssues = $this->validateAnalyticsSettings();
-        if (!empty($analyticsIssues)) {
+        if (! empty($analyticsIssues)) {
             $misconfigured['analytics'] = [
                 'group' => 'analytics',
                 'name' => 'Analytics Configuration',
@@ -138,7 +138,7 @@ class PlatformSettingsValidationService
     protected function validatePusherSettings(): array
     {
         $issues = [];
-        
+
         $appId = PlatformSetting::get('pusher.app_id');
         $key = PlatformSetting::get('pusher.key');
         $secret = PlatformSetting::get('pusher.secret');
@@ -166,9 +166,9 @@ class PlatformSettingsValidationService
     protected function validateMailSettings(): array
     {
         $issues = [];
-        
+
         $driver = PlatformSetting::get('mail.driver', config('mail.default'));
-        
+
         if ($driver === 'smtp') {
             $host = PlatformSetting::get('mail.host');
             $port = PlatformSetting::get('mail.port');
@@ -204,7 +204,7 @@ class PlatformSettingsValidationService
     protected function validatePaymentSettings(): array
     {
         $issues = [];
-        
+
         $keyId = PlatformSetting::get('payment.razorpay_key_id');
         $keySecret = PlatformSetting::get('payment.razorpay_key_secret');
 
@@ -224,9 +224,9 @@ class PlatformSettingsValidationService
     protected function validateWhatsAppSettings(): array
     {
         $issues = [];
-        
+
         $embeddedEnabled = PlatformSetting::get('whatsapp.embedded_enabled');
-        
+
         // If embedded signup is enabled, check for required settings
         if ($embeddedEnabled) {
             $appId = PlatformSetting::get('whatsapp.meta_app_id');
@@ -253,7 +253,7 @@ class PlatformSettingsValidationService
     protected function validateStorageSettings(): array
     {
         $issues = [];
-        
+
         $s3Key = PlatformSetting::get('storage.s3_key');
         $s3Secret = PlatformSetting::get('storage.s3_secret');
         $s3Region = PlatformSetting::get('storage.s3_region');
@@ -281,7 +281,7 @@ class PlatformSettingsValidationService
     protected function validateAISettings(): array
     {
         $issues = [];
-        
+
         $provider = PlatformSetting::get('ai.provider', 'openai');
 
         if ($provider === 'openai') {
@@ -310,10 +310,9 @@ class PlatformSettingsValidationService
     protected function validateAnalyticsSettings(): array
     {
         $issues = [];
-        
+
         $gaEnabled = PlatformSetting::get('analytics.google_analytics_enabled', false);
         $mixpanelEnabled = PlatformSetting::get('analytics.mixpanel_enabled', false);
-        $sentryEnabled = PlatformSetting::get('analytics.sentry_enabled', false);
 
         if ($gaEnabled) {
             $gaId = PlatformSetting::get('analytics.google_analytics_id');
@@ -329,13 +328,6 @@ class PlatformSettingsValidationService
             }
         }
 
-        if ($sentryEnabled) {
-            $sentryDsn = PlatformSetting::get('analytics.sentry_dsn');
-            if (empty($sentryDsn)) {
-                $issues[] = 'Sentry DSN is required when Sentry is enabled';
-            }
-        }
-
         return $issues;
     }
 
@@ -345,13 +337,13 @@ class PlatformSettingsValidationService
     public function hasCriticalMisconfigurations(): bool
     {
         $misconfigured = $this->getMisconfiguredSettings();
-        
+
         // Filter only required (critical) misconfigurations
         $critical = array_filter($misconfigured, function ($item) {
             return $item['required'] === true;
         });
 
-        return !empty($critical);
+        return ! empty($critical);
     }
 
     /**
@@ -362,4 +354,3 @@ class PlatformSettingsValidationService
         return count($this->getMisconfiguredSettings());
     }
 }
-

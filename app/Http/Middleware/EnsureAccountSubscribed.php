@@ -5,14 +5,14 @@ namespace App\Http\Middleware;
 use App\Core\Billing\SubscriptionService;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 
 class EnsureAccountSubscribed
 {
     public function __construct(
         protected SubscriptionService $subscriptionService
-    ) {
-    }
+    ) {}
 
     /**
      * Handle an incoming request.
@@ -23,7 +23,7 @@ class EnsureAccountSubscribed
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!$account) {
+        if (! $account) {
             abort(404, 'Account not found.');
         }
 
@@ -34,39 +34,37 @@ class EnsureAccountSubscribed
 
         // Allow access to billing pages always
         $route = $request->route()?->getName();
-        if ($route && (str_contains($route, 'billing') || str_contains($route, 'settings'))) {
+        if ($route && Str::contains($route, ['billing', 'settings', 'workspaces'])) {
             return $next($request);
         }
 
-        // If no subscription, redirect to plan selection (except for billing routes)
-        if (!$subscription) {
-            $route = $request->route()?->getName();
-            // Allow access to billing pages, onboarding, and profile
-            if ($route && (
-                str_contains($route, 'billing') || 
-                str_contains($route, 'settings') ||
-                str_contains($route, 'onboarding') ||
-                str_contains($route, 'profile')
-            )) {
-                return $next($request);
-            }
-            
-            // Redirect to plan selection page with message
-            return redirect()->route('app.billing.plans')
-                ->with('message', 'Please select a plan to continue using the platform.');
+        // Read-only pages stay accessible; only actions require an active plan.
+        if ($request->isMethodSafe()) {
+            return $next($request);
         }
 
-        // Block if past_due or canceled (no grace period for now)
+        if (! $subscription) {
+            return $this->blockedActionResponse($request, 'Please select a plan before using this action.');
+        }
+
         if ($subscription->isPastDue() || $subscription->isCanceled()) {
-            return inertia('Billing/PastDue', [
-                'account' => [
-                    'name' => $account->name,
-                    'slug' => $account->slug],
-                'subscription' => [
-                    'status' => $subscription->status,
-                    'last_error' => $subscription->last_error]])->toResponse($request)->setStatusCode(402);
+            return $this->blockedActionResponse($request, $subscription->last_error ?: 'Your plan is not active. Renew your plan before using this action.');
         }
 
         return $next($request);
+    }
+
+    protected function blockedActionResponse(Request $request, string $message): Response
+    {
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => $message,
+                'billing_required' => true,
+            ], 402);
+        }
+
+        return redirect()->route('app.billing.index', ['tab' => 'plans'])
+            ->withErrors(['billing' => $message])
+            ->with('error', $message);
     }
 }

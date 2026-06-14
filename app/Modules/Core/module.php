@@ -18,4 +18,3 @@ return [
             'href' => 'app.modules',
             'icon' => 'Puzzle',
             'group' => 'core']]];
-

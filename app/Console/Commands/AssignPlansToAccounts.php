@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands;
 
+use App\Core\Billing\SubscriptionService;
 use App\Models\Account;
 use App\Models\Plan;
-use App\Core\Billing\SubscriptionService;
 use Illuminate\Console\Command;
 
 class AssignPlansToAccounts extends Command
@@ -15,7 +15,7 @@ class AssignPlansToAccounts extends Command
      * @var string
      */
     protected $signature = 'accounts:assign-plans 
-                            {--plan= : The plan key to assign (defaults to DEFAULT_PLAN_KEY or free)}
+                            {--plan= : The plan key to assign (defaults to DEFAULT_PLAN_KEY or starter)}
                             {--dry-run : Show what would be done without making changes}';
 
     /**
@@ -30,16 +30,17 @@ class AssignPlansToAccounts extends Command
      */
     public function handle(SubscriptionService $subscriptionService): int
     {
-        $planKey = $this->option('plan') ?? env('DEFAULT_PLAN_KEY', 'free');
+        $planKey = $this->option('plan') ?? config('billing.default_plan_key', 'starter');
         $dryRun = $this->option('dry-run');
 
-        $this->info("Finding accounts without subscriptions...");
+        $this->info('Finding accounts without subscriptions...');
 
         // Find accounts without subscriptions
         $accounts = Account::whereDoesntHave('subscription')->get();
 
         if ($accounts->isEmpty()) {
             $this->info('No accounts found without subscriptions.');
+
             return Command::SUCCESS;
         }
 
@@ -50,27 +51,18 @@ class AssignPlansToAccounts extends Command
             ->where('is_active', true)
             ->first();
 
-        if (!$plan) {
-            // Try to find any free plan
+        if (! $plan) {
             $plan = Plan::where('is_active', true)
-                ->where(function ($query) {
-                    $query->whereNull('price_monthly')
-                          ->orWhere('price_monthly', 0);
-                })
+                ->whereNotNull('price_monthly')
+                ->where('price_monthly', '>', 0)
+                ->orderBy('price_monthly', 'asc')
                 ->orderBy('sort_order')
                 ->first();
 
-            if (!$plan) {
-                // Try to find cheapest active plan
-                $plan = Plan::where('is_active', true)
-                    ->orderBy('price_monthly', 'asc')
-                    ->orderBy('sort_order')
-                    ->first();
+            if (! $plan) {
+                $this->error('No suitable paid plan found. Please create a plan first.');
 
-                if (!$plan) {
-                    $this->error("No suitable plan found. Please create a plan first.");
-                    return Command::FAILURE;
-                }
+                return Command::FAILURE;
             }
 
             $this->warn("Plan '{$planKey}' not found. Using plan '{$plan->key}' ({$plan->name}) instead.");
@@ -79,7 +71,7 @@ class AssignPlansToAccounts extends Command
         }
 
         if ($dryRun) {
-            $this->warn("DRY RUN MODE - No changes will be made");
+            $this->warn('DRY RUN MODE - No changes will be made');
         }
 
         $bar = $this->output->createProgressBar($accounts->count());
@@ -90,23 +82,23 @@ class AssignPlansToAccounts extends Command
 
         foreach ($accounts as $account) {
             try {
-                if (!$dryRun) {
+                if (! $dryRun) {
                     $owner = $account->owner;
-                    
+
                     if ($plan->trial_days > 0) {
                         $subscriptionService->startTrial($account, $plan, $owner);
                     } else {
                         $subscriptionService->changePlan($account, $plan, $owner, null);
                     }
                 }
-                
+
                 $successCount++;
             } catch (\Exception $e) {
                 $errorCount++;
                 $this->newLine();
                 $this->error("Failed to assign plan to account '{$account->name}' (ID: {$account->id}): {$e->getMessage()}");
             }
-            
+
             $bar->advance();
         }
 

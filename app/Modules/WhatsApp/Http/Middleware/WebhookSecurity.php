@@ -2,9 +2,11 @@
 
 namespace App\Modules\WhatsApp\Http\Middleware;
 
+use App\Modules\WhatsApp\Services\WebhookSignatureVerifier;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpFoundation\Response;
 
 class WebhookSecurity
@@ -16,29 +18,46 @@ class WebhookSecurity
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // Verify request signature if app secret configured
-        $appSecret = config('whatsapp.meta.app_secret');
-        $signatureHeader = $request->header('X-Hub-Signature-256');
-        if (!empty($appSecret) && $request->isMethod('post')) {
-            if (!$signatureHeader) {
-                Log::warning('[Meta-WhatsApp-Webhook] POST rejected: missing X-Hub-Signature-256 (app_secret is set)');
-                Log::channel('whatsapp')->warning('Webhook POST rejected: missing X-Hub-Signature-256 (app_secret is set)');
-                abort(401, 'Missing signature');
+        $verifier = app(WebhookSignatureVerifier::class);
+
+        if ($request->isMethod('post') && $verifier->secrets() !== []) {
+            $strictSignature = $verifier->isStrict();
+            $hasSignature = $request->headers->has('X-Hub-Signature-256');
+
+            if (! $hasSignature) {
+                $message = $strictSignature
+                    ? 'Webhook POST rejected: missing X-Hub-Signature-256 (app_secret is set)'
+                    : 'Webhook POST accepted without X-Hub-Signature-256 because strict signature verification is disabled';
+
+                Log::warning('[Meta-WhatsApp-Webhook] '.$message);
+                Log::channel('whatsapp')->warning($message);
+
+                if ($strictSignature) {
+                    return response('Missing signature', 401);
+                }
+
+                $this->notifySignatureIssue('missing_signature', $message);
             }
 
-            $rawBody = $request->getContent();
-            $expected = 'sha256=' . hash_hmac('sha256', $rawBody, $appSecret);
+            if ($hasSignature && ! $verifier->isValid($request)) {
+                $message = $strictSignature
+                    ? 'Webhook POST rejected: invalid signature (check META_APP_SECRET matches Meta App Secret)'
+                    : 'Webhook POST accepted with invalid signature because strict signature verification is disabled';
 
-            if (!hash_equals($expected, $signatureHeader)) {
-                Log::warning('[Meta-WhatsApp-Webhook] POST rejected: invalid signature (check META_APP_SECRET matches Meta App Secret)');
-                Log::channel('whatsapp')->warning('Webhook POST rejected: invalid signature (check META_APP_SECRET matches Meta App Secret)');
-                abort(401, 'Invalid signature');
+                Log::warning('[Meta-WhatsApp-Webhook] '.$message);
+                Log::channel('whatsapp')->warning($message);
+
+                if ($strictSignature) {
+                    return response('Invalid signature', 401);
+                }
+
+                $this->notifySignatureIssue('invalid_signature', $message);
             }
         }
 
         // Check IP allowlist if configured
         $allowedIpsConfig = config('whatsapp.webhook.allowed_ips', '');
-        if (!empty($allowedIpsConfig)) {
+        if (! empty($allowedIpsConfig)) {
             $allowedIps = array_map('trim', explode(',', $allowedIpsConfig));
             $requestIp = $request->ip();
 
@@ -62,7 +81,7 @@ class WebhookSecurity
                 }
             }
 
-            if (!$allowed) {
+            if (! $allowed) {
                 Log::channel('whatsapp')->warning('Webhook blocked: IP not in allowlist', [
                     'ip' => $requestIp,
                     'connection_id' => $request->route('connection')?->id,
@@ -104,7 +123,15 @@ class WebhookSecurity
                 'status' => $response->getStatusCode()]);
 
             return $response;
-        } catch (\Exception $e) {
+        } catch (HttpExceptionInterface $e) {
+            Log::channel('whatsapp')->warning('Webhook request rejected', [
+                'correlation_id' => $correlationId,
+                'status' => $e->getStatusCode(),
+                'error' => $e->getMessage(),
+            ]);
+
+            throw $e;
+        } catch (\Throwable $e) {
             // Log error safely (no stack trace in response)
             Log::channel('whatsapp')->error('Webhook processing exception', [
                 'correlation_id' => $correlationId,
@@ -136,6 +163,23 @@ class WebhookSecurity
         $ipLong = $ipLong & 0xFFFFFFFF;
         $networkLong = $networkLong & 0xFFFFFFFF;
         $mask = $prefixLen === 0 ? 0 : (0xFFFFFFFF << (32 - $prefixLen)) & 0xFFFFFFFF;
+
         return ($ipLong & $mask) === ($networkLong & $mask);
+    }
+
+    protected function notifySignatureIssue(string $issue, string $message): void
+    {
+        try {
+            app(\App\Services\AppNotificationService::class)->platform(
+                'webhook_signature_not_strict',
+                'WhatsApp webhook signature not enforced',
+                $message,
+                'warning',
+                route('platform.settings', ['tab' => 'integrations']),
+                ['issue' => $issue, 'dedupe_key' => 'whatsapp_webhook_signature_'.$issue]
+            );
+        } catch (\Throwable) {
+            // Never block webhook delivery because notification storage failed.
+        }
     }
 }

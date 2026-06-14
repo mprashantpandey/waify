@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests;
 
-use Illuminate\Foundation\Http\FormRequest;
 use App\Services\PlatformSettingsService;
+use Illuminate\Foundation\Http\FormRequest;
 
 class PasswordUpdateRequest extends FormRequest
 {
@@ -23,9 +23,9 @@ class PasswordUpdateRequest extends FormRequest
     public function rules(): array
     {
         $settingsService = app(PlatformSettingsService::class);
+
         return [
             'current_password' => ['required', 'current_password'],
             'password' => $settingsService->getPasswordRules()];
     }
 }
-

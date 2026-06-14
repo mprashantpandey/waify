@@ -10,10 +10,11 @@ use App\Modules\Contacts\Models\ContactSegment;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
+use Illuminate\Database\Query\Builder;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Database\Query\Builder;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -22,8 +23,7 @@ class CampaignController extends Controller
 {
     public function __construct(
         protected CampaignService $campaignService
-    ) {
-    }
+    ) {}
 
     /**
      * Display a listing of campaigns.
@@ -50,18 +50,24 @@ class CampaignController extends Controller
         }
 
         $campaigns = $query->paginate(20)->withQueryString()->through(function ($campaign) {
-                return [
-                    'id' => $campaign->id,
-                    'slug' => $campaign->slug,
-                    'name' => $campaign->name,
+            $totalRecipients = max(0, (int) $campaign->total_recipients);
+            $sentCount = max(0, (int) $campaign->sent_count);
+            $deliveredCount = min($totalRecipients, max(0, (int) $campaign->delivered_count));
+            $readCount = min($deliveredCount, max(0, (int) $campaign->read_count));
+            $failedCount = max(0, (int) $campaign->failed_count);
+
+            return [
+                'id' => $campaign->id,
+                'slug' => $campaign->slug,
+                'name' => $campaign->name,
                 'description' => $campaign->description,
                 'status' => $campaign->status,
                 'type' => $campaign->type,
-                'total_recipients' => $campaign->total_recipients,
-                'sent_count' => $campaign->sent_count,
-                'delivered_count' => $campaign->delivered_count,
-                'read_count' => $campaign->read_count,
-                'failed_count' => $campaign->failed_count,
+                'total_recipients' => $totalRecipients,
+                'sent_count' => $sentCount,
+                'delivered_count' => $deliveredCount,
+                'read_count' => $readCount,
+                'failed_count' => $failedCount,
                 'completion_percentage' => $campaign->completion_percentage,
                 'scheduled_at' => $campaign->scheduled_at?->toIso8601String(),
                 'started_at' => $campaign->started_at?->toIso8601String(),
@@ -85,60 +91,187 @@ class CampaignController extends Controller
                 'status' => $request->status,
                 'search' => (string) $request->string('search'),
             ],
+            'createOptions' => $this->campaignCreateOptions($account),
+            'selectedCampaign' => $this->selectedCampaignPayload($request, $account),
         ]);
     }
 
-    /**
-     * Show the form for creating a new campaign.
-     */
-    public function create(Request $request): Response
+    protected function selectedCampaignPayload(Request $request, $account): ?array
     {
-        $account = $request->attributes->get('account') ?? current_account();
+        $selected = $request->query('campaign');
+        if (! $selected) {
+            return null;
+        }
 
-        // Get available connections
+        $campaign = Campaign::where('account_id', $account->id)
+            ->where(function ($query) use ($selected) {
+                $query->where('slug', $selected);
+                if (is_numeric($selected)) {
+                    $query->orWhere('id', (int) $selected);
+                }
+            })
+            ->with(['connection', 'template', 'creator'])
+            ->first();
+
+        if (! $campaign) {
+            return null;
+        }
+
+        $recipients = $campaign->recipients()
+            ->with('contact:id,name,wa_id,phone')
+            ->orderByRaw("CASE status WHEN 'failed' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END")
+            ->latest()
+            ->limit(100)
+            ->get()
+            ->map(fn ($recipient) => [
+                'id' => $recipient->id,
+                'name' => $recipient->name ?: $recipient->contact?->name,
+                'phone_number' => $recipient->phone_number ?: $recipient->contact?->wa_id ?: $recipient->contact?->phone,
+                'status' => $recipient->status,
+                'sent_at' => $recipient->sent_at?->toIso8601String(),
+                'delivered_at' => $recipient->delivered_at?->toIso8601String(),
+                'read_at' => $recipient->read_at?->toIso8601String(),
+                'failed_at' => $recipient->failed_at?->toIso8601String(),
+                'failure_reason' => $recipient->failure_reason,
+                'message_id' => $recipient->message_id ?: $recipient->wamid,
+                'timeline' => collect([
+                    ['label' => 'Prepared', 'at' => $recipient->created_at?->toIso8601String(), 'status' => 'complete'],
+                    ['label' => 'Sent', 'at' => $recipient->sent_at?->toIso8601String(), 'status' => $recipient->sent_at ? 'complete' : 'pending'],
+                    ['label' => 'Delivered', 'at' => $recipient->delivered_at?->toIso8601String(), 'status' => $recipient->delivered_at ? 'complete' : 'pending'],
+                    ['label' => 'Read', 'at' => $recipient->read_at?->toIso8601String(), 'status' => $recipient->read_at ? 'complete' : 'pending'],
+                    ['label' => 'Failed', 'at' => $recipient->failed_at?->toIso8601String(), 'status' => $recipient->failed_at ? 'failed' : 'pending'],
+                ])->filter(fn ($item) => $item['status'] !== 'pending' || in_array($item['label'], ['Sent', 'Delivered', 'Read'], true))->values(),
+            ]);
+
+        try {
+            $preflight = $this->campaignService->runPreflightChecks($campaign);
+        } catch (\Throwable $e) {
+            $preflight = [
+                'ok' => false,
+                'errors' => [$e->getMessage()],
+                'warnings' => [],
+            ];
+        }
+
+        return [
+            'id' => $campaign->id,
+            'slug' => $campaign->slug,
+            'name' => $campaign->name,
+            'description' => $campaign->description,
+            'status' => $campaign->status,
+            'type' => $campaign->type,
+            'recipient_type' => $campaign->recipient_type,
+            'message_text' => $campaign->message_text,
+            'media_url' => $campaign->media_url,
+            'media_type' => $campaign->media_type,
+            'template_params' => $campaign->template_params ?? [],
+            'send_delay_seconds' => $campaign->send_delay_seconds,
+            'respect_opt_out' => (bool) $campaign->respect_opt_out,
+            'dry_run' => (bool) data_get($campaign->metadata, 'dry_run', false),
+            'recipient_sample_size' => (int) data_get($campaign->metadata, 'recipient_sample_size', 0),
+            'tracking' => [
+                'source' => data_get($campaign->metadata, 'tracking.source'),
+                'ctwa_ad_id' => data_get($campaign->metadata, 'tracking.ctwa_ad_id'),
+                'ctwa_post_id' => data_get($campaign->metadata, 'tracking.ctwa_post_id'),
+                'utm_source' => data_get($campaign->metadata, 'tracking.utm_source'),
+                'utm_medium' => data_get($campaign->metadata, 'tracking.utm_medium'),
+                'utm_campaign' => data_get($campaign->metadata, 'tracking.utm_campaign'),
+                'ab_test_enabled' => (bool) data_get($campaign->metadata, 'tracking.ab_test_enabled', false),
+                'ab_variant' => data_get($campaign->metadata, 'tracking.ab_variant'),
+                'retargeting_basis' => data_get($campaign->metadata, 'tracking.retargeting_basis'),
+            ],
+            'scheduled_at' => $campaign->scheduled_at?->toIso8601String(),
+            'started_at' => $campaign->started_at?->toIso8601String(),
+            'completed_at' => $campaign->completed_at?->toIso8601String(),
+            'created_at' => $campaign->created_at?->toIso8601String(),
+            'connection' => $campaign->connection ? [
+                'id' => $campaign->connection->id,
+                'name' => $campaign->connection->name,
+                'phone_number_id' => $campaign->connection->phone_number_id,
+            ] : null,
+            'template' => $campaign->template ? [
+                'id' => $campaign->template->id,
+                'name' => $campaign->template->name,
+                'language' => $campaign->template->language,
+                'category' => $campaign->template->category,
+                'body_text' => $campaign->template->body_text,
+            ] : null,
+            'created_by' => $campaign->creator ? [
+                'id' => $campaign->creator->id,
+                'name' => $campaign->creator->name,
+            ] : null,
+            'stats' => [
+                'total_recipients' => $campaign->total_recipients,
+                'sent_count' => max(0, (int) $campaign->sent_count),
+                'delivered_count' => min(max(0, (int) $campaign->total_recipients), max(0, (int) $campaign->delivered_count)),
+                'read_count' => min(min(max(0, (int) $campaign->total_recipients), max(0, (int) $campaign->delivered_count)), max(0, (int) $campaign->read_count)),
+                'failed_count' => max(0, (int) $campaign->failed_count),
+                'pending_count' => max(0, (int) $campaign->total_recipients - (int) $campaign->sent_count - (int) $campaign->failed_count),
+                'completion_percentage' => $campaign->completion_percentage,
+                'delivery_rate' => $campaign->delivery_rate,
+                'read_rate' => $campaign->read_rate,
+            ],
+            'diagnostics' => [
+                'preflight' => $preflight,
+                'queue' => [
+                    'pending_recipients' => $campaign->recipients()->where('status', 'pending')->count(),
+                    'sending_recipients' => $campaign->recipients()->where('status', 'sending')->count(),
+                    'failed_recipients' => $campaign->recipients()->where('status', 'failed')->count(),
+                    'oldest_pending_at' => $campaign->recipients()->where('status', 'pending')->min('created_at'),
+                ],
+                'connection_backoff_until' => data_get($campaign->connection?->metadata, 'campaign_backoff_until'),
+            ],
+            'recipients' => $recipients,
+            'testTargetPhone' => $request->user()?->phone,
+        ];
+    }
+
+    protected function campaignCreateOptions($account): array
+    {
         $connections = WhatsAppConnection::where('account_id', $account->id)
             ->where('is_active', true)
-            ->get()
-            ->map(function ($connection) {
-                return [
-                    'id' => $connection->id,
-                    'name' => $connection->name,
-                    'phone_number_id' => $connection->phone_number_id];
-            });
+            ->get(['id', 'name', 'phone_number_id']);
 
-        // Get available templates
         $templates = WhatsAppTemplate::where('account_id', $account->id)
             ->whereRaw('LOWER(TRIM(status)) = ?', ['approved'])
             ->where(function ($query) {
-                // Keep compatibility with legacy rows where is_archived may be NULL.
                 $query->where('is_archived', false)
                     ->orWhereNull('is_archived');
             })
-            ->with('connection')
-            ->get()
-            ->map(function ($template) {
-                return [
-                    'id' => $template->id,
-                    'name' => $template->name,
-                    'language' => $template->language,
-                    'category' => $template->category,
-                    'body_text' => $template->body_text,
-                    'connection_id' => $template->whatsapp_connection_id];
-            });
+            ->get(['id', 'name', 'language', 'category', 'body_text', 'whatsapp_connection_id']);
 
-        // Get contacts count for recipient selection
-        $contactsCount = WhatsAppContact::where('account_id', $account->id)->count();
+        $contacts = WhatsAppContact::where('account_id', $account->id)
+            ->whereNotIn('status', ['blocked', 'opt_out'])
+            ->orderBy('name')
+            ->limit(200)
+            ->get(['id', 'name', 'wa_id', 'phone', 'status']);
 
         $segments = ContactSegment::where('account_id', $account->id)
             ->orderBy('name')
             ->get(['id', 'name', 'contact_count']);
 
-        return Inertia::render('Broadcasts/Create', [
-            'account' => $account,
+        return [
             'connections' => $connections,
-            'templates' => $templates,
-            'contactsCount' => $contactsCount,
-            'segments' => $segments]);
+            'templates' => $templates->map(fn ($template) => [
+                'id' => $template->id,
+                'name' => $template->name,
+                'language' => $template->language,
+                'category' => $template->category,
+                'body_text' => $template->body_text,
+                'connection_id' => $template->whatsapp_connection_id,
+            ]),
+            'contactsCount' => WhatsAppContact::where('account_id', $account->id)->count(),
+            'contacts' => $contacts,
+            'segments' => $segments,
+        ];
+    }
+
+    /**
+     * Show the form for creating a new campaign.
+     */
+    public function create(Request $request): RedirectResponse
+    {
+        return redirect()->route('app.broadcasts.index', ['panel' => 'create']);
     }
 
     /**
@@ -189,12 +322,22 @@ class CampaignController extends Controller
             'send_delay_seconds' => 'nullable|integer|min:0|max:3600',
             'respect_opt_out' => 'boolean',
             'dry_run' => 'nullable|boolean',
-            'recipient_sample_size' => 'nullable|integer|min:0|max:100000']);
+            'recipient_sample_size' => 'nullable|integer|min:0|max:100000',
+            'tracking' => 'nullable|array',
+            'tracking.source' => 'nullable|string|max:100',
+            'tracking.ctwa_ad_id' => 'nullable|string|max:120',
+            'tracking.ctwa_post_id' => 'nullable|string|max:120',
+            'tracking.utm_source' => 'nullable|string|max:120',
+            'tracking.utm_medium' => 'nullable|string|max:120',
+            'tracking.utm_campaign' => 'nullable|string|max:160',
+            'tracking.ab_test_enabled' => 'nullable|boolean',
+            'tracking.ab_variant' => 'nullable|string|max:80',
+            'tracking.retargeting_basis' => 'nullable|string|max:160']);
 
         // When using custom recipients, require at least one with a phone number
         if ($validated['recipient_type'] === 'custom') {
             $withPhone = array_values(array_filter($validated['custom_recipients'] ?? [], function ($r) {
-                return !empty(trim((string) ($r['phone'] ?? '')));
+                return ! empty(trim((string) ($r['phone'] ?? '')));
             }));
             if (count($withPhone) === 0) {
                 return back()->withErrors(['custom_recipients' => 'Add at least one recipient with a phone number.'])->withInput();
@@ -205,7 +348,7 @@ class CampaignController extends Controller
         }
 
         // Ensure selected template belongs to selected connection.
-        if (($validated['type'] ?? null) === 'template' && !empty($validated['whatsapp_template_id'])) {
+        if (($validated['type'] ?? null) === 'template' && ! empty($validated['whatsapp_template_id'])) {
             $templateBelongsToConnection = WhatsAppTemplate::where('id', $validated['whatsapp_template_id'])
                 ->where('account_id', $account->id)
                 ->whereRaw('LOWER(TRIM(status)) = ?', ['approved'])
@@ -215,12 +358,12 @@ class CampaignController extends Controller
                 })
                 ->where(function ($query) use ($validated) {
                     $query->where('whatsapp_connection_id', $validated['whatsapp_connection_id'])
-                        // Some legacy synced templates may miss connection_id.
+                        // Some synced templates may miss connection_id.
                         ->orWhereNull('whatsapp_connection_id');
                 })
                 ->exists();
 
-            if (!$templateBelongsToConnection) {
+            if (! $templateBelongsToConnection) {
                 return back()->withErrors([
                     'whatsapp_template_id' => 'Selected template is not available for the selected connection.',
                 ])->withInput();
@@ -252,6 +395,17 @@ class CampaignController extends Controller
                 'metadata' => [
                     'dry_run' => (bool) ($validated['dry_run'] ?? false),
                     'recipient_sample_size' => max(0, (int) ($validated['recipient_sample_size'] ?? 0)),
+                    'tracking' => array_filter([
+                        'source' => $validated['tracking']['source'] ?? null,
+                        'ctwa_ad_id' => $validated['tracking']['ctwa_ad_id'] ?? null,
+                        'ctwa_post_id' => $validated['tracking']['ctwa_post_id'] ?? null,
+                        'utm_source' => $validated['tracking']['utm_source'] ?? null,
+                        'utm_medium' => $validated['tracking']['utm_medium'] ?? null,
+                        'utm_campaign' => $validated['tracking']['utm_campaign'] ?? null,
+                        'ab_test_enabled' => (bool) ($validated['tracking']['ab_test_enabled'] ?? false),
+                        'ab_variant' => $validated['tracking']['ab_variant'] ?? null,
+                        'retargeting_basis' => $validated['tracking']['retargeting_basis'] ?? null,
+                    ], fn ($value) => $value !== null && $value !== ''),
                 ]]);
 
             // Prepare recipients
@@ -265,7 +419,7 @@ class CampaignController extends Controller
 
             DB::commit();
 
-            return redirect()->route('app.broadcasts.show', [
+            return redirect()->route('app.broadcasts.index', [
                 'campaign' => $campaign->slug])->with('success', 'Campaign created successfully.');
         } catch (\Exception $e) {
             DB::rollBack();
@@ -274,92 +428,36 @@ class CampaignController extends Controller
                 'error' => $e->getMessage()]);
 
             return back()->withErrors([
-                'error' => 'Failed to create campaign: ' . $e->getMessage()])->withInput();
+                'error' => 'Failed to create campaign: '.$e->getMessage()])->withInput();
         }
     }
 
     /**
      * Display the specified campaign.
      */
-    public function show(Request $request, Campaign $campaign): Response
+    public function show(Request $request, Campaign $campaign): RedirectResponse
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($campaign->account_id, $account->id)) {
+        if (! account_ids_match($campaign->account_id, $account->id)) {
             abort(404);
         }
 
-        $campaign->load(['connection', 'template', 'creator', 'recipients' => function ($query) {
-            $query->orderBy('created_at', 'desc')->limit(100);
-        }]);
-
-        $stats = [
-            'total' => $campaign->total_recipients,
-            'sent' => $campaign->sent_count,
-            'delivered' => $campaign->delivered_count,
-            'read' => $campaign->read_count,
-            'failed' => $campaign->failed_count,
-            'pending' => $campaign->recipients()->where('status', 'pending')->count(),
-            'completion_percentage' => $campaign->completion_percentage,
-            'delivery_rate' => $campaign->delivery_rate,
-            'read_rate' => $campaign->read_rate];
-
-        return Inertia::render('Broadcasts/Show', [
-            'account' => $account,
-            'campaign' => [
-                'id' => $campaign->id,
-                'slug' => $campaign->slug,
-                'name' => $campaign->name,
-                'description' => $campaign->description,
-                'status' => $campaign->status,
-                'type' => $campaign->type,
-                'recipient_type' => $campaign->recipient_type,
-                'send_delay_seconds' => $campaign->send_delay_seconds,
-                'respect_opt_out' => (bool) $campaign->respect_opt_out,
-                'dry_run' => (bool) ($campaign->metadata['dry_run'] ?? false),
-                'recipient_sample_size' => (int) ($campaign->metadata['recipient_sample_size'] ?? 0),
-                'scheduled_at' => $campaign->scheduled_at?->toIso8601String(),
-                'started_at' => $campaign->started_at?->toIso8601String(),
-                'completed_at' => $campaign->completed_at?->toIso8601String(),
-                'connection' => $campaign->connection ? [
-                    'id' => $campaign->connection->id,
-                    'name' => $campaign->connection->name] : null,
-                'template' => $campaign->template ? [
-                    'id' => $campaign->template->id,
-                    'name' => $campaign->template->name] : null,
-                'created_by' => $campaign->creator ? [
-                    'id' => $campaign->creator->id,
-                    'name' => $campaign->creator->name] : null,
-                'created_at' => $campaign->created_at->toIso8601String()],
-            'testTargetPhone' => $request->user()?->phone,
-            'stats' => $stats,
-            'recipients' => $campaign->recipients->map(function ($recipient) {
-                return [
-                    'id' => $recipient->id,
-                    'phone_number' => $recipient->phone_number,
-                    'name' => $recipient->name,
-                    'status' => $recipient->status,
-                    'sent_at' => $recipient->sent_at?->toIso8601String(),
-                    'delivered_at' => $recipient->delivered_at?->toIso8601String(),
-                    'read_at' => $recipient->read_at?->toIso8601String(),
-                    'failed_at' => $recipient->failed_at?->toIso8601String(),
-                    'failure_reason' => $recipient->failure_reason];
-            }),
-        ]);
+        return redirect()->route('app.broadcasts.index', ['campaign' => $campaign->slug]);
     }
 
     public function duplicate(Request $request, Campaign $campaign)
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($campaign->account_id, $account->id)) {
+        if (! account_ids_match($campaign->account_id, $account->id)) {
             abort(404);
         }
 
         try {
             $copy = $this->campaignService->duplicateCampaign($campaign, (int) $request->user()->id);
 
-            return redirect()->route('app.broadcasts.show', ['campaign' => $copy->slug])
+            return redirect()->route('app.broadcasts.index', ['campaign' => $copy->slug])
                 ->with('success', 'Campaign duplicated successfully.');
         } catch (\Throwable $e) {
             Log::error('Failed to duplicate campaign', [
@@ -369,7 +467,7 @@ class CampaignController extends Controller
             ]);
 
             return back()->withErrors([
-                'error' => 'Failed to duplicate campaign: ' . $e->getMessage(),
+                'error' => 'Failed to duplicate campaign: '.$e->getMessage(),
             ]);
         }
     }
@@ -378,11 +476,11 @@ class CampaignController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($campaign->account_id, $account->id)) {
+        if (! account_ids_match($campaign->account_id, $account->id)) {
             abort(404);
         }
 
-        if (!in_array($campaign->status, ['sending', 'completed', 'paused', 'cancelled'], true)) {
+        if (! in_array($campaign->status, ['sending', 'completed', 'paused', 'cancelled'], true)) {
             return back()->withErrors([
                 'error' => 'Failed recipients can only be retried after campaign execution starts.',
             ]);
@@ -403,7 +501,7 @@ class CampaignController extends Controller
             ]);
 
             return back()->withErrors([
-                'error' => 'Failed to retry recipients: ' . $e->getMessage(),
+                'error' => 'Failed to retry recipients: '.$e->getMessage(),
             ]);
         }
     }
@@ -415,11 +513,11 @@ class CampaignController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($campaign->account_id, $account->id)) {
+        if (! account_ids_match($campaign->account_id, $account->id)) {
             abort(404);
         }
 
-        if (!$campaign->canStart()) {
+        if (! $campaign->canStart()) {
             return back()->withErrors([
                 'error' => 'Campaign cannot be started in its current state.']);
         }
@@ -434,14 +532,14 @@ class CampaignController extends Controller
                 'error' => $e->getMessage()]);
 
             return back()->withErrors([
-                'error' => 'Failed to start campaign: ' . $e->getMessage()]);
+                'error' => 'Failed to start campaign: '.$e->getMessage()]);
         }
     }
 
     public function sendTest(Request $request, Campaign $campaign)
     {
         $account = $request->attributes->get('account') ?? current_account();
-        if (!account_ids_match($campaign->account_id, $account->id)) {
+        if (! account_ids_match($campaign->account_id, $account->id)) {
             abort(404);
         }
 
@@ -458,14 +556,16 @@ class CampaignController extends Controller
         try {
             $response = $this->campaignService->sendTestMessage($campaign, $digits);
             $messageId = $response['messages'][0]['id'] ?? null;
-            return back()->with('success', 'Test message sent' . ($messageId ? " ({$messageId})" : '') . '.');
+
+            return back()->with('success', 'Test message sent'.($messageId ? " ({$messageId})" : '').'.');
         } catch (\Throwable $e) {
             Log::warning('Campaign test send failed', [
                 'campaign_id' => $campaign->id,
                 'account_id' => $account->id,
                 'error' => $e->getMessage(),
             ]);
-            return back()->withErrors(['error' => 'Test send failed: ' . $e->getMessage()]);
+
+            return back()->withErrors(['error' => 'Test send failed: '.$e->getMessage()]);
         }
     }
 
@@ -476,7 +576,7 @@ class CampaignController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($campaign->account_id, $account->id)) {
+        if (! account_ids_match($campaign->account_id, $account->id)) {
             abort(404);
         }
 
@@ -497,11 +597,11 @@ class CampaignController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($campaign->account_id, $account->id)) {
+        if (! account_ids_match($campaign->account_id, $account->id)) {
             abort(404);
         }
 
-        if (!in_array($campaign->status, ['draft', 'scheduled', 'sending', 'paused'])) {
+        if (! in_array($campaign->status, ['draft', 'scheduled', 'sending', 'paused'])) {
             return back()->withErrors([
                 'error' => 'Campaign cannot be cancelled in its current state.']);
         }
@@ -515,11 +615,11 @@ class CampaignController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($campaign->account_id, $account->id)) {
+        if (! account_ids_match($campaign->account_id, $account->id)) {
             abort(404);
         }
 
-        if (!in_array($campaign->status, ['draft', 'cancelled', 'completed'], true)) {
+        if (! in_array($campaign->status, ['draft', 'cancelled', 'completed'], true)) {
             return back()->withErrors([
                 'error' => 'Only draft, cancelled, or completed campaigns can be deleted.',
             ]);

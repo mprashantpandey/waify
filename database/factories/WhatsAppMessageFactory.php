@@ -37,4 +37,3 @@ class WhatsAppMessageFactory extends Factory
         ];
     }
 }
-

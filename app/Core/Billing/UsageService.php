@@ -14,6 +14,7 @@ class UsageService
     public function getCurrentPeriod(?string $timezone = null): string
     {
         $now = $timezone ? Carbon::now($timezone) : Carbon::now();
+
         return $now->format('Y-m');
     }
 
@@ -24,7 +25,7 @@ class UsageService
     {
         $period = $this->getCurrentPeriod();
 
-        return AccountUsage::firstOrCreate(
+        $usage = AccountUsage::firstOrCreate(
             [
                 'account_id' => $account->id,
                 'period' => $period],
@@ -32,8 +33,63 @@ class UsageService
                 'messages_sent' => 0,
                 'template_sends' => 0,
                 'ai_credits_used' => 0,
+                'ai_requests' => 0,
+                'ai_estimated_tokens' => 0,
+                'ai_estimated_cost_minor' => 0,
+                'razorpay_payment_links_created' => 0,
+                'razorpay_payment_links_paid' => 0,
+                'meta_conversations_free_used' => 0,
+                'meta_conversations_paid' => 0,
+                'meta_conversations_marketing' => 0,
+                'meta_conversations_utility' => 0,
+                'meta_conversations_authentication' => 0,
+                'meta_conversations_service' => 0,
+                'meta_estimated_cost_minor' => 0,
                 'storage_bytes' => 0]
         );
+
+        return $this->reconcileMessageUsage($account, $usage);
+    }
+
+    protected function reconcileMessageUsage(Account $account, AccountUsage $usage): AccountUsage
+    {
+        [$start, $end] = $this->periodBounds($usage->period);
+
+        $actualMessagesSent = \App\Modules\WhatsApp\Models\WhatsAppMessage::where('account_id', $account->id)
+            ->where('direction', 'outbound')
+            ->whereBetween('created_at', [$start, $end])
+            ->count();
+
+        $updates = [];
+        if ($actualMessagesSent !== (int) $usage->messages_sent) {
+            $updates['messages_sent'] = $actualMessagesSent;
+        }
+
+        $actualTemplateSends = \App\Modules\WhatsApp\Models\WhatsAppTemplateSend::where('account_id', $account->id)
+            ->whereBetween('created_at', [$start, $end])
+            ->count();
+
+        if ($actualTemplateSends !== (int) $usage->template_sends) {
+            $updates['template_sends'] = $actualTemplateSends;
+        }
+
+        if ($updates !== []) {
+            $usage->forceFill($updates)->save();
+            $usage->refresh();
+        }
+
+        return $usage;
+    }
+
+    protected function periodBounds(string $period): array
+    {
+        try {
+            $start = Carbon::createFromFormat('Y-m', $period)->startOfMonth();
+        } catch (\Throwable) {
+            $start = Carbon::now()->startOfMonth();
+        }
+
+        return [$start->copy(), $start->copy()->endOfMonth()];
     }
 
     /**
@@ -45,6 +101,11 @@ class UsageService
         $usage->increment('messages_sent', $count);
     }
 
+    public function incrementMessageUsage(Account $account, int $count = 1): void
+    {
+        $this->incrementMessages($account, $count);
+    }
+
     /**
      * Increment template sends count.
      */
@@ -54,6 +115,11 @@ class UsageService
         $usage->increment('template_sends', $count);
     }
 
+    public function incrementTemplateUsage(Account $account, int $count = 1): void
+    {
+        $this->incrementTemplateSends($account, $count);
+    }
+
     /**
      * Increment AI credits used.
      */
@@ -61,6 +127,69 @@ class UsageService
     {
         $usage = $this->getCurrentUsage($account);
         $usage->increment('ai_credits_used', $count);
+    }
+
+    public function recordAiRequest(Account $account, int $estimatedTokens = 0, int $estimatedCostMinor = 0, bool $chargeCredits = false): void
+    {
+        $usage = $this->getCurrentUsage($account);
+        $usage->increment('ai_requests');
+
+        if ($estimatedTokens > 0) {
+            $usage->increment('ai_estimated_tokens', $estimatedTokens);
+        }
+
+        if ($estimatedCostMinor > 0) {
+            $usage->increment('ai_estimated_cost_minor', $estimatedCostMinor);
+        }
+
+        if ($chargeCredits) {
+            $usage->increment('ai_credits_used', max(1, (int) ceil(max(1, $estimatedTokens) / 1000)));
+        }
+    }
+
+    public function incrementRazorpayPaymentLinksCreated(Account $account, int $count = 1): void
+    {
+        $this->getCurrentUsage($account)->increment('razorpay_payment_links_created', $count);
+    }
+
+    public function incrementRazorpayPaymentLinksPaid(Account $account, int $count = 1): void
+    {
+        $this->getCurrentUsage($account)->increment('razorpay_payment_links_paid', $count);
+    }
+
+    /**
+     * Track Meta conversation billing counters (estimated).
+     */
+    public function incrementMetaConversationUsage(
+        Account $account,
+        bool $billable,
+        ?string $category = null,
+        int $estimatedCostMinor = 0
+    ): void {
+        $usage = $this->getCurrentUsage($account);
+
+        if ($billable) {
+            $usage->increment('meta_conversations_paid', 1);
+        } else {
+            $usage->increment('meta_conversations_free_used', 1);
+        }
+
+        $normalizedCategory = strtolower(trim((string) $category));
+        $categoryColumn = match ($normalizedCategory) {
+            'marketing' => 'meta_conversations_marketing',
+            'utility' => 'meta_conversations_utility',
+            'authentication' => 'meta_conversations_authentication',
+            'service' => 'meta_conversations_service',
+            default => null,
+        };
+
+        if ($categoryColumn) {
+            $usage->increment($categoryColumn, 1);
+        }
+
+        if ($estimatedCostMinor > 0) {
+            $usage->increment('meta_estimated_cost_minor', $estimatedCostMinor);
+        }
     }
 
     /**
@@ -84,15 +213,27 @@ class UsageService
         for ($i = 0; $i < $months; $i++) {
             $period = $now->copy()->subMonths($i)->format('Y-m');
             $usage = $this->getUsageForPeriod($account, $period);
-            
+
             $periods[] = [
                 'period' => $period,
                 'messages_sent' => $usage?->messages_sent ?? 0,
                 'template_sends' => $usage?->template_sends ?? 0,
-                'ai_credits_used' => $usage?->ai_credits_used ?? 0];
+                'ai_credits_used' => $usage?->ai_credits_used ?? 0,
+                'ai_requests' => $usage?->ai_requests ?? 0,
+                'ai_estimated_tokens' => $usage?->ai_estimated_tokens ?? 0,
+                'ai_estimated_cost_minor' => $usage?->ai_estimated_cost_minor ?? 0,
+                'razorpay_payment_links_created' => $usage?->razorpay_payment_links_created ?? 0,
+                'razorpay_payment_links_paid' => $usage?->razorpay_payment_links_paid ?? 0,
+                'meta_conversations_free_used' => $usage?->meta_conversations_free_used ?? 0,
+                'meta_conversations_paid' => $usage?->meta_conversations_paid ?? 0,
+                'meta_conversations_marketing' => $usage?->meta_conversations_marketing ?? 0,
+                'meta_conversations_utility' => $usage?->meta_conversations_utility ?? 0,
+                'meta_conversations_authentication' => $usage?->meta_conversations_authentication ?? 0,
+                'meta_conversations_service' => $usage?->meta_conversations_service ?? 0,
+                'meta_estimated_cost_minor' => $usage?->meta_estimated_cost_minor ?? 0,
+            ];
         }
 
         return $periods;
     }
 }
-

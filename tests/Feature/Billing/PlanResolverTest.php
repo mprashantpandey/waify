@@ -3,8 +3,8 @@
 namespace Tests\Feature\Billing;
 
 use App\Core\Billing\PlanResolver;
-use App\Models\Plan;
 use App\Models\Account;
+use App\Models\Plan;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -21,8 +21,8 @@ class PlanResolverTest extends TestCase
 
     public function test_get_account_plan_returns_subscription_plan(): void
     {
-        $plan = Plan::where('key', 'free')->firstOrFail();
-        $account = $this->createAccountWithPlan('free');
+        $plan = Plan::where('key', 'starter')->firstOrFail();
+        $account = $this->createAccountWithPlan('starter');
 
         $resolver = app(PlanResolver::class);
         $resolvedPlan = $resolver->getAccountPlan($account);
@@ -62,14 +62,14 @@ class PlanResolverTest extends TestCase
 
     public function test_effective_limits_returns_plan_limits(): void
     {
-        $plan = Plan::where('key', 'free')->firstOrFail();
-        $account = $this->createAccountWithPlan('free');
+        $plan = Plan::where('key', 'starter')->firstOrFail();
+        $account = $this->createAccountWithPlan('starter');
 
         $resolver = app(PlanResolver::class);
         $limits = $resolver->getEffectiveLimits($account);
 
-        $this->assertEquals(1, $limits['agents']);
+        $this->assertEquals(3, $limits['agents']);
         $this->assertEquals(1, $limits['whatsapp_connections']);
-        $this->assertEquals(500, $limits['messages_monthly']);
+        $this->assertEquals(5000, $limits['messages_monthly']);
     }
 }

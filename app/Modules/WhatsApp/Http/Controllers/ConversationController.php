@@ -2,34 +2,48 @@
 
 namespace App\Modules\WhatsApp\Http\Controllers;
 
-use App\Http\Controllers\Controller;
 use App\Core\Billing\EntitlementService;
+use App\Core\Billing\PlanResolver;
 use App\Core\Billing\UsageService;
+use App\Http\Controllers\Controller;
+use App\Models\AccountModule;
+use App\Models\AccountCatalogProduct;
+use App\Models\AccountIntegration;
+use App\Models\AiAgent;
+use App\Models\AiSuggestionFeedback;
+use App\Models\AiUsageLog;
+use App\Models\QuickReply;
+use App\Models\User;
+use App\Models\WhatsAppCall;
+use App\Modules\Chatbots\Models\BotFlow;
+use App\Modules\Chatbots\Models\BotNode;
+use App\Modules\Contacts\Models\ContactTag;
+use App\Modules\WhatsApp\Events\Inbox\AuditEventAdded;
 use App\Modules\WhatsApp\Events\Inbox\ConversationUpdated;
 use App\Modules\WhatsApp\Events\Inbox\InternalNoteAdded;
-use App\Modules\WhatsApp\Events\Inbox\AuditEventAdded;
 use App\Modules\WhatsApp\Events\Inbox\MessageCreated;
 use App\Modules\WhatsApp\Events\Inbox\MessageUpdated;
 use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use App\Modules\WhatsApp\Models\WhatsAppContact;
 use App\Modules\WhatsApp\Models\WhatsAppConversation;
-use App\Modules\WhatsApp\Models\WhatsAppConversationNote;
 use App\Modules\WhatsApp\Models\WhatsAppConversationAuditEvent;
-use App\Models\User;
+use App\Modules\WhatsApp\Models\WhatsAppConversationNote;
+use App\Modules\WhatsApp\Models\WhatsAppFlow;
+use App\Modules\WhatsApp\Models\WhatsAppList;
 use App\Modules\WhatsApp\Models\WhatsAppMessage;
 use App\Modules\WhatsApp\Models\WhatsAppTemplate;
 use App\Modules\WhatsApp\Models\WhatsAppTemplateSend;
 use App\Modules\WhatsApp\Services\TemplateComposer;
 use App\Modules\WhatsApp\Services\WhatsAppClient;
 use App\Services\AI\ConversationAssistantService;
-use App\Core\Billing\PlanResolver;
-use App\Models\AiUsageLog;
+use App\Services\RazorpayPaymentLinkService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -42,8 +56,7 @@ class ConversationController extends Controller
         protected UsageService $usageService,
         protected ConversationAssistantService $conversationAssistant,
         protected PlanResolver $planResolver
-    ) {
-    }
+    ) {}
 
     /**
      * Display a listing of conversations.
@@ -53,7 +66,7 @@ class ConversationController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         // Optimize query: select only needed columns, use eager loading efficiently
-        $conversationSelect = ['id', 'account_id', 'whatsapp_connection_id', 'whatsapp_contact_id', 'status', 'last_message_at', 'last_message_preview'];
+        $conversationSelect = ['id', 'account_id', 'whatsapp_connection_id', 'whatsapp_contact_id', 'status', 'last_message_at', 'last_message_preview', 'metadata'];
         if (Schema::hasColumn('whatsapp_conversations', 'assigned_to')) {
             $conversationSelect[] = 'assigned_to';
         }
@@ -61,19 +74,25 @@ class ConversationController extends Controller
             $conversationSelect[] = 'priority';
         }
 
+        $selectedConversationId = $request->integer('conversation') ?: null;
+
         $query = WhatsAppConversation::where('account_id', $account->id)
             ->select($conversationSelect)
             ->whereHas('contact')
             ->whereHas('connection')
+            ->withMax(['messages as last_inbound_message_at' => function ($query) {
+                $query->where('direction', 'inbound');
+            }], 'created_at')
             ->with([
-                'contact:id,account_id,wa_id,name',
-                'connection:id,account_id,name']);
+                'contact:id,account_id,wa_id,slug,name,email,phone,company,notes,status,source,metadata',
+                'contact.tags:id,account_id,name,color',
+                'connection:id,account_id,name,slug,calling_status,calling_enabled,calling_webhook_subscribed']);
 
         if ($request->filled('search')) {
             $search = $request->input('search');
             $query->whereHas('contact', function ($q) use ($search) {
-                $q->where('name', 'like', '%' . $search . '%')
-                    ->orWhere('wa_id', 'like', '%' . $search . '%');
+                $q->where('name', 'like', '%'.$search.'%')
+                    ->orWhere('wa_id', 'like', '%'.$search.'%');
             });
         }
 
@@ -97,30 +116,68 @@ class ConversationController extends Controller
             $query->where('whatsapp_connection_id', $request->input('connection_id'));
         }
 
+        if ($selectedConversationId) {
+            $query->orderByRaw('CASE WHEN id = ? THEN 0 ELSE 1 END', [$selectedConversationId]);
+        }
+
         $conversations = $query
             ->orderBy('last_message_at', 'desc')
             ->orderBy('id', 'desc') // Secondary sort for consistent ordering
             ->paginate(20)
             ->through(function ($conversation) {
+                $contactMeta = $conversation->contact->metadata ?? [];
+                $unresolvedLid = (bool) ($contactMeta['baileys_lid_unresolved'] ?? false);
+                $displayPhone = $unresolvedLid ? 'Linked-device contact' : ($conversation->contact->phone ?: $conversation->contact->wa_id);
+
                 return [
                     'id' => $conversation->id,
                     'account_id' => $conversation->account_id,
                     'contact' => [
                         'id' => $conversation->contact->id,
+                        'slug' => $conversation->contact->slug,
                         'wa_id' => $conversation->contact->wa_id,
-                        'name' => $conversation->contact->name ?? $conversation->contact->wa_id],
+                        'name' => $conversation->contact->name ?? $conversation->contact->wa_id,
+                        'display_phone' => $displayPhone,
+                        'is_unresolved_lid' => $unresolvedLid,
+                        'email' => $conversation->contact->email,
+                        'phone' => $conversation->contact->phone,
+                        'company' => $conversation->contact->company,
+                        'notes' => $conversation->contact->notes,
+                        'status' => $conversation->contact->status,
+                        'source' => $conversation->contact->source,
+                        'ctwa' => $this->ctwaForConversation($conversation),
+                        'tags' => $conversation->contact->tags->map(fn ($tag) => [
+                            'id' => $tag->id,
+                            'name' => $tag->name,
+                            'color' => $tag->color,
+                        ])->values()],
                     'status' => $conversation->status,
                     'last_message_preview' => $conversation->last_message_preview,
                     'last_message_at' => $conversation->last_message_at?->toIso8601String(),
+                    'last_inbound_message_at' => $conversation->last_inbound_message_at
+                        ? \Illuminate\Support\Carbon::parse($conversation->last_inbound_message_at)->toIso8601String()
+                        : null,
                     'connection' => [
                         'id' => $conversation->connection->id,
-                        'name' => $conversation->connection->name],
+                        'name' => $conversation->connection->name,
+                        'slug' => $conversation->connection->slug,
+                        'calling_status' => $conversation->connection->calling_status ?? 'unknown',
+                        'calling_enabled' => (bool) ($conversation->connection->calling_enabled ?? false),
+                        'calling_webhook_subscribed' => (bool) ($conversation->connection->calling_webhook_subscribed ?? false),
+                    ],
                     'assigned_to' => Schema::hasColumn('whatsapp_conversations', 'assigned_to')
                         ? $conversation->assigned_to
                         : null,
                     'priority' => Schema::hasColumn('whatsapp_conversations', 'priority')
                         ? $conversation->priority
                         : null,
+                    'automation_state' => $this->automationStateForConversation($conversation),
+                    'automation_processing' => $this->isAutomationProcessing($conversation),
+                    'automation_processing_mode' => ($conversation->metadata ?? [])['automation_processing_mode'] ?? null,
+                    'bot_paused' => (bool) (($conversation->metadata ?? [])['bot_paused'] ?? false),
+                    'bot_paused_reason' => ($conversation->metadata ?? [])['bot_paused_reason'] ?? null,
+                    'handoff_status' => ($conversation->metadata ?? [])['handoff_status'] ?? null,
+                    'handoff_reason' => ($conversation->metadata ?? [])['handoff_reason'] ?? null,
                 ];
             });
 
@@ -130,17 +187,55 @@ class ConversationController extends Controller
 
         $agents = $account->getAssignableAgents()->all();
 
+        $effectiveModules = $this->planResolver->getEffectiveModules($account);
+        $aiAvailable = in_array('ai', $effectiveModules, true);
+
+        $templates = WhatsAppTemplate::where('account_id', $account->id)
+            ->whereRaw('LOWER(TRIM(status)) = ?', ['approved'])
+            ->where(function ($query) {
+                $query->where('is_archived', false)
+                    ->orWhereNull('is_archived');
+            })
+            ->orderBy('name')
+            ->limit(12)
+            ->get(['id', 'name', 'language', 'body_text', 'header_text', 'footer_text', 'buttons'])
+            ->map(function ($template) {
+                $requiredVariables = $this->templateComposer->extractRequiredVariables($template);
+
+                return [
+                    'id' => $template->id,
+                    'name' => $template->name,
+                    'language' => $template->language,
+                    'body_text' => $template->body_text,
+                    'header_text' => $template->header_text,
+                    'footer_text' => $template->footer_text,
+                    'buttons' => $template->buttons ?? [],
+                    'variable_count' => $requiredVariables['total'],
+                ];
+            });
+
         return Inertia::render('WhatsApp/Conversations/Index', [
             'account' => $account,
             'conversations' => $conversations,
             'connections' => $connections,
             'agents' => $agents,
+            'templates' => $templates,
+            'catalog_products' => $this->catalogProductsForInbox($account),
+            'saved_buttons' => $this->savedButtonsForInbox($account),
+            'saved_lists' => $this->savedListsForInbox($account),
+            'saved_forms' => $this->savedFormsForInbox($account),
+            'ai_agents' => $this->activeAiAgentsForInbox($account),
+            'ai_available' => $aiAvailable,
+            'whatsapp_calling' => $this->callingSettingsForInbox($account),
+            'recent_calls' => $this->recentCallsForInbox($account, collect($conversations->items())->pluck('contact.wa_id')->filter()->values()->all()),
             'filters' => [
                 'search' => $request->input('search', ''),
                 'assignee' => $request->input('assignee', 'all'),
                 'status' => $request->input('status', 'all'),
                 'connection_id' => $request->input('connection_id', 'all'),
             ],
+            'selected_conversation_id' => $selectedConversationId,
+            'new_chat_open' => $request->boolean('new'),
         ]);
     }
 
@@ -152,7 +247,7 @@ class ConversationController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($contact->account_id, $account->id)) {
+        if (! account_ids_match($contact->account_id, $account->id)) {
             abort(404);
         }
 
@@ -166,14 +261,14 @@ class ConversationController extends Controller
                 ->first();
         }
 
-        if (!$connection) {
+        if (! $connection) {
             $connection = WhatsAppConnection::where('account_id', $account->id)
                 ->where('is_active', true)
                 ->orderBy('id')
                 ->first();
         }
 
-        if (!$connection) {
+        if (! $connection) {
             return redirect()->back()->withErrors([
                 'connection' => 'No active WhatsApp connection. Please add and connect a WhatsApp connection first.',
             ]);
@@ -188,206 +283,62 @@ class ConversationController extends Controller
             ['status' => 'open']
         );
 
-        return redirect()->route('app.whatsapp.conversations.show', ['conversation' => $conversation->id]);
+        return redirect()->route('app.whatsapp.conversations.index', ['conversation' => $conversation->id]);
     }
 
-    /**
-     * New conversation: show contact (and optional connection) picker, then redirect to conversation.
-     */
-    public function newConversation(Request $request): Response
+    public function store(Request $request)
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        $contacts = WhatsAppContact::where('account_id', $account->id)
-            ->orderBy('name')
-            ->orderBy('wa_id')
-            ->get(['id', 'slug', 'wa_id', 'name'])
-            ->map(fn ($c) => [
-                'id' => $c->id,
-                'slug' => $c->slug ?? $c->wa_id ?? (string) $c->id,
-                'wa_id' => $c->wa_id,
-                'name' => $c->name ?? $c->wa_id,
-            ]);
-
-        $connections = WhatsAppConnection::where('account_id', $account->id)
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get(['id', 'name']);
-
-        return Inertia::render('WhatsApp/Conversations/New', [
-            'account' => $account,
-            'contacts' => $contacts,
-            'connections' => $connections,
+        $validated = $request->validate([
+            'connection_id' => ['required', 'integer', 'exists:whatsapp_connections,id'],
+            'wa_id' => ['required', 'string', 'max:32'],
+            'name' => ['nullable', 'string', 'max:255'],
         ]);
-    }
 
-    /**
-     * Display the conversation thread.
-     */
-    public function show(Request $request, WhatsAppConversation $conversation): Response
-    {
-        $account = $request->attributes->get('account') ?? current_account();
+        $connection = WhatsAppConnection::where('account_id', $account->id)
+            ->where('id', (int) $validated['connection_id'])
+            ->where('is_active', true)
+            ->firstOrFail();
 
-        // Ensure conversation belongs to account
-        if (!account_ids_match($conversation->account_id, $account->id)) {
-            abort(404);
+        $waId = preg_replace('/\D+/', '', (string) $validated['wa_id']);
+        if ($waId === '') {
+            return back()->withErrors(['wa_id' => 'Enter a valid WhatsApp number.']);
         }
 
-        $conversation->load(['contact', 'connection']);
-
-        // Load last 50 messages for initial render (optimized query)
-        $messages = WhatsAppMessage::where('whatsapp_conversation_id', $conversation->id)
-            ->select(['id', 'direction', 'type', 'text_body', 'payload', 'status', 'created_at', 'sent_at', 'delivered_at', 'read_at'])
-            ->orderBy('created_at', 'desc')
-            ->limit(50)
-            ->get()
-            ->reverse() // Reverse to show oldest first
-            ->values()
-            ->map(function ($message) {
-                return [
-                    'id' => $message->id,
-                    'direction' => $message->direction,
-                    'type' => $message->type,
-                    'text_body' => $message->text_body,
-                    'payload' => $message->payload,
-                    'status' => $message->status,
-                    'created_at' => $message->created_at->toIso8601String(),
-                    'updated_at' => $message->updated_at?->toIso8601String(),
-                    'sent_at' => $message->sent_at?->toIso8601String(),
-                    'delivered_at' => $message->delivered_at?->toIso8601String(),
-                    'read_at' => $message->read_at?->toIso8601String()];
-            });
-
-        $totalMessages = WhatsAppMessage::where('whatsapp_conversation_id', $conversation->id)->count();
-
-        $templates = WhatsAppTemplate::where('account_id', $account->id)
-            ->where('whatsapp_connection_id', $conversation->whatsapp_connection_id)
-            ->whereRaw('LOWER(TRIM(status)) = ?', ['approved'])
-            ->where(function ($query) {
-                // Keep compatibility with legacy rows where is_archived may be NULL.
-                $query->where('is_archived', false)
-                    ->orWhereNull('is_archived');
-            })
-            ->orderBy('name')
-            ->get([
-                'id',
-                'name',
-                'language',
-                'body_text',
-                'header_text',
-                'footer_text',
-                'buttons'])
-            ->map(function ($template) {
-                $requiredVariables = $this->templateComposer->extractRequiredVariables($template);
-                return [
-                    'id' => $template->id,
-                    'name' => $template->name,
-                    'language' => $template->language,
-                    'body_text' => $template->body_text,
-                    'header_text' => $template->header_text,
-                    'footer_text' => $template->footer_text,
-                    'buttons' => $template->buttons ?? [],
-                    'variable_count' => $requiredVariables['total'],
-                    'header_count' => $requiredVariables['header_count'],
-                    'body_count' => $requiredVariables['body_count'],
-                    'button_count' => $requiredVariables['button_count'],
-                    'has_buttons' => $template->has_buttons];
-            });
-
-        $lists = \App\Modules\WhatsApp\Models\WhatsAppList::where('account_id', $account->id)
-            ->where('whatsapp_connection_id', $conversation->whatsapp_connection_id)
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get(['id', 'name', 'button_text', 'description'])
-            ->map(function ($list) {
-                return [
-                    'id' => $list->id,
-                    'name' => $list->name,
-                    'button_text' => $list->button_text,
-                    'description' => $list->description,
-                ];
-            });
-
-        $notes = WhatsAppConversationNote::where('whatsapp_conversation_id', $conversation->id)
-            ->with('creator:id,name,email')
-            ->orderBy('created_at', 'desc')
-            ->limit(20)
-            ->get()
-            ->map(function ($note) {
-                return [
-                    'id' => $note->id,
-                    'note' => $note->note,
-                    'created_at' => $note->created_at->toIso8601String(),
-                    'created_by' => $note->creator ? [
-                        'id' => $note->creator->id,
-                        'name' => $note->creator->name,
-                        'email' => $note->creator->email,
-                    ] : null,
-                ];
-            });
-
-        $auditEvents = WhatsAppConversationAuditEvent::where('whatsapp_conversation_id', $conversation->id)
-            ->with('actor:id,name,email')
-            ->orderBy('created_at', 'desc')
-            ->limit(20)
-            ->get()
-            ->map(function ($event) {
-                return [
-                    'id' => $event->id,
-                    'event_type' => $event->event_type,
-                    'description' => $event->description,
-                    'meta' => $event->meta,
-                    'created_at' => $event->created_at->toIso8601String(),
-                    'actor' => $event->actor ? [
-                        'id' => $event->actor->id,
-                        'name' => $event->actor->name,
-                        'email' => $event->actor->email,
-                    ] : null,
-                ];
-            });
-
-        $agents = $account->getAssignableAgents()->all();
-
-        $effectiveModules = $this->planResolver->getEffectiveModules($account);
-        $aiAvailable = in_array('ai', $effectiveModules, true);
-
-        $assignedTo = Schema::hasColumn('whatsapp_conversations', 'assigned_to')
-            ? $conversation->assigned_to
-            : null;
-
-        $priority = Schema::hasColumn('whatsapp_conversations', 'priority')
-            ? $conversation->priority
-            : null;
-
-        return Inertia::render('WhatsApp/Conversations/Show', [
-            'account' => $account,
-            'conversation' => [
-                'id' => $conversation->id,
-                'contact' => [
-                    'id' => $conversation->contact->id,
-                    'wa_id' => $conversation->contact->wa_id,
-                    'name' => $conversation->contact->name ?? $conversation->contact->wa_id],
-                'connection' => [
-                    'id' => $conversation->connection->id,
-                    'name' => $conversation->connection->name],
-                'status' => $conversation->status,
-                'assigned_to' => $assignedTo,
-                'priority' => $priority,
-            ],
-            'messages' => $messages,
-            'total_messages' => $totalMessages,
-            'has_more_messages' => $totalMessages > 50,
-            'templates' => $templates,
-            'lists' => $lists,
-            'notes' => $notes,
-            'audit_events' => $auditEvents,
-            'agents' => $agents,
-            'inbox_settings' => [
-                'auto_assign_enabled' => (bool) $account->auto_assign_enabled,
-                'auto_assign_strategy' => $account->auto_assign_strategy ?? 'round_robin',
-            ],
-            'ai_available' => $aiAvailable,
+        $contact = WhatsAppContact::withTrashed()->firstOrNew([
+            'account_id' => $account->id,
+            'wa_id' => $waId,
         ]);
+
+        $contact->fill([
+            'name' => $validated['name'] ?: ($contact->name ?: $waId),
+            'phone' => $contact->phone ?: $waId,
+            'status' => $contact->status ?: 'active',
+            'source' => $contact->source ?: 'inbox',
+        ]);
+        $contact->save();
+
+        if (method_exists($contact, 'restore') && $contact->trashed()) {
+            $contact->restore();
+        }
+
+        $conversation = WhatsAppConversation::firstOrCreate(
+            [
+                'account_id' => $account->id,
+                'whatsapp_connection_id' => $connection->id,
+                'whatsapp_contact_id' => $contact->id,
+            ],
+            [
+                'status' => 'open',
+                'last_message_at' => now(),
+                'last_message_preview' => 'New chat started',
+            ]
+        );
+
+        return redirect()
+            ->route('app.whatsapp.conversations.index', ['conversation' => $conversation->id])
+            ->with('success', 'Chat created.');
     }
 
     /**
@@ -398,7 +349,7 @@ class ConversationController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         // Ensure conversation belongs to account
-        if (!account_ids_match($conversation->account_id, $account->id)) {
+        if (! account_ids_match($conversation->account_id, $account->id)) {
             abort(404);
         }
 
@@ -407,7 +358,7 @@ class ConversationController extends Controller
 
         $messages = WhatsAppMessage::where('whatsapp_conversation_id', $conversation->id)
             ->where('id', '<', $validated['before_message_id'])
-            ->select(['id', 'direction', 'type', 'text_body', 'payload', 'status', 'created_at', 'sent_at', 'delivered_at', 'read_at'])
+            ->select(['id', 'direction', 'type', 'text_body', 'payload', 'status', 'meta_message_id', 'created_at', 'sent_at', 'delivered_at', 'read_at'])
             ->orderBy('created_at', 'desc')
             ->limit(50)
             ->get()
@@ -421,6 +372,7 @@ class ConversationController extends Controller
                     'text_body' => $message->text_body,
                     'payload' => $message->payload,
                     'status' => $message->status,
+                    'meta_message_id' => $message->meta_message_id,
                     'created_at' => $message->created_at->toIso8601String(),
                     'updated_at' => $message->updated_at?->toIso8601String(),
                     'sent_at' => $message->sent_at?->toIso8601String(),
@@ -433,6 +385,136 @@ class ConversationController extends Controller
             'has_more' => $messages->count() === 50]);
     }
 
+    public function gallery(Request $request, WhatsAppConversation $conversation)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if (! account_ids_match($conversation->account_id, $account->id)) {
+            abort(404);
+        }
+
+        $messages = WhatsAppMessage::where('account_id', $account->id)
+            ->where('whatsapp_conversation_id', $conversation->id)
+            ->select(['id', 'direction', 'type', 'text_body', 'payload', 'created_at', 'sent_at', 'received_at'])
+            ->orderByDesc('created_at')
+            ->limit(500)
+            ->get();
+
+        $media = [];
+        $documents = [];
+        $links = [];
+        $seenLinks = [];
+
+        foreach ($messages as $message) {
+            $payload = is_array($message->payload) ? $message->payload : [];
+            $mediaPayload = is_array($payload['media'] ?? null) ? $payload['media'] : [];
+            $typePayload = is_array($payload[$message->type] ?? null) ? $payload[$message->type] : [];
+            $url = $mediaPayload['local_url']
+                ?? $payload['link']
+                ?? $payload['url']
+                ?? $typePayload['link']
+                ?? $typePayload['url']
+                ?? null;
+            $filename = $payload['filename']
+                ?? $typePayload['filename']
+                ?? (is_array($payload['document'] ?? null) ? $payload['document']['filename'] ?? null : null)
+                ?? $mediaPayload['filename']
+                ?? null;
+            $mimeType = $mediaPayload['mime_type'] ?? $payload['mime_type'] ?? $typePayload['mime_type'] ?? null;
+            $fileSize = $mediaPayload['file_size'] ?? $payload['file_size'] ?? null;
+
+            $base = [
+                'id' => $message->id,
+                'message_id' => $message->id,
+                'direction' => $message->direction,
+                'type' => $message->type,
+                'url' => is_string($url) ? $url : null,
+                'title' => $filename ?: ucfirst((string) $message->type).' message',
+                'filename' => $filename,
+                'mime_type' => $mimeType,
+                'file_size' => is_numeric($fileSize) ? (int) $fileSize : null,
+                'caption' => $message->text_body,
+                'created_at' => $message->created_at?->toIso8601String(),
+            ];
+
+            if ($message->type === 'document') {
+                $documents[] = $base;
+            } elseif (in_array($message->type, ['image', 'video', 'audio', 'sticker'], true)) {
+                $media[] = $base;
+            }
+
+            if (! in_array($message->type, ['image', 'video', 'audio', 'sticker', 'document'], true)) {
+                foreach ($this->extractUrlsFromMessage($message->text_body, $payload) as $link) {
+                    $key = strtolower($link['url']);
+                    if (isset($seenLinks[$key])) {
+                        continue;
+                    }
+
+                    $seenLinks[$key] = true;
+                    $links[] = [
+                        'id' => 'link-'.$message->id.'-'.count($links),
+                        'message_id' => $message->id,
+                        'direction' => $message->direction,
+                        'type' => 'link',
+                        'url' => $link['url'],
+                        'title' => $link['title'] ?: $link['url'],
+                        'caption' => $message->text_body,
+                        'created_at' => $message->created_at?->toIso8601String(),
+                    ];
+                }
+            }
+        }
+
+        return response()->json([
+            'media' => array_values($media),
+            'documents' => array_values($documents),
+            'links' => array_values($links),
+            'counts' => [
+                'media' => count($media),
+                'documents' => count($documents),
+                'links' => count($links),
+                'total' => count($media) + count($documents) + count($links),
+            ],
+        ]);
+    }
+
+    protected function extractUrlsFromMessage(?string $text, array $payload): array
+    {
+        $candidates = [];
+
+        if (is_string($text) && trim($text) !== '') {
+            $candidates[] = ['text' => $text, 'title' => null];
+        }
+
+        foreach (['url', 'link', 'button_url', 'cta_url'] as $key) {
+            if (! empty($payload[$key]) && is_string($payload[$key])) {
+                $candidates[] = ['text' => $payload[$key], 'title' => $payload['title'] ?? null];
+            }
+        }
+
+        foreach (['buttons', 'interactive', 'template'] as $key) {
+            if (! empty($payload[$key])) {
+                $encoded = json_encode($payload[$key]);
+                if (is_string($encoded)) {
+                    $candidates[] = ['text' => $encoded, 'title' => null];
+                }
+            }
+        }
+
+        $links = [];
+        foreach ($candidates as $candidate) {
+            preg_match_all('~https?://[^\s<>"\']+~i', $candidate['text'], $matches);
+            foreach ($matches[0] ?? [] as $url) {
+                $links[] = [
+                    'url' => rtrim($url, '.,);]'),
+                    'title' => is_string($candidate['title']) ? $candidate['title'] : null,
+                ];
+            }
+        }
+
+        return $links;
+    }
+
     /**
      * Add an internal note to the conversation.
      */
@@ -440,7 +522,7 @@ class ConversationController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($conversation->account_id, $account->id)) {
+        if (! account_ids_match($conversation->account_id, $account->id)) {
             abort(404);
         }
 
@@ -487,6 +569,77 @@ class ConversationController extends Controller
         return response()->json(['note' => $notePayload]);
     }
 
+    public function markRead(Request $request, WhatsAppConversation $conversation)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if (! account_ids_match($conversation->account_id, $account->id)) {
+            abort(404);
+        }
+
+        $conversation->load('connection');
+        $messages = WhatsAppMessage::where('account_id', $account->id)
+            ->where('whatsapp_conversation_id', $conversation->id)
+            ->where('direction', 'inbound')
+            ->whereNotNull('meta_message_id')
+            ->where('meta_message_id', 'like', 'wamid.%')
+            ->whereNull('read_at')
+            ->orderBy('id')
+            ->limit(50)
+            ->get();
+
+        $updated = 0;
+        foreach ($messages as $message) {
+            try {
+                if ($conversation->connection && $message->meta_message_id) {
+                    $this->whatsappClient->markMessageAsRead($conversation->connection, $message->meta_message_id);
+                }
+            } catch (\Throwable $e) {
+                report($e);
+
+                continue;
+            }
+
+            $message->update([
+                'status' => 'read',
+                'read_at' => now(),
+            ]);
+            event(new MessageUpdated($message));
+            $updated++;
+        }
+
+        return response()->json([
+            'updated' => $updated,
+        ]);
+    }
+
+    public function destroy(Request $request, WhatsAppConversation $conversation)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if (! account_ids_match($conversation->account_id, $account->id)) {
+            abort(404);
+        }
+        app(\App\Services\WorkspacePermissionService::class)->assert($request->user(), $account, 'chats.delete');
+
+        $conversationId = $conversation->id;
+
+        $conversation->delete();
+        app(\App\Services\AppNotificationService::class)->auditDestructive(
+            'chat_deleted',
+            "Chat #{$conversationId} deleted",
+            $request->user(),
+            $account,
+            $conversation,
+            ['conversation_id' => $conversationId],
+            $request
+        );
+
+        return redirect()
+            ->route('app.whatsapp.conversations.index')
+            ->with('success', 'Chat deleted.');
+    }
+
     /**
      * Update conversation meta (status/assignment/priority).
      */
@@ -494,7 +647,7 @@ class ConversationController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($conversation->account_id, $account->id)) {
+        if (! account_ids_match($conversation->account_id, $account->id)) {
             abort(404);
         }
 
@@ -502,6 +655,7 @@ class ConversationController extends Controller
             'status' => ['nullable', Rule::in(['open', 'closed'])],
             'assigned_to' => 'nullable|integer|exists:users,id',
             'priority' => ['nullable', Rule::in(['low', 'normal', 'high', 'urgent'])],
+            'tag' => 'nullable|string|max:64',
         ]);
 
         $updates = [];
@@ -521,7 +675,7 @@ class ConversationController extends Controller
             $previousAssigneeId = $conversation->assigned_to;
             if ($assigneeId) {
                 $assignableIds = $account->getAssignableAgentIds();
-                if (!in_array((int) $assigneeId, $assignableIds, true)) {
+                if (! in_array((int) $assigneeId, $assignableIds, true)) {
                     return back()->withErrors(['assigned_to' => 'Selected agent is not a team member for this account.']);
                 }
             }
@@ -544,19 +698,52 @@ class ConversationController extends Controller
         }
 
         if (array_key_exists('priority', $validated) && Schema::hasColumn('whatsapp_conversations', 'priority')) {
-            $updates['priority'] = $validated['priority'];
+            $priority = $validated['priority'] ?: 'normal';
+            $updates['priority'] = $priority;
             $auditPayloads[] = [
                 'event_type' => 'priority_changed',
-                'description' => "Priority changed to {$validated['priority']}",
-                'meta' => ['priority' => $validated['priority']],
+                'description' => "Priority changed to {$priority}",
+                'meta' => ['priority' => $priority],
             ];
         }
 
-        if (empty($updates)) {
+        $attachedTag = null;
+        if (! empty($validated['tag'])) {
+            $tagName = Str::of($validated['tag'])->trim()->limit(64, '')->toString();
+            if ($tagName !== '') {
+                $tagColors = [
+                    'VIP' => '#10B981',
+                    'Order' => '#3B82F6',
+                    'Support' => '#8B5CF6',
+                    'Lead' => '#F59E0B',
+                ];
+                $tag = ContactTag::firstOrCreate(
+                    [
+                        'account_id' => $account->id,
+                        'name' => $tagName,
+                    ],
+                    [
+                        'color' => $tagColors[$tagName] ?? '#3B82F6',
+                    ]
+                );
+                $conversation->loadMissing('contact');
+                $conversation->contact?->tags()->syncWithoutDetaching([$tag->id]);
+                $attachedTag = $tag;
+                $auditPayloads[] = [
+                    'event_type' => 'tag_added',
+                    'description' => "Tagged as {$tagName}",
+                    'meta' => ['tag' => $tagName, 'tag_id' => $tag->id],
+                ];
+            }
+        }
+
+        if (empty($updates) && ! $attachedTag) {
             return back()->with('success', 'No changes made.');
         }
 
-        $conversation->update($updates);
+        if (! empty($updates)) {
+            $conversation->update($updates);
+        }
 
         foreach ($auditPayloads as $payload) {
             $audit = WhatsAppConversationAuditEvent::create([
@@ -580,7 +767,170 @@ class ConversationController extends Controller
 
         event(new ConversationUpdated($conversation));
 
+        if ($request->expectsJson()) {
+            $conversation->load(['contact.tags:id,account_id,name,color']);
+
+            return response()->json([
+                'conversation' => [
+                    'id' => $conversation->id,
+                    'status' => $conversation->status,
+                    'assigned_to' => Schema::hasColumn('whatsapp_conversations', 'assigned_to') ? $conversation->assigned_to : null,
+                    'priority' => Schema::hasColumn('whatsapp_conversations', 'priority') ? $conversation->priority : null,
+                    'contact' => [
+                        'id' => $conversation->contact->id,
+                        'wa_id' => $conversation->contact->wa_id,
+                        'name' => $conversation->contact->name ?? $conversation->contact->wa_id,
+                        'display_phone' => (($conversation->contact->metadata ?? [])['baileys_lid_unresolved'] ?? false)
+                            ? 'Linked-device contact'
+                            : ($conversation->contact->phone ?: $conversation->contact->wa_id),
+                        'is_unresolved_lid' => (bool) (($conversation->contact->metadata ?? [])['baileys_lid_unresolved'] ?? false),
+                        'tags' => $conversation->contact->tags->map(fn ($tag) => [
+                            'id' => $tag->id,
+                            'name' => $tag->name,
+                            'color' => $tag->color,
+                        ])->values(),
+                    ],
+                ],
+            ]);
+        }
+
         return back()->with('success', 'Conversation updated.');
+    }
+
+    public function stopAutomation(Request $request, WhatsAppConversation $conversation)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if (! account_ids_match($conversation->account_id, $account->id)) {
+            abort(404);
+        }
+
+        $metadata = is_array($conversation->metadata) ? $conversation->metadata : [];
+        $hadSession = isset($metadata['automation_session']);
+        unset($metadata['automation_session']);
+        $conversation->forceFill(['metadata' => $metadata])->save();
+
+        if ($hadSession) {
+            $audit = WhatsAppConversationAuditEvent::create([
+                'account_id' => $account->id,
+                'whatsapp_conversation_id' => $conversation->id,
+                'actor_id' => $request->user()?->id,
+                'event_type' => 'automation_stopped',
+                'description' => 'Automation stopped by agent',
+                'meta' => [],
+            ]);
+
+            event(new AuditEventAdded($conversation, [
+                'id' => $audit->id,
+                'event_type' => $audit->event_type,
+                'description' => $audit->description,
+                'meta' => $audit->meta,
+                'created_at' => $audit->created_at->toIso8601String(),
+                'actor' => $request->user()?->only(['id', 'name', 'email']),
+            ]));
+        }
+
+        event(new ConversationUpdated($conversation));
+
+        return response()->json([
+            'ok' => true,
+            'conversation' => [
+                'id' => $conversation->id,
+                'automation_state' => null,
+            ],
+        ]);
+    }
+
+    public function toggleBot(Request $request, WhatsAppConversation $conversation)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if (! account_ids_match($conversation->account_id, $account->id)) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'paused' => ['required', 'boolean'],
+            'reason' => ['nullable', 'string', 'max:160'],
+            'assign_to_me' => ['nullable', 'boolean'],
+        ]);
+
+        $metadata = is_array($conversation->metadata) ? $conversation->metadata : [];
+        $wasPaused = (bool) ($metadata['bot_paused'] ?? false);
+        $requestedPaused = (bool) $validated['paused'];
+
+        if ($validated['paused']) {
+            $metadata['bot_paused'] = true;
+            $metadata['bot_paused_at'] = now()->toIso8601String();
+            $metadata['bot_paused_by'] = $request->user()?->id;
+            $metadata['bot_paused_reason'] = $validated['reason'] ?? 'Paused by agent';
+            $metadata['handoff_status'] = 'manual';
+            $metadata['handoff_reason'] = $metadata['bot_paused_reason'];
+            $metadata['handoff_source'] = 'agent';
+            $metadata['handoff_at'] = now()->toIso8601String();
+            unset($metadata['automation_session']);
+            unset(
+                $metadata['automation_processing'],
+                $metadata['automation_processing_mode'],
+                $metadata['automation_processing_started_at'],
+                $metadata['automation_processing_expires_at'],
+                $metadata['automation_processing_message_id']
+            );
+        } else {
+            unset(
+                $metadata['bot_paused'],
+                $metadata['bot_paused_at'],
+                $metadata['bot_paused_by'],
+                $metadata['bot_paused_reason'],
+                $metadata['handoff_status'],
+                $metadata['handoff_reason'],
+                $metadata['handoff_source'],
+                $metadata['handoff_at']
+            );
+        }
+
+        $updates = ['metadata' => $metadata];
+        if (($validated['assign_to_me'] ?? false) && Schema::hasColumn('whatsapp_conversations', 'assigned_to')) {
+            $updates['assigned_to'] = $request->user()?->id;
+        }
+
+        $conversation->forceFill($updates)->save();
+
+        if ($wasPaused !== $requestedPaused) {
+            $audit = WhatsAppConversationAuditEvent::create([
+                'account_id' => $account->id,
+                'whatsapp_conversation_id' => $conversation->id,
+                'actor_id' => $request->user()?->id,
+                'event_type' => $validated['paused'] ? 'bot_paused' : 'bot_resumed',
+                'description' => $validated['paused'] ? 'Bot paused for this chat' : 'Bot resumed for this chat',
+                'meta' => ['reason' => $validated['reason'] ?? null],
+            ]);
+
+            event(new AuditEventAdded($conversation, [
+                'id' => $audit->id,
+                'event_type' => $audit->event_type,
+                'description' => $audit->description,
+                'meta' => $audit->meta,
+                'created_at' => $audit->created_at->toIso8601String(),
+                'actor' => $request->user()?->only(['id', 'name', 'email']),
+            ]));
+        }
+        event(new ConversationUpdated($conversation));
+
+        return response()->json([
+            'ok' => true,
+            'conversation' => [
+                'id' => $conversation->id,
+                'assigned_to' => Schema::hasColumn('whatsapp_conversations', 'assigned_to') ? $conversation->assigned_to : null,
+                'automation_state' => $this->automationStateForConversation($conversation),
+                'bot_paused' => (bool) ($metadata['bot_paused'] ?? false),
+                'bot_paused_reason' => $metadata['bot_paused_reason'] ?? null,
+                'handoff_status' => $metadata['handoff_status'] ?? null,
+                'handoff_reason' => $metadata['handoff_reason'] ?? null,
+                'automation_processing' => $this->isAutomationProcessing($conversation),
+                'automation_processing_mode' => $metadata['automation_processing_mode'] ?? null,
+            ],
+        ]);
     }
 
     /**
@@ -590,29 +940,49 @@ class ConversationController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($conversation->account_id, $account->id)) {
+        if (! account_ids_match($conversation->account_id, $account->id)) {
             return response()->json(['error' => 'Conversation not found.'], 404);
         }
 
-        if (!$request->user()?->ai_suggestions_enabled) {
+        if (! $request->user()?->ai_suggestions_enabled) {
             return response()->json(['error' => 'AI suggestions are disabled in your settings.'], 403);
         }
 
         $effectiveModules = $this->planResolver->getEffectiveModules($account);
-        if (!in_array('ai', $effectiveModules, true)) {
+        if (! in_array('ai', $effectiveModules, true)) {
             return response()->json(['error' => 'AI module is not available on your plan.'], 403);
         }
 
-        if (!\App\Models\PlatformSetting::get('ai.enabled', false)) {
+        if (! \App\Models\PlatformSetting::get('ai.enabled', false)) {
             return response()->json(['error' => 'AI is disabled in platform settings.'], 403);
         }
 
+        $validated = $request->validate([
+            'agent_id' => ['nullable', 'integer'],
+        ]);
+
+        $aiAgent = null;
+        if (! empty($validated['agent_id'])) {
+            $aiAgent = AiAgent::where('account_id', $account->id)
+                ->where('is_active', true)
+                ->find($validated['agent_id']);
+
+            if (! $aiAgent) {
+                return response()->json(['error' => 'AI agent is unavailable for this workspace.'], 404);
+            }
+        }
+
         try {
-            $suggestion = $this->conversationAssistant->suggestReply($conversation);
+            $suggestion = $this->conversationAssistant->suggestReply($conversation, 25, null, $aiAgent);
             $suggestion = trim($suggestion);
+            $suggestion = $this->applySuggestionGuardrails($suggestion);
 
             if ($suggestion === '') {
                 return response()->json(['error' => 'AI returned an empty suggestion. Please try again.'], 422);
+            }
+
+            if (! $this->isUsableSuggestion($suggestion)) {
+                return response()->json(['error' => 'AI returned an incomplete suggestion. Please regenerate.'], 422);
             }
 
             $user = $request->user();
@@ -634,7 +1004,14 @@ class ConversationController extends Controller
                 }
             }
 
-            return response()->json(['suggestion' => $suggestion]);
+            return response()->json([
+                'suggestion' => $suggestion,
+                'agent' => $aiAgent ? [
+                    'id' => $aiAgent->id,
+                    'name' => $aiAgent->name,
+                    'mode' => $aiAgent->mode,
+                ] : null,
+            ]);
         } catch (\Throwable $e) {
             [$error, $status] = $this->mapAiSuggestionError($e);
             \Illuminate\Support\Facades\Log::warning('AI suggestion failed', [
@@ -644,10 +1021,43 @@ class ConversationController extends Controller
                 'exception' => $e::class,
                 'error' => $e->getMessage(),
             ]);
+
             return response()->json([
                 'error' => $error,
             ], $status);
         }
+    }
+
+    public function aiFeedback(Request $request, WhatsAppConversation $conversation)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if (! account_ids_match($conversation->account_id, $account->id)) {
+            return response()->json(['error' => 'Conversation not found.'], 404);
+        }
+
+        $validated = $request->validate([
+            'suggestion' => 'required|string|max:8000',
+            'verdict' => 'required|string|in:up,down',
+            'reason' => 'nullable|string|max:1000',
+        ]);
+
+        if (Schema::hasTable('ai_suggestion_feedback')) {
+            AiSuggestionFeedback::create([
+                'account_id' => $account->id,
+                'user_id' => $request->user()?->id,
+                'whatsapp_conversation_id' => $conversation->id,
+                'suggestion' => $validated['suggestion'],
+                'verdict' => $validated['verdict'],
+                'reason' => $validated['reason'] ?? null,
+                'metadata' => [
+                    'contact_id' => $conversation->whatsapp_contact_id,
+                    'connection_id' => $conversation->whatsapp_connection_id,
+                ],
+            ]);
+        }
+
+        return response()->json(['ok' => true]);
     }
 
     protected function mapAiSuggestionError(\Throwable $e): array
@@ -659,7 +1069,7 @@ class ConversationController extends Controller
             return ['AI provider is not configured. Please check Platform Settings -> AI.', 422];
         }
 
-        if (Str::contains($lower, ['invalid api key', 'unauthorized', 'authentication'])) {
+        if (Str::contains($lower, ['invalid api key', 'incorrect api key', 'invalid_api_key', 'unauthorized', 'authentication'])) {
             return ['AI provider authentication failed. Please verify API credentials in Platform Settings.', 422];
         }
 
@@ -672,10 +1082,235 @@ class ConversationController extends Controller
         }
 
         if ($message !== '') {
-            return ['AI suggestion failed: ' . $message, 503];
+            return ['AI suggestion failed: '.$message, 503];
         }
 
         return ['AI suggestion failed. Please try again.', 503];
+    }
+
+    protected function activeAiAgentsForInbox($account): array
+    {
+        if (! $account || ! Schema::hasTable('ai_agents')) {
+            return [];
+        }
+
+        return AiAgent::where('account_id', $account->id)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'avatar', 'role', 'tone', 'mode'])
+            ->map(fn (AiAgent $agent) => [
+                'id' => $agent->id,
+                'name' => $agent->name,
+                'avatar' => $agent->avatar,
+                'role' => $agent->role,
+                'tone' => $agent->tone,
+                'mode' => $agent->mode,
+            ])
+            ->values()
+            ->all();
+    }
+
+    protected function automationStateForConversation(WhatsAppConversation $conversation): ?array
+    {
+        $metadata = is_array($conversation->metadata) ? $conversation->metadata : [];
+        $session = $metadata['automation_session'] ?? null;
+        if (! is_array($session) || empty($session['flow_id']) || empty($session['waiting_node_id'])) {
+            return null;
+        }
+
+        $flow = BotFlow::query()
+            ->where('account_id', $conversation->account_id)
+            ->where('id', (int) $session['flow_id'])
+            ->first();
+        $node = BotNode::query()
+            ->where('account_id', $conversation->account_id)
+            ->where('id', (int) $session['waiting_node_id'])
+            ->first();
+
+        $nodeConfig = is_array($node?->config) ? $node->config : [];
+
+        return [
+            'bot_id' => isset($session['bot_id']) ? (int) $session['bot_id'] : null,
+            'flow_id' => (int) $session['flow_id'],
+            'flow_name' => $flow?->name ?? 'Automation flow',
+            'waiting_node_id' => (int) $session['waiting_node_id'],
+            'waiting_node_label' => $nodeConfig['label']
+                ?? $nodeConfig['title']
+                ?? $nodeConfig['header_text']
+                ?? $nodeConfig['body_text']
+                ?? 'Waiting for reply',
+            'status' => 'waiting',
+            'bot_paused' => false,
+            'invalid_replies' => (int) ($session['invalid_replies'] ?? 0),
+            'updated_at' => $session['updated_at'] ?? null,
+        ];
+    }
+
+    protected function isAutomationProcessing(WhatsAppConversation $conversation): bool
+    {
+        $metadata = is_array($conversation->metadata) ? $conversation->metadata : [];
+        if (! ($metadata['automation_processing'] ?? false)) {
+            return false;
+        }
+
+        $expiresAt = $metadata['automation_processing_expires_at'] ?? null;
+        if (! $expiresAt) {
+            return true;
+        }
+
+        try {
+            if (now()->lt(\Illuminate\Support\Carbon::parse($expiresAt))) {
+                return true;
+            }
+        } catch (\Throwable) {
+            return true;
+        }
+
+        unset(
+            $metadata['automation_processing'],
+            $metadata['automation_processing_mode'],
+            $metadata['automation_processing_started_at'],
+            $metadata['automation_processing_expires_at'],
+            $metadata['automation_processing_message_id']
+        );
+        $conversation->forceFill(['metadata' => $metadata])->save();
+
+        return false;
+    }
+
+    protected function callingSettingsForInbox($account): array
+    {
+        $defaults = [
+            'enabled' => false,
+            'routing_mode' => 'ai_first',
+            'default_agent_id' => null,
+            'outbound_enabled' => true,
+            'outbound_requires_consent' => false,
+            'transfer_number' => null,
+            'setup_url' => route('app.whatsapp-calls.index'),
+        ];
+
+        if (! $account || ! Schema::hasTable('account_modules')) {
+            return $defaults;
+        }
+
+        $module = AccountModule::where('account_id', $account->id)
+            ->whereIn('module_key', ['whatsapp.calling', 'ai.voice'])
+            ->first();
+
+        return array_merge($defaults, $module?->config ?? []);
+    }
+
+    protected function recentCallsForInbox($account, array $waIds): array
+    {
+        if (! $account || ! Schema::hasTable('ai_voice_calls')) {
+            return [];
+        }
+
+        $normalizedWaIds = collect($waIds)
+            ->map(fn ($value) => preg_replace('/\D+/', '', (string) $value))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($normalizedWaIds->isEmpty()) {
+            return [];
+        }
+
+        return WhatsAppCall::with('agent:id,name')
+            ->where('account_id', $account->id)
+            ->latest()
+            ->limit(100)
+            ->get()
+            ->filter(fn (WhatsAppCall $call) => $normalizedWaIds->contains(preg_replace('/\D+/', '', (string) $call->phone_number)))
+            ->take(50)
+            ->map(fn (WhatsAppCall $call) => [
+                'id' => $call->id,
+                'whatsapp_connection_id' => $call->whatsapp_connection_id,
+                'direction' => $call->direction,
+                'phone_number' => $call->phone_number,
+                'contact_name' => $call->contact_name,
+                'status' => $call->status,
+                'route_mode' => $call->route_mode,
+                'routed_to' => $call->routed_to,
+                'provider_call_id' => $call->provider_call_id,
+                'duration_seconds' => $call->duration_seconds,
+                'summary' => $call->summary,
+                'metadata' => $call->metadata ?? [],
+                'agent' => $call->agent ? [
+                    'id' => $call->agent->id,
+                    'name' => $call->agent->name,
+                ] : null,
+                'created_at' => $call->created_at?->toIso8601String(),
+                'updated_at' => $call->updated_at?->toIso8601String(),
+            ])
+            ->values()
+            ->all();
+    }
+
+    protected function ctwaForConversation(WhatsAppConversation $conversation): ?array
+    {
+        $conversationMeta = is_array($conversation->metadata) ? $conversation->metadata : [];
+        $contactMeta = is_array($conversation->contact?->metadata) ? $conversation->contact->metadata : [];
+        $ctwa = $conversationMeta['ctwa']['latest']
+            ?? $conversationMeta['ctwa']
+            ?? $contactMeta['ctwa']['latest']
+            ?? $contactMeta['ctwa']
+            ?? null;
+
+        if (! is_array($ctwa) || $ctwa === []) {
+            return null;
+        }
+
+        return [
+            'source' => $ctwa['source'] ?? 'click_to_whatsapp_ad',
+            'source_type' => $ctwa['source_type'] ?? null,
+            'source_id' => $ctwa['source_id'] ?? null,
+            'source_url' => $ctwa['source_url'] ?? null,
+            'ctwa_clid' => $ctwa['ctwa_clid'] ?? null,
+            'headline' => $ctwa['headline'] ?? null,
+            'body' => $ctwa['body'] ?? null,
+            'media_type' => $ctwa['media_type'] ?? null,
+            'captured_at' => $ctwa['captured_at'] ?? null,
+        ];
+    }
+
+    protected function applySuggestionGuardrails(string $suggestion): string
+    {
+        $normalized = preg_replace('/\s+/', ' ', trim($suggestion)) ?? '';
+        if ($normalized === '') {
+            return '';
+        }
+
+        // Basic PII guardrails: redact long numeric strings and card-like patterns.
+        $normalized = preg_replace('/\b\d{10,19}\b/', '[REDACTED-NUMBER]', $normalized) ?? $normalized;
+        $normalized = preg_replace('/\b(?:\d[ -]*?){13,16}\b/', '[REDACTED-CARD]', $normalized) ?? $normalized;
+
+        return trim($normalized);
+    }
+
+    protected function isUsableSuggestion(string $suggestion): bool
+    {
+        $suggestion = trim($suggestion);
+
+        if (mb_strlen($suggestion) < 24) {
+            return false;
+        }
+
+        foreach ([
+            '/\bto help me understand\s*$/i',
+            '/\bplease share\s*$/i',
+            '/\bcan you share\s*$/i',
+            '/\bcould you share\s*$/i',
+            '/\bmay i know\s*$/i',
+            '/\btell me more about\s*$/i',
+        ] as $pattern) {
+            if (preg_match($pattern, $suggestion)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -686,20 +1321,31 @@ class ConversationController extends Controller
         $account = $request->attributes->get('account') ?? current_account();
 
         // Ensure conversation belongs to account
-        if (!account_ids_match($conversation->account_id, $account->id)) {
+        if (! account_ids_match($conversation->account_id, $account->id)) {
             abort(404);
         }
 
         $validated = $request->validate([
-            'message' => 'required|string|max:4096']);
+            'message' => 'required|string|max:4096',
+            'reply_message_id' => 'nullable|integer']);
+
+        if ($this->isAutomationProcessing($conversation)) {
+            return response()->json([
+                'message' => 'Bot is replying',
+                'message_detail' => 'Wait for the bot reply to finish, or switch this chat to Manual before sending.',
+            ], 409);
+        }
+
+        $this->ensureCustomerServiceWindowOpen($conversation);
 
         // Check message limit before sending
         $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
 
         $conversation->load(['connection', 'contact']);
+        $replyContext = $this->replyContext($conversation, $validated['reply_message_id'] ?? null);
 
         // Use transaction with lock to prevent duplicate message creation
-        $message = DB::transaction(function () use ($account, $conversation, $validated) {
+        $message = DB::transaction(function () use ($account, $conversation, $validated, $replyContext) {
             return WhatsAppMessage::lockForUpdate()
                 ->create([
                     'account_id' => $account->id,
@@ -707,12 +1353,13 @@ class ConversationController extends Controller
                     'direction' => 'outbound',
                     'type' => 'text',
                     'text_body' => $validated['message'],
+                    'payload' => $replyContext ? ['reply' => $replyContext] : [],
                     'status' => 'queued']);
         });
 
         // Load relationships for broadcast
         $message->load('conversation.contact');
-        
+
         // Broadcast optimistic message created
         event(new MessageCreated($message));
 
@@ -721,7 +1368,8 @@ class ConversationController extends Controller
             $response = $this->whatsappClient->sendTextMessage(
                 $conversation->connection,
                 $conversation->contact->wa_id,
-                $validated['message']
+                $validated['message'],
+                $replyContext['meta_message_id'] ?? null
             );
 
             // Update message with Meta message ID and status
@@ -730,7 +1378,7 @@ class ConversationController extends Controller
                 'meta_message_id' => $metaMessageId,
                 'status' => 'sent',
                 'sent_at' => now(),
-                'payload' => $response]);
+                'payload' => array_merge($message->payload ?? [], ['response' => $response])]);
 
             // Increment usage counter
             $this->usageService->incrementMessages($account, 1);
@@ -740,11 +1388,20 @@ class ConversationController extends Controller
                 'last_message_at' => now(),
                 'last_message_preview' => substr($validated['message'], 0, 100)]);
 
+            $this->recordHumanReplyCooldown($conversation, $request->user());
             $this->touchContactAfterOutbound($conversation);
 
             // Broadcast message update and conversation update
             event(new MessageUpdated($message));
             event(new ConversationUpdated($conversation));
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'data' => [
+                        'message' => $this->messageResponsePayload($message),
+                    ],
+                ], 201);
+            }
 
             return redirect()->back()->with('success', 'Message sent successfully.');
         } catch (\Exception $e) {
@@ -765,13 +1422,211 @@ class ConversationController extends Controller
                 || stripos($msg, 'message outside') !== false;
 
             if ($is24hWindow) {
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'message' => 'outside_24h',
+                        'message_detail' => 'You can only send a template message to reopen this conversation. Use the template button above.',
+                        'data' => [
+                            'message' => $this->messageResponsePayload($message),
+                        ],
+                    ], 422);
+                }
+
                 return redirect()->back()->withErrors([
                     'message' => 'outside_24h',
                     'message_detail' => 'You can only send a template message to reopen this conversation. Use the template button above.']);
             }
 
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Failed to send message.',
+                    'error' => $e->getMessage(),
+                    'data' => [
+                        'message' => $this->messageResponsePayload($message),
+                    ],
+                ], 422);
+            }
+
             return redirect()->back()->withErrors([
-                'message' => 'Failed to send message: ' . $e->getMessage()]);
+                'message' => 'Failed to send message: '.$e->getMessage()]);
+        }
+    }
+
+    public function retryMessage(Request $request, WhatsAppConversation $conversation, WhatsAppMessage $message)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if (
+            ! account_ids_match($conversation->account_id, $account->id)
+            || ! account_ids_match($message->account_id, $account->id)
+            || (string) $message->whatsapp_conversation_id !== (string) $conversation->id
+        ) {
+            abort(404);
+        }
+
+        if ($message->direction !== 'outbound' || $message->status !== 'failed') {
+            return response()->json([
+                'message' => 'Only failed outbound messages can be retried.',
+            ], 422);
+        }
+
+        $conversation->load(['connection', 'contact']);
+
+        if ($message->meta_message_id) {
+            $message->update([
+                'status' => 'sent',
+                'error_message' => null,
+                'sent_at' => $message->sent_at ?: now(),
+            ]);
+
+            event(new MessageUpdated($message));
+
+            return response()->json([
+                'data' => [
+                    'message' => [
+                        'id' => $message->id,
+                        'direction' => $message->direction,
+                        'type' => $message->type,
+                        'text_body' => $message->text_body,
+                        'payload' => $message->payload,
+                        'status' => $message->status,
+                        'meta_message_id' => $message->meta_message_id,
+                        'created_at' => $message->created_at->toIso8601String(),
+                        'updated_at' => $message->updated_at?->toIso8601String(),
+                        'sent_at' => $message->sent_at?->toIso8601String(),
+                        'delivered_at' => $message->delivered_at?->toIso8601String(),
+                        'read_at' => $message->read_at?->toIso8601String(),
+                    ],
+                ],
+            ]);
+        }
+
+        $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
+
+        $message->update([
+            'status' => 'queued',
+            'error_message' => null,
+        ]);
+        event(new MessageUpdated($message));
+
+        try {
+            $payload = $message->payload ?? [];
+            $caption = $message->type === 'audio' ? null : ($message->text_body ?? ($payload['caption'] ?? null));
+            $filename = $payload['filename'] ?? null;
+            $isVoice = $message->type === 'audio' && (bool) ($payload['voice'] ?? false);
+
+            if ($message->type === 'text') {
+                $response = $this->whatsappClient->sendTextMessage(
+                    $conversation->connection,
+                    $conversation->contact->wa_id,
+                    (string) $message->text_body
+                );
+            } elseif (in_array($message->type, ['image', 'video', 'document', 'audio'], true)) {
+                $mediaId = $payload['media_id'] ?? $payload['meta_upload']['id'] ?? null;
+
+                if (! $mediaId) {
+                    $link = $payload['link'] ?? $payload['url'] ?? null;
+                    $path = $this->storagePathFromPublicUrl($link);
+                    if (! $path || ! Storage::disk('public')->exists($path)) {
+                        throw new \RuntimeException('Original media file is no longer available for retry.');
+                    }
+
+                    $mimeType = $this->metaMediaMimeType(
+                        $message->type,
+                        $payload['mime_type'] ?? null,
+                        $filename,
+                        $path
+                    );
+
+                    $upload = $this->whatsappClient->uploadMedia(
+                        $conversation->connection,
+                        Storage::disk('public')->path($path),
+                        $filename,
+                        $mimeType
+                    );
+                    $mediaId = $upload['id'];
+                    $message->update([
+                        'payload' => array_merge($message->payload ?? [], [
+                            'media_id' => $mediaId,
+                            'meta_upload' => $upload,
+                            'mime_type' => $mimeType,
+                        ]),
+                    ]);
+                }
+
+                $response = $this->whatsappClient->sendUploadedMediaMessage(
+                    $conversation->connection,
+                    $conversation->contact->wa_id,
+                    $message->type,
+                    (string) $mediaId,
+                    $caption,
+                    $message->type === 'document' ? $filename : null,
+                    $isVoice
+                );
+            } elseif ($message->type === 'reaction') {
+                $reaction = $payload['reaction'] ?? [];
+                if (empty($reaction['message_id']) || empty($reaction['emoji'])) {
+                    throw new \RuntimeException('Reaction target is missing.');
+                }
+
+                $response = $this->whatsappClient->sendReactionMessage(
+                    $conversation->connection,
+                    $conversation->contact->wa_id,
+                    (string) $reaction['message_id'],
+                    (string) $reaction['emoji']
+                );
+            } else {
+                throw new \RuntimeException('Retry is not available for this message type.');
+            }
+
+            $metaMessageId = $response['messages'][0]['id'] ?? null;
+            $message->update([
+                'meta_message_id' => $metaMessageId,
+                'status' => 'sent',
+                'sent_at' => now(),
+                'payload' => array_merge($message->payload ?? [], ['retry_response' => $response]),
+            ]);
+
+            $this->usageService->incrementMessages($account, 1);
+
+            $conversation->update([
+                'last_message_at' => now(),
+                'last_message_preview' => $message->text_body ?: strtoupper($message->type).' attachment',
+            ]);
+
+            $this->touchContactAfterOutbound($conversation);
+            event(new MessageUpdated($message));
+            event(new ConversationUpdated($conversation));
+
+            return response()->json([
+                'data' => [
+                    'message' => [
+                        'id' => $message->id,
+                        'direction' => $message->direction,
+                        'type' => $message->type,
+                        'text_body' => $message->text_body,
+                        'payload' => $message->payload,
+                        'status' => $message->status,
+                        'meta_message_id' => $message->meta_message_id,
+                        'created_at' => $message->created_at->toIso8601String(),
+                        'updated_at' => $message->updated_at?->toIso8601String(),
+                        'sent_at' => $message->sent_at?->toIso8601String(),
+                        'delivered_at' => $message->delivered_at?->toIso8601String(),
+                        'read_at' => $message->read_at?->toIso8601String(),
+                    ],
+                ],
+            ]);
+        } catch (\Exception $e) {
+            $message->update([
+                'status' => 'failed',
+                'error_message' => $e->getMessage(),
+            ]);
+            event(new MessageUpdated($message));
+
+            return response()->json([
+                'message' => 'Message could not be resent.',
+                'error' => $e->getMessage(),
+            ], 422);
         }
     }
 
@@ -779,11 +1634,11 @@ class ConversationController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($conversation->account_id, $account->id)) {
+        if (! account_ids_match($conversation->account_id, $account->id)) {
             abort(404);
         }
 
-        if (!$request->has('variables') || $request->input('variables') === null || $request->input('variables') === '') {
+        if (! $request->has('variables') || $request->input('variables') === null || $request->input('variables') === '') {
             $request->merge(['variables' => []]);
         }
 
@@ -894,33 +1749,43 @@ class ConversationController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($conversation->account_id, $account->id)) {
+        if (! account_ids_match($conversation->account_id, $account->id)) {
             abort(404);
         }
 
         $validated = $request->validate([
-            'type' => 'required|in:image,video,document',
+            'type' => 'required|in:image,video,document,audio',
             'caption' => 'nullable|string|max:1024',
-            'attachment' => 'required|file|max:10240']);
+            'is_voice' => 'nullable|boolean',
+            'reply_message_id' => 'nullable|integer',
+            'attachment' => 'required|file|max:102400']);
 
-        $mimeRules = [
-            'image' => 'mimes:jpg,jpeg,png,gif,webp',
-            'video' => 'mimetypes:video/mp4,video/quicktime,video/3gpp',
-            'document' => 'mimes:pdf,doc,docx,xls,xlsx,ppt,pptx,txt,csv,zip'];
-        $request->validate([
-            'attachment' => $mimeRules[$validated['type']] ?? 'file']);
+        $this->ensureCustomerServiceWindowOpen($conversation);
 
         $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
 
         $conversation->load(['connection', 'contact']);
+        $replyContext = $this->replyContext($conversation, $validated['reply_message_id'] ?? null);
 
         $file = $request->file('attachment');
-        $path = $file->store('whatsapp-media', 'public');
-        $url = rtrim(config('app.url'), '/') . Storage::url($path);
-
-        $caption = $validated['caption'] ?? null;
-        $filename = $file->getClientOriginalName();
         $type = $validated['type'];
+        $this->validateMediaAttachment($file, $type);
+
+        $path = $file->store('whatsapp-media', 'public');
+        $url = Storage::disk('public')->url($path);
+        if (! str_starts_with($url, 'http://') && ! str_starts_with($url, 'https://')) {
+            $url = rtrim(config('app.url'), '/').'/'.ltrim($url, '/');
+        }
+
+        $caption = $type === 'audio' ? null : ($validated['caption'] ?? null);
+        $filename = $file->getClientOriginalName();
+        $isVoice = $type === 'audio' && $request->boolean('is_voice');
+        $mimeType = $this->metaMediaMimeType(
+            $type,
+            $file->getClientMimeType() ?: $file->getMimeType(),
+            $filename,
+            $path
+        );
 
         $message = WhatsAppMessage::lockForUpdate()->create([
             'account_id' => $account->id,
@@ -932,20 +1797,41 @@ class ConversationController extends Controller
                 'type' => $type,
                 'link' => $url,
                 'caption' => $caption,
-                'filename' => $filename],
+                'filename' => $filename,
+                'mime_type' => $mimeType,
+                'voice' => $isVoice,
+                'reply' => $replyContext,
+            ],
             'status' => 'queued']);
 
         $message->load('conversation.contact');
         event(new MessageCreated($message));
 
         try {
-            $response = $this->whatsappClient->sendMediaMessage(
+            $upload = $this->whatsappClient->uploadMedia(
+                $conversation->connection,
+                Storage::disk('public')->path($path),
+                $filename,
+                $mimeType
+            );
+
+            $metaMediaId = $upload['id'];
+            $message->update([
+                'payload' => array_merge($message->payload ?? [], [
+                    'media_id' => $metaMediaId,
+                    'meta_upload' => $upload,
+                ]),
+            ]);
+
+            $response = $this->whatsappClient->sendUploadedMediaMessage(
                 $conversation->connection,
                 $conversation->contact->wa_id,
                 $type,
-                $url,
+                $metaMediaId,
                 $caption,
-                $type === 'document' ? $filename : null
+                $type === 'document' ? $filename : null,
+                $isVoice,
+                $replyContext['meta_message_id'] ?? null
             );
 
             $metaMessageId = $response['messages'][0]['id'] ?? null;
@@ -959,12 +1845,35 @@ class ConversationController extends Controller
 
             $conversation->update([
                 'last_message_at' => now(),
-                'last_message_preview' => $caption ? substr($caption, 0, 100) : strtoupper($type) . ' attachment']);
+                'last_message_preview' => $caption ? substr($caption, 0, 100) : strtoupper($type).' attachment']);
 
             $this->touchContactAfterOutbound($conversation);
 
             event(new MessageUpdated($message));
             event(new ConversationUpdated($conversation));
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'data' => [
+                        'message_id' => $message->id,
+                        'meta_message_id' => $message->meta_message_id,
+                        'conversation_id' => $conversation->id,
+                        'status' => $message->status,
+                        'message' => [
+                            'id' => $message->id,
+                            'direction' => $message->direction,
+                            'type' => $message->type,
+                            'text_body' => $message->text_body,
+                            'payload' => $message->payload,
+                            'status' => $message->status,
+                            'created_at' => $message->created_at->toIso8601String(),
+                            'sent_at' => $message->sent_at?->toIso8601String(),
+                            'delivered_at' => $message->delivered_at?->toIso8601String(),
+                            'read_at' => $message->read_at?->toIso8601String(),
+                        ],
+                    ],
+                ], 201);
+            }
 
             return redirect()->back()->with('success', 'Media sent successfully.');
         } catch (\Exception $e) {
@@ -973,16 +1882,299 @@ class ConversationController extends Controller
                 'error_message' => $e->getMessage()]);
             event(new MessageUpdated($message));
 
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Failed to send media. Please try again.',
+                    'error' => $e->getMessage(),
+                    'data' => [
+                        'message_id' => $message->id,
+                        'conversation_id' => $conversation->id,
+                        'status' => 'failed',
+                    ],
+                ], 422);
+            }
+
             return redirect()->back()->withErrors([
                 'media' => 'Failed to send media. Please try again.']);
         }
+    }
+
+    public function sendReaction(Request $request, WhatsAppConversation $conversation)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if (! account_ids_match($conversation->account_id, $account->id)) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'message_id' => ['required'],
+            'emoji' => ['required', 'string', 'max:16'],
+        ]);
+
+        $conversation->load(['connection', 'contact']);
+
+        $target = WhatsAppMessage::where('account_id', $account->id)
+            ->where('whatsapp_conversation_id', $conversation->id)
+            ->where('id', $validated['message_id'])
+            ->first();
+
+        if (! $target || ! $target->meta_message_id) {
+            return response()->json([
+                'message' => 'This message cannot be reacted to yet because Meta has not returned its message ID.',
+            ], 422);
+        }
+
+        $message = WhatsAppMessage::create([
+            'account_id' => $account->id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'direction' => 'outbound',
+            'type' => 'reaction',
+            'text_body' => $validated['emoji'],
+            'payload' => [
+                'reaction' => [
+                    'message_id' => $target->meta_message_id,
+                    'emoji' => $validated['emoji'],
+                    'target_local_message_id' => $target->id,
+                ],
+            ],
+            'status' => 'queued',
+        ]);
+
+        $message->load('conversation.contact');
+        event(new MessageCreated($message));
+
+        try {
+            $response = $this->whatsappClient->sendReactionMessage(
+                $conversation->connection,
+                $conversation->contact->wa_id,
+                $target->meta_message_id,
+                $validated['emoji']
+            );
+
+            $metaMessageId = $response['messages'][0]['id'] ?? null;
+            $message->update([
+                'meta_message_id' => $metaMessageId,
+                'status' => 'sent',
+                'sent_at' => now(),
+                'payload' => array_merge($message->payload ?? [], ['response' => $response]),
+            ]);
+
+            $conversation->update([
+                'last_message_at' => now(),
+                'last_message_preview' => 'Reacted '.$validated['emoji'],
+            ]);
+
+            event(new MessageUpdated($message));
+            event(new ConversationUpdated($conversation));
+
+            return response()->json([
+                'data' => [
+                    'message' => [
+                        'id' => $message->id,
+                        'direction' => $message->direction,
+                        'type' => $message->type,
+                        'text_body' => $message->text_body,
+                        'payload' => $message->payload,
+                        'status' => $message->status,
+                        'meta_message_id' => $message->meta_message_id,
+                        'created_at' => $message->created_at->toIso8601String(),
+                        'updated_at' => $message->updated_at?->toIso8601String(),
+                        'sent_at' => $message->sent_at?->toIso8601String(),
+                        'delivered_at' => $message->delivered_at?->toIso8601String(),
+                        'read_at' => $message->read_at?->toIso8601String(),
+                    ],
+                ],
+            ], 201);
+        } catch (\Exception $e) {
+            $message->update([
+                'status' => 'failed',
+                'error_message' => $e->getMessage(),
+            ]);
+            event(new MessageUpdated($message));
+
+            return response()->json([
+                'message' => 'Reaction not sent. Please try again.',
+                'error' => $e->getMessage(),
+            ], 422);
+        }
+    }
+
+    protected function validateMediaAttachment(\Illuminate\Http\UploadedFile $file, string $type): void
+    {
+        $clientMime = Str::lower((string) $file->getClientMimeType());
+        $detectedMime = Str::lower((string) ($file->getMimeType() ?: ''));
+        $extension = Str::lower((string) ($file->getClientOriginalExtension() ?: $file->extension()));
+        $mimeValues = array_filter([$clientMime, $detectedMime]);
+
+        $allowed = [
+            'image' => [
+                'extensions' => ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+                'mimes' => ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+                'max_kb' => 5120,
+                'message' => 'The attachment field must be an image of type: jpg, jpeg, png, gif, webp.',
+            ],
+            'video' => [
+                'extensions' => ['mp4', 'mov', '3gp', '3gpp'],
+                'mimes' => ['video/mp4', 'video/quicktime', 'video/3gpp'],
+                'max_kb' => 16384,
+                'message' => 'The attachment field must be a video of type: mp4, mov, 3gp.',
+            ],
+            'document' => [
+                'extensions' => ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'zip'],
+                'mimes' => [
+                    'application/pdf',
+                    'application/msword',
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'application/vnd.ms-excel',
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'application/vnd.ms-powerpoint',
+                    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                    'text/plain',
+                    'text/csv',
+                    'application/csv',
+                    'application/zip',
+                    'application/x-zip-compressed',
+                ],
+                'max_kb' => 102400,
+                'message' => 'The attachment field must be a document of type: pdf, doc, docx, xls, xlsx, ppt, pptx, txt, csv, zip.',
+            ],
+            'audio' => [
+                'extensions' => ['aac', 'm4a', 'mp4', 'mp3', 'amr', 'ogg', 'oga', 'wav', 'wave'],
+                'mimes' => [
+                    'audio/aac',
+                    'audio/mp4',
+                    'audio/x-m4a',
+                    'audio/m4a',
+                    'audio/mpeg',
+                    'audio/mp3',
+                    'audio/amr',
+                    'audio/ogg',
+                    'application/ogg',
+                    'audio/wav',
+                    'audio/x-wav',
+                    'audio/wave',
+                    'audio/vnd.wave',
+                    'application/octet-stream',
+                ],
+                'max_kb' => 16384,
+                'message' => 'The attachment field must be an audio file of type: aac, m4a, mp3, amr, ogg, wav.',
+            ],
+        ];
+
+        $rules = $allowed[$type] ?? null;
+        if (! $rules) {
+            return;
+        }
+
+        $extensionAllowed = in_array($extension, $rules['extensions'], true);
+        $mimeAllowed = ! empty(array_intersect($mimeValues, $rules['mimes']));
+
+        if (! $extensionAllowed && ! $mimeAllowed) {
+            throw ValidationException::withMessages([
+                'attachment' => $rules['message'],
+            ]);
+        }
+
+        $maxKb = (int) ($rules['max_kb'] ?? 10240);
+        if ($file->getSize() > $maxKb * 1024) {
+            throw ValidationException::withMessages([
+                'attachment' => "The attachment field must not be greater than {$maxKb} KB.",
+            ]);
+        }
+    }
+
+    protected function storagePathFromPublicUrl(?string $url): ?string
+    {
+        if (! $url) {
+            return null;
+        }
+
+        $path = parse_url($url, PHP_URL_PATH);
+        if (! is_string($path) || $path === '') {
+            return null;
+        }
+
+        $storagePrefix = '/storage/';
+        $position = strpos($path, $storagePrefix);
+        if ($position === false) {
+            return null;
+        }
+
+        return ltrim(substr($path, $position + strlen($storagePrefix)), '/');
+    }
+
+    protected function replyContext(WhatsAppConversation $conversation, mixed $replyMessageId): ?array
+    {
+        if (! $replyMessageId) {
+            return null;
+        }
+
+        $replyMessage = WhatsAppMessage::where('account_id', $conversation->account_id)
+            ->where('whatsapp_conversation_id', $conversation->id)
+            ->whereKey($replyMessageId)
+            ->first();
+
+        if (! $replyMessage || ! $replyMessage->meta_message_id) {
+            return null;
+        }
+
+        $preview = $replyMessage->text_body;
+        if (! $preview) {
+            $preview = match ($replyMessage->type) {
+                'audio' => ($replyMessage->payload['voice'] ?? false) ? 'Voice message' : 'Audio message',
+                'image' => 'Image message',
+                'video' => 'Video message',
+                'document' => $replyMessage->payload['filename'] ?? 'Document message',
+                'location' => 'Location message',
+                default => ucfirst((string) $replyMessage->type).' message',
+            };
+        }
+
+        return [
+            'message_id' => $replyMessage->id,
+            'meta_message_id' => $replyMessage->meta_message_id,
+            'preview' => Str::limit((string) $preview, 160, ''),
+        ];
+    }
+
+    protected function metaMediaMimeType(string $type, ?string $mimeType = null, ?string $filename = null, ?string $path = null): ?string
+    {
+        $mimeType = strtolower((string) $mimeType);
+        $extension = strtolower(pathinfo($filename ?: $path ?: '', PATHINFO_EXTENSION));
+
+        if ($type === 'audio') {
+            return match (true) {
+                in_array($mimeType, ['audio/mp4', 'audio/x-m4a', 'audio/m4a'], true),
+                in_array($extension, ['m4a', 'mp4'], true) => 'audio/mp4',
+                in_array($mimeType, ['audio/mpeg', 'audio/mp3'], true),
+                in_array($extension, ['mp3'], true) => 'audio/mpeg',
+                $mimeType === 'audio/aac' || $extension === 'aac' => 'audio/aac',
+                $mimeType === 'audio/amr' || $extension === 'amr' => 'audio/amr',
+                in_array($mimeType, ['audio/ogg', 'application/ogg'], true),
+                in_array($extension, ['ogg', 'oga', 'opus'], true) => 'audio/ogg',
+                in_array($mimeType, ['audio/wav', 'audio/x-wav', 'audio/wave', 'audio/vnd.wave'], true),
+                in_array($extension, ['wav', 'wave'], true) => 'audio/wav',
+                default => $mimeType ?: null,
+            };
+        }
+
+        if ($type === 'image' && $extension === 'jpg') {
+            return 'image/jpeg';
+        }
+
+        if ($type === 'video' && in_array($extension, ['3gp', '3gpp'], true)) {
+            return 'video/3gpp';
+        }
+
+        return $mimeType ?: null;
     }
 
     public function sendLocationMessage(Request $request, WhatsAppConversation $conversation)
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($conversation->account_id, $account->id)) {
+        if (! account_ids_match($conversation->account_id, $account->id)) {
             abort(404);
         }
 
@@ -991,6 +2183,8 @@ class ConversationController extends Controller
             'longitude' => 'required|numeric',
             'name' => 'nullable|string|max:120',
             'address' => 'nullable|string|max:255']);
+
+        $this->ensureCustomerServiceWindowOpen($conversation);
 
         $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
 
@@ -1060,39 +2254,82 @@ class ConversationController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($conversation->account_id, $account->id)) {
+        if (! account_ids_match($conversation->account_id, $account->id)) {
             abort(404);
         }
 
         $validated = $request->validate([
-            'list_id' => 'required|exists:whatsapp_lists,id',
+            'list_id' => 'nullable|exists:whatsapp_lists,id',
+            'body_text' => 'required_without:list_id|nullable|string|max:1024',
+            'button_text' => 'required_without:list_id|nullable|string|max:20',
+            'header_text' => 'nullable|string|max:60',
+            'footer_text' => 'nullable|string|max:60',
+            'rows' => 'required_without:list_id|nullable|array|min:1|max:10',
+            'rows.*.id' => 'required_with:rows|string|max:200',
+            'rows.*.title' => 'required_with:rows|string|max:24',
+            'rows.*.description' => 'nullable|string|max:72',
         ]);
 
-        $list = \App\Modules\WhatsApp\Models\WhatsAppList::where('id', $validated['list_id'])
-            ->where('account_id', $account->id)
-            ->where('is_active', true)
-            ->firstOrFail();
-
-        if ($list->whatsapp_connection_id !== $conversation->whatsapp_connection_id) {
-            return redirect()->back()->withErrors([
-                'list_id' => 'This list belongs to a different connection.']);
-        }
+        $this->ensureCustomerServiceWindowOpen($conversation);
 
         $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
 
         $conversation->load(['connection', 'contact']);
 
-        $listFormat = $list->toMetaFormat();
+        if (! empty($validated['list_id'])) {
+            $list = \App\Modules\WhatsApp\Models\WhatsAppList::where('id', $validated['list_id'])
+                ->where('account_id', $account->id)
+                ->where('is_active', true)
+                ->firstOrFail();
+
+            if ($list->whatsapp_connection_id !== $conversation->whatsapp_connection_id) {
+                return $request->expectsJson()
+                    ? response()->json(['message' => 'This list belongs to a different connection.'], 422)
+                    : redirect()->back()->withErrors(['list_id' => 'This list belongs to a different connection.']);
+            }
+
+            $listFormat = $list->toMetaFormat();
+            $listName = $list->name;
+            $buttonText = $list->button_text;
+            $sections = $listFormat['action']['sections'];
+            $headerText = $listFormat['header']['text'] ?? null;
+            $bodyText = $listFormat['body']['text'] ?? null;
+            $footerText = $listFormat['footer']['text'] ?? null;
+            $listId = $list->id;
+        } else {
+            $sections = [[
+                'title' => 'Options',
+                'rows' => collect($validated['rows'] ?? [])->map(fn ($row) => array_filter([
+                    'id' => $row['id'],
+                    'title' => $row['title'],
+                    'description' => $row['description'] ?? null,
+                ]))->values()->all(),
+            ]];
+            $buttonText = $validated['button_text'];
+            $headerText = $validated['header_text'] ?? null;
+            $bodyText = $validated['body_text'];
+            $footerText = $validated['footer_text'] ?? null;
+            $listName = $headerText ?: $bodyText;
+            $listId = null;
+            $listFormat = [
+                'type' => 'list',
+                'header' => $headerText ? ['type' => 'text', 'text' => $headerText] : null,
+                'body' => ['text' => $bodyText],
+                'footer' => $footerText ? ['text' => $footerText] : null,
+                'action' => ['button' => $buttonText, 'sections' => $sections],
+            ];
+        }
 
         $message = WhatsAppMessage::lockForUpdate()->create([
             'account_id' => $account->id,
             'whatsapp_conversation_id' => $conversation->id,
             'direction' => 'outbound',
             'type' => 'interactive',
-            'text_body' => $list->description ?? $list->name,
+            'text_body' => $bodyText ?? $listName,
             'payload' => [
-                'list_id' => $list->id,
-                'list_name' => $list->name,
+                'interactive_type' => 'list',
+                'list_id' => $listId,
+                'list_name' => $listName,
                 'interactive' => $listFormat,
             ],
             'status' => 'queued']);
@@ -1104,11 +2341,11 @@ class ConversationController extends Controller
             $response = $this->whatsappClient->sendListMessage(
                 $conversation->connection,
                 $conversation->contact->wa_id,
-                $list->button_text,
-                $listFormat['action']['sections'],
-                $listFormat['header']['text'] ?? null,
-                $listFormat['body']['text'] ?? null,
-                $listFormat['footer']['text'] ?? null
+                $buttonText,
+                $sections,
+                $headerText,
+                $bodyText,
+                $footerText
             );
 
             $metaMessageId = $response['messages'][0]['id'] ?? null;
@@ -1122,12 +2359,16 @@ class ConversationController extends Controller
 
             $conversation->update([
                 'last_message_at' => now(),
-                'last_message_preview' => $list->name]);
+                'last_message_preview' => $listName]);
 
             $this->touchContactAfterOutbound($conversation);
 
             event(new MessageUpdated($message));
             event(new ConversationUpdated($conversation));
+
+            if ($request->expectsJson()) {
+                return response()->json(['data' => ['message' => $this->messageResponsePayload($message)]], 201);
+            }
 
             return redirect()->back()->with('success', 'List message sent successfully.');
         } catch (\Exception $e) {
@@ -1136,8 +2377,9 @@ class ConversationController extends Controller
                 'error_message' => $e->getMessage()]);
             event(new MessageUpdated($message));
 
-            return redirect()->back()->withErrors([
-                'list' => 'Failed to send list: ' . $e->getMessage()]);
+            return $request->expectsJson()
+                ? response()->json(['message' => 'Failed to send list.', 'error' => $e->getMessage()], 422)
+                : redirect()->back()->withErrors(['list' => 'Failed to send list: '.$e->getMessage()]);
         }
     }
 
@@ -1148,7 +2390,7 @@ class ConversationController extends Controller
     {
         $account = $request->attributes->get('account') ?? current_account();
 
-        if (!account_ids_match($conversation->account_id, $account->id)) {
+        if (! account_ids_match($conversation->account_id, $account->id)) {
             abort(404);
         }
 
@@ -1160,6 +2402,8 @@ class ConversationController extends Controller
             'header_text' => 'nullable|string|max:60',
             'footer_text' => 'nullable|string|max:60',
         ]);
+
+        $this->ensureCustomerServiceWindowOpen($conversation);
 
         $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
 
@@ -1210,6 +2454,10 @@ class ConversationController extends Controller
             event(new MessageUpdated($message));
             event(new ConversationUpdated($conversation));
 
+            if ($request->expectsJson()) {
+                return response()->json(['data' => ['message' => $this->messageResponsePayload($message)]], 201);
+            }
+
             return redirect()->back()->with('success', 'Interactive buttons sent successfully.');
         } catch (\Exception $e) {
             $message->update([
@@ -1217,19 +2465,499 @@ class ConversationController extends Controller
                 'error_message' => $e->getMessage()]);
             event(new MessageUpdated($message));
 
-            return redirect()->back()->withErrors([
-                'buttons' => 'Failed to send interactive buttons: ' . $e->getMessage()]);
+            return $request->expectsJson()
+                ? response()->json(['message' => 'Failed to send interactive buttons.', 'error' => $e->getMessage()], 422)
+                : redirect()->back()->withErrors(['buttons' => 'Failed to send interactive buttons: '.$e->getMessage()]);
+        }
+    }
+
+    public function sendFlow(Request $request, WhatsAppConversation $conversation)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if (! account_ids_match($conversation->account_id, $account->id)) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'flow_id' => 'required|string|max:80',
+            'body_text' => 'required|string|max:1024',
+            'cta' => 'required|string|max:30',
+            'header_text' => 'nullable|string|max:60',
+            'footer_text' => 'nullable|string|max:60',
+            'flow_token' => 'nullable|string|max:256',
+            'flow_action' => 'nullable|string|in:navigate,data_exchange',
+            'screen' => 'nullable|string|max:80',
+        ]);
+
+        $this->ensureCustomerServiceWindowOpen($conversation);
+
+        $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
+        $conversation->load(['connection', 'contact']);
+
+        $message = WhatsAppMessage::lockForUpdate()->create([
+            'account_id' => $account->id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'direction' => 'outbound',
+            'type' => 'interactive',
+            'text_body' => $validated['body_text'],
+            'payload' => [
+                'interactive_type' => 'flow',
+                'flow_id' => $validated['flow_id'],
+                'cta' => $validated['cta'],
+                'header_text' => $validated['header_text'] ?? null,
+                'footer_text' => $validated['footer_text'] ?? null,
+            ],
+            'status' => 'queued',
+        ]);
+
+        $message->load('conversation.contact');
+        event(new MessageCreated($message));
+
+        try {
+            $response = $this->whatsappClient->sendFlowMessage(
+                $conversation->connection,
+                $conversation->contact->wa_id,
+                $validated['flow_id'],
+                $validated['body_text'],
+                $validated['cta'],
+                $validated['header_text'] ?? null,
+                $validated['footer_text'] ?? null,
+                $validated['flow_token'] ?? '',
+                $validated['flow_action'] ?? 'navigate',
+                $validated['screen'] ?? null
+            );
+
+            $message->update([
+                'meta_message_id' => $response['messages'][0]['id'] ?? null,
+                'status' => 'sent',
+                'sent_at' => now(),
+                'payload' => array_merge($message->payload ?? [], ['response' => $response]),
+            ]);
+
+            $this->usageService->incrementMessages($account, 1);
+            $conversation->update([
+                'last_message_at' => now(),
+                'last_message_preview' => substr($validated['body_text'], 0, 100),
+            ]);
+            $this->touchContactAfterOutbound($conversation);
+            event(new MessageUpdated($message));
+            event(new ConversationUpdated($conversation));
+
+            return response()->json(['data' => ['message' => $this->messageResponsePayload($message)]], 201);
+        } catch (\Exception $e) {
+            $message->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
+            event(new MessageUpdated($message));
+
+            return response()->json(['message' => 'Failed to send form.', 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    public function sendCtaUrl(Request $request, WhatsAppConversation $conversation)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if (! account_ids_match($conversation->account_id, $account->id)) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'body_text' => 'required|string|max:1024',
+            'display_text' => 'required|string|max:20',
+            'url' => 'required|url|max:2000',
+            'header_text' => 'nullable|string|max:60',
+            'footer_text' => 'nullable|string|max:60',
+        ]);
+
+        $this->ensureCustomerServiceWindowOpen($conversation);
+
+        $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
+        $conversation->load(['connection', 'contact']);
+
+        $message = WhatsAppMessage::lockForUpdate()->create([
+            'account_id' => $account->id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'direction' => 'outbound',
+            'type' => 'interactive',
+            'text_body' => $validated['body_text'],
+            'payload' => [
+                'interactive_type' => 'cta_url',
+                'display_text' => $validated['display_text'],
+                'url' => $validated['url'],
+                'header_text' => $validated['header_text'] ?? null,
+                'footer_text' => $validated['footer_text'] ?? null,
+            ],
+            'status' => 'queued',
+        ]);
+
+        $message->load('conversation.contact');
+        event(new MessageCreated($message));
+
+        try {
+            $response = $this->whatsappClient->sendCtaUrlMessage(
+                $conversation->connection,
+                $conversation->contact->wa_id,
+                $validated['body_text'],
+                $validated['display_text'],
+                $validated['url'],
+                $validated['header_text'] ?? null,
+                $validated['footer_text'] ?? null
+            );
+
+            $message->update([
+                'meta_message_id' => $response['messages'][0]['id'] ?? null,
+                'status' => 'sent',
+                'sent_at' => now(),
+                'payload' => array_merge($message->payload ?? [], ['response' => $response]),
+            ]);
+
+            $this->usageService->incrementMessages($account, 1);
+            $conversation->update([
+                'last_message_at' => now(),
+                'last_message_preview' => substr($validated['body_text'], 0, 100),
+            ]);
+            $this->touchContactAfterOutbound($conversation);
+            event(new MessageUpdated($message));
+            event(new ConversationUpdated($conversation));
+
+            return response()->json(['data' => ['message' => $this->messageResponsePayload($message)]], 201);
+        } catch (\Exception $e) {
+            $message->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
+            event(new MessageUpdated($message));
+
+            return response()->json(['message' => 'Failed to send link button.', 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    public function sendPaymentLink(Request $request, WhatsAppConversation $conversation, RazorpayPaymentLinkService $paymentLinks)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if (! account_ids_match($conversation->account_id, $account->id)) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:1|max:10000000',
+            'currency' => 'nullable|string|size:3',
+            'description' => 'nullable|string|max:255',
+            'body_text' => 'nullable|string|max:1024',
+            'display_text' => 'nullable|string|max:20',
+            'expire_after_days' => 'nullable|integer|min:1|max:365',
+        ]);
+
+        $this->ensureCustomerServiceWindowOpen($conversation);
+
+        $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
+        $conversation->load(['connection', 'contact']);
+
+        $amountPaise = (int) round(((float) $validated['amount']) * 100);
+        $currency = strtoupper((string) ($validated['currency'] ?? 'INR'));
+        $description = trim((string) ($validated['description'] ?? 'WhatsApp payment request')) ?: 'WhatsApp payment request';
+        $expireAfterDays = (int) ($validated['expire_after_days'] ?? 0);
+
+        try {
+            $link = $paymentLinks->createForAccount($account, [
+                'amount' => $amountPaise,
+                'currency' => $currency,
+                'reference_id' => 'chat_'.$conversation->id.'_'.time(),
+                'description' => $description,
+                'customer_name' => $conversation->contact?->name ?: 'Customer',
+                'customer_phone' => $conversation->contact?->phone ?: $conversation->contact?->wa_id,
+                'customer_email' => $conversation->contact?->email,
+                'expire_by' => $expireAfterDays > 0 ? now()->addDays($expireAfterDays)->timestamp : null,
+                'notes' => [
+                    'source' => 'inbox_composer',
+                    'conversation_id' => (string) $conversation->id,
+                    'contact_id' => (string) ($conversation->contact?->id ?? ''),
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Payment link not created.',
+                'error' => $this->paymentLinkErrorMessage($request, $account, $e->getMessage()),
+            ], 422);
+        }
+
+        $url = (string) ($link['short_url'] ?? $link['url'] ?? '');
+        if ($url === '') {
+            return response()->json(['message' => 'Payment link not created.', 'error' => 'Razorpay did not return a payment URL.'], 422);
+        }
+
+        $bodyText = trim((string) ($validated['body_text'] ?? ''));
+        if ($bodyText === '') {
+            $bodyText = sprintf(
+                'Please complete your payment of %s %s using the button below.',
+                $currency,
+                number_format($amountPaise / 100, 2)
+            );
+        }
+
+        $request->merge([
+            'body_text' => $bodyText,
+            'display_text' => trim((string) ($validated['display_text'] ?? 'Pay now')) ?: 'Pay now',
+            'url' => $url,
+            'header_text' => null,
+            'footer_text' => $description,
+        ]);
+
+        $response = $this->sendCtaUrl($request, $conversation);
+
+        $metadata = is_array($conversation->metadata) ? $conversation->metadata : [];
+        $metadata['last_razorpay_payment_link'] = [
+            'id' => $link['id'] ?? null,
+            'short_url' => $url,
+            'amount' => $amountPaise,
+            'currency' => $currency,
+            'description' => $description,
+            'created_at' => now()->toIso8601String(),
+            'source' => 'inbox_composer',
+        ];
+        $conversation->forceFill(['metadata' => $metadata])->save();
+
+        return $response;
+    }
+
+    private function paymentLinkErrorMessage(Request $request, $account, string $message): string
+    {
+        if (! str_contains($message, 'Connect Razorpay Payments')) {
+            return $message;
+        }
+
+        $user = $request->user();
+        if (! $user) {
+            return $message;
+        }
+
+        $workspaceNames = AccountIntegration::query()
+            ->where('provider', 'razorpay-payments')
+            ->where('status', 'connected')
+            ->whereHas('account', function ($query) use ($user) {
+                $query->where('owner_id', $user->id)
+                    ->orWhereHas('users', fn ($users) => $users->where('users.id', $user->id));
+            })
+            ->with('account:id,name')
+            ->get()
+            ->map(fn (AccountIntegration $integration) => $integration->account?->name)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (! empty($workspaceNames)) {
+            return sprintf(
+                'Razorpay is not connected for the current workspace "%s". It is connected in: %s. Switch to that workspace/chat or connect Razorpay Payments here.',
+                $account->name,
+                implode(', ', $workspaceNames)
+            );
+        }
+
+        return $message;
+    }
+
+    public function sendContactCard(Request $request, WhatsAppConversation $conversation)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if (! account_ids_match($conversation->account_id, $account->id)) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'formatted_name' => 'required|string|max:100',
+            'phone' => 'required|string|max:32',
+            'email' => 'nullable|email|max:128',
+        ]);
+
+        $this->ensureCustomerServiceWindowOpen($conversation);
+
+        $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
+        $conversation->load(['connection', 'contact']);
+
+        $contactCard = [
+            'name' => [
+                'formatted_name' => $validated['formatted_name'],
+                'first_name' => Str::of($validated['formatted_name'])->before(' ')->toString() ?: $validated['formatted_name'],
+            ],
+            'phones' => [[
+                'phone' => $validated['phone'],
+                'type' => 'WORK',
+            ]],
+        ];
+
+        if (! empty($validated['email'])) {
+            $contactCard['emails'] = [[
+                'email' => $validated['email'],
+                'type' => 'WORK',
+            ]];
+        }
+
+        $message = WhatsAppMessage::lockForUpdate()->create([
+            'account_id' => $account->id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'direction' => 'outbound',
+            'type' => 'contacts',
+            'text_body' => 'Contact card: '.$validated['formatted_name'],
+            'payload' => ['contacts' => [$contactCard]],
+            'status' => 'queued',
+        ]);
+
+        $message->load('conversation.contact');
+        event(new MessageCreated($message));
+
+        try {
+            $response = $this->whatsappClient->sendContactsMessage(
+                $conversation->connection,
+                $conversation->contact->wa_id,
+                [$contactCard]
+            );
+
+            $message->update([
+                'meta_message_id' => $response['messages'][0]['id'] ?? null,
+                'status' => 'sent',
+                'sent_at' => now(),
+                'payload' => array_merge($message->payload ?? [], ['response' => $response]),
+            ]);
+
+            $this->usageService->incrementMessages($account, 1);
+            $conversation->update([
+                'last_message_at' => now(),
+                'last_message_preview' => 'Contact card: '.substr($validated['formatted_name'], 0, 80),
+            ]);
+            $this->touchContactAfterOutbound($conversation);
+            event(new MessageUpdated($message));
+            event(new ConversationUpdated($conversation));
+
+            return response()->json(['data' => ['message' => $this->messageResponsePayload($message)]], 201);
+        } catch (\Exception $e) {
+            $message->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
+            event(new MessageUpdated($message));
+
+            return response()->json(['message' => 'Failed to send contact card.', 'error' => $e->getMessage()], 422);
+        }
+    }
+
+    public function sendProduct(Request $request, WhatsAppConversation $conversation)
+    {
+        $account = $request->attributes->get('account') ?? current_account();
+
+        if (! account_ids_match($conversation->account_id, $account->id)) {
+            abort(404);
+        }
+
+        $validated = $request->validate([
+            'product_id' => 'nullable|integer',
+            'mode' => 'nullable|string|in:single,multi',
+            'catalog_id' => 'required_without:product_id|nullable|string|max:120',
+            'product_retailer_id' => 'required_without:product_id|nullable|string|max:120',
+            'body_text' => 'nullable|string|max:1024',
+            'header_text' => 'nullable|string|max:60',
+            'footer_text' => 'nullable|string|max:60',
+            'sections' => 'required_if:mode,multi|nullable|array|min:1|max:10',
+            'sections.*.title' => 'nullable|string|max:24',
+            'sections.*.product_items' => 'required_with:sections|array|min:1|max:30',
+            'sections.*.product_items.*.product_retailer_id' => 'required|string|max:120',
+        ]);
+
+        $this->ensureCustomerServiceWindowOpen($conversation);
+
+        $this->entitlementService->assertWithinLimit($account, 'messages_monthly', 1);
+        $conversation->load(['connection', 'contact']);
+
+        $mode = $validated['mode'] ?? 'single';
+        $selectedProduct = null;
+        if (! empty($validated['product_id']) && $mode === 'single') {
+            $selectedProduct = AccountCatalogProduct::where('account_id', $account->id)
+                ->where('status', 'active')
+                ->findOrFail((int) $validated['product_id']);
+            $metadata = is_array($selectedProduct->metadata) ? $selectedProduct->metadata : [];
+            $catalogId = (string) ($metadata['catalog_id'] ?? '');
+            $retailerId = (string) ($metadata['product_retailer_id'] ?? $metadata['retailer_id'] ?? $selectedProduct->sku ?? '');
+            if ($catalogId === '' || $retailerId === '') {
+                throw ValidationException::withMessages([
+                    'product_id' => 'This saved product is missing Meta catalog ID or product retailer ID. Sync it from Meta Catalog again.',
+                ]);
+            }
+            $validated['catalog_id'] = $catalogId;
+            $validated['product_retailer_id'] = $retailerId;
+        }
+
+        $preview = $validated['body_text'] ?: ($mode === 'single' ? 'Product shared' : 'Products shared');
+
+        $message = WhatsAppMessage::lockForUpdate()->create([
+            'account_id' => $account->id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'direction' => 'outbound',
+            'type' => 'interactive',
+            'text_body' => $preview,
+            'payload' => [
+                'interactive_type' => $mode === 'single' ? 'product' : 'product_list',
+                'catalog_id' => $validated['catalog_id'],
+                'product_retailer_id' => $validated['product_retailer_id'] ?? null,
+                'product_id' => $selectedProduct?->id,
+                'sections' => $validated['sections'] ?? null,
+                'header_text' => $validated['header_text'] ?? null,
+                'footer_text' => $validated['footer_text'] ?? null,
+            ],
+            'status' => 'queued',
+        ]);
+
+        $message->load('conversation.contact');
+        event(new MessageCreated($message));
+
+        try {
+            $response = $mode === 'multi'
+                ? $this->whatsappClient->sendProductListMessage(
+                    $conversation->connection,
+                    $conversation->contact->wa_id,
+                    $validated['catalog_id'],
+                    $validated['sections'] ?? [],
+                    $validated['body_text'] ?: 'Please choose a product.',
+                    $validated['header_text'] ?? null,
+                    $validated['footer_text'] ?? null
+                )
+                : $this->whatsappClient->sendProductMessage(
+                    $conversation->connection,
+                    $conversation->contact->wa_id,
+                    $validated['catalog_id'],
+                    $validated['product_retailer_id'],
+                    $validated['body_text'] ?? null,
+                    $validated['footer_text'] ?? null
+                );
+
+            $message->update([
+                'meta_message_id' => $response['messages'][0]['id'] ?? null,
+                'status' => 'sent',
+                'sent_at' => now(),
+                'payload' => array_merge($message->payload ?? [], ['response' => $response]),
+            ]);
+
+            $this->usageService->incrementMessages($account, 1);
+            $conversation->update([
+                'last_message_at' => now(),
+                'last_message_preview' => substr($preview, 0, 100),
+            ]);
+            $this->touchContactAfterOutbound($conversation);
+            event(new MessageUpdated($message));
+            event(new ConversationUpdated($conversation));
+
+            return response()->json(['data' => ['message' => $this->messageResponsePayload($message)]], 201);
+        } catch (\Exception $e) {
+            $message->update(['status' => 'failed', 'error_message' => $e->getMessage()]);
+            event(new MessageUpdated($message));
+
+            return response()->json(['message' => 'Failed to send product message.', 'error' => $e->getMessage()], 422);
         }
     }
 
     protected function touchContactAfterOutbound(WhatsAppConversation $conversation): void
     {
-        if (!$conversation->relationLoaded('contact')) {
+        if (! $conversation->relationLoaded('contact')) {
             $conversation->load('contact');
         }
 
         $contact = $conversation->contact;
-        if (!$contact) {
+        if (! $contact) {
             return;
         }
 
@@ -1237,5 +2965,157 @@ class ConversationController extends Controller
         $contact->forceFill([
             'last_contacted_at' => now(),
         ])->save();
+    }
+
+    protected function recordHumanReplyCooldown(WhatsAppConversation $conversation, ?User $user): void
+    {
+        $metadata = is_array($conversation->metadata) ? $conversation->metadata : [];
+        $metadata['last_human_reply_at'] = now()->toIso8601String();
+        $metadata['last_human_reply_by'] = $user?->id;
+
+        $conversation->forceFill(['metadata' => $metadata])->save();
+    }
+
+    protected function catalogProductsForInbox($account): array
+    {
+        if (! Schema::hasTable('account_catalog_products')) {
+            return [];
+        }
+
+        return AccountCatalogProduct::where('account_id', $account->id)
+            ->where('status', 'active')
+            ->orderByDesc('updated_at')
+            ->limit(30)
+            ->get(['id', 'name', 'sku', 'price', 'currency', 'image_url', 'metadata'])
+            ->map(function (AccountCatalogProduct $product) {
+                $metadata = is_array($product->metadata) ? $product->metadata : [];
+                $payload = is_array($metadata['payload'] ?? null) ? $metadata['payload'] : [];
+                $retailerId = $metadata['product_retailer_id']
+                    ?? $metadata['retailer_id']
+                    ?? $payload['retailer_id']
+                    ?? $payload['product_retailer_id']
+                    ?? $product->sku;
+                $catalogId = $metadata['catalog_id'] ?? $payload['catalog_id'] ?? null;
+
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'sku' => $product->sku,
+                    'catalog_id' => $catalogId,
+                    'retailer_id' => $retailerId,
+                    'price' => $product->price,
+                    'currency' => $product->currency ?: 'INR',
+                    'image_url' => $product->image_url,
+                    'source' => $metadata['source'] ?? null,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    protected function savedListsForInbox($account): array
+    {
+        if (! Schema::hasTable('whatsapp_lists')) {
+            return [];
+        }
+
+        return WhatsAppList::where('account_id', $account->id)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->limit(50)
+            ->get(['id', 'whatsapp_connection_id', 'name', 'button_text', 'description', 'footer_text', 'sections'])
+            ->map(fn (WhatsAppList $list) => [
+                'id' => $list->id,
+                'connection_id' => $list->whatsapp_connection_id,
+                'name' => $list->name,
+                'button_text' => $list->button_text,
+                'description' => $list->description,
+                'footer_text' => $list->footer_text,
+                'sections' => $list->sections ?: [],
+            ])
+            ->values()
+            ->all();
+    }
+
+    protected function savedButtonsForInbox($account): array
+    {
+        if (! Schema::hasTable('quick_replies')) {
+            return [];
+        }
+
+        return QuickReply::where('account_id', $account->id)
+            ->where('is_active', true)
+            ->where('type', 'button')
+            ->orderByDesc('usage_count')
+            ->orderBy('label')
+            ->limit(30)
+            ->get(['id', 'type', 'label', 'shortcut', 'message'])
+            ->map(fn (QuickReply $reply) => [
+                'id' => $reply->id,
+                'type' => $reply->type ?: 'button',
+                'label' => $reply->label,
+                'shortcut' => $reply->shortcut,
+                'message' => $reply->message,
+                'button_text' => Str::limit($reply->label, 20, ''),
+            ])
+            ->values()
+            ->all();
+    }
+
+    protected function savedFormsForInbox($account): array
+    {
+        if (! Schema::hasTable('whatsapp_flows')) {
+            return [];
+        }
+
+        return WhatsAppFlow::where('account_id', $account->id)
+            ->whereNotNull('meta_flow_id')
+            ->where('status', 'published')
+            ->orderBy('name')
+            ->limit(50)
+            ->get(['id', 'whatsapp_connection_id', 'meta_flow_id', 'name', 'status', 'category'])
+            ->map(fn (WhatsAppFlow $flow) => [
+                'id' => $flow->id,
+                'connection_id' => $flow->whatsapp_connection_id,
+                'meta_flow_id' => $flow->meta_flow_id,
+                'name' => $flow->name,
+                'status' => $flow->status,
+                'category' => $flow->category,
+            ])
+            ->values()
+            ->all();
+    }
+
+    protected function ensureCustomerServiceWindowOpen(WhatsAppConversation $conversation): void
+    {
+        $lastInboundAt = WhatsAppMessage::where('account_id', $conversation->account_id)
+            ->where('whatsapp_conversation_id', $conversation->id)
+            ->where('direction', 'inbound')
+            ->latest('created_at')
+            ->first()?->created_at;
+
+        if (! $lastInboundAt || $lastInboundAt->lte(now()->subHours(24))) {
+            throw ValidationException::withMessages([
+                'message' => 'The 24-hour WhatsApp customer service window is closed. Send an approved template to re-open the conversation.',
+            ]);
+        }
+    }
+
+    protected function messageResponsePayload(WhatsAppMessage $message): array
+    {
+        return [
+            'id' => $message->id,
+            'direction' => $message->direction,
+            'type' => $message->type,
+            'text_body' => $message->text_body,
+            'payload' => $message->payload,
+            'status' => $message->status,
+            'meta_message_id' => $message->meta_message_id,
+            'created_at' => $message->created_at->toIso8601String(),
+            'updated_at' => $message->updated_at?->toIso8601String(),
+            'sent_at' => $message->sent_at?->toIso8601String(),
+            'delivered_at' => $message->delivered_at?->toIso8601String(),
+            'read_at' => $message->read_at?->toIso8601String(),
+        ];
     }
 }

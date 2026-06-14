@@ -15,6 +15,7 @@ interface RealtimeContextType {
 }
 
 const RealtimeContext = createContext<RealtimeContextType | null>(null);
+const realtimeDebug = import.meta.env.VITE_REALTIME_DEBUG === 'true';
 
 interface RealtimeProviderProps {
     children: ReactNode;
@@ -25,27 +26,29 @@ export function RealtimeProvider({ children, pusherConfig }: RealtimeProviderPro
     const [echo, setEcho] = useState<Echo<any> | null>(null);
     const [connected, setConnected] = useState(false);
     const subscribedChannels = useRef<Map<string, any>>(new Map());
+    const pusherKey = pusherConfig?.pusherKey?.trim() || '';
+    const pusherCluster = pusherConfig?.pusherCluster?.trim() || '';
 
     useEffect(() => {
-        const config = pusherConfig
-            ? {
-                  ...pusherConfig,
-                  pusherCluster: pusherConfig.pusherCluster?.trim() || undefined}
-            : undefined;
-
-        if (!config || !config.pusherKey) {
-            console.warn('[RealtimeProvider] Pusher config not available, realtime disabled');
+        if (!pusherKey) {
+            if (realtimeDebug) {
+                console.warn('[RealtimeProvider] Pusher config not available, realtime disabled');
+            }
             return;
         }
 
+        let echoInstance: Echo<any> | null = null;
+
         try {
-            if (!config.pusherCluster) {
-                console.warn('[RealtimeProvider] Missing Pusher cluster. Set cluster in Platform Settings or provide a custom host.');
+            if (!pusherCluster) {
+                if (realtimeDebug) {
+                    console.warn('[RealtimeProvider] Missing Pusher cluster. Set cluster in Platform Settings or provide a custom host.');
+                }
                 return;
             }
-            const echoInstance = initializeEcho({
-                pusherKey: config.pusherKey,
-                pusherCluster: config.pusherCluster,
+            echoInstance = initializeEcho({
+                pusherKey,
+                pusherCluster,
                 authEndpoint: '/broadcasting/auth'});
 
             setEcho(echoInstance);
@@ -56,7 +59,9 @@ export function RealtimeProvider({ children, pusherConfig }: RealtimeProviderPro
             setConnected(pusher.connection.state === 'connected');
 
             pusher.connection.bind('connected', () => {
-                console.log('[RealtimeProvider] Pusher connected');
+                if (realtimeDebug) {
+                    console.log('[RealtimeProvider] Pusher connected');
+                }
                 setConnected(true);
             });
 
@@ -69,25 +74,31 @@ export function RealtimeProvider({ children, pusherConfig }: RealtimeProviderPro
             });
 
             pusher.connection.bind('message', (event: any) => {
-                if (event?.event === 'pusher:error') {
+                if (realtimeDebug && event?.event === 'pusher:error') {
                     console.error('[Echo] Pusher error', event?.data);
                 }
             });
         } catch (error) {
-            console.error('[RealtimeProvider] Failed to initialize Echo:', error);
+            if (realtimeDebug) {
+                console.error('[RealtimeProvider] Failed to initialize Echo:', error);
+            }
         }
 
         return () => {
-            // Cleanup on unmount
-            Array.from(subscribedChannels.current.values()).forEach((channel) => {
-                if (channel && typeof channel.unsubscribe === 'function') {
-                    channel.unsubscribe();
+            const channelsToLeave = new Set<string>();
+
+            subscribedChannels.current.forEach((entry, subscriptionKey) => {
+                if (entry?.echoChannel && entry?.event) {
+                    entry.echoChannel.stopListening(entry.event);
                 }
+                channelsToLeave.add(subscriptionKey.split(':')[0]);
             });
+
+            channelsToLeave.forEach((channel) => echoInstance?.leave(channel));
             subscribedChannels.current.clear();
             disconnectEcho();
         };
-    }, [pusherConfig]);
+    }, [pusherKey, pusherCluster]);
 
     const subscribe = useCallback(
         (
@@ -96,7 +107,9 @@ export function RealtimeProvider({ children, pusherConfig }: RealtimeProviderPro
         callback: (data: any) => void
         ): (() => void) => {
             if (!echo) {
-                console.warn('[RealtimeProvider] Echo not initialized, cannot subscribe to', channel);
+                if (realtimeDebug) {
+                    console.warn('[RealtimeProvider] Echo not initialized, cannot subscribe to', channel);
+                }
                 return () => {};
             }
 
@@ -111,18 +124,22 @@ export function RealtimeProvider({ children, pusherConfig }: RealtimeProviderPro
 
                 // Handle subscription errors
                 echoChannel.error((error: any) => {
-                    console.error('[RealtimeProvider] Channel subscription error', {
-                        channel,
-                        event,
-                        error: error?.message || error,
-                        status: error?.status,
-                    });
+                    if (realtimeDebug) {
+                        console.error('[RealtimeProvider] Channel subscription error', {
+                            channel,
+                            event,
+                            error: error?.message || error,
+                            status: error?.status,
+                        });
+                    }
                 });
 
                 // Set up event listener - Echo will handle subscription automatically
                 // The listener will work once the channel is subscribed
                 const eventHandler = (data: any) => {
-                    console.log('[RealtimeProvider] Received event', { channel, event, data });
+                    if (realtimeDebug) {
+                        console.log('[RealtimeProvider] Received event', { channel, event, data });
+                    }
                     callback(data);
                 };
                 
@@ -130,36 +147,52 @@ export function RealtimeProvider({ children, pusherConfig }: RealtimeProviderPro
                 
                 // Log when channel is subscribed for debugging
                 echoChannel.subscribed(() => {
-                    console.log('[RealtimeProvider] Channel subscribed successfully', { channel, event });
+                    if (realtimeDebug) {
+                        console.log('[RealtimeProvider] Channel subscribed successfully', { channel, event });
+                    }
                 });
                 
-                // Also listen to all events on this channel for debugging
-                echoChannel.listen('.', (eventName: string, data: any) => {
-                    console.log('[RealtimeProvider] Received any event on channel', { channel, eventName, data });
-                });
+                subscribedChannels.current.set(subscriptionKey, { echoChannel, event });
                 
-                subscribedChannels.current.set(subscriptionKey, echoChannel);
-                
-                console.log('[RealtimeProvider] Successfully subscribed to channel', { channel, event });
+                if (realtimeDebug) {
+                    console.log('[RealtimeProvider] Successfully subscribed to channel', { channel, event });
+                }
 
                 return () => {
                     echoChannel.stopListening(event);
                     subscribedChannels.current.delete(subscriptionKey);
+
+                    const stillListening = Array.from(subscribedChannels.current.keys())
+                        .some((key) => key.startsWith(`${channel}:`));
+
+                    if (!stillListening) {
+                        echo.leave(channel);
+                    }
                 };
             } catch (error) {
-                console.error('[RealtimeProvider] Failed to subscribe to', channel, event, error);
+                if (realtimeDebug) {
+                    console.error('[RealtimeProvider] Failed to subscribe to', channel, event, error);
+                }
                 return () => {};
             }
         }
     , [echo]);
 
     const unsubscribe = useCallback((channel: string): void => {
-        const echoChannel = subscribedChannels.current.get(channel);
-        if (echoChannel) {
-            echoChannel.unsubscribe();
-            subscribedChannels.current.delete(channel);
-        }
-    }, []);
+        subscribedChannels.current.forEach((entry, subscriptionKey) => {
+            if (!subscriptionKey.startsWith(`${channel}:`)) {
+                return;
+            }
+
+            if (entry?.echoChannel && entry?.event) {
+                entry.echoChannel.stopListening(entry.event);
+            }
+
+            subscribedChannels.current.delete(subscriptionKey);
+        });
+
+        echo?.leave(channel);
+    }, [echo]);
 
     const contextValue = useMemo(
         () => ({ echo, connected, subscribe, unsubscribe }),

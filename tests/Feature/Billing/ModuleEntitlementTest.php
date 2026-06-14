@@ -2,8 +2,10 @@
 
 namespace Tests\Feature\Billing;
 
-use App\Models\Plan;
 use App\Models\Account;
+use App\Models\Plan;
+use App\Core\Billing\EntitlementService;
+use App\Modules\WhatsApp\Models\WhatsAppConnection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -18,14 +20,19 @@ class ModuleEntitlementTest extends TestCase
         $this->artisan('db:seed', ['--class' => 'PlanSeeder']);
     }
 
-    public function test_free_plan_cannot_access_templates_module(): void
+    public function test_plan_without_templates_cannot_access_templates_module(): void
     {
-        
-        $account = $this->createAccountWithPlan('free');
+        $plan = Plan::factory()->state([
+            'key' => 'starter_without_templates',
+            'modules' => ['whatsapp.cloud', 'contacts'],
+            'limits' => ['whatsapp_connections' => 1],
+            'is_active' => true,
+            'is_public' => false,
+        ])->create();
+
+        $account = $this->createAccountWithPlan($plan->key);
         $user = $this->actingAsAccountOwner($account);
 
-        // Ensure templates module is NOT in free plan
-        $plan = $account->subscription->plan;
         $this->assertNotContains('templates', $plan->modules ?? []);
 
         // Try to access templates route
@@ -36,7 +43,7 @@ class ModuleEntitlementTest extends TestCase
 
     public function test_starter_plan_can_access_templates_module(): void
     {
-        
+
         $account = $this->createAccountWithPlan('starter');
         $user = $this->actingAsAccountOwner($account);
 
@@ -52,5 +59,24 @@ class ModuleEntitlementTest extends TestCase
 
         // Should succeed (200 or redirect, not 403)
         $this->assertNotEquals(403, $response->status());
+    }
+
+    public function test_inactive_whatsapp_connection_does_not_block_reconnect(): void
+    {
+        $plan = Plan::factory()->state([
+            'key' => 'single_connection_plan',
+            'modules' => ['whatsapp.cloud'],
+            'limits' => ['whatsapp_connections' => 1],
+            'is_active' => true,
+            'is_public' => false,
+        ])->create();
+        $account = $this->createAccountWithPlan($plan->key);
+
+        WhatsAppConnection::factory()->create([
+            'account_id' => $account->id,
+            'is_active' => false,
+        ]);
+
+        $this->assertTrue(app(EntitlementService::class)->canCreateConnection($account->fresh()));
     }
 }

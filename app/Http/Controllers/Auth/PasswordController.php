@@ -17,8 +17,10 @@ class PasswordController extends Controller
         $validated = $request->validated();
 
         $request->user()->update([
-            'password' => Hash::make($validated['password'])]);
+            'password' => Hash::make($validated['password']),
+            'force_password_reset_at' => null,
+        ]);
 
-        return back();
+        return back()->with('success', 'Password updated successfully.');
     }
 }
