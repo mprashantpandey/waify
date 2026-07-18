@@ -96,6 +96,7 @@ Route::prefix('/api/baileys-bridge')
     ->middleware(['throttle:240,1'])
     ->name('api.baileys-bridge.')
     ->group(function () {
+        Route::get('/connections', [\App\Http\Controllers\BaileysBridgeWebhookController::class, 'connections'])->name('connections.index');
         Route::post('/connections/{connection}/status', [\App\Http\Controllers\BaileysBridgeWebhookController::class, 'status'])->name('connections.status');
         Route::post('/connections/{connection}/message', [\App\Http\Controllers\BaileysBridgeWebhookController::class, 'message'])->name('connections.message');
     });

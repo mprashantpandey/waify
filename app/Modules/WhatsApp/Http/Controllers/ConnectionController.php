@@ -39,7 +39,6 @@ class ConnectionController extends Controller
         $connections = WhatsAppConnection::where('account_id', $account->id)
             ->orderBy('created_at', 'desc')
             ->get()
-            ->each(fn ($connection) => $this->syncBusinessProfileFromMeta($connection))
             ->map(function ($connection) {
                 return [
                     'id' => $connection->id,
@@ -60,7 +59,8 @@ class ConnectionController extends Controller
                     'quality_rating' => $connection->quality_rating,
                     'code_verification_status' => $connection->code_verification_status,
                     'business_category' => $connection->business_category ?? 'Retail',
-                    'business_about' => $connection->business_about ?? 'Turn conversations into conversions - WhatsApp marketing made simple.',
+                    'business_username' => $connection->business_username,
+                    'business_about' => filled($connection->business_about) ? $connection->business_about : 'Turn conversations into conversions - WhatsApp marketing made simple.',
                     'business_address' => $connection->business_address,
                     'business_description' => $connection->business_description,
                     'business_email' => $connection->business_email,
@@ -192,7 +192,8 @@ class ConnectionController extends Controller
             'phone_number_id' => 'required|string|max:255',
             'business_phone' => 'nullable|string|max:255',
             'business_category' => 'nullable|string|max:255',
-            'business_about' => 'nullable|string|min:1|max:139',
+            'business_username' => 'nullable|string|max:128',
+            'business_about' => 'nullable|string|max:139',
             'business_address' => 'nullable|string|max:256',
             'business_description' => 'nullable|string|max:512',
             'business_email' => 'nullable|email|max:128',
@@ -208,6 +209,8 @@ class ConnectionController extends Controller
 
         $validated['setup_method'] = 'manual';
         $validated['connection_mode'] = 'cloud_api';
+        $this->normalizeBusinessUsername($validated);
+        $this->normalizeBusinessProfileText($validated);
 
         if (! isset($validated['name']) || trim((string) $validated['name']) === '') {
             $seed = $validated['business_phone'] ?? $validated['phone_number_id'];
@@ -312,6 +315,10 @@ class ConnectionController extends Controller
             $sessionInfo = $this->parseEmbeddedSessionInfo($validated['session_info'] ?? null);
             $sessionData = $sessionInfo['data'] ?? $sessionInfo;
             $connectionMode = ($validated['connection_mode'] ?? null) === 'coexistence' ? 'coexistence' : 'cloud_api';
+            if ($connectionMode === 'coexistence' && ! ($embeddedSignup['coexistenceEnabled'] ?? false)) {
+                throw new \RuntimeException('WhatsApp Business App co-existence is not configured. Add a co-existence enabled Meta Embedded Signup config ID in platform WhatsApp settings.');
+            }
+
             $accessToken = $validated['access_token'] ?? null;
             if (! $accessToken && ! empty($validated['code'])) {
                 $redirectUri = $validated['redirect_uri'] ?? null;
@@ -451,6 +458,7 @@ class ConnectionController extends Controller
                     'coexistence_metadata' => $connectionMode === 'coexistence' ? $this->coexistenceMetadata($sessionInfo, $phoneDetails) : $existing->coexistence_metadata,
                     'coexistence_last_checked_at' => $connectionMode === 'coexistence' ? now() : $existing->coexistence_last_checked_at,
                     'coexistence_last_error' => null,
+                    'profile_sync_error' => null,
                     'api_version' => $this->metaGraphService->getApiVersion()]);
 
                 return redirect()->route('app.whatsapp.connections.index')->with('success', 'WABA account updated successfully.');
@@ -480,6 +488,7 @@ class ConnectionController extends Controller
                 'coexistence_metadata' => $connectionMode === 'coexistence' ? $this->coexistenceMetadata($sessionInfo, $phoneDetails) : null,
                 'coexistence_last_checked_at' => $connectionMode === 'coexistence' ? now() : null,
                 'coexistence_last_error' => null,
+                'profile_sync_error' => null,
                 'api_version' => $this->metaGraphService->getApiVersion()]);
 
             return redirect()->route('app.whatsapp.connections.index')->with('success', 'WABA account connected successfully.');
@@ -497,7 +506,7 @@ class ConnectionController extends Controller
     {
         $appId = PlatformSetting::get('whatsapp.meta_app_id', config('whatsapp.meta.app_id'));
         $configId = PlatformSetting::get('whatsapp.embedded_signup_config_id', config('whatsapp.meta.embedded_signup_config_id'));
-        $coexistenceConfigId = PlatformSetting::get('whatsapp.coexistence_signup_config_id', config('whatsapp.meta.coexistence_signup_config_id')) ?: $configId;
+        $coexistenceConfigId = PlatformSetting::get('whatsapp.coexistence_signup_config_id', config('whatsapp.meta.coexistence_signup_config_id'));
         $apiVersion = PlatformSetting::get('whatsapp.api_version', config('whatsapp.meta.api_version', 'v25.0'));
         $enabledSetting = PlatformSetting::get('whatsapp.embedded_enabled', null);
         $enabled = $enabledSetting !== null ? (bool) $enabledSetting : (bool) ($appId && ($configId || $coexistenceConfigId));
@@ -506,8 +515,8 @@ class ConnectionController extends Controller
             'enabled' => $enabled,
             'appId' => $enabled ? $appId : null,
             'configId' => $enabled ? $configId : null,
-            'coexistenceEnabled' => $enabled && (bool) $coexistenceConfigId,
-            'coexistenceConfigId' => $enabled ? $coexistenceConfigId : null,
+            'coexistenceEnabled' => $enabled && filled($coexistenceConfigId),
+            'coexistenceConfigId' => $enabled && filled($coexistenceConfigId) ? $coexistenceConfigId : null,
             'apiVersion' => $apiVersion ?: 'v25.0'];
     }
 
@@ -700,7 +709,8 @@ class ConnectionController extends Controller
             'phone_number_id' => 'required|string|max:255',
             'business_phone' => 'nullable|string|max:255',
             'business_category' => 'nullable|string|max:255',
-            'business_about' => 'nullable|string|min:1|max:139',
+            'business_username' => 'nullable|string|max:128',
+            'business_about' => 'nullable|string|max:139',
             'business_address' => 'nullable|string|max:256',
             'business_description' => 'nullable|string|max:512',
             'business_email' => 'nullable|email|max:128',
@@ -709,6 +719,7 @@ class ConnectionController extends Controller
             'business_vertical' => 'nullable|string|max:80',
             'profile_picture_handle' => 'nullable|string|max:2048',
             'profile_picture_file' => 'nullable|image|mimes:jpg,jpeg,png|max:5120',
+            'sync_to_meta' => 'nullable|boolean',
             'access_token' => 'nullable|string', // Optional on update
             'api_version' => 'nullable|string|max:10',
             'throughput_cap_per_minute' => 'nullable|integer|min:1|max:1000',
@@ -718,6 +729,10 @@ class ConnectionController extends Controller
 
         $profilePictureFile = $request->file('profile_picture_file');
         unset($validated['profile_picture_file']);
+        $syncToMeta = (bool) ($validated['sync_to_meta'] ?? false);
+        unset($validated['sync_to_meta']);
+        $this->normalizeBusinessUsername($validated);
+        $this->normalizeBusinessProfileText($validated);
 
         $businessWebsites = collect($validated['business_websites'] ?? [])
             ->filter(fn ($url) => is_string($url) && trim($url) !== '')
@@ -727,13 +742,17 @@ class ConnectionController extends Controller
 
         try {
             $profilePictureHandle = $validated['profile_picture_handle'] ?? null;
-            if ($profilePictureFile) {
+            if ($syncToMeta && ! $connection->access_token) {
+                throw new \RuntimeException('No active Meta access token is stored for this connection. Reconnect the WABA before syncing the profile to Meta.');
+            }
+
+            if ($syncToMeta && $profilePictureFile) {
                 $profilePictureHandle = $this->metaGraphService->uploadProfilePicture($profilePictureFile, $connection->access_token);
                 $validated['profile_picture_handle'] = $profilePictureHandle;
             }
 
-            if ($connection->access_token) {
-                $this->metaGraphService->updateBusinessProfile($connection->phone_number_id, $connection->access_token, [
+            if ($syncToMeta && $connection->access_token) {
+                $this->updateBusinessProfileWithFallback($connection, [
                     'about' => $validated['business_about'] ?? null,
                     'address' => $validated['business_address'] ?? null,
                     'description' => $validated['business_description'] ?? null,
@@ -747,16 +766,107 @@ class ConnectionController extends Controller
                 $validated['profile_sync_error'] = null;
             }
         } catch (\Throwable $e) {
-            $validated['profile_sync_error'] = $e->getMessage();
+            $validated['profile_sync_error'] = $this->friendlyBusinessProfileSyncError($e, $connection);
             $this->connectionService->update($connection, $validated);
 
             return redirect()->route('app.whatsapp.connections.index')
-                ->with('error', 'Business profile saved locally, but Meta sync failed: '.$e->getMessage());
+                ->with('error', 'Business profile saved locally, but Meta sync failed: '.$validated['profile_sync_error']);
         }
 
         $this->connectionService->update($connection, $validated);
 
-        return redirect()->route('app.whatsapp.connections.index')->with('success', 'Connection updated successfully.');
+        return redirect()->route('app.whatsapp.connections.index')->with('success', $syncToMeta ? 'Business profile saved and synced with Meta.' : 'Business profile saved locally.');
+    }
+
+    protected function friendlyBusinessProfileSyncError(\Throwable $e, ?WhatsAppConnection $connection = null): string
+    {
+        $message = $e->getMessage();
+
+        if (str_contains($message, '(#200)') || str_contains(strtolower($message), 'permission')) {
+            $scopeHint = $this->businessProfilePermissionHint($connection);
+
+            return 'Meta rejected the profile update because the connected token can read this WABA but cannot edit the phone profile. '.$scopeHint;
+        }
+
+        return $message;
+    }
+
+    protected function businessProfilePermissionHint(?WhatsAppConnection $connection): string
+    {
+        if (! $connection?->access_token) {
+            return 'Reconnect the WABA or configure a platform system-user token assigned to this WABA/phone number.';
+        }
+
+        try {
+            $debug = $this->metaGraphService->debugToken($connection->access_token);
+            $scopes = collect($debug['scopes'] ?? [])->filter()->values();
+            $granularScopes = collect($debug['granular_scopes'] ?? []);
+            $hasBusinessManagement = $scopes->contains('business_management');
+            $hasWabaManagement = $granularScopes->contains(function ($scope) use ($connection) {
+                return ($scope['scope'] ?? null) === 'whatsapp_business_management'
+                    && in_array((string) $connection->waba_id, array_map('strval', $scope['target_ids'] ?? []), true);
+            });
+
+            if (! $hasBusinessManagement) {
+                return 'Zyptos requested business_management during Embedded Signup, but Meta did not grant it to the returned token. Enable/grant business_management for the Meta app/config or add a platform system-user token with business_management and whatsapp_business_management access to this WABA.';
+            }
+
+            if (! $hasWabaManagement) {
+                return 'The token is missing whatsapp_business_management for this specific WABA. Reconnect with the correct business portfolio or assign the system user to this WABA in Meta Business Settings.';
+            }
+        } catch (\Throwable $debugError) {
+            Log::channel('whatsapp')->warning('Business profile permission diagnostic failed', [
+                'connection_id' => $connection->id,
+                'error' => $debugError->getMessage(),
+            ]);
+        }
+
+        return 'Reconnect may not fix this if Meta keeps returning a read-only token. Add a platform system-user token assigned to this WABA/phone number, or update the profile directly in WhatsApp Manager.';
+    }
+
+    protected function updateBusinessProfileWithFallback(WhatsAppConnection $connection, array $profile): array
+    {
+        try {
+            return $this->metaGraphService->updateBusinessProfile($connection->phone_number_id, $connection->access_token, $profile);
+        } catch (\Throwable $connectionTokenError) {
+            $platformToken = PlatformSetting::get('whatsapp.system_user_token', config('whatsapp.meta.system_user_token'));
+            if (! $platformToken || hash_equals((string) $connection->access_token, (string) $platformToken)) {
+                throw $connectionTokenError;
+            }
+
+            try {
+                return $this->metaGraphService->updateBusinessProfile($connection->phone_number_id, $platformToken, $profile);
+            } catch (\Throwable $platformTokenError) {
+                throw new \RuntimeException(
+                    $connectionTokenError->getMessage().' Platform system-user fallback also failed: '.$platformTokenError->getMessage(),
+                    0,
+                    $connectionTokenError
+                );
+            }
+        }
+    }
+
+    protected function normalizeBusinessUsername(array &$validated): void
+    {
+        if (! array_key_exists('business_username', $validated)) {
+            return;
+        }
+
+        $username = trim((string) ($validated['business_username'] ?? ''));
+        $username = ltrim($username, '@');
+        $validated['business_username'] = $username !== '' ? $username : null;
+    }
+
+    protected function normalizeBusinessProfileText(array &$validated): void
+    {
+        foreach (['business_about', 'business_address', 'business_description', 'business_email'] as $field) {
+            if (! array_key_exists($field, $validated)) {
+                continue;
+            }
+
+            $value = trim((string) ($validated[$field] ?? ''));
+            $validated[$field] = $value !== '' ? $value : null;
+        }
     }
 
     public function syncMeta(Request $request, $connection)

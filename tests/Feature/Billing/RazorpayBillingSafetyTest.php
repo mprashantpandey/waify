@@ -208,6 +208,53 @@ class RazorpayBillingSafetyTest extends TestCase
         $this->assertTrue($subscription->current_period_end->isFuture());
     }
 
+    public function test_razorpay_webhook_blocked_when_gateway_disabled(): void
+    {
+        PlatformSetting::set('payment.razorpay_enabled', false, 'boolean', 'payment');
+        PlatformSetting::set('payment.razorpay_webhook_secret', 'webhook_secret', 'string', 'payment');
+
+        $payload = [
+            'event' => 'payment.captured',
+            'payload' => [
+                'payment' => [
+                    'entity' => [
+                        'id' => 'pay_blocked_123',
+                        'order_id' => 'order_blocked_123',
+                    ],
+                ],
+            ],
+        ];
+
+        $body = json_encode($payload);
+        $signature = hash_hmac('sha256', $body, 'webhook_secret');
+
+        $response = $this->call('POST', '/webhooks/razorpay', [], [], [], [
+            'HTTP_X_RAZORPAY_SIGNATURE' => $signature,
+            'HTTP_X_RAZORPAY_EVENT_ID' => 'evt_blocked_123',
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_ACCEPT' => 'application/json',
+        ], $body);
+
+        $response->assertStatus(503)
+            ->assertJson([
+                'success' => false,
+                'message' => 'Razorpay webhooks are currently disabled.',
+            ]);
+    }
+
+    public function test_razorpay_webhook_blocked_when_gateway_string_zero(): void
+    {
+        PlatformSetting::set('payment.razorpay_enabled', '0', 'string', 'payment');
+
+        $response = $this->call('POST', '/webhooks/razorpay', [], [], [], [
+            'CONTENT_TYPE' => 'application/json',
+            'HTTP_ACCEPT' => 'application/json',
+        ], '{"event":"payment.captured"}');
+
+        $response->assertStatus(503)
+            ->assertJsonPath('message', 'Razorpay webhooks are currently disabled.');
+    }
+
     public function test_owner_can_preview_yearly_billing_cycle_before_checkout(): void
     {
         $account = $this->createAccountWithPlan('starter');

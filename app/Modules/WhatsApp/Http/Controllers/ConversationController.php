@@ -1524,45 +1524,61 @@ class ConversationController extends Controller
             } elseif (in_array($message->type, ['image', 'video', 'document', 'audio'], true)) {
                 $mediaId = $payload['media_id'] ?? $payload['meta_upload']['id'] ?? null;
 
-                if (! $mediaId) {
+                if ($conversation->connection->connection_mode === 'baileys_qr') {
                     $link = $payload['link'] ?? $payload['url'] ?? null;
-                    $path = $this->storagePathFromPublicUrl($link);
-                    if (! $path || ! Storage::disk('public')->exists($path)) {
+                    if (! $link) {
                         throw new \RuntimeException('Original media file is no longer available for retry.');
                     }
 
-                    $mimeType = $this->metaMediaMimeType(
-                        $message->type,
-                        $payload['mime_type'] ?? null,
-                        $filename,
-                        $path
-                    );
-
-                    $upload = $this->whatsappClient->uploadMedia(
+                    $response = $this->whatsappClient->sendMediaMessage(
                         $conversation->connection,
-                        Storage::disk('public')->path($path),
-                        $filename,
-                        $mimeType
+                        $conversation->contact->wa_id,
+                        $message->type,
+                        (string) $link,
+                        $caption,
+                        $message->type === 'document' ? $filename : null
                     );
-                    $mediaId = $upload['id'];
-                    $message->update([
-                        'payload' => array_merge($message->payload ?? [], [
-                            'media_id' => $mediaId,
-                            'meta_upload' => $upload,
-                            'mime_type' => $mimeType,
-                        ]),
-                    ]);
-                }
+                } else {
+                    if (! $mediaId) {
+                        $link = $payload['link'] ?? $payload['url'] ?? null;
+                        $path = $this->storagePathFromPublicUrl($link);
+                        if (! $path || ! Storage::disk('public')->exists($path)) {
+                            throw new \RuntimeException('Original media file is no longer available for retry.');
+                        }
 
-                $response = $this->whatsappClient->sendUploadedMediaMessage(
-                    $conversation->connection,
-                    $conversation->contact->wa_id,
-                    $message->type,
-                    (string) $mediaId,
-                    $caption,
-                    $message->type === 'document' ? $filename : null,
-                    $isVoice
-                );
+                        $mimeType = $this->metaMediaMimeType(
+                            $message->type,
+                            $payload['mime_type'] ?? null,
+                            $filename,
+                            $path
+                        );
+
+                        $upload = $this->whatsappClient->uploadMedia(
+                            $conversation->connection,
+                            Storage::disk('public')->path($path),
+                            $filename,
+                            $mimeType
+                        );
+                        $mediaId = $upload['id'];
+                        $message->update([
+                            'payload' => array_merge($message->payload ?? [], [
+                                'media_id' => $mediaId,
+                                'meta_upload' => $upload,
+                                'mime_type' => $mimeType,
+                            ]),
+                        ]);
+                    }
+
+                    $response = $this->whatsappClient->sendUploadedMediaMessage(
+                        $conversation->connection,
+                        $conversation->contact->wa_id,
+                        $message->type,
+                        (string) $mediaId,
+                        $caption,
+                        $message->type === 'document' ? $filename : null,
+                        $isVoice
+                    );
+                }
             } elseif ($message->type === 'reaction') {
                 $reaction = $payload['reaction'] ?? [];
                 if (empty($reaction['message_id']) || empty($reaction['emoji'])) {
@@ -1808,31 +1824,42 @@ class ConversationController extends Controller
         event(new MessageCreated($message));
 
         try {
-            $upload = $this->whatsappClient->uploadMedia(
-                $conversation->connection,
-                Storage::disk('public')->path($path),
-                $filename,
-                $mimeType
-            );
+            if ($conversation->connection->connection_mode === 'baileys_qr') {
+                $response = $this->whatsappClient->sendMediaMessage(
+                    $conversation->connection,
+                    $conversation->contact->wa_id,
+                    $type,
+                    $url,
+                    $caption,
+                    $type === 'document' ? $filename : null
+                );
+            } else {
+                $upload = $this->whatsappClient->uploadMedia(
+                    $conversation->connection,
+                    Storage::disk('public')->path($path),
+                    $filename,
+                    $mimeType
+                );
 
-            $metaMediaId = $upload['id'];
-            $message->update([
-                'payload' => array_merge($message->payload ?? [], [
-                    'media_id' => $metaMediaId,
-                    'meta_upload' => $upload,
-                ]),
-            ]);
+                $metaMediaId = $upload['id'];
+                $message->update([
+                    'payload' => array_merge($message->payload ?? [], [
+                        'media_id' => $metaMediaId,
+                        'meta_upload' => $upload,
+                    ]),
+                ]);
 
-            $response = $this->whatsappClient->sendUploadedMediaMessage(
-                $conversation->connection,
-                $conversation->contact->wa_id,
-                $type,
-                $metaMediaId,
-                $caption,
-                $type === 'document' ? $filename : null,
-                $isVoice,
-                $replyContext['meta_message_id'] ?? null
-            );
+                $response = $this->whatsappClient->sendUploadedMediaMessage(
+                    $conversation->connection,
+                    $conversation->contact->wa_id,
+                    $type,
+                    $metaMediaId,
+                    $caption,
+                    $type === 'document' ? $filename : null,
+                    $isVoice,
+                    $replyContext['meta_message_id'] ?? null
+                );
+            }
 
             $metaMessageId = $response['messages'][0]['id'] ?? null;
             $message->update([

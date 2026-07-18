@@ -535,4 +535,72 @@ class WebhookTest extends TestCase
                 ->count()
         );
     }
+
+    public function test_webhook_stores_username_and_business_scoped_user_identity(): void
+    {
+        $payload = [
+            'entry' => [[
+                'changes' => [[
+                    'field' => 'messages',
+                    'value' => [
+                        'messages' => [[
+                            'id' => 'wamid.username-1',
+                            'from' => '919876543210',
+                            'from_user_id' => 'BSUID-ABC-123',
+                            'username' => '@brand.user',
+                            'type' => 'text',
+                            'text' => ['body' => 'Hello from username'],
+                        ]],
+                        'contacts' => [[
+                            'wa_id' => '919876543210',
+                            'user_id' => 'BSUID-ABC-123',
+                            'profile' => [
+                                'name' => 'Brand User',
+                                'username' => 'brand.user',
+                            ],
+                        ]],
+                    ],
+                ]],
+            ]],
+        ];
+
+        $this->postJson(route('webhooks.whatsapp.receive', ['connection' => $this->connection->slug]), $payload)
+            ->assertStatus(200);
+
+        $this->assertDatabaseHas('whatsapp_contacts', [
+            'account_id' => $this->account->id,
+            'wa_id' => '919876543210',
+            'phone' => '919876543210',
+            'business_scoped_user_id' => 'BSUID-ABC-123',
+            'whatsapp_username' => 'brand.user',
+            'name' => 'Brand User',
+        ]);
+    }
+
+    public function test_webhook_status_for_unknown_message_is_skipped_not_failed(): void
+    {
+        $statusPayload = [
+            'entry' => [[
+                'changes' => [[
+                    'field' => 'messages',
+                    'value' => [
+                        'statuses' => [[
+                            'id' => 'wamid.unknown-status',
+                            'status' => 'delivered',
+                            'timestamp' => (string) time(),
+                            'recipient_id' => '919876543210',
+                        ]],
+                    ],
+                ]],
+            ]],
+        ];
+
+        $this->postJson(route('webhooks.whatsapp.receive', ['connection' => $this->connection->slug]), $statusPayload)
+            ->assertStatus(200);
+
+        $this->assertDatabaseHas('whatsapp_webhook_events', [
+            'whatsapp_connection_id' => $this->connection->id,
+            'status' => 'skipped',
+        ]);
+    }
 }

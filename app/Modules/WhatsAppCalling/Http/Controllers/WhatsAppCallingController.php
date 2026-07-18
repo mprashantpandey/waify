@@ -718,6 +718,8 @@ class WhatsAppCallingController extends Controller
         $voiceEnabled = (bool) PlatformSetting::get('ai.voice_enabled', false);
         $voiceSttProvider = (string) PlatformSetting::get('ai.voice_stt_provider', 'elevenlabs');
         $voiceTtsProvider = (string) PlatformSetting::get('ai.voice_tts_provider', 'elevenlabs');
+        $phoneNumberId = trim((string) ($settings['phone_number_id'] ?? '')) ?: (string) ($connection?->phone_number_id ?? '');
+
         $checks = [
             [
                 'key' => 'module_enabled',
@@ -734,8 +736,8 @@ class WhatsAppCallingController extends Controller
             [
                 'key' => 'phone_number_id',
                 'label' => 'Meta phone number ID',
-                'ok' => ! empty($settings['phone_number_id'] ?? $connection?->phone_number_id),
-                'message' => ! empty($settings['phone_number_id'] ?? $connection?->phone_number_id) ? 'Phone number ID is available.' : 'Sync or enter the Meta phone number ID.',
+                'ok' => $phoneNumberId !== '',
+                'message' => $phoneNumberId !== '' ? 'Phone number ID is synced.' : 'Sync or enter the Meta phone number ID.',
             ],
             [
                 'key' => 'webhook',
@@ -751,13 +753,15 @@ class WhatsAppCallingController extends Controller
             ],
             [
                 'key' => 'meta_calling',
-                'label' => 'Meta calling eligible',
-                'ok' => (bool) ($connection?->calling_enabled) || ($settings['calling_eligibility_status'] ?? 'unknown') === 'eligible',
-                'message' => match ($settings['calling_eligibility_status'] ?? 'unknown') {
-                    'eligible' => 'Marked eligible for WhatsApp Calling.',
-                    'not_eligible' => 'Marked not eligible for WhatsApp Calling.',
-                    default => $connection?->calling_last_error ?: 'Run Check eligibility against Meta phone settings.',
-                },
+                'label' => 'Meta calling enabled',
+                'ok' => (bool) ($connection?->calling_enabled),
+                'message' => $connection?->calling_enabled
+                    ? 'Meta confirms WhatsApp Calling is enabled for this number.'
+                    : match ($settings['calling_eligibility_status'] ?? 'unknown') {
+                        'eligible' => 'Eligible, but calling has not been enabled on this number yet.',
+                        'not_eligible' => 'Marked not eligible for WhatsApp Calling.',
+                        default => $connection?->calling_last_error ?: 'Run Check eligibility against Meta phone settings.',
+                    },
             ],
             [
                 'key' => 'voice_ai',
@@ -774,7 +778,7 @@ class WhatsAppCallingController extends Controller
 
         return [
             'eligible' => $eligible,
-            'label' => $eligible ? 'Ready for calls' : ($metaEligible ? 'Setup incomplete' : 'Calling not eligible'),
+            'label' => $eligible ? 'Ready for calls' : ($metaEligible ? 'Setup incomplete' : 'Calling not enabled'),
             'checks' => $checks,
         ];
     }

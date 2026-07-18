@@ -34,6 +34,7 @@ class WhatsAppConnection extends Model
         'quality_rating',
         'code_verification_status',
         'business_category',
+        'business_username',
         'business_about',
         'business_address',
         'business_description',

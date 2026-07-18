@@ -1,0 +1,1 @@
+import{a as n,u as s}from"./app-GitnkdkU.js";function e(){const{addToast:i}=n(),r=s();return{toast:{success:(t,a)=>{i({title:t,description:a,variant:"success"})},error:(t,a)=>{i({title:t,description:a,variant:"error"})},warning:(t,a)=>{i({title:t,description:a,variant:"warning"})},info:(t,a)=>{i({title:t,description:a,variant:"info"})}},confirm:r}}export{e as u};

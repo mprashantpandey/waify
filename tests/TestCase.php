@@ -12,6 +12,14 @@ use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 
 abstract class TestCase extends BaseTestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Error blades (@vite) must render in feature tests without a frontend build.
+        $this->withoutVite();
+    }
+
     /**
      * Act as account owner.
      */

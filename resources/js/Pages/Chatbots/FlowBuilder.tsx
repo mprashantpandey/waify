@@ -177,16 +177,16 @@ export default function FlowBuilder({
         return (flow.edges || []).map((edge) => ({
             id: String(edge.id),
             source: String(edge.from_node_id),
-	            target: String(edge.to_node_id),
-	            label: edge.label || 'next',
-	            animated: edge.label === 'true' || edge.label === 'false',
-	            style: { stroke: '#10B981', strokeWidth: 2 },
-	            labelStyle: { fill: '#D1D5DB', fontSize: 10, fontWeight: 700 },
-	            labelBgStyle: { fill: '#111827', fillOpacity: 0.92 },
-	            labelBgPadding: [5, 3],
-	            labelBgBorderRadius: 6,
-	        }));
-	    }, [flow.edges]);
+                target: String(edge.to_node_id),
+                label: edge.label || 'next',
+                animated: edge.label === 'true' || edge.label === 'false',
+                style: { stroke: '#10B981', strokeWidth: 2 },
+                labelStyle: { fill: '#D1D5DB', fontSize: 10, fontWeight: 700 },
+                labelBgStyle: { fill: '#111827', fillOpacity: 0.92 },
+                labelBgPadding: [5, 3],
+                labelBgBorderRadius: 6,
+            }));
+        }, [flow.edges]);
 
     const [nodes, setNodes] = useState<Node[]>(initialNodes);
     const [edges, setEdges] = useState<Edge[]>(initialEdges);
@@ -216,14 +216,14 @@ export default function FlowBuilder({
             addEdge(
                 {
                     ...connection,
-	                    id: `temp-${Date.now()}`,
-	                    label: 'next',
-	                    style: { stroke: '#10B981', strokeWidth: 2 },
-	                    labelStyle: { fill: '#D1D5DB', fontSize: 10, fontWeight: 700 },
-	                    labelBgStyle: { fill: '#111827', fillOpacity: 0.92 },
-	                    labelBgPadding: [5, 3],
-	                    labelBgBorderRadius: 6,
-	                },
+                        id: `temp-${Date.now()}`,
+                        label: 'next',
+                        style: { stroke: '#10B981', strokeWidth: 2 },
+                        labelStyle: { fill: '#D1D5DB', fontSize: 10, fontWeight: 700 },
+                        labelBgStyle: { fill: '#111827', fillOpacity: 0.92 },
+                        labelBgPadding: [5, 3],
+                        labelBgBorderRadius: 6,
+                    },
                 eds
             )
         );

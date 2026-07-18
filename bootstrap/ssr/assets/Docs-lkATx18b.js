@@ -1,0 +1,116 @@
+import { jsxs, jsx } from "react/jsx-runtime";
+import { Head, Link } from "@inertiajs/react";
+import { useState } from "react";
+import { f as MarketingLayout } from "./Marketing-DVQdzdv4.js";
+import { C as Card } from "./Card-BtIXZ0GS.js";
+import { B as Button } from "./Button-BJftGNki.js";
+import "lucide-react";
+import "./BrandingWrapper-DdVUILzh.js";
+import "./utils-B2ZNUmII.js";
+import "clsx";
+import "tailwind-merge";
+import "./BrandLogo-TeztHB0m.js";
+import "./useToast-BN7qsQL3.js";
+import "./CookieConsentBanner-X10ew4Dy.js";
+import "./ProviderLogo-1eHVtujo.js";
+const sections = [
+  {
+    id: "getting-started",
+    title: "Getting started",
+    pages: [
+      { id: "overview", title: "Overview", body: "Zyptos is a workspace-first WhatsApp operations platform. Create a workspace, connect one WhatsApp Business number, invite agents, import contacts, sync templates, and launch campaigns or automations from the app dashboard." },
+      { id: "setup", title: "Workspace setup", body: "Start with the onboarding wizard. Add business details, billing profile, users, roles, WhatsApp connection, templates, quick replies, notification preferences, and integration credentials before sending production traffic.\n\nRecommended order: workspace profile, team roles, WABA connection, template sync, contact import, notification preferences, then billing." }
+    ]
+  },
+  {
+    id: "billing",
+    title: "Billing",
+    pages: [
+      { id: "plans", title: "Plans and trials", body: "Plans are billed per workspace. Starter, Pro, and Business can be purchased from the dashboard. Self-service free trials are limited per email account. Enterprise is not self-activated and must be approved by a platform admin." },
+      { id: "payments", title: "Payments and invoices", body: "Checkout preview is the source of truth for base amount, discount, tax, and total. Zyptos supports bank/UPI invoice approval and Razorpay one-time checkout. Recurring Razorpay subscriptions are not part of the current client billing flow." }
+    ]
+  },
+  {
+    id: "meta",
+    title: "Meta readiness",
+    pages: [
+      { id: "diagnostics", title: "Diagnostics", body: "Connections include readiness checks for token scopes, WABA subscription status, phone registration, webhook signature status, template sync, Meta lead form mapping, and calling eligibility where available." },
+      { id: "webhooks", title: "Webhooks", body: "Webhook events are processed with idempotency and queue workers. If delivery fails, review integration logs, webhook event logs, queue health, and Meta app secret configuration before retrying.\n\nA healthy production setup should have a persistent queue worker, cron backup, strict signature verification, and visible failed-event logs." },
+      { id: "templates", title: "Templates", body: "Templates should use the correct category, language, variable examples, and clear business purpose. Rejected templates can be edited and resubmitted from Zyptos after reviewing the Meta rejection reason." },
+      { id: "qr-mode", title: "QR unofficial mode", body: "QR mode is separate from Cloud API and is clearly marked unofficial. It can help with compatibility testing, but Cloud API is the recommended production path. Keep volume conservative and avoid cold outreach." }
+    ]
+  },
+  {
+    id: "automation",
+    title: "Automation",
+    pages: [
+      { id: "journeys", title: "Visual journeys", body: "Use one visual journey with triggers, branches, waits, tags, contact updates, webhooks, assignment, template sends, and handoff nodes. Add AI-agent nodes only where flexible conversation is needed." },
+      { id: "safety", title: "Bot safety", body: "Use session timeout, resume controls, bot pause, pause-on-human-reply, anti-spam limits, and execution trace to avoid duplicate replies or loops." }
+    ]
+  },
+  {
+    id: "campaigns",
+    title: "Campaigns",
+    pages: [
+      { id: "audience", title: "Audience hygiene", body: "Use contacts, tags, segments, source tracking, and opt-out filters before every campaign. Do not send to purchased or scraped lists. Retry only failed recipients instead of resending to a full audience." },
+      { id: "reporting", title: "Delivery reporting", body: "Review sent, delivered, read, failed, reply, and bounce states after each campaign. Failure reasons help diagnose template status, contact validity, opt-outs, rate limits, and provider errors." }
+    ]
+  },
+  {
+    id: "integrations",
+    title: "Integrations",
+    pages: [
+      { id: "meta-leads", title: "Meta Leads", body: "Meta Leads uses Facebook login, page/form access, field mapping, webhook delivery, and sync jobs. New leads can create contacts, apply tags, alert users, and start automation." },
+      { id: "google", title: "Google Sheets and Calendar", body: "Google features require OAuth and enabled Google APIs in the connected Google Cloud project. Sheets can support contact and lead sync; Calendar can support appointment availability and reminders." },
+      { id: "razorpay-ai", title: "Workspace credentials", body: "Workspace owners can add Razorpay and AI provider credentials where enabled. Zyptos platform billing credentials are used only for Zyptos subscription checkout, not customer workspace payment actions." }
+    ]
+  },
+  {
+    id: "mobile",
+    title: "Mobile and alerts",
+    pages: [
+      { id: "notifications", title: "Notifications", body: "Use per-user notification preferences for billing, WABA, automation, leads, templates, calls, in-app alerts, browser push, sound, and mobile push. Test permissions after enabling them." },
+      { id: "agent-mobile", title: "Agent mobile workflow", body: "The mobile app is intended for inbox monitoring, quick replies, contact details, assignments, notifications, and call actions. Use desktop for heavy setup like automation design, billing configuration, and integration credentials." }
+    ]
+  }
+];
+function Docs() {
+  const [sectionId, setSectionId] = useState(sections[0].id);
+  const [pageId, setPageId] = useState(sections[0].pages[0].id);
+  const section = sections.find((item) => item.id === sectionId) || sections[0];
+  const page = section.pages.find((item) => item.id === pageId) || section.pages[0];
+  return /* @__PURE__ */ jsxs(MarketingLayout, { page: "docs", wide: true, children: [
+    /* @__PURE__ */ jsx(Head, { title: "Docs" }),
+    /* @__PURE__ */ jsxs("div", { className: "grid gap-6 lg:grid-cols-4", children: [
+      /* @__PURE__ */ jsx(Card, { className: "h-fit p-3 lg:col-span-1", children: sections.map((item) => /* @__PURE__ */ jsxs("div", { className: "mb-4 last:mb-0", children: [
+        /* @__PURE__ */ jsx("p", { className: "mb-1 px-2 text-[10px] font-bold uppercase tracking-wider text-waify-text-muted", children: item.title }),
+        item.pages.map((doc) => /* @__PURE__ */ jsx(
+          "button",
+          {
+            type: "button",
+            onClick: () => {
+              setSectionId(item.id);
+              setPageId(doc.id);
+            },
+            className: `w-full rounded-lg px-3 py-2 text-left text-sm transition ${sectionId === item.id && pageId === doc.id ? "bg-waify-green/10 font-medium text-waify-green-dark" : "text-waify-text-muted hover:bg-gray-50 dark:hover:bg-slate-800"}`,
+            children: doc.title
+          },
+          doc.id
+        ))
+      ] }, item.id)) }),
+      /* @__PURE__ */ jsxs(Card, { className: "p-6 sm:p-8 lg:col-span-3", children: [
+        /* @__PURE__ */ jsx("p", { className: "mb-1 text-xs text-waify-text-muted", children: section.title }),
+        /* @__PURE__ */ jsx("h2", { className: "text-2xl font-bold", children: page.title }),
+        /* @__PURE__ */ jsx("p", { className: "mt-4 whitespace-pre-wrap text-sm leading-relaxed text-waify-text-muted dark:text-waify-dark-text-muted", children: page.body }),
+        /* @__PURE__ */ jsx("div", { className: "mt-8 rounded-xl bg-gray-50 p-4 text-xs leading-relaxed text-waify-text-muted dark:bg-slate-800/50", children: "These docs are a public quick reference. For workspace-specific setup, use the in-app diagnostics, integration logs, billing preview, and automation test runner." }),
+        /* @__PURE__ */ jsxs("div", { className: "mt-6 flex flex-wrap gap-2", children: [
+          /* @__PURE__ */ jsx(Link, { href: route("knowledgebase"), children: /* @__PURE__ */ jsx(Button, { variant: "secondary", size: "sm", children: "Knowledge base" }) }),
+          /* @__PURE__ */ jsx(Link, { href: route("app.dashboard"), children: /* @__PURE__ */ jsx(Button, { variant: "secondary", size: "sm", children: "Open app" }) })
+        ] })
+      ] })
+    ] })
+  ] });
+}
+export {
+  Docs as default
+};

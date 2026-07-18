@@ -58,6 +58,7 @@ interface Connection {
     quality_rating?: string | null;
     code_verification_status?: string | null;
     business_category?: string | null;
+    business_username?: string | null;
     business_about?: string | null;
     business_address?: string | null;
     business_description?: string | null;
@@ -115,6 +116,23 @@ type CentralWebhook = {
 
 type SetupPath = 'new_cloud_api' | 'migrate_api' | 'coexistence';
 
+type PendingEmbeddedReview = {
+    payload: Record<string, string>;
+    summary: {
+        mode: 'cloud_api' | 'coexistence';
+        wabaId: string;
+        phoneNumberId: string;
+        businessPhone: string;
+        businessId: string;
+    };
+};
+
+const profileValue = (value: string | null | undefined, fallback = '') => {
+    const normalized = typeof value === 'string' ? value.trim() : '';
+
+    return normalized !== '' ? normalized : fallback;
+};
+
 export default function ConnectionsIndex({
     connections,
     canCreate,
@@ -146,6 +164,7 @@ export default function ConnectionsIndex({
     const [setupPath, setSetupPath] = useState<SetupPath>('new_cloud_api');
     const [refreshingHealth, setRefreshingHealth] = useState(false);
     const [disconnecting, setDisconnecting] = useState(false);
+    const [pendingEmbeddedReview, setPendingEmbeddedReview] = useState<PendingEmbeddedReview | null>(null);
     const embeddedSessionRef = useRef<Record<string, any>>({});
 
     const embeddedEnabled = Boolean(embeddedSignup?.enabled && embeddedSignup?.appId && (embeddedSignup?.configId || embeddedSignup?.coexistenceConfigId));
@@ -158,14 +177,16 @@ export default function ConnectionsIndex({
         phone_number_id: connection?.phone_number_id ?? '',
         business_phone: connection?.business_phone ?? '',
         business_category: connection?.business_category ?? 'Retail',
-        business_about: connection?.business_about ?? 'Turn conversations into conversions.',
-        business_address: connection?.business_address ?? '',
-        business_description: connection?.business_description ?? '',
-        business_email: connection?.business_email ?? '',
+        business_username: connection?.business_username ?? '',
+        business_about: profileValue(connection?.business_about, 'Turn conversations into conversions.'),
+        business_address: profileValue(connection?.business_address),
+        business_description: profileValue(connection?.business_description),
+        business_email: profileValue(connection?.business_email),
         business_websites: connection?.business_websites?.length ? connection.business_websites : ['', ''],
         business_vertical: connection?.business_vertical ?? 'RETAIL',
         profile_picture_handle: connection?.profile_picture_handle ?? '',
         profile_picture_file: null as File | null,
+        sync_to_meta: false,
         access_token: '',
         api_version: connection?.api_version ?? defaultApiVersion,
         throughput_cap_per_minute: connection?.throughput_cap_per_minute ?? 120,
@@ -180,6 +201,7 @@ export default function ConnectionsIndex({
         phone_number_id: '',
         business_phone: '',
         business_category: 'Retail',
+        business_username: '',
         business_about: 'Turn conversations into conversions.',
         business_address: '',
         business_description: '',
@@ -213,6 +235,7 @@ export default function ConnectionsIndex({
                 phone_number_id: '',
                 business_phone: '',
                 business_category: 'Retail',
+                business_username: '',
                 business_about: 'Turn conversations into conversions.',
                 business_address: '',
                 business_description: '',
@@ -221,6 +244,7 @@ export default function ConnectionsIndex({
                 business_vertical: 'RETAIL',
                 profile_picture_handle: '',
                 profile_picture_file: null,
+                sync_to_meta: false,
                 access_token: '',
                 api_version: defaultApiVersion,
                 throughput_cap_per_minute: 120,
@@ -238,14 +262,16 @@ export default function ConnectionsIndex({
             phone_number_id: connection.phone_number_id ?? '',
             business_phone: connection.business_phone ?? '',
             business_category: connection.business_category ?? 'Retail',
-            business_about: connection.business_about ?? 'Turn conversations into conversions.',
-            business_address: connection.business_address ?? '',
-            business_description: connection.business_description ?? '',
-            business_email: connection.business_email ?? '',
+            business_username: connection.business_username ?? '',
+            business_about: profileValue(connection.business_about, 'Turn conversations into conversions.'),
+            business_address: profileValue(connection.business_address),
+            business_description: profileValue(connection.business_description),
+            business_email: profileValue(connection.business_email),
             business_websites: connection.business_websites?.length ? connection.business_websites : ['', ''],
             business_vertical: connection.business_vertical ?? 'RETAIL',
             profile_picture_handle: connection.profile_picture_handle ?? '',
             profile_picture_file: null,
+            sync_to_meta: false,
             access_token: '',
             api_version: connection.api_version ?? defaultApiVersion,
             throughput_cap_per_minute: connection.throughput_cap_per_minute ?? 120,
@@ -378,6 +404,7 @@ export default function ConnectionsIndex({
         || autoStatus === 'authorizing'
         || autoStatus === 'saving';
     const automaticButtonLabel = useMemo(() => {
+        if (pendingEmbeddedReview) return 'Connect selected number';
         if (!embeddedEnabled) return 'Meta setup unavailable';
         if (signupMode === 'cloud_api' && !embeddedSignup?.configId) return 'Embedded config missing';
         if (signupMode === 'coexistence' && !embeddedSignup?.coexistenceEnabled) return 'Embedded config missing';
@@ -387,7 +414,7 @@ export default function ConnectionsIndex({
         if (signupMode === 'coexistence') return 'Connect with co-existence';
         if (setupPath === 'migrate_api') return 'Start migration';
         return 'Connect automatically';
-    }, [embeddedEnabled, embeddedReady, autoStatus, signupMode, setupPath, embeddedSignup?.coexistenceEnabled]);
+    }, [pendingEmbeddedReview, embeddedEnabled, embeddedReady, autoStatus, signupMode, setupPath, embeddedSignup?.coexistenceEnabled, embeddedSignup?.configId]);
 
     const submitEmbedded = (payload: Record<string, string>) => {
         setAutoStatus('saving');
@@ -396,6 +423,7 @@ export default function ConnectionsIndex({
         router.post(route('app.whatsapp.connections.store-embedded', {}), payload, {
             preserveScroll: true,
             onSuccess: () => {
+                setPendingEmbeddedReview(null);
                 setAutoStatus('idle');
                 setAutoMessage('WABA account connected successfully.');
                 setShowAutoDialog(false);
@@ -409,11 +437,21 @@ export default function ConnectionsIndex({
         });
     };
 
+    const confirmEmbeddedReview = () => {
+        if (!pendingEmbeddedReview) {
+            startEmbeddedSignup();
+            return;
+        }
+
+        submitEmbedded(pendingEmbeddedReview.payload);
+    };
+
     const startEmbeddedSignup = () => {
         if (automaticDisabled || !window.FB) {
             return;
         }
 
+        setPendingEmbeddedReview(null);
         setAutoStatus('authorizing');
         setAutoMessage('Opening Meta embedded signup...');
 
@@ -438,7 +476,7 @@ export default function ConnectionsIndex({
                     const session = embeddedSessionRef.current || {};
                     const sessionData = session.data || {};
 
-                    submitEmbedded({
+                    const payload = {
                         name: '',
                         waba_id: sessionData.waba_id || session.waba_id || '',
                         phone_number_id: sessionData.phone_number_id || session.phone_number_id || '',
@@ -449,7 +487,20 @@ export default function ConnectionsIndex({
                         access_token: accessToken,
                         code,
                         pin: '',
+                    };
+
+                    setPendingEmbeddedReview({
+                        payload,
+                        summary: {
+                            mode: signupMode,
+                            wabaId: payload.waba_id,
+                            phoneNumberId: payload.phone_number_id,
+                            businessPhone: payload.business_phone,
+                            businessId: payload.business_id,
+                        },
                     });
+                    setAutoStatus('idle');
+                    setAutoMessage('Review the selected WhatsApp account before connecting it.');
                 }, 350);
             },
             {
@@ -458,7 +509,8 @@ export default function ConnectionsIndex({
                 override_default_response_type: true,
                 scope: 'whatsapp_business_management,whatsapp_business_messaging,business_management',
                 extras: {
-                    version: embeddedSignup.apiVersion || defaultApiVersion || 'v25.0',
+                    ...(signupMode === 'coexistence' ? { featureType: 'whatsapp_business_app_onboarding' } : {}),
+                    version: signupMode === 'coexistence' ? 'v4' : (embeddedSignup.apiVersion || defaultApiVersion || 'v25.0'),
                     sessionInfoVersion: '3',
                     setup: {},
                 },
@@ -481,10 +533,24 @@ export default function ConnectionsIndex({
         event.preventDefault();
         if (!connection) return;
 
+        profileForm.transform((data) => ({ ...data, sync_to_meta: false }));
         profileForm.post(route('app.whatsapp.connections.update', { connection: connection.slug ?? connection.id }), {
             preserveScroll: true,
             forceFormData: true,
-            onSuccess: () => addToast({ title: 'Business profile saved', variant: 'success' }),
+            onSuccess: () => addToast({ title: 'Business profile saved locally', variant: 'success' }),
+            onFinish: () => profileForm.transform((data) => data),
+        });
+    };
+
+    const syncProfileToMeta = () => {
+        if (!connection) return;
+
+        profileForm.transform((data) => ({ ...data, sync_to_meta: true }));
+        profileForm.post(route('app.whatsapp.connections.update', { connection: connection.slug ?? connection.id }), {
+            preserveScroll: true,
+            forceFormData: true,
+            onSuccess: () => addToast({ title: 'Business profile synced with Meta', variant: 'success' }),
+            onFinish: () => profileForm.transform((data) => data),
         });
     };
 
@@ -607,20 +673,10 @@ export default function ConnectionsIndex({
                                                 <Badge variant="success">Recommended</Badge>
                                             </div>
                                             <p className="mt-1 text-sm text-waify-text-muted dark:text-waify-dark-text-muted">
-                                                Use Meta embedded signup. Inside this flow users can choose a new number, API migration, or eligible Business App coexistence.
+                                                Connect a new number, migrate an API number, or use eligible WhatsApp app co-existence.
                                             </p>
                                         </div>
                                     </div>
-                                    <ol className="mt-2 space-y-1">
-                                        {['Sign in with Meta', 'Choose setup path', 'Select WABA and phone', 'Complete setup here'].map((step, index) => (
-                                            <li key={step} className="flex items-center gap-2 text-xs text-waify-text-muted dark:text-waify-dark-text-muted">
-                                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-bold text-waify-text dark:bg-slate-700 dark:text-waify-dark-text">
-                                                    {index + 1}
-                                                </span>
-                                                {step}
-                                            </li>
-                                        ))}
-                                    </ol>
                                     <div className="rounded-card border border-waify-border bg-white p-3 text-xs text-waify-text-muted dark:border-waify-dark-border dark:bg-slate-900 dark:text-waify-dark-text-muted">
                                         {autoStatus === 'loading' || autoStatus === 'authorizing' || autoStatus === 'saving' ? (
                                             <span className="inline-flex items-center gap-2">
@@ -777,6 +833,7 @@ export default function ConnectionsIndex({
                                         <DetailItem label="WABA name" value={connection.meta_waba_name || 'Not synced'} />
                                         <DetailItem label="Phone Number ID" value={connection.phone_number_id || 'Not available'} mono />
                                         <DetailItem label="WABA number" value={connection.business_phone || 'Not synced'} />
+                                        <DetailItem label="WhatsApp username" value={connection.business_username ? `@${connection.business_username.replace(/^@+/, '')}` : 'Not added'} />
                                         <DetailItem label="Display name" value={connection.meta_verified_name || 'Not synced'} />
                                         <DetailItem label="Phone status" value={connection.phone_number_status || 'Not synced'} />
                                         <DetailItem label="Quality rating" value={connection.quality_rating || 'Not synced'} />
@@ -903,6 +960,7 @@ export default function ConnectionsIndex({
                                         <Field icon={<Building2 className="h-3.5 w-3.5" />} label="Business display name" value={profileForm.data.name} onChange={(value) => profileForm.setData('name', value)} error={profileForm.errors.name} required />
                                         <SelectField label="Business vertical" value={profileForm.data.business_vertical} onChange={(value) => profileForm.setData('business_vertical', value)} error={profileForm.errors.business_vertical} />
                                         <Field icon={<Phone className="h-3.5 w-3.5" />} label="Business phone" value={profileForm.data.business_phone} onChange={(value) => profileForm.setData('business_phone', value)} error={profileForm.errors.business_phone} />
+                                        <Field icon={<UserCheck className="h-3.5 w-3.5" />} label="WhatsApp username" value={profileForm.data.business_username} onChange={(value) => profileForm.setData('business_username', value)} error={profileForm.errors.business_username} placeholder="@yourbrand" />
                                         <Field icon={<Mail className="h-3.5 w-3.5" />} label="Contact email" value={profileForm.data.business_email} onChange={(value) => profileForm.setData('business_email', value)} error={profileForm.errors.business_email} type="email" />
                                         <Field icon={<MapPin className="h-3.5 w-3.5" />} label="Business address" value={profileForm.data.business_address} onChange={(value) => profileForm.setData('business_address', value)} error={profileForm.errors.business_address} className="sm:col-span-2" />
                                         <TextAreaField label="About text" value={profileForm.data.business_about} onChange={(value) => profileForm.setData('business_about', value)} error={profileForm.errors.business_about} maxLength={139} className="sm:col-span-2" />
@@ -916,12 +974,18 @@ export default function ConnectionsIndex({
                                         <div className="space-y-1 text-xs text-waify-text-muted dark:text-waify-dark-text-muted">
                                             <div>Phone Number ID: <span className="font-mono text-waify-text dark:text-waify-dark-text">{connection.phone_number_id}</span></div>
                                             {connection.profile_synced_at && <div>Last synced with Meta: {new Date(connection.profile_synced_at).toLocaleString()}</div>}
-                                            {connection.profile_sync_error && <div className="text-amber-700 dark:text-amber-300">Last sync warning: {connection.profile_sync_error}</div>}
+                                            {connection.profile_sync_error && <div className="text-amber-700 dark:text-amber-300">Last Meta sync warning: {connection.profile_sync_error}</div>}
                                         </div>
-                                        <Button type="submit" size="sm" disabled={profileForm.processing}>
-                                            {profileForm.processing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                                            Save profile
-                                        </Button>
+                                        <div className="flex flex-wrap gap-2">
+                                            <Button type="submit" size="sm" disabled={profileForm.processing}>
+                                                {profileForm.processing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                                                Save locally
+                                            </Button>
+                                            <Button type="button" size="sm" variant="secondary" disabled={profileForm.processing} onClick={syncProfileToMeta}>
+                                                {profileForm.processing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                                                Sync to Meta
+                                            </Button>
+                                        </div>
                                     </div>
                                 </form>
                             </CardContent>
@@ -939,7 +1003,7 @@ export default function ConnectionsIndex({
                 )}
                 <SetupWizardDialog
                     open={showAutoDialog}
-                    onClose={() => setShowAutoDialog(false)}
+                    onClose={() => { setShowAutoDialog(false); setPendingEmbeddedReview(null); }}
                     embeddedEnabled={embeddedEnabled}
                     embeddedReady={embeddedReady}
                     autoStatus={autoStatus}
@@ -947,6 +1011,8 @@ export default function ConnectionsIndex({
                     automaticDisabled={automaticDisabled}
                     automaticButtonLabel={automaticButtonLabel}
                     startEmbeddedSignup={startEmbeddedSignup}
+                    confirmEmbeddedReview={confirmEmbeddedReview}
+                    pendingEmbeddedReview={pendingEmbeddedReview}
                     connection={connection}
                     setupPath={setupPath}
                     signupMode={signupMode}
@@ -1175,6 +1241,11 @@ function WabaHealthPanel({
     ];
 
     const readyCount = checks.filter((check) => check.ok).length;
+    const allChecksReady = readyCount === checks.length;
+
+    if (allChecksReady) {
+        return null;
+    }
 
     return (
         <Card>
@@ -1184,7 +1255,7 @@ function WabaHealthPanel({
                     <CardDescription>Live readiness checks for setup, profile sync, phone status, and webhook handling.</CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Badge variant={readyCount === checks.length ? 'success' : 'warning'}>{readyCount}/{checks.length} ready</Badge>
+                    <Badge variant="warning">{readyCount}/{checks.length} ready</Badge>
                     <Button type="button" size="sm" variant="secondary" onClick={onRefresh} disabled={refreshing}>
                         {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                         Refresh from Meta
@@ -1237,6 +1308,8 @@ function SetupWizardDialog({
     automaticDisabled,
     automaticButtonLabel,
     startEmbeddedSignup,
+    confirmEmbeddedReview,
+    pendingEmbeddedReview,
     connection,
     setupPath,
     signupMode,
@@ -1253,6 +1326,8 @@ function SetupWizardDialog({
     automaticDisabled: boolean;
     automaticButtonLabel: string;
     startEmbeddedSignup: () => void;
+    confirmEmbeddedReview: () => void;
+    pendingEmbeddedReview: PendingEmbeddedReview | null;
     connection: Connection | null;
     setupPath: SetupPath;
     signupMode: 'cloud_api' | 'coexistence';
@@ -1261,24 +1336,27 @@ function SetupWizardDialog({
     coexistenceEnabled: boolean;
 }) {
     const selectedPath = setupPath === 'coexistence' ? 'coexistence' : setupPath;
-    const steps = [
-        { title: 'Sign in with Meta', desc: 'Authenticate the business admin who owns the WhatsApp Business Account or existing number.' },
-        { title: 'Choose Business Manager', desc: selectedPath === 'migrate_api' ? 'Select the WABA and phone number being migrated or released by the existing provider.' : 'Select the business, WABA, and phone number to connect with this workspace.' },
-        { title: 'Authorize Zyptos', desc: 'Grant required WhatsApp Business Management and Messaging permissions.' },
-        { title: 'Finish in Zyptos', desc: 'Zyptos stores the phone ID, subscribes provider webhooks, and syncs profile data.' },
-    ];
+    const selectedLabel = selectedPath === 'coexistence'
+        ? 'WhatsApp app co-existence'
+        : selectedPath === 'migrate_api'
+        ? 'API number migration'
+        : 'New Cloud API number';
 
     return (
         <Modal
             open={open}
             onClose={onClose}
             title={connection ? 'Reconnect WABA account' : selectedPath === 'migrate_api' ? 'Migrate existing WhatsApp API number' : selectedPath === 'coexistence' ? 'Connect WhatsApp Business App co-existence' : 'Automatic WABA setup'}
-            description={selectedPath === 'migrate_api' ? 'Use Meta embedded signup to connect a number already on WhatsApp Business Platform.' : selectedPath === 'coexistence' ? 'Use Meta embedded signup for eligible Business App numbers that can run app + API together.' : 'Complete Meta embedded signup without leaving this page.'}
-            className="max-w-3xl"
+            description="Choose how this workspace should connect to WhatsApp."
+            className="max-w-2xl"
             footer={(
                 <>
                     <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
-                    <Button type="button" onClick={startEmbeddedSignup} disabled={automaticDisabled}>
+                    <Button
+                        type="button"
+                        onClick={pendingEmbeddedReview ? confirmEmbeddedReview : startEmbeddedSignup}
+                        disabled={pendingEmbeddedReview ? autoStatus === 'saving' : automaticDisabled}
+                    >
                         {autoStatus === 'authorizing' || autoStatus === 'saving' || autoStatus === 'loading' ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
@@ -1289,7 +1367,7 @@ function SetupWizardDialog({
                 </>
             )}
         >
-            <div className="space-y-5">
+            <div className="space-y-4">
                 <div className="grid gap-3 lg:grid-cols-3">
                     <button
                         type="button"
@@ -1301,7 +1379,7 @@ function SetupWizardDialog({
                             <span className="text-sm font-semibold text-waify-text dark:text-waify-dark-text">New Cloud API</span>
                         </div>
                         <p className="mt-2 text-xs leading-5 text-waify-text-muted dark:text-waify-dark-text-muted">
-                            Standard Meta Embedded Signup for a WABA phone number managed through Cloud API.
+                            Connect a new or available WhatsApp Business number.
                         </p>
                     </button>
                     <button
@@ -1314,7 +1392,7 @@ function SetupWizardDialog({
                             <span className="text-sm font-semibold text-waify-text dark:text-waify-dark-text">Migrate API number</span>
                         </div>
                         <p className="mt-2 text-xs leading-5 text-waify-text-muted dark:text-waify-dark-text-muted">
-                            For existing BSP/API numbers. Templates and quality may transfer; old chat history normally does not.
+                            Move an existing Cloud API number into Zyptos.
                         </p>
                     </button>
                     <button
@@ -1325,61 +1403,51 @@ function SetupWizardDialog({
                         <div className="flex flex-wrap items-center gap-2">
                             <MessageCircle className="h-4 w-4 text-emerald-700 dark:text-emerald-300" />
                             <span className="text-sm font-semibold text-waify-text dark:text-waify-dark-text">App co-existence</span>
-                            {!coexistenceEnabled && <Badge variant="warning">Signup config missing</Badge>}
+                            {!coexistenceEnabled && <Badge variant="warning">Unavailable</Badge>}
                         </div>
                         <p className="mt-2 text-xs leading-5 text-waify-text-muted dark:text-waify-dark-text-muted">
-                            For eligible numbers that Meta allows to keep WhatsApp Business app usage alongside API messaging.
+                            Keep the WhatsApp Business app and API together when Meta allows it.
                         </p>
                     </button>
                 </div>
 
-                <div className="rounded-card border border-waify-border bg-gray-50 p-4 dark:border-waify-dark-border dark:bg-slate-900/70">
-                    <div className="flex items-start gap-3">
-                        <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${embeddedEnabled ? 'bg-waify-green-soft dark:bg-waify-green/10' : 'bg-amber-100 dark:bg-amber-500/10'}`}>
-                            {embeddedEnabled ? <Sparkles className="h-5 w-5 text-waify-green-dark dark:text-waify-green" /> : <AlertTriangle className="h-5 w-5 text-amber-700 dark:text-amber-300" />}
-                        </div>
-                        <div>
-                            <h4 className="text-sm font-semibold text-waify-text dark:text-waify-dark-text">
-                                {embeddedEnabled ? 'Meta embedded signup is configured' : 'Meta embedded signup needs platform settings'}
-                            </h4>
-                            <p className="mt-1 text-sm text-waify-text-muted dark:text-waify-dark-text-muted">
-                                {signupMode === 'coexistence' && !coexistenceEnabled
-                                    ? 'Add the Meta Embedded Signup config ID in platform WhatsApp settings before using this mode.'
-                                    : embeddedEnabled
-                                    ? 'This flow uses your platform Meta app ID and embedded signup configuration.'
-                                    : 'Add Meta app ID, app secret, and embedded signup config ID in platform WhatsApp settings.'}
-                            </p>
-                        </div>
-                    </div>
+                <div className="rounded-card border border-waify-border bg-gray-50 p-3 text-sm text-waify-text-muted dark:border-waify-dark-border dark:bg-slate-900/70 dark:text-waify-dark-text-muted">
+                    <span className="font-medium text-waify-text dark:text-waify-dark-text">Selected:</span> {selectedLabel}
                 </div>
 
-                <div className="rounded-card border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/70 dark:bg-amber-950/20 dark:text-amber-100">
-                    <div className="flex items-start gap-3">
-                        <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                        <div className="space-y-1">
-                            <p className="font-semibold">Data migration note</p>
-                            <p className="leading-6">
-                                Zyptos starts syncing messages after connection and webhook subscription. Existing chat history from WhatsApp Business App or another provider is not imported through the normal Cloud API. Use CSV import for old contacts if needed.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                    {steps.map((step, index) => (
-                        <div key={step.title} className="rounded-card border border-waify-border bg-white p-4 dark:border-waify-dark-border dark:bg-slate-900">
-                            <div className="flex items-start gap-3">
-                                <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-waify-green-soft text-xs font-bold text-waify-green-dark dark:bg-waify-green/10 dark:text-waify-green">
-                                    {index + 1}
-                                </span>
-                                <div>
-                                    <h4 className="text-sm font-semibold text-waify-text dark:text-waify-dark-text">{step.title}</h4>
-                                    <p className="mt-1 text-xs leading-5 text-waify-text-muted dark:text-waify-dark-text-muted">{step.desc}</p>
+                {pendingEmbeddedReview && (
+                    <div className="rounded-card border border-waify-green/40 bg-waify-green-soft/40 p-4 dark:border-waify-green/40 dark:bg-waify-green/10">
+                        <div className="flex items-start gap-3">
+                            <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-waify-green-dark dark:text-waify-green" />
+                            <div className="min-w-0 flex-1">
+                                <h4 className="text-sm font-semibold text-waify-text dark:text-waify-dark-text">
+                                    Confirm this WhatsApp number
+                                </h4>
+                                <div className="mt-3 grid gap-2 text-xs text-waify-text-muted dark:text-waify-dark-text-muted sm:grid-cols-2">
+                                    <div>
+                                        <span className="block font-medium text-waify-text dark:text-waify-dark-text">Mode</span>
+                                        {pendingEmbeddedReview.summary.mode === 'coexistence' ? 'App co-existence' : selectedLabel}
+                                    </div>
+                                    <div>
+                                        <span className="block font-medium text-waify-text dark:text-waify-dark-text">Phone</span>
+                                        {pendingEmbeddedReview.summary.businessPhone || 'Not returned by Meta'}
+                                    </div>
+                                    <div>
+                                        <span className="block font-medium text-waify-text dark:text-waify-dark-text">Phone number ID</span>
+                                        {pendingEmbeddedReview.summary.phoneNumberId || 'Not returned by Meta'}
+                                    </div>
+                                    <div>
+                                        <span className="block font-medium text-waify-text dark:text-waify-dark-text">WABA ID</span>
+                                        {pendingEmbeddedReview.summary.wabaId || 'Not returned by Meta'}
+                                    </div>
                                 </div>
+                                <p className="mt-3 text-xs leading-5 text-waify-text-muted dark:text-waify-dark-text-muted">
+                                    Zyptos will connect only after you confirm. If this is not the number you expected, cancel and restart setup.
+                                </p>
                             </div>
                         </div>
-                    ))}
-                </div>
+                    </div>
+                )}
 
                 <div className={`rounded-card border p-3 text-sm ${autoStatus === 'error' ? 'border-red-200 bg-red-50 text-red-800 dark:border-red-900/70 dark:bg-red-950/20 dark:text-red-200' : 'border-waify-border bg-white text-waify-text-muted dark:border-waify-dark-border dark:bg-slate-900 dark:text-waify-dark-text-muted'}`}>
                     <span className="inline-flex items-center gap-2">
@@ -1519,9 +1587,10 @@ function DetailItem({
 function WhatsAppProfilePreview({ connection }: { connection: Connection }) {
     const displayName = connection.meta_verified_name || connection.name || 'Business';
     const phone = connection.business_phone || connection.phone_number_id || '';
-    const about = connection.business_about || 'Business account';
-    const description = connection.business_description || 'No business description added yet.';
-    const address = connection.business_address || 'Address not added';
+    const username = connection.business_username ? connection.business_username.replace(/^@+/, '') : '';
+    const about = profileValue(connection.business_about, 'Business account');
+    const description = profileValue(connection.business_description, 'No business description added yet.');
+    const address = profileValue(connection.business_address, 'Address not added');
     const websites = (connection.business_websites || []).filter(Boolean);
 
     return (
@@ -1539,7 +1608,9 @@ function WhatsAppProfilePreview({ connection }: { connection: Connection }) {
                         <div className="flex min-w-0 items-center gap-1">
                             <span className="truncate text-sm font-semibold text-white">{displayName}</span>
                         </div>
-                        <div className="truncate text-[11px] text-white/75">{phone}</div>
+                        <div className="truncate text-[11px] text-white/75">
+                            {username ? `@${username}` : phone}
+                        </div>
                     </div>
                 </div>
 

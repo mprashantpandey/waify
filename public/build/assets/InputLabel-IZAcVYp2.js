@@ -1,0 +1,1 @@
+import{j as x}from"./react-BhzSerM2.js";function i({value:t,className:e="",children:a,...r}){return x.jsx("label",{...r,className:"block text-sm font-medium text-waify-text dark:text-waify-dark-text "+e,children:t||a})}export{i as I};

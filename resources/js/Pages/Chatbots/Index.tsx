@@ -898,19 +898,19 @@ function BotDetailDrawer({
                 title={bot.name}
                 description={`Version ${bot.version} · ${bot.flows.length} flow${bot.flows.length === 1 ? '' : 's'}`}
                 className="sm:max-w-5xl"
-	                footer={
-	                    <div className="flex flex-wrap justify-end gap-2">
-	                        {bot.flows[0] && (
-	                            <Link href={route('app.chatbots.builder', { bot: bot.id, flow: bot.flows[0].id })}>
-	                                <Button type="button">
-	                                    <Workflow className="h-4 w-4" />
-	                                    Open visual builder
-	                                </Button>
-	                            </Link>
-	                        )}
-	                        <Button type="button" variant="secondary" onClick={runTest}>
-	                            <Play className="h-4 w-4" />
-	                            Run test
+                footer={
+                    <div className="flex flex-wrap justify-end gap-2">
+                        {bot.flows[0] && (
+                            <Link href={route('app.chatbots.builder', { bot: bot.id, flow: bot.flows[0].id })}>
+                                <Button type="button">
+                                    <Workflow className="h-4 w-4" />
+                                    Open visual builder
+                                </Button>
+                            </Link>
+                        )}
+                        <Button type="button" variant="secondary" onClick={runTest}>
+                            <Play className="h-4 w-4" />
+                            Run test
                         </Button>
                         <Button type="button" variant="secondary" onClick={close}>Close</Button>
                         <Button type="submit" form="bot-detail-form" disabled={form.processing}>
@@ -1076,15 +1076,15 @@ function BotDetailDrawer({
                                                 <div className="min-w-0">
                                                     <p className="truncate font-semibold text-waify-text dark:text-waify-dark-text">{flow.name}</p>
                                                     <p className="mt-1 text-xs text-waify-text-muted dark:text-waify-dark-text-muted">
-	                                                        {flow.nodes.length} steps · {flow.edges.length} links · priority {flow.priority}
+                                                            {flow.nodes.length} steps · {flow.edges.length} links · priority {flow.priority}
                                                     </p>
                                                 </div>
-	                                                {flow.health?.is_runnable ? <Badge variant="success">Ready</Badge> : <Badge variant="warning">Needs steps</Badge>}
+                                                    {flow.health?.is_runnable ? <Badge variant="success">Ready</Badge> : <Badge variant="warning">Needs steps</Badge>}
                                             </div>
                                             <Link href={route('app.chatbots.builder', { bot: bot.id, flow: flow.id })}>
                                                 <Button className="w-full">
                                                     <Workflow className="h-4 w-4" />
-	                                                    Open visual builder
+                                                        Open visual builder
                                                 </Button>
                                             </Link>
                                         </CardContent>
@@ -1094,7 +1094,7 @@ function BotDetailDrawer({
                         ) : (
                             <Card className="border-transparent dark:border-slate-700/80">
                                 <CardContent className="p-8 text-center text-sm text-waify-text-muted dark:text-waify-dark-text-muted">
-	                                    No journeys have been created for this automation yet.
+                                        No journeys have been created for this automation yet.
                                 </CardContent>
                             </Card>
                         )}

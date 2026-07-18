@@ -28,7 +28,39 @@ class TemplateLimitTest extends TestCase
         $initialMessages = $initialUsage->messages_sent;
         $initialTemplates = $initialUsage->template_sends;
 
-        // Simulate successful template send
+        $connection = \App\Modules\WhatsApp\Models\WhatsAppConnection::factory()->create([
+            'account_id' => $account->id,
+        ]);
+        $contact = \App\Modules\WhatsApp\Models\WhatsAppContact::factory()->create([
+            'account_id' => $account->id,
+        ]);
+        $conversation = \App\Modules\WhatsApp\Models\WhatsAppConversation::factory()->create([
+            'account_id' => $account->id,
+            'whatsapp_connection_id' => $connection->id,
+            'whatsapp_contact_id' => $contact->id,
+        ]);
+        $template = \App\Modules\WhatsApp\Models\WhatsAppTemplate::factory()->create([
+            'account_id' => $account->id,
+            'body_text' => 'Hello {{1}}',
+        ]);
+        $message = \App\Modules\WhatsApp\Models\WhatsAppMessage::factory()->create([
+            'account_id' => $account->id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'direction' => 'outbound',
+            'type' => 'template',
+            'status' => 'sent',
+            'sent_at' => now(),
+        ]);
+        \App\Modules\WhatsApp\Models\WhatsAppTemplateSend::create([
+            'account_id' => $account->id,
+            'whatsapp_template_id' => $template->id,
+            'whatsapp_message_id' => $message->id,
+            'to_wa_id' => '1234567890',
+            'variables' => ['Test'],
+            'status' => 'sent',
+            'sent_at' => now(),
+        ]);
+
         $usageService->incrementMessages($account, 1);
         $usageService->incrementTemplateSends($account, 1);
 
@@ -44,13 +76,58 @@ class TemplateLimitTest extends TestCase
         $user = $this->actingAsAccountOwner($account);
 
         // Set template usage at limit
-        $this->setUsage($account, now()->format('Y-m'), 0, 1000);
+        $connection = \App\Modules\WhatsApp\Models\WhatsAppConnection::factory()->create([
+            'account_id' => $account->id,
+        ]);
+        $contact = \App\Modules\WhatsApp\Models\WhatsAppContact::factory()->create([
+            'account_id' => $account->id,
+        ]);
+        $conversation = \App\Modules\WhatsApp\Models\WhatsAppConversation::factory()->create([
+            'account_id' => $account->id,
+            'whatsapp_connection_id' => $connection->id,
+            'whatsapp_contact_id' => $contact->id,
+        ]);
 
         // Try to send template (should be blocked)
         $template = \App\Modules\WhatsApp\Models\WhatsAppTemplate::factory()->create([
             'account_id' => $account->id,
+            'whatsapp_connection_id' => $connection->id,
             'body_text' => 'Hello there',
         ]);
+
+        $now = now();
+        $messages = [];
+        for ($i = 0; $i < 1000; $i++) {
+            $messages[] = [
+                'account_id' => $account->id,
+                'whatsapp_conversation_id' => $conversation->id,
+                'direction' => 'outbound',
+                'meta_message_id' => 'wamid.template-quota-'.$i,
+                'type' => 'template',
+                'text_body' => 'Template quota seed',
+                'status' => 'sent',
+                'sent_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+        \App\Modules\WhatsApp\Models\WhatsAppMessage::insert($messages);
+
+        $messageIds = \App\Modules\WhatsApp\Models\WhatsAppMessage::where('account_id', $account->id)
+            ->where('type', 'template')
+            ->pluck('id');
+        $templateSends = $messageIds->map(fn ($messageId, $index) => [
+            'account_id' => $account->id,
+            'whatsapp_template_id' => $template->id,
+            'whatsapp_message_id' => $messageId,
+            'to_wa_id' => '1234567890',
+            'variables' => json_encode(['Test']),
+            'status' => 'sent',
+            'sent_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ])->all();
+        \App\Modules\WhatsApp\Models\WhatsAppTemplateSend::insert($templateSends);
 
         $response = $this->post(route('app.whatsapp.templates.send.store', [
             'account' => $account->slug,

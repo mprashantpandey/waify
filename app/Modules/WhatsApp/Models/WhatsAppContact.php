@@ -19,6 +19,9 @@ class WhatsAppContact extends Model
     protected $fillable = [
         'account_id',
         'wa_id',
+        'business_scoped_user_id',
+        'parent_business_scoped_user_id',
+        'whatsapp_username',
         'slug',
         'name',
         'email',
@@ -46,7 +49,7 @@ class WhatsAppContact extends Model
         parent::boot();
 
         static::creating(function ($contact) {
-            if (! $contact->phone && $contact->wa_id) {
+            if (! $contact->phone && $contact->wa_id && static::looksLikePhoneIdentifier($contact->wa_id)) {
                 $contact->phone = $contact->wa_id;
             }
             if (! $contact->status) {
@@ -63,6 +66,17 @@ class WhatsAppContact extends Model
                 $contact->slug = static::generateSlug($contact);
             }
         });
+    }
+
+    public static function looksLikePhoneIdentifier(?string $value): bool
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return false;
+        }
+
+        $digits = preg_replace('/\D+/', '', $value);
+
+        return $digits !== '' && strlen($digits) >= 8 && strlen($digits) >= strlen($value) - 2;
     }
 
     /**

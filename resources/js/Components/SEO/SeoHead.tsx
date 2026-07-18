@@ -1,5 +1,8 @@
 import { Head } from '@inertiajs/react';
 
+/* Inertia's Head component uses the non-standard head-key attribute to deduplicate tags. */
+/* eslint-disable react/no-unknown-property */
+
 type SeoPayload = {
     title?: string;
     description?: string;

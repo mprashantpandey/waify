@@ -201,8 +201,8 @@ export default function WhatsAppCallingIndex({
 
     const connectionStatus = selectedConnection?.calling_enabled
         ? 'enabled'
-        : selectedConnection?.calling_status || form.data.calling_eligibility_status || 'unknown';
-    const metaCallingReady = Boolean(selectedConnection?.calling_enabled || form.data.calling_eligibility_status === 'eligible');
+        : selectedConnection?.calling_status || 'not_enabled';
+    const metaCallingReady = Boolean(selectedConnection?.calling_enabled);
     const webhookReady = Boolean(selectedConnection?.calling_webhook_subscribed);
     const routingReady = Boolean(diagnostics?.eligible);
     const callStatuses = useMemo(() => Array.from(new Set(calls.map((call) => call.status).filter(Boolean))).sort(), [calls]);
@@ -278,10 +278,10 @@ export default function WhatsAppCallingIndex({
                                             </div>
                                             <div className="flex flex-wrap gap-2">
                                                 <Badge variant={metaCallingReady ? 'success' : 'warning'}>
-                                                    {metaCallingReady ? 'Meta enabled' : 'Meta pending'}
+                                                    {metaCallingReady ? 'Calling enabled' : 'Calling disabled'}
                                                 </Badge>
                                                 <Badge variant={webhookReady ? 'success' : 'warning'}>
-                                                    {webhookReady ? 'Webhook ready' : 'Webhook pending'}
+                                                    {webhookReady ? 'Calls webhook ready' : 'Calls webhook pending'}
                                                 </Badge>
                                                 <Badge variant={routingReady ? 'success' : 'warning'}>
                                                     {routingReady ? 'Routing ready' : 'Routing setup needed'}

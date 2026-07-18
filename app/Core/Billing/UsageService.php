@@ -23,12 +23,16 @@ class UsageService
      */
     public function getCurrentUsage(Account $account): AccountUsage
     {
-        $period = $this->getCurrentPeriod();
+        return $this->reconcileMessageUsage($account, $this->usageRecord($account));
+    }
 
-        $usage = AccountUsage::firstOrCreate(
+    protected function usageRecord(Account $account): AccountUsage
+    {
+        return AccountUsage::firstOrCreate(
             [
                 'account_id' => $account->id,
-                'period' => $period],
+                'period' => $this->getCurrentPeriod(),
+            ],
             [
                 'messages_sent' => 0,
                 'template_sends' => 0,
@@ -45,10 +49,9 @@ class UsageService
                 'meta_conversations_authentication' => 0,
                 'meta_conversations_service' => 0,
                 'meta_estimated_cost_minor' => 0,
-                'storage_bytes' => 0]
+                'storage_bytes' => 0,
+            ]
         );
-
-        return $this->reconcileMessageUsage($account, $usage);
     }
 
     protected function reconcileMessageUsage(Account $account, AccountUsage $usage): AccountUsage
@@ -97,7 +100,7 @@ class UsageService
      */
     public function incrementMessages(Account $account, int $count = 1): void
     {
-        $usage = $this->getCurrentUsage($account);
+        $usage = $this->usageRecord($account);
         $usage->increment('messages_sent', $count);
     }
 
@@ -111,7 +114,7 @@ class UsageService
      */
     public function incrementTemplateSends(Account $account, int $count = 1): void
     {
-        $usage = $this->getCurrentUsage($account);
+        $usage = $this->usageRecord($account);
         $usage->increment('template_sends', $count);
     }
 
@@ -125,13 +128,13 @@ class UsageService
      */
     public function incrementAiCredits(Account $account, int $count): void
     {
-        $usage = $this->getCurrentUsage($account);
+        $usage = $this->usageRecord($account);
         $usage->increment('ai_credits_used', $count);
     }
 
     public function recordAiRequest(Account $account, int $estimatedTokens = 0, int $estimatedCostMinor = 0, bool $chargeCredits = false): void
     {
-        $usage = $this->getCurrentUsage($account);
+        $usage = $this->usageRecord($account);
         $usage->increment('ai_requests');
 
         if ($estimatedTokens > 0) {
@@ -149,12 +152,12 @@ class UsageService
 
     public function incrementRazorpayPaymentLinksCreated(Account $account, int $count = 1): void
     {
-        $this->getCurrentUsage($account)->increment('razorpay_payment_links_created', $count);
+        $this->usageRecord($account)->increment('razorpay_payment_links_created', $count);
     }
 
     public function incrementRazorpayPaymentLinksPaid(Account $account, int $count = 1): void
     {
-        $this->getCurrentUsage($account)->increment('razorpay_payment_links_paid', $count);
+        $this->usageRecord($account)->increment('razorpay_payment_links_paid', $count);
     }
 
     /**
@@ -166,7 +169,7 @@ class UsageService
         ?string $category = null,
         int $estimatedCostMinor = 0
     ): void {
-        $usage = $this->getCurrentUsage($account);
+        $usage = $this->usageRecord($account);
 
         if ($billable) {
             $usage->increment('meta_conversations_paid', 1);

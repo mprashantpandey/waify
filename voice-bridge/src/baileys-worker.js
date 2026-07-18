@@ -74,6 +74,27 @@ async function zyptos(pathname, body) {
   return data;
 }
 
+async function zyptosGet(pathname) {
+  const response = await fetch(`${baseUrl}${pathname}`, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+      'X-Baileys-Bridge-Secret': secret,
+    },
+  });
+  const text = await response.text();
+  let data = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { message: text.slice(0, 200) };
+  }
+  if (!response.ok) {
+    throw new Error(data.message || `HTTP ${response.status}`);
+  }
+  return data;
+}
+
 function jidFromPhone(phone) {
   const digits = String(phone || '').replace(/\D+/g, '');
   if (!digits) throw new Error('Recipient phone is required.');
@@ -119,6 +140,15 @@ function resolveSenderPhone(item) {
   if (directPhone) return directPhone;
 
   return lidPhoneMap.get(remoteJid) || lidPhoneMap.get(participant) || '';
+}
+
+function fallbackSenderFromLid(item) {
+  const remoteJid = item?.key?.remoteJid || '';
+  const participant = item?.key?.participant || '';
+  const lid = [remoteJid, participant].find((value) => isLidJid(value)) || '';
+  const fallback = String(lid).split('@')[0].replace(/\D+/g, '');
+
+  return fallback ? { from: fallback, lid } : { from: '', lid };
 }
 
 function extractText(message) {
@@ -261,12 +291,15 @@ async function startSession(connectionId, options = {}) {
       if (item?.key?.fromMe || remoteJid.endsWith('@g.us') || remoteJid.includes('@broadcast') || remoteJid.includes('@newsletter')) {
         continue;
       }
-      const phone = resolveSenderPhone(item);
+      const resolvedPhone = resolveSenderPhone(item);
+      const fallback = resolvedPhone ? { from: resolvedPhone, lid: '' } : fallbackSenderFromLid(item);
+      const phone = resolvedPhone || fallback.from;
       if (!phone || !item.message) {
-        if (isLidJid(remoteJid)) {
-          logger.warn({ connectionId: key, remoteJid, messageId: item?.key?.id }, 'Skipped inbound Baileys message with unresolved LID sender');
-        }
         continue;
+      }
+
+      if (!resolvedPhone && fallback.lid) {
+        logger.warn({ connectionId: key, remoteJid, lid: fallback.lid, messageId: item?.key?.id }, 'Pushing inbound Baileys message with unresolved LID fallback');
       }
 
       try {
@@ -281,6 +314,8 @@ async function startSession(connectionId, options = {}) {
             message: item.message,
             baileys_key: item.key,
             remote_jid: remoteJid,
+            unresolved_lid: fallback.lid || null,
+            sender_resolution: resolvedPhone ? 'phone' : 'lid_fallback',
           },
         });
       } catch (error) {
@@ -335,6 +370,25 @@ async function sendMedia(connectionId, to, type, url, caption = '', filename = '
   session.lastSendAt = Date.now();
 
   return result?.key?.id || `baileys-${Date.now()}`;
+}
+
+async function hydrateActiveSessions() {
+  try {
+    const data = await zyptosGet('/api/baileys-bridge/connections');
+    const activeConnections = Array.isArray(data.connections) ? data.connections : [];
+    for (const connection of activeConnections) {
+      const id = connection?.id;
+      if (!id) continue;
+      startSession(id).catch((error) => {
+        logger.error({ connectionId: id, error: error.message }, 'Unable to hydrate Baileys session');
+      });
+    }
+    if (activeConnections.length) {
+      logger.info({ count: activeConnections.length }, 'Hydrating active Baileys sessions');
+    }
+  } catch (error) {
+    logger.warn({ error: error.message }, 'Unable to load active Baileys sessions');
+  }
 }
 
 const server = http.createServer(async (req, res) => {
@@ -398,4 +452,5 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(port, '127.0.0.1', () => {
   console.log(`Zyptos Baileys bridge listening on 127.0.0.1:${port}`);
+  hydrateActiveSessions();
 });

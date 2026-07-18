@@ -276,6 +276,10 @@ class PlatformSettingsController extends Controller
      */
     public function update(Request $request)
     {
+        $request->merge([
+            'performance' => $this->normalizePerformanceSettings((array) $request->input('performance', [])),
+        ]);
+
         $validated = $request->validate([
             // General
             'general.platform_url' => 'nullable|url|max:255',
@@ -365,7 +369,7 @@ class PlatformSettingsController extends Controller
             'compliance.allow_data_export' => 'nullable|boolean',
             'compliance.allow_data_deletion' => 'nullable|boolean',
             // Performance
-            'performance.cache_driver' => 'nullable|string|in:file,redis,memcached,database',
+            'performance.cache_driver' => 'nullable|string|in:file,redis,memcached,database,array,null',
             'performance.cache_ttl' => 'nullable|integer|min:60',
             'performance.cache_enabled' => 'nullable|boolean',
             'performance.queue_connection' => 'nullable|string|in:database,redis,sqs,beanstalkd',
@@ -591,6 +595,31 @@ class PlatformSettingsController extends Controller
 
         return redirect()->route('platform.settings')
             ->with('success', 'Settings updated successfully.');
+    }
+
+    private function normalizePerformanceSettings(array $performance): array
+    {
+        if (array_key_exists('cache_driver', $performance)) {
+            $cacheDriver = strtolower(trim((string) $performance['cache_driver']));
+            $cacheDriver = $cacheDriver === '' || $cacheDriver === 'default'
+                ? (string) config('cache.default', 'file')
+                : $cacheDriver;
+
+            $performance['cache_driver'] = match ($cacheDriver) {
+                'apc', 'apcu' => 'array',
+                'none' => 'null',
+                default => $cacheDriver,
+            };
+        }
+
+        if (array_key_exists('queue_connection', $performance)) {
+            $queueConnection = strtolower(trim((string) $performance['queue_connection']));
+            $performance['queue_connection'] = $queueConnection === '' || $queueConnection === 'default'
+                ? (string) config('queue.default', 'database')
+                : $queueConnection;
+        }
+
+        return $performance;
     }
 
     public function testMail(Request $request)

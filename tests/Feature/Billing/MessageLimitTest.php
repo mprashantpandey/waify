@@ -40,8 +40,14 @@ class MessageLimitTest extends TestCase
         $initialUsage = $usageService->getCurrentUsage($account);
         $initialCount = $initialUsage->messages_sent;
 
-        // Mock successful send (we'll need to mock WhatsAppClient)
-        // For now, just test the usage increment logic
+        \App\Modules\WhatsApp\Models\WhatsAppMessage::factory()->create([
+            'account_id' => $account->id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'direction' => 'outbound',
+            'status' => 'sent',
+            'sent_at' => now(),
+        ]);
+
         $usageService->incrementMessages($account, 1);
 
         $finalUsage = $usageService->getCurrentUsage($account);
@@ -54,10 +60,6 @@ class MessageLimitTest extends TestCase
         $account = $this->createAccountWithPlan('starter');
         $user = $this->actingAsAccountOwner($account);
 
-        // Set usage near limit
-        $this->setUsage($account, now()->format('Y-m'), 5000, 0);
-
-        // Try to send message (should be blocked)
         $connection = \App\Modules\WhatsApp\Models\WhatsAppConnection::factory()->create([
             'account_id' => $account->id,
         ]);
@@ -69,6 +71,31 @@ class MessageLimitTest extends TestCase
             'whatsapp_connection_id' => $connection->id,
             'whatsapp_contact_id' => $contact->id,
         ]);
+
+        \App\Modules\WhatsApp\Models\WhatsAppMessage::factory()->create([
+            'account_id' => $account->id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'direction' => 'inbound',
+            'received_at' => now(),
+        ]);
+
+        $rows = [];
+        $now = now();
+        for ($i = 0; $i < 5000; $i++) {
+            $rows[] = [
+                'account_id' => $account->id,
+                'whatsapp_conversation_id' => $conversation->id,
+                'direction' => 'outbound',
+                'meta_message_id' => 'wamid.quota-'.$i,
+                'type' => 'text',
+                'text_body' => 'Quota seed',
+                'status' => 'sent',
+                'sent_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+        \App\Modules\WhatsApp\Models\WhatsAppMessage::insert($rows);
 
         $response = $this->post(route('app.whatsapp.conversations.send', [
             'account' => $account->slug,

@@ -38,7 +38,7 @@ class WorkspaceTest extends TestCase
         );
     }
 
-    public function test_owner_can_create_and_switch_to_new_workspace(): void
+    public function test_owner_can_create_workspace_and_is_sent_to_checkout_when_payment_required(): void
     {
         $account = $this->createAccountWithPlan('starter');
         $owner = $this->actingAsAccountOwner($account);
@@ -51,8 +51,11 @@ class WorkspaceTest extends TestCase
             'plan_key' => $freePlan->key,
         ]);
 
-        $response->assertRedirect(route('app.dashboard'));
-        $response->assertSessionHas('success');
+        $response->assertRedirect(route('app.billing.index', [
+            'tab' => 'plans',
+            'checkout_plan' => $freePlan->key,
+        ]));
+        $response->assertSessionHas('error');
 
         $workspace = Account::where('name', 'Client Workspace')->firstOrFail();
 
@@ -64,6 +67,7 @@ class WorkspaceTest extends TestCase
         $this->assertDatabaseHas('subscriptions', [
             'account_id' => $workspace->id,
             'plan_id' => $freePlan->id,
+            'status' => 'past_due',
         ]);
         $this->assertDatabaseHas('account_modules', [
             'account_id' => $workspace->id,

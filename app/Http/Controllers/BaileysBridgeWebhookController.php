@@ -12,6 +12,28 @@ class BaileysBridgeWebhookController extends Controller
 {
     public function __construct(protected ConnectionService $connectionService) {}
 
+    public function connections(Request $request)
+    {
+        $this->authorizeBridge($request);
+
+        $connections = WhatsAppConnection::query()
+            ->where('connection_mode', 'baileys_qr')
+            ->where('is_active', true)
+            ->whereIn('qr_status', ['connected', 'starting', 'qr_pending'])
+            ->get(['id', 'qr_status', 'business_phone'])
+            ->map(fn (WhatsAppConnection $connection) => [
+                'id' => $connection->id,
+                'status' => $connection->qr_status,
+                'phone' => $connection->business_phone,
+            ])
+            ->values();
+
+        return response()->json([
+            'ok' => true,
+            'connections' => $connections,
+        ]);
+    }
+
     public function status(Request $request, $connection)
     {
         $this->authorizeBridge($request);
@@ -132,8 +154,11 @@ class BaileysBridgeWebhookController extends Controller
             return $value;
         }
 
-        return WhatsAppConnection::where('id', $value)
-            ->orWhere('slug', (string) $value)
+        return WhatsAppConnection::query()
+            ->where(function ($query) use ($value) {
+                $query->where('id', $value)
+                    ->orWhere('slug', (string) $value);
+            })
             ->firstOrFail();
     }
 }

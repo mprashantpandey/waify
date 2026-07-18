@@ -20,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\EnforceRateLimits::class,
             \App\Http\Middleware\EnforcePasswordPolicy::class,
             \App\Http\Middleware\EnsureTwoFactorVerified::class,
+            \App\Http\Middleware\EnsureMaintenanceMode::class,
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
@@ -27,7 +28,6 @@ return Application::configure(basePath: dirname(__DIR__))
         // Request correlation ID first (so all logs can include it)
         $middleware->web(prepend: [
             \App\Http\Middleware\AddRequestCorrelationId::class,
-            \App\Http\Middleware\EnsureMaintenanceMode::class,
         ]);
 
         // Exclude broadcasting/auth and webhooks from CSRF verification
@@ -126,19 +126,31 @@ return Application::configure(basePath: dirname(__DIR__))
             if (app()->environment('production')) {
                 // For webhook routes, always return generic errors
                 if ($request->is('webhooks/*')) {
-                    return response()->json([
+                    $statusCode = $e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+                        ? $e->getStatusCode()
+                        : (isset($e->status) ? (int) $e->status : 500);
+
+                    return new \Symfony\Component\HttpFoundation\JsonResponse([
                         'success' => false,
-                        'error' => 'An error occurred processing the webhook',
-                    ], 500);
+                        'error' => $statusCode >= 500
+                            ? 'An error occurred processing the webhook'
+                            : \Symfony\Component\HttpFoundation\Response::$statusTexts[$statusCode] ?? 'Webhook request rejected',
+                    ], $statusCode);
                 }
 
                 // For API routes, return JSON errors without stack traces
                 // Only handle if it's not already handled by Laravel's default handler
                 if ($request->expectsJson() && ! $request->header('X-Inertia')) {
-                    $statusCode = method_exists($e, 'getStatusCode') ? $e->getStatusCode() : 500;
+                    $statusCode = $e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface
+                        ? $e->getStatusCode()
+                        : (isset($e->status) ? (int) $e->status : 500);
 
-                    return response()->json([
-                        'message' => $e->getMessage() ?: 'Server error',
+                    $safeMessage = $statusCode >= 500
+                        ? 'Server error'
+                        : ($e->getMessage() ?: 'Request rejected');
+
+                    return new \Symfony\Component\HttpFoundation\JsonResponse([
+                        'message' => $safeMessage,
                         'error' => 'Server error',
                     ], $statusCode);
                 }

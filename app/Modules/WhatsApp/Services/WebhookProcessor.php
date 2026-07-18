@@ -650,7 +650,8 @@ class WebhookProcessor
                 return;
             }
 
-            $fromWaId = $messageData['from'] ?? null;
+            $contactIdentity = $this->extractWhatsAppContactIdentity($value, $messageData);
+            $fromWaId = $contactIdentity['wa_id'] ?? null;
             if (! $fromWaId) {
                 $this->markWebhookEvent($connection, $eventKey, 'skipped', 'Missing sender wa_id.');
 
@@ -664,23 +665,53 @@ class WebhookProcessor
             // Get or create contact with lock to prevent conflicts with ContactService
             $ctwa = $this->extractCtwaReferral($messageData);
 
-            $contact = DB::transaction(function () use ($connection, $fromWaId, $contactName, $ctwa) {
+            $contact = DB::transaction(function () use ($connection, $fromWaId, $contactName, $ctwa, $contactIdentity) {
                 $contact = WhatsAppContact::withTrashed()
                     ->lockForUpdate()
-                    ->firstOrNew([
+                    ->where('account_id', $connection->account_id)
+                    ->where(function ($query) use ($fromWaId, $contactIdentity) {
+                        $query->where('wa_id', $fromWaId);
+
+                        if (! empty($contactIdentity['business_scoped_user_id'])) {
+                            $query->orWhere('business_scoped_user_id', $contactIdentity['business_scoped_user_id']);
+                        }
+
+                        if (! empty($contactIdentity['phone_wa_id'])) {
+                            $query->orWhere('wa_id', $contactIdentity['phone_wa_id']);
+                        }
+                    })
+                    ->first();
+
+                if (! $contact) {
+                    $contact = new WhatsAppContact([
                         'account_id' => $connection->account_id,
-                        'wa_id' => $fromWaId]);
+                        'wa_id' => $contactIdentity['phone_wa_id'] ?: $fromWaId,
+                    ]);
+                }
 
                 if ($contact->exists && method_exists($contact, 'trashed') && $contact->trashed()) {
                     $contact->restore();
                 }
 
-                if (! $contact->exists) {
-                    $contact->fill([
-                        'name' => $contactName,
-                        'source' => $ctwa ? 'ctwa' : 'webhook']);
-                    $contact->save();
+                $updates = [
+                    'business_scoped_user_id' => $contactIdentity['business_scoped_user_id'] ?: $contact->business_scoped_user_id,
+                    'parent_business_scoped_user_id' => $contactIdentity['parent_business_scoped_user_id'] ?: $contact->parent_business_scoped_user_id,
+                    'whatsapp_username' => $contactIdentity['whatsapp_username'] ?: $contact->whatsapp_username,
+                    'phone' => $contactIdentity['phone_wa_id'] ?: $contact->phone,
+                ];
+
+                // Prefer a real phone as wa_id once known so outbound Cloud API sends stay addressable.
+                if (! empty($contactIdentity['phone_wa_id'])) {
+                    $updates['wa_id'] = $contactIdentity['phone_wa_id'];
                 }
+
+                if (! $contact->exists) {
+                    $updates['name'] = $contactName;
+                    $updates['source'] = $ctwa ? 'ctwa' : 'webhook';
+                }
+
+                $contact->fill(array_filter($updates, fn ($value) => $value !== null && $value !== ''));
+                $contact->save();
 
                 if ($ctwa) {
                     $metadata = is_array($contact->metadata) ? $contact->metadata : [];
@@ -1113,8 +1144,15 @@ class WebhookProcessor
             }
 
             if (! $message && ! $campaignMessage) {
-                $this->markWebhookEvent($connection, $eventKey, 'failed', 'Message not found for status update.');
-                throw new WebhookEventLockedException('Message not found for status update.');
+                $this->markWebhookEvent($connection, $eventKey, 'skipped', 'Message not found for status update.');
+                Log::channel('whatsapp')->info('Skipped status update for unknown Meta message', [
+                    'connection_id' => $connection->id,
+                    'account_id' => $connection->account_id,
+                    'meta_message_id' => $metaMessageId,
+                    'status' => $status,
+                ]);
+
+                return;
             }
 
             $timestamp = isset($statusData['timestamp']) ? (int) $statusData['timestamp'] : null;
@@ -1752,6 +1790,49 @@ class WebhookProcessor
         }
 
         return (bool) $value;
+    }
+
+    protected function extractWhatsAppContactIdentity(array $value, array $messageData): array
+    {
+        $contactData = $value['contacts'][0] ?? [];
+        $profile = is_array($contactData['profile'] ?? null) ? $contactData['profile'] : [];
+
+        $from = $messageData['from'] ?? null;
+        $contactWaId = $contactData['wa_id'] ?? null;
+        $businessScopedUserId = $messageData['from_user_id']
+            ?? $messageData['user_id']
+            ?? $contactData['user_id']
+            ?? $contactData['business_scoped_user_id']
+            ?? null;
+        $parentBusinessScopedUserId = $messageData['parent_user_id']
+            ?? $contactData['parent_user_id']
+            ?? $contactData['parent_business_scoped_user_id']
+            ?? null;
+        $username = $messageData['username']
+            ?? $contactData['username']
+            ?? $profile['username']
+            ?? null;
+
+        $phoneWaId = null;
+        foreach ([$contactWaId, $from] as $candidate) {
+            if (WhatsAppContact::looksLikePhoneIdentifier(is_string($candidate) ? $candidate : null)) {
+                $phoneWaId = preg_replace('/\D+/', '', (string) $candidate);
+                break;
+            }
+        }
+
+        $primaryWaId = $phoneWaId
+            ?: (is_string($businessScopedUserId) && trim($businessScopedUserId) !== '' ? trim($businessScopedUserId) : null)
+            ?: (is_string($contactWaId) && trim($contactWaId) !== '' ? trim($contactWaId) : null)
+            ?: (is_string($from) && trim($from) !== '' ? trim($from) : null);
+
+        return [
+            'wa_id' => $primaryWaId,
+            'phone_wa_id' => $phoneWaId,
+            'business_scoped_user_id' => is_string($businessScopedUserId) ? trim($businessScopedUserId) : null,
+            'parent_business_scoped_user_id' => is_string($parentBusinessScopedUserId) ? trim($parentBusinessScopedUserId) : null,
+            'whatsapp_username' => is_string($username) ? ltrim(trim($username), '@') : null,
+        ];
     }
 
     /**

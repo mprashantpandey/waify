@@ -114,8 +114,8 @@ class OnboardingController extends Controller
             'enabled' => $enabled,
             'appId' => $enabled ? $appId : null,
             'configId' => $enabled ? $configId : null,
-            'coexistenceEnabled' => (bool) ($enabled && $coexistenceConfigId),
-            'coexistenceConfigId' => $enabled ? $coexistenceConfigId : null,
+            'coexistenceEnabled' => (bool) ($enabled && filled($coexistenceConfigId)),
+            'coexistenceConfigId' => $enabled && filled($coexistenceConfigId) ? $coexistenceConfigId : null,
             'apiVersion' => $apiVersion ?: 'v25.0',
         ];
     }

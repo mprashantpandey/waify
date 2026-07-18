@@ -90,6 +90,13 @@ class RealtimeTest extends TestCase
             'whatsapp_connection_id' => $this->connection->id,
             'whatsapp_contact_id' => $contact->id,
         ]);
+        WhatsAppMessage::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'direction' => 'inbound',
+            'received_at' => now(),
+            'created_at' => now(),
+        ]);
 
         $response = $this->actingAs($this->user)
             ->post('/broadcasting/auth', [
@@ -358,6 +365,13 @@ class RealtimeTest extends TestCase
             'account_id' => $this->account->id,
             'whatsapp_connection_id' => $this->connection->id,
             'whatsapp_contact_id' => $contact->id,
+        ]);
+        WhatsAppMessage::factory()->create([
+            'account_id' => $this->account->id,
+            'whatsapp_conversation_id' => $conversation->id,
+            'direction' => 'inbound',
+            'received_at' => now(),
+            'created_at' => now(),
         ]);
 
         $response = $this->actingAs($this->user)
